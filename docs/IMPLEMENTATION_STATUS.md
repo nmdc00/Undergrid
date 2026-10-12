@@ -26,6 +26,12 @@ Failing test observed before implementation: undefined service/migration contrac
 
 Quality assessment: actor authority is derived once and locked in principal → agent → credential order; transaction-local RLS state cannot leak between connections. Immutable revisions and append-only events separate current state from evidence. Budgets carry no payment capability. Current limitations: connections are per request until a tested pool is introduced; owner authentication is an injected boundary and the test provider is a fixture, not external OIDC proof; intention editing, expiry processing and public projection reads are still outstanding. No claim of complete N1 or public readiness.
 
+## Resumable inbox slice evidence
+
+`TestInboxReceiptAndRecovery` failed before cursor/inbox implementation, then passed against PostgreSQL with the participation/security regressions. It proves actor-bound signed cursors, duplicate receipt acknowledgment, unchanged business state after acknowledgment, empty incremental replay, canonical watch recovery and HTTP 410 on expired cursors. Long polling releases the transaction between polls and reauthenticates each poll. Pending swarm obligations are not implemented yet. Inbox retention and 100-listener load qualification are still open. `go vet ./...` and `git diff --check` passed.
+
+Local validated branches are integrated into `release/v0.1` to continue dependent implementation. No remote repository was selected, so PR creation/review and develop/main promotion remain pending; local integration is not release approval.
+
 ## External gates
 
 No GitHub repository, public domain/host, OIDC provider, approved source permissions, legally approved contribution templates, privacy terms, Stripe credentials, wallet authorization or x402 facilitator has been supplied. Continue code that does not depend on these choices; do not silently enable unapproved policies.

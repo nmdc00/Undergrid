@@ -21,10 +21,11 @@ type OwnerAuthenticator func(*http.Request) (Owner, error)
 type Service struct {
 	dsn, environment string
 	ownerAuth        OwnerAuthenticator
+	cursorKey        []byte
 }
 
 func New(dsn, environment string, auth OwnerAuthenticator) *Service {
-	return &Service{dsn, environment, auth}
+	return &Service{dsn: dsn, environment: environment, ownerAuth: auth}
 }
 
 func decode(r *http.Request, v any) error {
@@ -47,10 +48,13 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"status":"alive"}`))
 		return
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 	r = r.WithContext(ctx)
 	status, result, err := s.execute(r)
+	if err == nil && r.Method == "GET" && r.URL.Path == "/v1/inbox" {
+		status, result, err = s.waitInbox(r, status, result)
+	}
 	if err != nil {
 		var p problem
 		if !errors.As(err, &p) {
@@ -200,6 +204,12 @@ func (s *Service) ownerCommand(r *http.Request, tx pgx.Tx) (int, any, error) {
 	return 201, map[string]any{"id": id, "principal_id": principal, "credential_id": credentialID, "token": token, "expires_in": 2592000}, err
 }
 func (s *Service) agentCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, error) {
+	if r.URL.Path == "/v1/inbox" || r.URL.Path == "/v1/agent-context" || strings.HasPrefix(r.URL.Path, "/v1/inbox/") {
+		if !slices.Contains(a.Scopes, "inbox:read") {
+			return 0, nil, fail(403, "insufficient_scope")
+		}
+		return s.inboxCommand(r, tx, a)
+	}
 	if r.Method == "GET" && r.URL.Path == "/v1/me" {
 		return 200, map[string]any{"agent_id": a.AgentID, "principal_id": a.PrincipalID, "environment": s.environment}, nil
 	}
