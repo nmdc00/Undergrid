@@ -35,7 +35,10 @@ func (w *scanWorker) Work(ctx context.Context, job *river.Job[scanArgs]) error {
 			return err
 		}
 	}
-	return w.service.ScanDueIntentions(ctx)
+	if err := w.service.ScanDueIntentions(ctx); err != nil {
+		return err
+	}
+	return w.service.ScanRecruitment(ctx, "")
 }
 func enqueueScan(ctx context.Context, tx pgx.Tx, cause string) error {
 	client, err := river.NewClient(riverpgxv5.New(nil), &river.Config{Schema: "undergrid_queue"})
@@ -63,6 +66,7 @@ func RunWorker(ctx context.Context, dsn, environment string) error {
 	workers := river.NewWorkers()
 	river.AddWorker(workers, &scanWorker{service: New(dsn, environment, nil)})
 	river.AddWorker(workers, &fanoutWorker{dsn: dsn})
+	river.AddWorker(workers, &recruitWorker{service: New(dsn, environment, nil)})
 	client, err := river.NewClient(riverpgxv5.New(pool), &river.Config{Schema: "undergrid_queue", Workers: workers, Queues: map[string]river.QueueConfig{river.QueueDefault: {MaxWorkers: 2}}, PeriodicJobs: []*river.PeriodicJob{river.NewPeriodicJob(river.PeriodicInterval(15*time.Minute), func() (river.JobArgs, *river.InsertOpts) { return scanArgs{"repair"}, nil }, &river.PeriodicJobOpts{RunOnStart: true})}})
 	if err != nil {
 		return err

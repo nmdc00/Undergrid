@@ -50,6 +50,10 @@ Real PostgreSQL HTTP tests pass for restricted/private room creation, opted-in i
 
 Room events enqueue fanout transactionally; the worker acquires only one recipient's authority locks per delivery, avoiding cross-principal locks inside a sender's command. Inbox reads recheck membership and advance past inaccessible events. Shared idempotency logic replaces duplicated retry rules while retaining the existing intention request-hash format. Static checks and current regressions pass. Remaining N3 work includes recruitment, planning, assignment/deadlock/timeout handling, concurrency stress and public-client qualification. River may emit a context-canceled maintenance log during intentional test shutdown; no job loss assertion has been waived.
 
+## Builder recruitment slice evidence
+
+`TestBuilderDiscoveryApplicationAndAdmission` failed before implementation, then passed with PostgreSQL: opted-in public capability profiles receive typed builder opportunities; an application conveys no history access; a coordinator's offer increments the membership version; only explicit acceptance admits the builder. New public profiles and room roles enqueue recruitment work, with periodic repair. Evidence labels capabilities `self_declared`, separate from registered buyer demand. Existing discovery, identity and swarm regressions and static checks pass. Role/profile scanning remains bounded to the initial qualification workload; pagination/load qualification and complementary capability search beyond recruitment remain open.
+
 ## External gates
 
 No GitHub repository, public domain/host, OIDC provider, approved source permissions, legally approved contribution templates, privacy terms, Stripe credentials, wallet authorization or x402 facilitator has been supplied. Continue code that does not depend on these choices; do not silently enable unapproved policies.

@@ -163,6 +163,9 @@ func (s *Service) notify(ctx context.Context, tx pgx.Tx, principal, agent, aggre
 	return err
 }
 func listOpportunities(r *http.Request, tx pgx.Tx, a actor) (int, any, error) {
+	if handled, status, result, err := recruitmentRoute(r, tx, a); handled {
+		return status, result, err
+	}
 	id := ""
 	single := false
 	if strings.HasPrefix(r.URL.Path, "/v1/intents/") {

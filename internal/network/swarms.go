@@ -58,6 +58,8 @@ func (s *Service) swarmCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, e
 		switch action {
 		case "invitations":
 			return s.invite(r, tx, a, id)
+		case "applications":
+			return s.applyToSwarm(r, tx, a, id)
 		case "membership-response":
 			return s.respondMembership(r, tx, a, id)
 		case "messages":
@@ -109,6 +111,9 @@ func (s *Service) createSwarm(r *http.Request, tx pgx.Tx, a actor) (int, any, er
 	if err = s.roomEvent(r.Context(), tx, a, id, 1, "swarm.created", id, "/v1/swarms/"+id+"/context"); err != nil {
 		return 0, nil, err
 	}
+	if err = enqueueRecruitment(r.Context(), tx, id); err != nil {
+		return 0, nil, err
+	}
 	return 201, map[string]any{"id": id, "version": 1, "etag": etag(1), "visibility": in.Visibility, "history_policy": "full"}, nil
 }
 func roomAuthority(ctx context.Context, tx pgx.Tx, a actor, id string, coordinator bool) error {
@@ -149,25 +154,41 @@ func (s *Service) invite(r *http.Request, tx pgx.Tx, a actor, swarm string) (int
 		return 0, nil, fail(422, "invalid_invitation")
 	}
 	var principal string
-	err := tx.QueryRow(r.Context(), "SELECT principal_id FROM invitation_target($1)", in.AgentID).Scan(&principal)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return 0, nil, fail(404, "invitation_target_unavailable")
-	}
-	if err != nil {
-		return 0, nil, err
-	}
 	id := NewID()
-	tag, err := tx.Exec(r.Context(), "INSERT INTO memberships(id,swarm_id,agent_id,principal_id,state,role,respond_by,origin) VALUES($1,$2,$3,$4,'offered',$5,$6,'invitation') ON CONFLICT(swarm_id,agent_id) DO NOTHING", id, swarm, in.AgentID, principal, in.Role, in.RespondBy)
-	if err != nil {
+	version := int64(1)
+	var err error
+	if in.ApplicationID != "" {
+		if !validID(in.ApplicationID) {
+			return 0, nil, fail(422, "invalid_application")
+		}
+		id = in.ApplicationID
+		err = tx.QueryRow(r.Context(), "UPDATE memberships SET state='offered',role=$4,respond_by=$5,version=version+1 WHERE id=$1 AND swarm_id=$2 AND agent_id=$3 AND state='applied' RETURNING principal_id,version", id, swarm, in.AgentID, in.Role, in.RespondBy).Scan(&principal, &version)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, nil, fail(409, "application_not_current")
+		}
+		if err != nil {
+			return 0, nil, err
+		}
+	} else {
+		err = tx.QueryRow(r.Context(), "SELECT principal_id FROM invitation_target($1)", in.AgentID).Scan(&principal)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, nil, fail(404, "invitation_target_unavailable")
+		}
+		if err != nil {
+			return 0, nil, err
+		}
+		tag, err := tx.Exec(r.Context(), "INSERT INTO memberships(id,swarm_id,agent_id,principal_id,state,role,respond_by,origin) VALUES($1,$2,$3,$4,'offered',$5,$6,'invitation') ON CONFLICT(swarm_id,agent_id) DO NOTHING", id, swarm, in.AgentID, principal, in.Role, in.RespondBy)
+		if err != nil {
+			return 0, nil, err
+		}
+		if tag.RowsAffected() == 0 {
+			return 0, nil, fail(409, "membership_exists")
+		}
+	}
+	if err = s.roomEvent(r.Context(), tx, a, id, version, "membership.offered", swarm, "/v1/invitations/"+id); err != nil {
 		return 0, nil, err
 	}
-	if tag.RowsAffected() == 0 {
-		return 0, nil, fail(409, "membership_exists")
-	}
-	if err = s.roomEvent(r.Context(), tx, a, id, 1, "membership.offered", swarm, "/v1/invitations/"+id); err != nil {
-		return 0, nil, err
-	}
-	return 201, map[string]any{"id": id, "version": 1, "etag": etag(1), "state": "offered", "history_policy": "full", "respond_by": in.RespondBy}, nil
+	return 201, map[string]any{"id": id, "version": version, "etag": etag(version), "state": "offered", "history_policy": "full", "respond_by": in.RespondBy}, nil
 }
 func (s *Service) respondMembership(r *http.Request, tx pgx.Tx, a actor, swarm string) (int, any, error) {
 	var in struct {

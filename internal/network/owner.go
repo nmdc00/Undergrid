@@ -161,5 +161,8 @@ func (s *Service) ownerCommand(r *http.Request, tx pgx.Tx) (int, any, error) {
 	if err == nil {
 		err = credentialEvent(ctx, tx, principal, credentialID, 1, "credential.issued", s.environment)
 	}
+	if err == nil && input.Profile.Public && input.Profile.Recruitment {
+		err = enqueueRecruitment(ctx, tx, "")
+	}
 	return 201, map[string]any{"id": id, "principal_id": principal, "credential_id": credentialID, "token": token, "expires_in": 2592000}, err
 }
