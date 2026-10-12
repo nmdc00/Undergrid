@@ -2,9 +2,7 @@ package network
 
 import (
 	"context"
-	"crypto/rand"
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"io"
@@ -22,6 +20,16 @@ type Service struct {
 	dsn, environment string
 	ownerAuth        OwnerAuthenticator
 	cursorKey        []byte
+	termsVersion     string
+}
+
+func (s *Service) Configure(cursorKey []byte, termsVersion string) error {
+	if len(cursorKey) != 32 || termsVersion == "" {
+		return errors.New("32-byte cursor key and approved terms version required")
+	}
+	s.cursorKey = append([]byte(nil), cursorKey...)
+	s.termsVersion = termsVersion
+	return nil
 }
 
 func New(dsn, environment string, auth OwnerAuthenticator) *Service {
@@ -84,7 +92,7 @@ func (s *Service) execute(r *http.Request) (int, any, error) {
 	}
 	var status int
 	var result any
-	if r.URL.Path == "/v1/principals" || r.URL.Path == "/v1/agents" {
+	if r.URL.Path == "/v1/principals" || r.URL.Path == "/v1/agents" || strings.HasPrefix(r.URL.Path, "/v1/owner/") {
 		status, result, err = s.ownerCommand(r, tx)
 	} else {
 		var a actor
@@ -137,72 +145,6 @@ func authenticate(ctx context.Context, tx pgx.Tx, authorization string) (actor, 
 	}
 	return a, err
 }
-func (s *Service) ownerCommand(r *http.Request, tx pgx.Tx) (int, any, error) {
-	if s.ownerAuth == nil {
-		return 0, nil, fail(503, "identity_provider_unconfigured")
-	}
-	o, err := s.ownerAuth(r)
-	if err != nil || !o.Verified || o.Issuer == "" || o.Subject == "" {
-		return 0, nil, fail(401, "verified_owner_required")
-	}
-	ctx := r.Context()
-	if _, err = tx.Exec(ctx, "SELECT set_config('undergrid.owner_issuer',$1,true),set_config('undergrid.owner_subject',$2,true)", o.Issuer, o.Subject); err != nil {
-		return 0, nil, err
-	}
-	if r.Method != "POST" {
-		return 0, nil, fail(405, "method_not_allowed")
-	}
-	if r.URL.Path == "/v1/principals" {
-		var input struct {
-			Name         string `json:"name"`
-			TermsVersion string `json:"terms_version"`
-		}
-		if err = decode(r, &input); err != nil {
-			return 0, nil, err
-		}
-		if len(input.Name) < 1 || len(input.Name) > 120 || input.TermsVersion == "" {
-			return 0, nil, fail(422, "name_and_terms_required")
-		}
-		id := NewID()
-		err = tx.QueryRow(ctx, "INSERT INTO principals(id,issuer,subject,name,terms_version) VALUES($1,$2,$3,$4,$5) ON CONFLICT(issuer,subject) DO UPDATE SET subject=excluded.subject RETURNING id", id, o.Issuer, o.Subject, input.Name, input.TermsVersion).Scan(&id)
-		return 201, map[string]any{"id": id}, err
-	}
-	var principal string
-	if err = tx.QueryRow(ctx, "SELECT id FROM principals WHERE issuer=$1 AND subject=$2 AND status='active' FOR UPDATE", o.Issuer, o.Subject).Scan(&principal); errors.Is(err, pgx.ErrNoRows) {
-		return 0, nil, fail(403, "registration_required")
-	}
-	if err != nil {
-		return 0, nil, err
-	}
-	var input struct {
-		Name   string   `json:"name"`
-		Scopes []string `json:"scopes"`
-	}
-	if err = decode(r, &input); err != nil {
-		return 0, nil, err
-	}
-	if len(input.Name) < 1 || len(input.Name) > 120 || len(input.Scopes) == 0 || len(input.Scopes) > 20 {
-		return 0, nil, fail(422, "invalid_agent")
-	}
-	for _, scope := range input.Scopes {
-		if !slices.Contains([]string{"intents:read", "intents:write", "inbox:read"}, scope) {
-			return 0, nil, fail(403, "scope_not_authorized")
-		}
-	}
-	id := NewID()
-	if _, err = tx.Exec(ctx, "INSERT INTO agents(id,principal_id,name) VALUES($1,$2,$3)", id, principal, input.Name); err != nil {
-		return 0, nil, err
-	}
-	secret := make([]byte, 32)
-	if _, err = rand.Read(secret); err != nil {
-		return 0, nil, err
-	}
-	token := "ug_" + base64.RawURLEncoding.EncodeToString(secret)
-	hash := sha256.Sum256([]byte(token))
-	credentialID := NewID()
-	_, err = tx.Exec(ctx, "INSERT INTO credentials(id,agent_id,digest,scopes,audience,expires_at) VALUES($1,$2,$3,$4,'undergrid-network',now()+interval '30 days')", credentialID, id, hash[:], input.Scopes)
-	return 201, map[string]any{"id": id, "principal_id": principal, "credential_id": credentialID, "token": token, "expires_in": 2592000}, err
-}
 func (s *Service) agentCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, error) {
 	if r.URL.Path == "/v1/inbox" || r.URL.Path == "/v1/agent-context" || strings.HasPrefix(r.URL.Path, "/v1/inbox/") {
 		if !slices.Contains(a.Scopes, "inbox:read") {
@@ -215,6 +157,9 @@ func (s *Service) agentCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, e
 	}
 	if r.Method == "DELETE" && r.URL.Path == "/v1/credentials/current" {
 		_, err := tx.Exec(r.Context(), "UPDATE credentials SET revoked_at=now() WHERE id=$1", a.CredentialID)
+		if err == nil {
+			err = credentialEvent(r.Context(), tx, a.PrincipalID, a.CredentialID, 2, "credential.revoked", s.environment)
+		}
 		return 200, map[string]bool{"revoked": true}, err
 	}
 	if r.Method == "GET" && strings.HasPrefix(r.URL.Path, "/v1/intents/") {

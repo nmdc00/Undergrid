@@ -51,6 +51,7 @@ func fixture(t *testing.T) (*Service, *pgx.Conn) {
 		return Owner{"https://fixture.test", r.Header.Get("X-Test-Owner"), true}, nil
 	})
 	s.cursorKey = bytes.Repeat([]byte{42}, 32)
+	s.termsVersion = "test-v1"
 	return s, db
 }
 func client(t *testing.T, s *Service) testClient {

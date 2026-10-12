@@ -32,6 +32,12 @@ Quality assessment: actor authority is derived once and locked in principal → 
 
 Local validated branches are integrated into `release/v0.1` to continue dependent implementation. No remote repository was selected, so PR creation/review and develop/main promotion remain pending; local integration is not release approval.
 
+## Interactive identity slice evidence
+
+The Go API binary builds. Owner login uses OIDC authorization code plus PKCE, nonce, issuer/audience/signature checks, verified email and recent authentication. Encrypted host-only Secure/HttpOnly cookies expire after 15 minutes; mutating owner requests require the configured Origin and CSRF token. API startup rejects database owners/superusers/RLS-bypass logins. Migrations are a separate command and credential. Agent ID-token authentication is not exposed.
+
+Local TLS cryptographic fixture tests pass for a valid flow and wrong nonce/audience/unverified email. Session tests pass for tamper/expiry/CSRF/origin rejection. `TestOwnerCanReviewAndRevokeOnlyOwnCredentials` first failed with HTTP 405, then passed; token issuance/revocation writes immutable credential events and lists expose neither tokens nor digests. Code review moved owner operations out of the transport file and centralized credential audit facts. All current tests and `go vet` pass. The fixture is not an external provider test. Credential rotation UI, owner policy editing, provider recovery and load/security qualification remain open.
+
 ## External gates
 
 No GitHub repository, public domain/host, OIDC provider, approved source permissions, legally approved contribution templates, privacy terms, Stripe credentials, wallet authorization or x402 facilitator has been supplied. Continue code that does not depend on these choices; do not silently enable unapproved policies.

@@ -32,6 +32,7 @@ func TestDurableParticipation(t *testing.T) {
 	service := New(dsn, "development", func(r *http.Request) (Owner, error) {
 		return Owner{Issuer: issuer, Subject: r.Header.Get("X-Test-Owner"), Verified: true}, nil
 	})
+	service.termsVersion = "test-v1"
 	call := func(owner, token, method, path, key, etag string, body any) (int, map[string]any) {
 		t.Helper()
 		raw, _ := json.Marshal(body)
