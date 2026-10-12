@@ -21,7 +21,7 @@ type Service struct {
 	ownerAuth        OwnerAuthenticator
 	cursorKey        []byte
 	termsVersion     string
-	templates map[string]ContributionTemplate
+	templates        map[string]ContributionTemplate
 }
 
 func (s *Service) Configure(cursorKey []byte, termsVersion string) error {
@@ -97,7 +97,7 @@ func (s *Service) execute(r *http.Request) (int, any, error) {
 		status, result, err = s.ownerCommand(r, tx)
 	} else {
 		var a actor
-		a, err = authenticate(ctx, tx, r.Header.Get("Authorization"),r.Method,r.URL.Path)
+		a, err = authenticate(ctx, tx, r.Header.Get("Authorization"), r.Method, r.URL.Path)
 		if err == nil {
 			status, result, err = s.agentCommand(r, tx, a)
 		}
@@ -110,7 +110,7 @@ func (s *Service) execute(r *http.Request) (int, any, error) {
 	}
 	return status, result, nil
 }
-func authenticate(ctx context.Context, tx pgx.Tx, authorization,method,path string) (actor, error) {
+func authenticate(ctx context.Context, tx pgx.Tx, authorization, method, path string) (actor, error) {
 	var a actor
 	token, ok := strings.CutPrefix(authorization, "Bearer ")
 	if !ok || !strings.HasPrefix(token, "ug_") {
@@ -127,15 +127,22 @@ func authenticate(ctx context.Context, tx pgx.Tx, authorization,method,path stri
 	if _, err = tx.Exec(ctx, "SELECT set_config('undergrid.principal_id',$1,true),set_config('undergrid.agent_id',$2,true)", a.PrincipalID, a.AgentID); err != nil {
 		return a, err
 	}
-	if method=="POST" && (strings.HasPrefix(path,"/v1/plans/")||strings.HasSuffix(path,"/assignment-response")) {
-		parts:=strings.Split(path,"/")
-		if len(parts)==5&&validID(parts[3]) {
-			planID:=parts[3]
-			if parts[2]=="tasks" {
-				err=tx.QueryRow(ctx,"SELECT plan_id FROM tasks WHERE id=$1",parts[3]).Scan(&planID)
-				if errors.Is(err,pgx.ErrNoRows) { return a,fail(404,"not_found") };if err!=nil { return a,err }
+	if method == "POST" && (strings.HasPrefix(path, "/v1/plans/") || strings.HasSuffix(path, "/assignment-response")) {
+		parts := strings.Split(path, "/")
+		if len(parts) == 5 && validID(parts[3]) {
+			planID := parts[3]
+			if parts[2] == "tasks" {
+				err = tx.QueryRow(ctx, "SELECT plan_id FROM tasks WHERE id=$1", parts[3]).Scan(&planID)
+				if errors.Is(err, pgx.ErrNoRows) {
+					return a, fail(404, "not_found")
+				}
+				if err != nil {
+					return a, err
+				}
 			}
-			if _,err=tx.Exec(ctx,"SELECT lock_plan_authorities($1)",planID);err!=nil { return a,err }
+			if _, err = tx.Exec(ctx, "SELECT lock_plan_authorities($1)", planID); err != nil {
+				return a, err
+			}
 		}
 	}
 	var state string
@@ -158,8 +165,12 @@ func authenticate(ctx context.Context, tx pgx.Tx, authorization,method,path stri
 	return a, err
 }
 func (s *Service) agentCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, error) {
-	if r.Method=="GET"&&r.URL.Path=="/v1/policies/contribution-templates" { return 200,s.publicTemplates(),nil }
-	if strings.HasPrefix(r.URL.Path,"/v1/plans/")||strings.HasPrefix(r.URL.Path,"/v1/tasks/") { return s.planCommand(r,tx,a) }
+	if r.Method == "GET" && r.URL.Path == "/v1/policies/contribution-templates" {
+		return 200, s.publicTemplates(), nil
+	}
+	if strings.HasPrefix(r.URL.Path, "/v1/plans/") || strings.HasPrefix(r.URL.Path, "/v1/tasks/") {
+		return s.planCommand(r, tx, a)
+	}
 	if r.Method == "GET" && strings.HasPrefix(r.URL.Path, "/v1/invitations/") {
 		if !slices.Contains(a.Scopes, "swarms:read") {
 			return 0, nil, fail(403, "insufficient_scope")

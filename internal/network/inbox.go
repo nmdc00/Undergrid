@@ -94,7 +94,11 @@ func (s *Service) inboxCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, e
 		if err != nil {
 			return 0, nil, err
 		}
-		return 200, map[string]any{"snapshot_id": NewID(), "inbox_cursor": s.encodeCursor(a.AgentID, sequence, time.Now()), "pending": pending, "intent_watches": watches, "swarm_refs": refs}, nil
+		assignments, err := assignmentSnapshot(ctx, tx, a)
+		if err != nil {
+			return 0, nil, err
+		}
+		return 200, map[string]any{"assignments": assignments, "snapshot_id": NewID(), "inbox_cursor": s.encodeCursor(a.AgentID, sequence, time.Now()), "pending": pending, "intent_watches": watches, "swarm_refs": refs}, nil
 	}
 	if r.Method == "POST" && strings.HasSuffix(r.URL.Path, "/ack") {
 		id := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/v1/inbox/"), "/ack")
