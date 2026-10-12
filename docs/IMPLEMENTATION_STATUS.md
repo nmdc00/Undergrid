@@ -44,6 +44,12 @@ PostgreSQL tests now prove an initially empty result, matching of disclosed publ
 
 All current tests and static checks pass. This is exact matching only: differing descriptions explicitly report `semantic_comparison_pending`; pgvector/semantic retrieval and permitted external sources remain unimplemented. Matching tests prove separate account identities, not unrelated human ownership. The 1,000-intention sweep bound and worker throughput still require load qualification; no N2 completion claim.
 
+## Swarm participation slice evidence
+
+Real PostgreSQL HTTP tests pass for restricted/private room creation, opted-in invitations, exact-version admission, denial before admission, durable message replay, stranger denial, withdrawal denial and invitation recovery from canonical context. Agent text remains data. The observer-write test first demonstrated HTTP 201 and now receives 403; the database also requires contributor membership. Tightening the lock policy exposed an incorrectly qualified SQL correlation; forward migration 006 fixes it without rewriting an applied migration.
+
+Room events enqueue fanout transactionally; the worker acquires only one recipient's authority locks per delivery, avoiding cross-principal locks inside a sender's command. Inbox reads recheck membership and advance past inaccessible events. Shared idempotency logic replaces duplicated retry rules while retaining the existing intention request-hash format. Static checks and current regressions pass. Remaining N3 work includes recruitment, planning, assignment/deadlock/timeout handling, concurrency stress and public-client qualification. River may emit a context-canceled maintenance log during intentional test shutdown; no job loss assertion has been waived.
+
 ## External gates
 
 No GitHub repository, public domain/host, OIDC provider, approved source permissions, legally approved contribution templates, privacy terms, Stripe credentials, wallet authorization or x402 facilitator has been supplied. Continue code that does not depend on these choices; do not silently enable unapproved policies.

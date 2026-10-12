@@ -16,6 +16,13 @@ type Owner struct {
 	Issuer, Subject string
 	Verified        bool
 }
+
+type AgentProfile struct {
+	Public            bool     `json:"public"`
+	AcceptInvitations bool     `json:"accept_invitations"`
+	Recruitment       bool     `json:"recruitment"`
+	Capabilities      []string `json:"capabilities"`
+}
 type actor struct {
 	PrincipalID, AgentID, CredentialID string
 	Scopes                             []string

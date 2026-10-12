@@ -89,7 +89,12 @@ func (s *Service) inboxCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, e
 		if err = rows.Err(); err != nil {
 			return 0, nil, err
 		}
-		return 200, map[string]any{"snapshot_id": NewID(), "inbox_cursor": s.encodeCursor(a.AgentID, sequence, time.Now()), "pending": []any{}, "intent_watches": watches, "swarm_refs": []any{}}, nil
+		rows.Close()
+		pending, refs, err := membershipSnapshot(ctx, tx, a)
+		if err != nil {
+			return 0, nil, err
+		}
+		return 200, map[string]any{"snapshot_id": NewID(), "inbox_cursor": s.encodeCursor(a.AgentID, sequence, time.Now()), "pending": pending, "intent_watches": watches, "swarm_refs": refs}, nil
 	}
 	if r.Method == "POST" && strings.HasSuffix(r.URL.Path, "/ack") {
 		id := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/v1/inbox/"), "/ack")
@@ -126,7 +131,11 @@ func (s *Service) inboxCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, e
 			return 0, nil, fail(400, "invalid_limit")
 		}
 	}
-	rows, err := tx.Query(ctx, `SELECT i.sequence,i.event_id,e.type,i.resource_path FROM inbox i JOIN events e ON e.id=i.event_id WHERE i.agent_id=$1 AND i.sequence>$2 ORDER BY i.sequence LIMIT $3`, a.AgentID, sequence, limit)
+	rows, err := tx.Query(ctx, `SELECT i.sequence,i.event_id,e.type,i.resource_path,
+CASE WHEN e.facts->>'swarm_id' IS NULL THEN true
+WHEN e.type='membership.offered' THEN EXISTS(SELECT 1 FROM memberships m WHERE m.id=e.aggregate_id AND m.agent_id=$1 AND m.state='offered' AND m.respond_by>now())
+ELSE swarm_member((e.facts->>'swarm_id')::uuid) END
+FROM inbox i JOIN events e ON e.id=i.event_id WHERE i.agent_id=$1 AND i.sequence>$2 ORDER BY i.sequence LIMIT $3`, a.AgentID, sequence, limit)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -134,8 +143,12 @@ func (s *Service) inboxCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, e
 	events := []any{}
 	for rows.Next() {
 		var id, kind, path string
-		if err = rows.Scan(&sequence, &id, &kind, &path); err != nil {
+		var authorized bool
+		if err = rows.Scan(&sequence, &id, &kind, &path, &authorized); err != nil {
 			return 0, nil, err
+		}
+		if !authorized {
+			continue
 		}
 		events = append(events, map[string]any{"event_id": id, "sequence": sequence, "type": kind, "resource_path": path, "content_trust": "untrusted"})
 	}

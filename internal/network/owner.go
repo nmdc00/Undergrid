@@ -128,8 +128,9 @@ func (s *Service) ownerCommand(r *http.Request, tx pgx.Tx) (int, any, error) {
 		return 0, nil, fail(404, "not_found")
 	}
 	var input struct {
-		Name   string   `json:"name"`
-		Scopes []string `json:"scopes"`
+		Name    string       `json:"name"`
+		Scopes  []string     `json:"scopes"`
+		Profile AgentProfile `json:"profile"`
 	}
 	if err = decode(r, &input); err != nil {
 		return 0, nil, err
@@ -138,12 +139,15 @@ func (s *Service) ownerCommand(r *http.Request, tx pgx.Tx) (int, any, error) {
 		return 0, nil, fail(422, "invalid_agent")
 	}
 	for _, scope := range input.Scopes {
-		if !slices.Contains([]string{"intents:read", "intents:write", "inbox:read"}, scope) {
+		if !slices.Contains([]string{"intents:read", "intents:write", "inbox:read", "swarms:read", "swarms:write", "messages:write"}, scope) {
 			return 0, nil, fail(403, "scope_not_authorized")
 		}
 	}
 	id := NewID()
-	if _, err = tx.Exec(ctx, "INSERT INTO agents(id,principal_id,name) VALUES($1,$2,$3)", id, principal, input.Name); err != nil {
+	if len(input.Profile.Capabilities) > 20 {
+		return 0, nil, fail(422, "capability_limit")
+	}
+	if _, err = tx.Exec(ctx, "INSERT INTO agents(id,principal_id,name,profile) VALUES($1,$2,$3,$4)", id, principal, input.Name, canonical(input.Profile)); err != nil {
 		return 0, nil, err
 	}
 	secret := make([]byte, 32)

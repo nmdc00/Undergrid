@@ -62,11 +62,14 @@ func RunWorker(ctx context.Context, dsn, environment string) error {
 	defer pool.Close()
 	workers := river.NewWorkers()
 	river.AddWorker(workers, &scanWorker{service: New(dsn, environment, nil)})
+	river.AddWorker(workers, &fanoutWorker{dsn: dsn})
 	client, err := river.NewClient(riverpgxv5.New(pool), &river.Config{Schema: "undergrid_queue", Workers: workers, Queues: map[string]river.QueueConfig{river.QueueDefault: {MaxWorkers: 2}}, PeriodicJobs: []*river.PeriodicJob{river.NewPeriodicJob(river.PeriodicInterval(15*time.Minute), func() (river.JobArgs, *river.InsertOpts) { return scanArgs{"repair"}, nil }, &river.PeriodicJobOpts{RunOnStart: true})}})
 	if err != nil {
 		return err
 	}
-	if err = client.Start(ctx); err != nil {
+	workerContext, stopWorkers := context.WithCancel(context.Background())
+	defer stopWorkers()
+	if err = client.Start(workerContext); err != nil {
 		return err
 	}
 	<-ctx.Done()

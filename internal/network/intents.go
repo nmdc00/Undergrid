@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 	"strings"
 
@@ -39,40 +38,12 @@ func getIntent(ctx context.Context, tx pgx.Tx, a actor, id string) (int, any, er
 }
 
 func mutateIntent(r *http.Request, tx pgx.Tx, a actor, environment string) (int, any, error) {
+	return idempotent(r, tx, a, func() (int, any, error) { return mutateIntentOnce(r, tx, a, environment) })
+}
+
+func mutateIntentOnce(r *http.Request, tx pgx.Tx, a actor, environment string) (int, any, error) {
 	ctx := r.Context()
-	key := r.Header.Get("Idempotency-Key")
-	if len(key) < 1 || len(key) > 128 {
-		return 0, nil, fail(400, "idempotency_key_required")
-	}
-	raw, err := io.ReadAll(io.LimitReader(r.Body, 65537))
-	if err != nil {
-		return 0, nil, err
-	}
-	if len(raw) > 65536 {
-		return 0, nil, fail(413, "body_too_large")
-	}
-	var value any
-	if err = json.Unmarshal(raw, &value); err != nil {
-		return 0, nil, fail(400, "invalid_json")
-	}
-	hash := digest(append(canonical(value), []byte(r.Header.Get("If-Match"))...))
-	operation := r.Method + " " + r.URL.Path
-	var oldHash string
-	var status int
-	var response []byte
-	err = tx.QueryRow(ctx, "SELECT request_hash,status,response FROM idempotency WHERE actor_id=$1 AND operation=$2 AND key=$3", a.AgentID, operation, key).Scan(&oldHash, &status, &response)
-	if err == nil {
-		if oldHash != hash {
-			return 0, nil, fail(409, "idempotency_conflict")
-		}
-		var result any
-		err = json.Unmarshal(response, &result)
-		return status, result, err
-	}
-	if !errors.Is(err, pgx.ErrNoRows) {
-		return 0, nil, err
-	}
-	r.Body = io.NopCloser(strings.NewReader(string(raw)))
+	var err error
 	var id string
 	var version int64
 	var eventType string
@@ -156,10 +127,9 @@ func mutateIntent(r *http.Request, tx pgx.Tx, a actor, environment string) (int,
 	if err = enqueueScan(ctx, tx, id); err != nil {
 		return 0, nil, err
 	}
-	status = 200
+	status := 200
 	if r.Method == "POST" {
 		status = 201
 	}
-	_, err = tx.Exec(ctx, "INSERT INTO idempotency(actor_id,operation,key,request_hash,status,response) VALUES($1,$2,$3,$4,$5,$6)", a.AgentID, operation, key, hash, status, canonical(result))
-	return status, result, err
+	return status, result, nil
 }

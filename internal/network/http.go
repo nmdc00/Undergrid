@@ -146,6 +146,15 @@ func authenticate(ctx context.Context, tx pgx.Tx, authorization string) (actor, 
 	return a, err
 }
 func (s *Service) agentCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, error) {
+	if r.Method == "GET" && strings.HasPrefix(r.URL.Path, "/v1/invitations/") {
+		if !slices.Contains(a.Scopes, "swarms:read") {
+			return 0, nil, fail(403, "insufficient_scope")
+		}
+		return invitationPacket(r, tx, a)
+	}
+	if r.URL.Path == "/v1/swarms" || strings.HasPrefix(r.URL.Path, "/v1/swarms/") {
+		return s.swarmCommand(r, tx, a)
+	}
 	if r.Method == "GET" && (r.URL.Path == "/v1/opportunities" || strings.HasPrefix(r.URL.Path, "/v1/opportunities/") || (strings.HasPrefix(r.URL.Path, "/v1/intents/") && strings.HasSuffix(r.URL.Path, "/opportunities"))) {
 		if !slices.Contains(a.Scopes, "intents:read") {
 			return 0, nil, fail(403, "insufficient_scope")
