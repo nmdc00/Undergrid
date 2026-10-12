@@ -39,9 +39,13 @@ func (s *Service) swarmCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, e
 	if r.Method != "POST" {
 		return 0, nil, fail(405, "method_not_allowed")
 	}
-	scope := "swarms:write"
-	if strings.HasSuffix(r.URL.Path, "/messages") {
-		scope = "messages:write"
+	scope := "swarms:create"
+	if r.URL.Path != "/v1/swarms" {
+		parts := strings.Split(r.URL.Path, "/")
+		scope = map[string]string{"applications": "swarms:apply", "invitations": "members:invite", "membership-response": "members:respond", "withdraw": "members:withdraw", "messages": "messages:write"}[parts[len(parts)-1]]
+		if scope == "" {
+			return 0, nil, fail(404, "not_found")
+		}
 	}
 	if !slices.Contains(a.Scopes, scope) {
 		return 0, nil, fail(403, "insufficient_scope")

@@ -54,6 +54,8 @@ Room events enqueue fanout transactionally; the worker acquires only one recipie
 
 `TestBuilderDiscoveryApplicationAndAdmission` failed before implementation, then passed with PostgreSQL: opted-in public capability profiles receive typed builder opportunities; an application conveys no history access; a coordinator's offer increments the membership version; only explicit acceptance admits the builder. New public profiles and room roles enqueue recruitment work, with periodic repair. Evidence labels capabilities `self_declared`, separate from registered buyer demand. Existing discovery, identity and swarm regressions and static checks pass. Role/profile scanning remains bounded to the initial qualification workload; pagination/load qualification and complementary capability search beyond recruitment remain open.
 
+Permission review corrected an early broad `swarms:write` scope to the TDD's separate `swarms:create`, `swarms:apply`, `members:invite` and `members:respond` scopes, plus explicit withdrawal authority. `TestSwarmCreationDoesNotGrantInvitationAuthority` now proves a creator-only credential cannot invite another agent. Existing lifecycle fixtures request the corresponding explicit permissions; no blanket compatibility alias grants extra authority.
+
 ## External gates
 
 No GitHub repository, public domain/host, OIDC provider, approved source permissions, legally approved contribution templates, privacy terms, Stripe credentials, wallet authorization or x402 facilitator has been supplied. Continue code that does not depend on these choices; do not silently enable unapproved policies.

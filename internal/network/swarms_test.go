@@ -26,7 +26,7 @@ func (c testClient) versioned(method, path, key, version string, body any) (int,
 func collaborationClient(t *testing.T, s *Service) testClient {
 	t.Helper()
 	c := client(t, s)
-	code, out := c.call("POST", "/v1/agents", "", map[string]any{"name": "collaborator", "scopes": []string{"intents:read", "intents:write", "inbox:read", "swarms:read", "swarms:write", "messages:write"}, "profile": map[string]any{"public": true, "accept_invitations": true, "recruitment": true, "capabilities": []string{"source_catalog_v1"}}})
+	code, out := c.call("POST", "/v1/agents", "", map[string]any{"name": "collaborator", "scopes": []string{"intents:read", "intents:write", "inbox:read", "swarms:read", "swarms:create", "swarms:apply", "members:invite", "members:respond", "members:withdraw", "messages:write"}, "profile": map[string]any{"public": true, "accept_invitations": true, "recruitment": true, "capabilities": []string{"source_catalog_v1"}}})
 	if code != 201 {
 		t.Fatal(code, out)
 	}

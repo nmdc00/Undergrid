@@ -139,7 +139,7 @@ func (s *Service) ownerCommand(r *http.Request, tx pgx.Tx) (int, any, error) {
 		return 0, nil, fail(422, "invalid_agent")
 	}
 	for _, scope := range input.Scopes {
-		if !slices.Contains([]string{"intents:read", "intents:write", "inbox:read", "swarms:read", "swarms:write", "messages:write"}, scope) {
+		if !slices.Contains([]string{"intents:read", "intents:write", "inbox:read", "swarms:read", "swarms:create", "swarms:apply", "members:invite", "members:respond", "members:withdraw", "messages:write"}, scope) {
 			return 0, nil, fail(403, "scope_not_authorized")
 		}
 	}

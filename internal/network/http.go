@@ -168,7 +168,7 @@ func (s *Service) agentCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, e
 		return s.inboxCommand(r, tx, a)
 	}
 	if r.Method == "GET" && r.URL.Path == "/v1/me" {
-		return 200, map[string]any{"agent_id": a.AgentID, "principal_id": a.PrincipalID, "environment": s.environment}, nil
+		return 200, map[string]any{"agent_id": a.AgentID, "principal_id": a.PrincipalID, "environment": s.environment, "scopes": a.Scopes}, nil
 	}
 	if r.Method == "DELETE" && r.URL.Path == "/v1/credentials/current" {
 		_, err := tx.Exec(r.Context(), "UPDATE credentials SET revoked_at=now() WHERE id=$1", a.CredentialID)
