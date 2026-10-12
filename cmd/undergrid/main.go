@@ -24,7 +24,7 @@ func main() {
 	}
 }
 func run() error {
-	mode := flag.String("mode", "api", "api or migrate")
+	mode := flag.String("mode", "api", "api, worker or migrate")
 	flag.Parse()
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer cancel()
@@ -40,10 +40,15 @@ func run() error {
 		defer conn.Close(ctx)
 		return network.Migrate(ctx, conn)
 	}
-	if *mode != "api" {
+	if *mode != "api" && *mode != "worker" {
 		return errors.New("unsupported process mode")
 	}
 	dsn := os.Getenv("UNDERGRID_DATABASE_URL")
+	role := "undergrid_app"
+	if *mode == "worker" {
+		dsn = os.Getenv("UNDERGRID_WORKER_DATABASE_URL")
+		role = "undergrid_worker"
+	}
 	if dsn == "" {
 		return errors.New("network database configuration required")
 	}
@@ -52,10 +57,21 @@ func run() error {
 		return errors.New("network database unavailable")
 	}
 	var unsafe bool
-	err = conn.QueryRow(ctx, `SELECT rolsuper OR rolbypassrls OR NOT pg_has_role(current_user,'undergrid_app','MEMBER') OR EXISTS(SELECT 1 FROM pg_tables WHERE schemaname='undergrid' AND tableowner=current_user) FROM pg_roles WHERE rolname=current_user`).Scan(&unsafe)
+	err = conn.QueryRow(ctx, `SELECT rolsuper OR rolbypassrls OR NOT pg_has_role(current_user,$1,'MEMBER') OR EXISTS(SELECT 1 FROM pg_tables WHERE schemaname='undergrid' AND tableowner=current_user) FROM pg_roles WHERE rolname=current_user`, role).Scan(&unsafe)
+	var ready bool
+	if err == nil {
+		err = conn.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM public.undergrid_migrations WHERE name='river-0.49.0-ready')").Scan(&ready)
+	}
 	conn.Close(ctx)
-	if err != nil || unsafe {
+	if err != nil || unsafe || !ready {
 		return errors.New("API requires a nonowner, non-superuser, non-bypass login with undergrid_app membership")
+	}
+	environment := os.Getenv("UNDERGRID_ENVIRONMENT")
+	if environment != "development" && environment != "staging" && environment != "production" {
+		return errors.New("explicit environment required")
+	}
+	if *mode == "worker" {
+		return network.RunWorker(ctx, dsn, environment)
 	}
 	origin := os.Getenv("UNDERGRID_ORIGIN")
 	sessionKey, err := base64.StdEncoding.DecodeString(os.Getenv("UNDERGRID_SESSION_KEY"))
@@ -71,10 +87,6 @@ func run() error {
 	login, err := identity.NewLogin(discoveryCtx, sessions, os.Getenv("UNDERGRID_OIDC_ISSUER"), os.Getenv("UNDERGRID_OIDC_CLIENT_ID"), os.Getenv("UNDERGRID_OIDC_CLIENT_SECRET"))
 	if err != nil {
 		return errors.New("OIDC discovery/configuration failed")
-	}
-	environment := os.Getenv("UNDERGRID_ENVIRONMENT")
-	if environment != "development" && environment != "staging" && environment != "production" {
-		return errors.New("explicit environment required")
 	}
 	service := network.New(dsn, environment, func(r *http.Request) (network.Owner, error) {
 		o, err := sessions.Authenticate(r)

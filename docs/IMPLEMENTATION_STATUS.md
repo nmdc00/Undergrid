@@ -38,6 +38,12 @@ The Go API binary builds. Owner login uses OIDC authorization code plus PKCE, no
 
 Local TLS cryptographic fixture tests pass for a valid flow and wrong nonce/audience/unverified email. Session tests pass for tamper/expiry/CSRF/origin rejection. `TestOwnerCanReviewAndRevokeOnlyOwnCredentials` first failed with HTTP 405, then passed; token issuance/revocation writes immutable credential events and lists expose neither tokens nor digests. Code review moved owner operations out of the transport file and centralized credential audit facts. All current tests and `go vet` pass. The fixture is not an external provider test. Credential rotation UI, owner policy editing, provider recovery and load/security qualification remain open.
 
+## Exact shared-demand slice evidence
+
+PostgreSQL tests now prove an initially empty result, matching of disclosed public demand across distinct test principals, private budget/objective redaction, hard-license rejection, unknown-license clarification, deduplicated opportunities and a committed River job producing a real opportunity. The worker uses a separate non-bypass role, transactional queue insertion and a 15-minute repair schedule. Application migrations and River 0.49.0 migrations commit separately because PostgreSQL enum additions cannot be used inside the same migration transaction; the startup readiness marker follows both. A regression caught public metadata readable with no actor context; migration 003 binds those reads to an authenticated actor.
+
+All current tests and static checks pass. This is exact matching only: differing descriptions explicitly report `semantic_comparison_pending`; pgvector/semantic retrieval and permitted external sources remain unimplemented. Matching tests prove separate account identities, not unrelated human ownership. The 1,000-intention sweep bound and worker throughput still require load qualification; no N2 completion claim.
+
 ## External gates
 
 No GitHub repository, public domain/host, OIDC provider, approved source permissions, legally approved contribution templates, privacy terms, Stripe credentials, wallet authorization or x402 facilitator has been supplied. Continue code that does not depend on these choices; do not silently enable unapproved policies.

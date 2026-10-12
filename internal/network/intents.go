@@ -21,7 +21,7 @@ func getIntent(ctx context.Context, tx pgx.Tx, a actor, id string) (int, any, er
 	var watch bool
 	err := tx.QueryRow(ctx, `SELECT r.document,i.version,i.state,i.watch_enabled FROM intents i JOIN intent_revisions r ON r.intent_id=i.id AND r.revision=i.current_revision WHERE i.id=$1 AND i.principal_id=$2`, id, a.PrincipalID).Scan(&document, &version, &state, &watch)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return 0, nil, fail(404, "not_found")
+		return publicIntent(ctx, tx, id)
 	}
 	if err != nil {
 		return 0, nil, err
@@ -151,6 +151,9 @@ func mutateIntent(r *http.Request, tx pgx.Tx, a actor, environment string) (int,
 	}
 	_, result, err := getIntent(ctx, tx, a, id)
 	if err != nil {
+		return 0, nil, err
+	}
+	if err = enqueueScan(ctx, tx, id); err != nil {
 		return 0, nil, err
 	}
 	status = 200
