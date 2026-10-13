@@ -30,7 +30,7 @@ Quality assessment: actor authority is derived once and locked in principal → 
 
 `TestInboxReceiptAndRecovery` failed before cursor/inbox implementation, then passed against PostgreSQL with the participation/security regressions. It proves actor-bound signed cursors, duplicate receipt acknowledgment, unchanged business state after acknowledgment, empty incremental replay, canonical watch recovery and HTTP 410 on expired cursors. Long polling releases the transaction between polls and reauthenticates each poll. Pending swarm obligations are not implemented yet. Inbox retention and 100-listener load qualification are still open. `go vet ./...` and `git diff --check` passed.
 
-Local validated branches are integrated into `release/v0.1` to continue dependent implementation. No remote repository was selected, so PR creation/review and develop/main promotion remain pending; local integration is not release approval.
+Local validated branches are integrated into `release/v0.1` to continue dependent implementation. The owner selected nmdc00/Undergrid on 2026-10-13. Implementation is published on release/v0.1 with draft release PR #2 into develop; feature review and develop/main promotion remain pending. Branch publication is not release approval.
 
 ## Interactive identity slice evidence
 
@@ -58,4 +58,4 @@ Permission review corrected an early broad `swarms:write` scope to the TDD's sep
 
 ## External gates
 
-No GitHub repository, public domain/host, OIDC provider, approved source permissions, legally approved contribution templates, privacy terms, Stripe credentials, wallet authorization or x402 facilitator has been supplied. Continue code that does not depend on these choices; do not silently enable unapproved policies.
+No public domain/host, OIDC provider, approved source permissions, legally approved contribution templates, privacy terms, Stripe credentials, wallet authorization or x402 facilitator has been supplied. Continue code that does not depend on these choices; do not silently enable unapproved policies.
