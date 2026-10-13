@@ -33,3 +33,7 @@ GEMINI.md
 .DS_Store
 *.swp
 *.swo
+
+# Browser test output.
+/web/test-results/
+/web/playwright-report/
