@@ -1,6 +1,7 @@
 .env
 .env.*
 !.env.example
+!.env.sandbox.example
 /bin/
 /undergrid
 /coverage/
@@ -8,3 +9,27 @@
 /web/dist/
 __pycache__/
 *.sqlite
+
+# Local agent instructions, tooling state and credential directories.
+AGENTS.md
+AGENTS.local.md
+CLAUDE.md
+CLAUDE.local.md
+GEMINI.md
+/.agents/
+/.codex/
+/.claude/
+/.aws/
+/.ssh/
+
+# Local command builds and coverage reports.
+/undergrid-sandbox
+/undergrid-verifier
+/coverage.out
+/coverage.html
+
+# Editor and operating-system state.
+/.idea/
+.DS_Store
+*.swp
+*.swo
