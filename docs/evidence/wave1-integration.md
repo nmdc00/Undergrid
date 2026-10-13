@@ -23,7 +23,7 @@ Earlier copied-schema databases used by individual task agents were not the sour
 
 ## Release and production limits
 
-GitHub annotation on run [38386613425](https://github.com/nmdc00/Undergrid/actions/runs/38386613425) says the job did not start because the account is locked due to billing. Required `go-postgres` checks remain on release/develop/main; no administrative bypass or invented passing status was used. Feature PRs #4/#6/#5 and evidence PR #3 remain open; release PR #2 remains draft. Main and develop retain the identical documentation bootstrap.
+GitHub annotation on run [38386613425](https://github.com/nmdc00/Undergrid/actions/runs/38386613425) says the job did not start because the account is locked due to billing. That pre-waiver attempt is historical. The owner subsequently waived GitHub CI; its workflow is disabled and hosted status requirements were removed while PR and force-push protection remain. Reviewed feature PRs #4/#6/#5 are now merged, and local exact-release validation gates develop integration. No invented passing status or provider/deployment approval is used.
 
 No real provider receipt, sandbox dispatch loop, approved rights/source material, container isolation qualification, external cohort, restore/security qualification or public deployment is established. Full N0–N6/F0–F4 gates remain incomplete. After feature merges, exact release validation must run again on the resulting SHA; this candidate cannot stand in for promotion-SHA or post-deploy proof.
 

@@ -1,5 +1,7 @@
 # v0.1 implementation swarm
 
+Current policy (2026-10-13): the owner waived GitHub CI as a merge gate. The hosted workflow is disabled and required GitHub status checks were removed from release/develop/main. PRs, administrator enforcement, conversation resolution, and protection against force pushes/deletion remain. Local behavioral, PostgreSQL lifecycle, race, build and static checks remain required. Feature PRs #4, #6 and #5 are merged into `release/v0.1` at `37477c2`; exact-release validation follows. The earlier CI billing and premerge snapshots below are historical. Full production release/deployment approvals remain open.
+
 The owner requested swarm execution on 2026-10-12. All coding is isolated by worktree. This is an execution record, not a release approval.
 
 Baseline: original implementation wave started at `abacd10`; repository bootstrap is integrated into `release/v0.1` at `413e4c0`. The owner selected [nmdc00/Undergrid](https://github.com/nmdc00/Undergrid) on 2026-10-13. GitHub `main` and `develop` share the documentation bootstrap and have zero divergence. Implementation is published on `release/v0.1`; [draft release PR #2](https://github.com/nmdc00/Undergrid/pull/2) targets `develop`. Feature PRs target `release/v0.1`; subsequent validated promotion is `release/v0.1 -> develop -> main`. No deployment is authorized by branch publication.
@@ -35,11 +37,11 @@ The README describes implementation and qualification limits. `main` and `develo
 
 Merge order: plans authority, sandbox authority (independent database), principal quotas, then final integrated qualification. A feature must include its proving tests and reconciled evidence before merge. The fixed verifier’s merged history is retained; its outstanding OS isolation gate is not waived.
 
-Hosted CI blocker: GitHub account billing lock prevents jobs from starting. Feature PRs and draft release PR remain open; preserve required checks and rerun after account recovery. Local tests continue as explicitly local evidence.
+Historical hosted CI result: the GitHub account billing lock prevented jobs from starting. The owner subsequently waived hosted CI; local checks remain explicitly local evidence.
 
 ## Review and promotion controls
 
-GitHub protection is verified on `release/v0.1`, `develop`, and `main`: PRs required, `go-postgres` required against the current base, administrator enforcement enabled, conversation resolution required, force pushes and branch deletion disabled. Hosted CI billing is an external account blocker; no override or fake passing status is used. `main` and `develop` remain identical at the documentation baseline.
+GitHub protection is verified on `release/v0.1`, `develop`, and `main`: PRs required, `go-postgres` required against the current base, administrator enforcement enabled, conversation resolution required, force pushes and branch deletion disabled. This was the pre-waiver setting. Required hosted status checks were subsequently removed by explicit owner instruction; no fake passing status is used.
 
 - Plans: [PR #4](https://github.com/nmdc00/Undergrid/pull/4), authority and assignments; review found changed terms under the same template ID could authorize progress after restart. A real failing regression led to sealed-template digest checks for assignment/progress. Local race, build and vet pass.
 - Quotas: [PR #5](https://github.com/nmdc00/Undergrid/pull/5), durable principal admission; local HTTP/RLS concurrency, restart, replay and pause/reactivation tests plus all-package race/build/vet pass. Rate, storage and fair-queue requirements remain deferred.
@@ -49,7 +51,7 @@ The local reconciliation candidate `ce798ded40ff38303e5fb2f15ed452b73916227b` co
 
 ## Final resumed-wave evidence
 
-All task branches are published; feature PRs remain unmerged while hosted CI is blocked:
+All task branches were published; the following table records the reviewed feature heads, now merged by the owner-authorized PR flow:
 
 | Task | PR | Feature head | Local state | Owning document |
 |---|---|---|---|---|
@@ -59,4 +61,4 @@ All task branches are published; feature PRs remain unmerged while hosted CI is 
 
 The final combined preview is published as `reconcile/v0.1-wave1` at `9816ec99e3c5b1c6b3b2282a408111175b9ebe80`, tree `aea6267824e22524351937491c32987ac3c1423c`. All-package race tests with `CI=true`, vet, command builds, module verification, formatting, diff checks, and six separately labeled listener fixtures passed. Network and financial databases were distinct in the fresh cluster; sandbox transactions used a restricted test login. See [integration contract and retrospective](evidence/wave1-integration.md).
 
-This preview is review evidence, not a replacement for feature PRs or exact-release validation. After account recovery, rerun checks, merge feature PRs into release in the documented order with current-base validation, validate the resulting release SHA, then proceed through develop and main only when the complete release contract and external approvals allow it. No protected merge, public deployment, provider qualification or full milestone completion occurred.
+This preview remains review evidence rather than a replacement for exact-release validation. PRs #4, #6 and #5 were reviewed against their exact validated heads and merged in that order. The resulting release source tree is exactly `aea6267824e22524351937491c32987ac3c1423c`, matching the locally proven preview. Reviewed partial implementation can be integrated into develop through PR #2 after exact-release local validation. Production promotion to main still requires the complete release contract and external approvals. No public deployment, provider qualification or full milestone completion is implied.
