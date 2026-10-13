@@ -11,6 +11,9 @@ import (
 func TestAuthorityReservationsAndReconciliation(t *testing.T) {
 	dsn := os.Getenv("UNDERGRID_SANDBOX_TEST_DATABASE_URL")
 	if dsn == "" {
+		if os.Getenv("CI") != "" {
+			t.Fatal("CI requires separate sandbox database configuration")
+		}
 		t.Skip("requires separate real sandbox PostgreSQL")
 	}
 	ctx := context.Background()
@@ -24,6 +27,9 @@ func TestAuthorityReservationsAndReconciliation(t *testing.T) {
 	}
 	runtimeDSN := os.Getenv("UNDERGRID_SANDBOX_TEST_RUNTIME_DATABASE_URL")
 	if runtimeDSN == "" {
+		if os.Getenv("CI") != "" {
+			t.Fatal("CI requires nonprivileged sandbox runtime database configuration")
+		}
 		runtimeDSN = dsn
 	}
 	s := New(runtimeDSN)
@@ -126,6 +132,9 @@ func TestAuthorityReservationsAndReconciliation(t *testing.T) {
 func TestConcurrentCapAndCrossPrincipalIsolation(t *testing.T) {
 	dsn := os.Getenv("UNDERGRID_SANDBOX_TEST_DATABASE_URL")
 	if dsn == "" {
+		if os.Getenv("CI") != "" {
+			t.Fatal("CI requires separate sandbox database configuration")
+		}
 		t.Skip("requires isolated PostgreSQL")
 	}
 	ctx := context.Background()
@@ -139,6 +148,9 @@ func TestConcurrentCapAndCrossPrincipalIsolation(t *testing.T) {
 	}
 	runtimeDSN := os.Getenv("UNDERGRID_SANDBOX_TEST_RUNTIME_DATABASE_URL")
 	if runtimeDSN == "" {
+		if os.Getenv("CI") != "" {
+			t.Fatal("CI requires nonprivileged sandbox runtime database configuration")
+		}
 		runtimeDSN = dsn
 	}
 	s := New(runtimeDSN)
@@ -219,5 +231,57 @@ func TestConcurrentCapAndCrossPrincipalIsolation(t *testing.T) {
 		return nil
 	}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestSandboxRoleCatalogSafety(t *testing.T) {
+	dsn := os.Getenv("UNDERGRID_SANDBOX_TEST_DATABASE_URL")
+	if dsn == "" {
+		if os.Getenv("CI") != "" {
+			t.Fatal("CI requires sandbox PostgreSQL")
+		}
+		t.Skip("requires isolated PostgreSQL")
+	}
+	ctx := context.Background()
+	c, err := pgx.Connect(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close(ctx)
+	if err = Migrate(ctx, c); err != nil {
+		t.Fatal(err)
+	}
+	if err = ValidateGroupRoles(ctx, c); err != nil {
+		t.Fatal(err)
+	}
+	// A real fixture login is deliberately unsuitable as a group role; no shared
+	// role attributes are mutated to manufacture a security test.
+	runtimeDSN := os.Getenv("UNDERGRID_SANDBOX_TEST_RUNTIME_DATABASE_URL")
+	if runtimeDSN == "" {
+		if os.Getenv("CI") != "" {
+			t.Fatal("CI requires restricted runtime fixture")
+		}
+		t.Skip("requires runtime login fixture")
+	}
+	runtime, err := pgx.Connect(ctx, runtimeDSN)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer runtime.Close(ctx)
+	var privileged bool
+	if err = runtime.QueryRow(ctx, `SELECT rolsuper OR rolbypassrls OR rolcreaterole OR rolcreatedb OR rolreplication OR EXISTS(SELECT FROM pg_tables WHERE schemaname='undergrid_sandbox' AND tableowner=current_user) FROM pg_roles WHERE rolname=current_user`).Scan(&privileged); err != nil || privileged {
+		t.Fatalf("runtime login must be nonprivileged nonowner: %v %v", privileged, err)
+	}
+	var login string
+	if err = runtime.QueryRow(ctx, "SELECT current_user").Scan(&login); err != nil {
+		t.Fatal(err)
+	}
+	safe, err := groupRoleSafe(ctx, c, login)
+	if err != nil || safe {
+		t.Fatalf("login accepted as group role: %v %v", safe, err)
+	}
+	safe, err = groupRoleSafe(ctx, c, "undergrid_sandbox_nonexistent_fixture_role")
+	if err == nil || safe {
+		t.Fatalf("missing role accepted: %v %v", safe, err)
 	}
 }

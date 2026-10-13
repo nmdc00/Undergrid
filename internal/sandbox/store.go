@@ -62,6 +62,9 @@ func Migrate(ctx context.Context, c *pgx.Conn) error {
 	case checksum != hash([]byte(migration)):
 		return errors.New("sandbox migration checksum mismatch")
 	}
+	if err = validateGroupRoles(ctx, tx); err != nil {
+		return err
+	}
 	return tx.Commit(ctx)
 }
 
@@ -146,6 +149,9 @@ func (s *Store) transaction(ctx context.Context, role string, f func(pgx.Tx) err
 	defer tx.Rollback(ctx)
 	if role != "undergrid_sandbox_app" && role != "undergrid_sandbox_worker" {
 		return ErrInvalid
+	}
+	if err = validateGroupRoles(ctx, tx); err != nil {
+		return err
 	}
 	if _, err = tx.Exec(ctx, "SET LOCAL ROLE "+role+"; SET LOCAL search_path=pg_catalog,undergrid_sandbox; SET LOCAL statement_timeout='5s'"); err != nil {
 		return err
@@ -441,3 +447,28 @@ func (s *Store) GetPolicy(ctx context.Context, o Owner) (Policy, int64, error) {
 	})
 	return policy, version, err
 }
+
+// Group roles must never provide a login or bypass the application RLS contract.
+// The runtime repeats this check because role attributes can change after migration.
+type roleCatalog interface {
+	QueryRow(context.Context, string, ...any) pgx.Row
+}
+
+func groupRoleSafe(ctx context.Context, q roleCatalog, name string) (bool, error) {
+	var safe bool
+	err := q.QueryRow(ctx, `SELECT NOT (rolsuper OR rolbypassrls OR rolcanlogin OR rolcreaterole OR rolcreatedb OR rolreplication)
+ AND NOT CASE WHEN to_regrole('undergrid_app') IS NOT NULL THEN pg_has_role($1,'undergrid_app','MEMBER') ELSE false END
+ AND NOT CASE WHEN to_regrole('undergrid_worker') IS NOT NULL THEN pg_has_role($1,'undergrid_worker','MEMBER') ELSE false END
+ FROM pg_roles WHERE rolname=$1`, name).Scan(&safe)
+	return safe, err
+}
+func validateGroupRoles(ctx context.Context, q roleCatalog) error {
+	for _, name := range []string{"undergrid_sandbox_app", "undergrid_sandbox_worker"} {
+		safe, err := groupRoleSafe(ctx, q, name)
+		if err != nil || !safe {
+			return errors.New("sandbox group roles require NOLOGIN and no elevated privileges")
+		}
+	}
+	return nil
+}
+func ValidateGroupRoles(ctx context.Context, c *pgx.Conn) error { return validateGroupRoles(ctx, c) }

@@ -22,6 +22,9 @@ func TestSandboxRejectsPrivilegedAndCombinedRuntimeLogin(t *testing.T) {
 	for _, name := range []string{"UNDERGRID_SANDBOX_TEST_DATABASE_URL", "UNDERGRID_SANDBOX_TEST_RUNTIME_DATABASE_URL"} {
 		dsn := os.Getenv(name)
 		if dsn == "" {
+			if os.Getenv("CI") != "" {
+				t.Fatal("CI requires sandbox startup fixture configuration")
+			}
 			t.Skip("requires sandbox PostgreSQL fixture")
 		}
 		t.Run(name, func(t *testing.T) {

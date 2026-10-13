@@ -28,6 +28,9 @@ func TestSandboxHTTPStrictCommands(t *testing.T) {
 func TestSandboxHTTPEnrollmentToAuthorization(t *testing.T) {
 	dsn := os.Getenv("UNDERGRID_SANDBOX_TEST_DATABASE_URL")
 	if dsn == "" {
+		if os.Getenv("CI") != "" {
+			t.Fatal("CI requires separate sandbox database configuration")
+		}
 		t.Skip("requires isolated PostgreSQL")
 	}
 	c, err := pgx.Connect(context.Background(), dsn)
@@ -40,6 +43,9 @@ func TestSandboxHTTPEnrollmentToAuthorization(t *testing.T) {
 	}
 	runtimeDSN := os.Getenv("UNDERGRID_SANDBOX_TEST_RUNTIME_DATABASE_URL")
 	if runtimeDSN == "" {
+		if os.Getenv("CI") != "" {
+			t.Fatal("CI requires nonprivileged sandbox runtime database configuration")
+		}
 		runtimeDSN = dsn
 	}
 	s := New(runtimeDSN)

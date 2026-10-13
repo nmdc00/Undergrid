@@ -48,8 +48,11 @@ func run() error {
 	if *mode != "api" {
 		return errors.New("unsupported sandbox mode")
 	}
+	if err = sandbox.ValidateGroupRoles(ctx, c); err != nil {
+		return err
+	}
 	var unsafe bool
-	err = c.QueryRow(ctx, `SELECT rolsuper OR rolbypassrls OR NOT pg_has_role(current_user,'undergrid_sandbox_app','MEMBER') OR pg_has_role(current_user,'undergrid_sandbox_worker','MEMBER') OR EXISTS(SELECT FROM pg_tables WHERE schemaname='undergrid_sandbox' AND tableowner=current_user) OR to_regnamespace('undergrid') IS NOT NULL FROM pg_roles WHERE rolname=current_user`).Scan(&unsafe)
+	err = c.QueryRow(ctx, `SELECT rolsuper OR rolbypassrls OR rolcreaterole OR rolcreatedb OR rolreplication OR CASE WHEN to_regrole('undergrid_app') IS NOT NULL THEN pg_has_role(current_user,'undergrid_app','MEMBER') ELSE false END OR CASE WHEN to_regrole('undergrid_worker') IS NOT NULL THEN pg_has_role(current_user,'undergrid_worker','MEMBER') ELSE false END OR NOT pg_has_role(current_user,'undergrid_sandbox_app','MEMBER') OR pg_has_role(current_user,'undergrid_sandbox_worker','MEMBER') OR EXISTS(SELECT FROM pg_tables WHERE schemaname='undergrid_sandbox' AND tableowner=current_user) OR to_regnamespace('undergrid') IS NOT NULL FROM pg_roles WHERE rolname=current_user`).Scan(&unsafe)
 	if err != nil || unsafe {
 		return errors.New("sandbox API requires isolated nonowner app login without worker privileges")
 	}
