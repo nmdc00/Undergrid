@@ -21,6 +21,9 @@ type Service struct {
 	dsn, environment string
 	ownerAuth        OwnerAuthenticator
 	cursorKey        []byte
+	issuanceKey      []byte
+	issuanceKeyID    string
+	credentialClock  func() time.Time
 	termsVersion     string
 	templates        map[string]ContributionTemplate
 	artifacts        *localArtifactRuntime

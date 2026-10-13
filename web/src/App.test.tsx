@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { vi, test, expect } from "vitest";
 import { App } from "./App";
@@ -142,8 +142,10 @@ test("policy controls send explicit bounded fields and the reviewed ETag", async
   const requests = fixture();
   render(<App />);
   const expires = await screen.findByLabelText("Policy expires at (UTC)");
-  await userEvent.clear(expires);
-  await userEvent.type(expires, "2030-01-02T00:00");
+  await waitFor(() =>
+    expect((expires as HTMLInputElement).value).toBe("2030-01-01T00:00"),
+  );
+  fireEvent.change(expires, { target: { value: "2030-01-02T00:00" } });
   await userEvent.click(screen.getByRole("button", { name: "Save policy" }));
   await waitFor(() =>
     expect(
