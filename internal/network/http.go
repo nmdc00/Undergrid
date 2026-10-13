@@ -23,6 +23,7 @@ type Service struct {
 	cursorKey        []byte
 	termsVersion     string
 	templates        map[string]ContributionTemplate
+	artifacts        *localArtifactRuntime
 }
 
 func (s *Service) Configure(cursorKey []byte, termsVersion string) error {
@@ -88,6 +89,10 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		result = map[string]any{"error": map[string]string{"code": p.Code}}
 	}
 	w.WriteHeader(status)
+	if content, ok := result.(artifactContent); ok {
+		_, _ = w.Write(content)
+		return
+	}
 	_ = json.NewEncoder(w).Encode(result)
 }
 func (s *Service) execute(r *http.Request) (int, any, error) {
@@ -111,7 +116,11 @@ func (s *Service) execute(r *http.Request) (int, any, error) {
 		status, result, err = s.ownerCommand(r, tx)
 	} else {
 		var a actor
-		a, err = authenticate(ctx, tx, r.Header.Get("Authorization"), r.Method, r.URL.Path)
+		if r.Method == "PUT" && strings.HasSuffix(r.URL.Path, "/upload") && strings.HasPrefix(r.URL.Path, "/v1/artifacts/") {
+			a, err = authenticateArtifactUpload(r, tx)
+		} else {
+			a, err = authenticate(ctx, tx, r.Header.Get("Authorization"), r.Method, r.URL.Path)
+		}
 		if err == nil {
 			status, result, err = s.agentCommand(r, tx, a)
 		}
@@ -141,6 +150,14 @@ func authenticate(ctx context.Context, tx pgx.Tx, authorization, method, path st
 	if _, err = tx.Exec(ctx, "SELECT set_config('undergrid.principal_id',$1,true),set_config('undergrid.agent_id',$2,true)", a.PrincipalID, a.AgentID); err != nil {
 		return a, err
 	}
+	if method == "POST" && strings.HasPrefix(path, "/v1/artifacts/") && !strings.HasSuffix(path, "/reuse-receipts") {
+		parts := strings.Split(path, "/")
+		if len(parts) == 5 && validID(parts[3]) {
+			if _, err = tx.Exec(ctx, "SELECT lock_artifact_authorities($1)", parts[3]); err != nil {
+				return a, err
+			}
+		}
+	}
 	if method == "POST" && (strings.HasPrefix(path, "/v1/plans/") || strings.HasSuffix(path, "/assignment-response")) {
 		parts := strings.Split(path, "/")
 		if len(parts) == 5 && validID(parts[3]) {
@@ -159,7 +176,11 @@ func authenticate(ctx context.Context, tx pgx.Tx, authorization, method, path st
 			}
 		}
 	}
+	return lockActor(ctx, tx, a)
+}
+func lockActor(ctx context.Context, tx pgx.Tx, a actor) (actor, error) {
 	var state string
+	var err error
 	if err = tx.QueryRow(ctx, "SELECT status FROM principals WHERE id=$1 FOR UPDATE", a.PrincipalID).Scan(&state); err != nil {
 		return a, err
 	}
@@ -181,6 +202,9 @@ func authenticate(ctx context.Context, tx pgx.Tx, authorization, method, path st
 func (s *Service) agentCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, error) {
 	if r.Method == "GET" && r.URL.Path == "/v1/policies/contribution-templates" {
 		return 200, s.publicTemplates(), nil
+	}
+	if r.URL.Path == "/v1/artifacts" || strings.HasPrefix(r.URL.Path, "/v1/artifacts/") {
+		return s.artifactCommand(r, tx, a)
 	}
 	if strings.HasPrefix(r.URL.Path, "/v1/plans/") || strings.HasPrefix(r.URL.Path, "/v1/tasks/") {
 		return s.planCommand(r, tx, a)
