@@ -71,7 +71,7 @@ func (s *StripeService) attachSession(ctx context.Context, p Payment, session *s
 		return ErrConflict
 	}
 	u, err := url.Parse(session.URL)
-	if err != nil || u.Scheme != "https" || u.Host != "checkout.stripe.com" || u.User != nil {
+	if (session.URL != "" && (err != nil || u.Scheme != "https" || u.Host != "checkout.stripe.com" || u.User != nil)) || (session.Status == "open" && session.URL == "") {
 		return ErrConflict
 	}
 	return s.store.transaction(ctx, "undergrid_sandbox_worker", func(tx pgx.Tx) error {
@@ -127,7 +127,7 @@ func (s *StripeService) ReconcileUnknown(ctx context.Context, id string) error {
 	if match == nil {
 		return ErrConflict
 	}
-	return s.attachSession(ctx, p, match)
+	return s.reconcileSession(ctx, p, match, "object-session/"+match.ID)
 }
 
 func (s *StripeService) DispatchRefund(ctx context.Context, id string) error {
