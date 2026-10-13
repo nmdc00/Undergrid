@@ -78,7 +78,7 @@ func (s *Store) CreateSubscription(ctx context.Context, o Owner, key string, c S
 			return ErrUnauthorized
 		}
 		var valid bool
-		if err = tx.QueryRow(ctx, "SELECT revoked_at IS NULL AND expires_at>now() AND 'payments:authorize'=ANY(scopes) FROM sandbox_credentials WHERE id=$1 AND actor_id=$2", c.CredentialID, a.actor).Scan(&valid); errors.Is(err, pgx.ErrNoRows) {
+		if err = tx.QueryRow(ctx, "SELECT revoked_at IS NULL AND expires_at>clock_timestamp() AND 'payments:authorize'=ANY(scopes) FROM sandbox_credentials WHERE id=$1 AND actor_id=$2", c.CredentialID, a.actor).Scan(&valid); errors.Is(err, pgx.ErrNoRows) {
 			return ErrUnauthorized
 		} else if err != nil {
 			return err
@@ -100,6 +100,7 @@ func (s *Store) CreateSubscription(ctx context.Context, o Owner, key string, c S
 		if !errors.Is(err, pgx.ErrNoRows) {
 			return err
 		}
+		now = time.Now().UTC() // authority waits must not freeze the expiry clock
 		if !c.ExpiresAt.After(now) || c.ExpiresAt.After(now.Add(90*24*time.Hour)) {
 			return ErrInvalid
 		}

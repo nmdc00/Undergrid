@@ -3,9 +3,12 @@ package sandbox
 import (
 	"context"
 	"net/http"
+	"os"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 func TestSubscriptionHTTPRetryCannotMultiplyRenewalConsent(t *testing.T) {
@@ -84,6 +87,83 @@ func TestSubscriptionHTTPRetryCannotMultiplyRenewalConsent(t *testing.T) {
 	code, out = refundCall(t, h, "", owner.Subject, "POST", "/v1/owner/subscriptions", "one-consent", body)
 	if code != 401 {
 		t.Fatalf("replay bypassed revoked authority: %d %v", code, out)
+	}
+}
+
+func TestSubscriptionExpiryIsRecheckedAfterActorLock(t *testing.T) {
+	for _, expired := range []string{"credential", "consent"} {
+		t.Run(expired, func(t *testing.T) {
+			s, db, owner, token, payment, _ := refundFixture(t)
+			ctx := context.Background()
+			var credential, actor string
+			if err := db.QueryRow(ctx, "SELECT id::text,actor_id::text FROM undergrid_sandbox.sandbox_credentials WHERE digest=$1", hash([]byte(token))).Scan(&credential, &actor); err != nil {
+				t.Fatal(err)
+			}
+			expires := time.Now().Add(2 * time.Second)
+			consentExpiry := time.Now().Add(time.Hour)
+			want := 401
+			if expired == "credential" {
+				if _, err := db.Exec(ctx, "UPDATE undergrid_sandbox.sandbox_credentials SET expires_at=$2 WHERE id=$1", credential, expires); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				consentExpiry = expires
+				want = 400
+			}
+			locker, err := db.Begin(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer locker.Rollback(ctx)
+			var lockerPID int
+			if err = locker.QueryRow(ctx, "SELECT pg_backend_pid() FROM undergrid_sandbox.sandbox_actors WHERE id=$1 FOR UPDATE", actor).Scan(&lockerPID); err != nil {
+				t.Fatal(err)
+			}
+			observer, err := pgx.Connect(ctx, os.Getenv("UNDERGRID_SANDBOX_TEST_DATABASE_URL"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer observer.Close(ctx)
+			h := NewHandler(s, func(*http.Request) (Owner, error) { return owner, nil }, map[string]Quote{"platform-test": payment.Quote})
+			body := map[string]any{"credential_id": credential, "product": "platform-test", "maximum_atomic": "600", "period_seconds": 86400, "renewal_count": 2, "expires_at": consentExpiry}
+			result := make(chan int, 1)
+			go func() {
+				code, _ := refundCall(t, h, "", owner.Subject, "POST", "/v1/owner/subscriptions", "waiting-consent", body)
+				result <- code
+			}()
+			deadline := time.Now().Add(time.Second)
+			for {
+				var blocked bool
+				if err = observer.QueryRow(ctx, "SELECT EXISTS(SELECT FROM pg_stat_activity WHERE $1=ANY(pg_blocking_pids(pid)))", lockerPID).Scan(&blocked); err != nil {
+					t.Fatal(err)
+				}
+				if blocked {
+					break
+				}
+				if time.Now().After(deadline) {
+					t.Fatal("owner command did not reach the held actor lock")
+				}
+				time.Sleep(10 * time.Millisecond)
+			}
+			if delay := time.Until(expires) + 50*time.Millisecond; delay > 0 {
+				time.Sleep(delay)
+			}
+			if err = locker.Commit(ctx); err != nil {
+				t.Fatal(err)
+			}
+			select {
+			case code := <-result:
+				if code != want {
+					t.Fatalf("%s expired during actor wait but returned %d, want %d", expired, code, want)
+				}
+			case <-time.After(3 * time.Second):
+				t.Fatal("owner command did not finish after lock release")
+			}
+			var count int
+			if err = db.QueryRow(ctx, "SELECT count(*) FROM undergrid_sandbox.sandbox_subscriptions WHERE credential_id=$1", credential).Scan(&count); err != nil || count != 0 {
+				t.Fatalf("expired authority persisted consent: %d %v", count, err)
+			}
+		})
 	}
 }
 
