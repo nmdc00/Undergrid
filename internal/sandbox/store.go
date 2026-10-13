@@ -34,6 +34,9 @@ var refundMigration string
 //go:embed migrations/003_refund_retry_privacy.sql
 var refundRetryMigration string
 
+//go:embed migrations/004_subscriptions.sql
+var subscriptionMigration string
+
 func Migrate(ctx context.Context, c *pgx.Conn) error {
 	tx, err := c.Begin(ctx)
 	if err != nil {
@@ -56,7 +59,7 @@ func Migrate(ctx context.Context, c *pgx.Conn) error {
 	for _, step := range []struct {
 		version int
 		sql     string
-	}{{1, migration}, {2, refundMigration}, {3, refundRetryMigration}} {
+	}{{1, migration}, {2, refundMigration}, {3, refundRetryMigration}, {4, subscriptionMigration}} {
 		var checksum string
 		err = tx.QueryRow(ctx, "SELECT checksum FROM public.undergrid_sandbox_migrations WHERE version=$1", step.version).Scan(&checksum)
 		switch {
@@ -433,13 +436,8 @@ func (s *Store) Authorize(ctx context.Context, token, id, quoteHash, key string)
 		if !permits(a.policy, p.Quote) {
 			return ErrUnauthorized
 		}
-		var allowed bool
-		err = tx.QueryRow(ctx, `SELECT COALESCE(sum(amount+fee),0)+$2::numeric+$3::numeric <= $4::numeric FROM sandbox_payments WHERE actor_id=$1 AND asset=$5 AND reservation_period=(now() AT TIME ZONE 'UTC')::date AND state IN('authorized','submitting','pending','unknown','settled')`, a.actor, p.Quote.Amount, p.Quote.Fee, a.policy.Cap, p.Quote.Asset).Scan(&allowed)
-		if err != nil {
+		if err = checkPurchaseCapacity(ctx, tx, a.actor, a.policy, p.Quote); err != nil {
 			return err
-		}
-		if !allowed {
-			return ErrLimit
 		}
 		_, err = tx.Exec(ctx, "UPDATE sandbox_payments SET state='authorized',policy_version=$2,authority_proof=$3,reservation_period=(now() AT TIME ZONE 'UTC')::date,updated_at=now() WHERE id=$1", id, a.version, encode(map[string]any{"actor": a.actor, "credential": a.credential, "quote_hash": quoteHash, "policy_version": a.version, "designation": "TEST"}))
 		if err != nil {

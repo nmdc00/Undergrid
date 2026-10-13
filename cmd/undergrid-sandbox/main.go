@@ -26,7 +26,7 @@ func main() {
 	}
 }
 func run() error {
-	mode := flag.String("mode", "api", "api or migrate; no provider dispatch in this slice")
+	mode := flag.String("mode", "api", "api, renewal-worker or migrate; TEST only")
 	flag.Parse()
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer cancel()
@@ -45,11 +45,20 @@ func run() error {
 	if *mode == "migrate" {
 		return sandbox.Migrate(ctx, c)
 	}
-	if *mode != "api" {
+	if *mode != "api" && *mode != "renewal-worker" {
 		return errors.New("unsupported sandbox mode")
 	}
 	if err = sandbox.ValidateGroupRoles(ctx, c); err != nil {
 		return err
+	}
+	if *mode == "renewal-worker" {
+		var unsafe bool
+		err = c.QueryRow(ctx, `SELECT rolsuper OR rolbypassrls OR rolcreaterole OR rolcreatedb OR rolreplication OR CASE WHEN to_regrole('undergrid_app') IS NOT NULL THEN pg_has_role(current_user,'undergrid_app','MEMBER') ELSE false END OR CASE WHEN to_regrole('undergrid_worker') IS NOT NULL THEN pg_has_role(current_user,'undergrid_worker','MEMBER') ELSE false END OR NOT pg_has_role(current_user,'undergrid_sandbox_worker','MEMBER') OR pg_has_role(current_user,'undergrid_sandbox_app','MEMBER') OR EXISTS(SELECT FROM pg_tables WHERE schemaname='undergrid_sandbox' AND tableowner=current_user) OR to_regnamespace('undergrid') IS NOT NULL FROM pg_roles WHERE rolname=current_user`).Scan(&unsafe)
+		if err != nil || unsafe {
+			return errors.New("sandbox renewal worker requires isolated nonowner worker login without app privileges")
+		}
+		c.Close(ctx)
+		return sandbox.New(dsn).RunRenewalWorker(ctx)
 	}
 	var unsafe bool
 	err = c.QueryRow(ctx, `SELECT rolsuper OR rolbypassrls OR rolcreaterole OR rolcreatedb OR rolreplication OR CASE WHEN to_regrole('undergrid_app') IS NOT NULL THEN pg_has_role(current_user,'undergrid_app','MEMBER') ELSE false END OR CASE WHEN to_regrole('undergrid_worker') IS NOT NULL THEN pg_has_role(current_user,'undergrid_worker','MEMBER') ELSE false END OR NOT pg_has_role(current_user,'undergrid_sandbox_app','MEMBER') OR pg_has_role(current_user,'undergrid_sandbox_worker','MEMBER') OR EXISTS(SELECT FROM pg_tables WHERE schemaname='undergrid_sandbox' AND tableowner=current_user) OR to_regnamespace('undergrid') IS NOT NULL FROM pg_roles WHERE rolname=current_user`).Scan(&unsafe)

@@ -149,6 +149,30 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		respond(200, map[string]string{"state": "revoked", "designation": "TEST"})
+	case r.Method == "POST" && r.URL.Path == "/v1/owner/subscriptions":
+		var cmd struct {
+			SubscriptionConsent
+			Product string `json:"product"`
+		}
+		if !decode(&cmd) {
+			return
+		}
+		o, err := owner()
+		if err != nil {
+			fail(ErrUnauthorized)
+			return
+		}
+		q, ok := h.products[cmd.Product]
+		if !ok {
+			fail(ErrInvalid)
+			return
+		}
+		sub, err := h.store.CreateSubscription(r.Context(), o, cmd.SubscriptionConsent, q)
+		if err != nil {
+			fail(err)
+			return
+		}
+		respond(201, sub)
 	case r.Method == "POST" && r.URL.Path == "/v1/refunds":
 		var cmd struct {
 			Payment string `json:"payment_id"`
@@ -184,6 +208,41 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		respond(201, p)
 	default:
 		parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+		if len(parts) >= 4 && parts[0] == "v1" && parts[1] == "owner" && parts[2] == "subscriptions" && validUUID(parts[3]) {
+			if r.Method == "GET" && len(parts) == 4 {
+				o, err := owner()
+				if err != nil {
+					fail(ErrUnauthorized)
+					return
+				}
+				sub, err := h.store.GetSubscription(r.Context(), o, parts[3])
+				if err != nil {
+					fail(err)
+					return
+				}
+				respond(200, sub)
+				return
+			}
+			if r.Method == "POST" && len(parts) == 5 && parts[4] == "cancel" {
+				var cmd struct {
+					Hash string `json:"consent_hash"`
+				}
+				if !decode(&cmd) {
+					return
+				}
+				o, err := owner()
+				if err != nil {
+					fail(ErrUnauthorized)
+					return
+				}
+				if err = h.store.CancelSubscription(r.Context(), o, parts[3], cmd.Hash); err != nil {
+					fail(err)
+					return
+				}
+				respond(200, map[string]string{"state": "canceled", "designation": "TEST"})
+				return
+			}
+		}
 		if len(parts) >= 3 && parts[0] == "v1" && parts[1] == "refunds" && validUUID(parts[2]) {
 			if r.Method == "GET" && len(parts) == 3 {
 				refund, err := h.store.GetRefund(r.Context(), token, parts[2])
