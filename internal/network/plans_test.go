@@ -129,6 +129,23 @@ func TestExactPlanApprovalAndIndependentAssignmentAcceptance(t *testing.T) {
 	if code != 201 || replayed["id"] != plan["id"] {
 		t.Fatal(code, replayed)
 	}
+	// Restart with changed legal wording under the same ID: an old approval
+	// cannot authorize progress against a different template digest.
+	restarted := New(s.dsn, "development", nil)
+	if err := restarted.SetContributionTemplates([]ContributionTemplate{{ID: "test-contribution-v1", SHA256: strings.Repeat("b", 64), LicenseIDs: []string{"CC0-1.0"}, TermsURL: "https://example.org/test-terms", ApprovalEvidence: "changed fixture only", TestOnly: true}}); err != nil {
+		t.Fatal(err)
+	}
+	reconnected := b
+	reconnected.s = restarted
+	_, restartedTask := reconnected.call("GET", taskPath, "", nil)
+	code, out = reconnected.versioned("POST", taskPath+"/progress", "changed-template", restartedTask["etag"].(string), map[string]any{"state": "in_progress", "claim_epoch": restartedTask["claim_epoch"]})
+	if code != 409 || out["error"].(map[string]any)["code"] != "plan_terms_expired_or_changed" {
+		t.Fatalf("changed template authorized old approval: %d %v", code, out)
+	}
+	_, afterDenied := reconnected.call("GET", taskPath, "", nil)
+	if afterDenied["etag"] != restartedTask["etag"] || afterDenied["progress_deadline"] != restartedTask["progress_deadline"] {
+		t.Fatalf("denied template change mutated work: before=%v after=%v", restartedTask, afterDenied)
+	}
 	_, policy := b.call("GET", "/v1/owner/policy", "", nil)
 	code, out = b.versioned("POST", "/v1/owner/policy", "", policy["etag"].(string), map[string]any{"template_ids": []string{}, "license_ids": []string{}, "task_categories": []string{}, "max_active_tasks": 0, "expires_at": time.Now().Add(time.Hour)})
 	if code != 200 {

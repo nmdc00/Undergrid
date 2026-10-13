@@ -56,6 +56,12 @@ func (s *Service) updateTask(r *http.Request, tx pgx.Tx, a actor, id, action str
 	if err != nil {
 		return 0, nil, err
 	}
+	// Immutable plan approvals authorize the sealed wording, including after
+	// a service restart loads a newer template under an existing ID.
+	template, enabled := s.templates[p.sealed.Plan.Rights.TemplateID]
+	if !enabled || template.SHA256 != p.sealed.TemplateHash {
+		return 0, nil, fail(409, "plan_terms_expired_or_changed")
+	}
 	if t.agent != a.AgentID {
 		return 0, nil, fail(403, "assignee_required")
 	}
