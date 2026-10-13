@@ -17,16 +17,17 @@ type storedTask struct {
 	version, epoch         int64
 	response               time.Time
 	progress               *time.Time
+	artifact               *string
 }
 
 func loadTask(ctx context.Context, tx pgx.Tx, id string, lock bool) (storedTask, error) {
 	var t storedTask
 	var raw []byte
-	query := "SELECT id,plan_id,assigned_agent_id,state,specification,version,claim_epoch,response_deadline,progress_deadline FROM tasks WHERE id=$1"
+	query := "SELECT id,plan_id,assigned_agent_id,state,specification,version,claim_epoch,response_deadline,progress_deadline,submitted_artifact_id FROM tasks WHERE id=$1"
 	if lock {
 		query += " FOR UPDATE"
 	}
-	err := tx.QueryRow(ctx, query, id).Scan(&t.id, &t.plan, &t.agent, &t.state, &raw, &t.version, &t.epoch, &t.response, &t.progress)
+	err := tx.QueryRow(ctx, query, id).Scan(&t.id, &t.plan, &t.agent, &t.state, &raw, &t.version, &t.epoch, &t.response, &t.progress, &t.artifact)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return t, fail(404, "not_found")
 	}
@@ -41,7 +42,7 @@ func taskResult(ctx context.Context, tx pgx.Tx, id string) (int, any, error) {
 	if err != nil {
 		return 0, nil, err
 	}
-	return 200, map[string]any{"id": t.id, "plan_id": t.plan, "assigned_agent_id": t.agent, "state": t.state, "specification": t.spec, "version": t.version, "etag": etag(t.version), "claim_epoch": t.epoch, "response_deadline": t.response, "progress_deadline": t.progress}, nil
+	return 200, map[string]any{"id": t.id, "plan_id": t.plan, "assigned_agent_id": t.agent, "state": t.state, "specification": t.spec, "version": t.version, "etag": etag(t.version), "claim_epoch": t.epoch, "response_deadline": t.response, "progress_deadline": t.progress, "submitted_artifact_id": t.artifact}, nil
 }
 func (s *Service) updateTask(r *http.Request, tx pgx.Tx, a actor, id, action string) (int, any, error) {
 	t, err := loadTask(r.Context(), tx, id, false)

@@ -100,6 +100,9 @@ func run() error {
 	if err = service.Configure(cursorKey, os.Getenv("UNDERGRID_TERMS_VERSION")); err != nil {
 		return err
 	}
+	if err = service.ConfigureArtifactsFromEnvironment(); err != nil {
+		return err
+	}
 	if path := os.Getenv("UNDERGRID_CONTRIBUTION_TEMPLATES_FILE"); path != "" {
 		raw, err := os.ReadFile(path)
 		if err != nil {

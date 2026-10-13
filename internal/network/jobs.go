@@ -64,10 +64,15 @@ func RunWorker(ctx context.Context, dsn, environment string) error {
 	}
 	defer pool.Close()
 	workers := river.NewWorkers()
-	river.AddWorker(workers, &scanWorker{service: New(dsn, environment, nil)})
+	service := New(dsn, environment, nil)
+	if err = service.ConfigureArtifactsFromEnvironment(); err != nil {
+		return err
+	}
+	river.AddWorker(workers, &artifactEvaluationWorker{service: service})
+	river.AddWorker(workers, &scanWorker{service: service})
 	river.AddWorker(workers, &fanoutWorker{dsn: dsn})
 	river.AddWorker(workers, &recruitWorker{service: New(dsn, environment, nil)})
-	client, err := river.NewClient(riverpgxv5.New(pool), &river.Config{Schema: "undergrid_queue", SoftStopTimeout: 5 * time.Second, Workers: workers, Queues: map[string]river.QueueConfig{river.QueueDefault: {MaxWorkers: 2}}, PeriodicJobs: []*river.PeriodicJob{river.NewPeriodicJob(river.PeriodicInterval(15*time.Minute), func() (river.JobArgs, *river.InsertOpts) { return scanArgs{"repair"}, nil }, &river.PeriodicJobOpts{RunOnStart: true})}})
+	client, err := river.NewClient(riverpgxv5.New(pool), &river.Config{Schema: "undergrid_queue", SoftStopTimeout: 5 * time.Second, Workers: workers, Queues: map[string]river.QueueConfig{river.QueueDefault: {MaxWorkers: 2}, "artifact_verification": {MaxWorkers: 2}}, PeriodicJobs: []*river.PeriodicJob{river.NewPeriodicJob(river.PeriodicInterval(15*time.Minute), func() (river.JobArgs, *river.InsertOpts) { return scanArgs{"repair"}, nil }, &river.PeriodicJobOpts{RunOnStart: true})}})
 	if err != nil {
 		return err
 	}

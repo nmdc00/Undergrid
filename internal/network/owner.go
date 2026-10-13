@@ -139,11 +139,11 @@ func (s *Service) ownerCommand(r *http.Request, tx pgx.Tx) (int, any, error) {
 	if err = decode(r, &input); err != nil {
 		return 0, nil, err
 	}
-	if len(input.Name) < 1 || len(input.Name) > 120 || len(input.Scopes) == 0 || len(input.Scopes) > 20 {
+	if len(input.Name) < 1 || len(input.Name) > 120 || len(input.Scopes) == 0 || len(input.Scopes) > 30 {
 		return 0, nil, fail(422, "invalid_agent")
 	}
 	for _, scope := range input.Scopes {
-		ordinary := []string{"intents:read", "intents:write", "inbox:read", "swarms:read", "swarms:create", "swarms:apply", "members:invite", "members:respond", "members:withdraw", "messages:write", "plans:propose", "tasks:progress"}
+		ordinary := []string{"intents:read", "intents:write", "inbox:read", "swarms:read", "swarms:create", "swarms:apply", "members:invite", "members:respond", "members:withdraw", "messages:write", "plans:propose", "tasks:progress", "artifacts:submit", "artifacts:read", "artifacts:accept", "artifacts:reuse"}
 		rightsScopes := []string{"plans:approve", "rights:accept", "tasks:accept", "publication:approve"}
 		if !slices.Contains(ordinary, scope) && !slices.Contains(rightsScopes, scope) {
 			return 0, nil, fail(403, "scope_not_authorized")
