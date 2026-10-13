@@ -1,6 +1,7 @@
 package network
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -32,7 +33,7 @@ func enableTestTerms(t *testing.T, s *Service) {
 }
 
 func TestExactPlanApprovalAndIndependentAssignmentAcceptance(t *testing.T) {
-	s, _ := fixture(t)
+	s, db := fixture(t)
 	enableTestTerms(t, s)
 	a, b := planningClient(t, s), planningClient(t, s)
 	_, aid := a.call("GET", "/v1/me", "", nil)
@@ -97,6 +98,20 @@ func TestExactPlanApprovalAndIndependentAssignmentAcceptance(t *testing.T) {
 	code, accepted := a.call("GET", planPath, "", nil)
 	if code != 200 || accepted["state"] != "accepted" {
 		t.Fatal(code, accepted)
+	}
+	// Observe normalized persistence independently of the response projection.
+	var persistedState, persistedHash, activePlan, assignedAgent string
+	var approvals, rightsApprovals, acceptanceEvents int
+	if err := db.QueryRow(context.Background(), `SELECT p.state,p.content_hash,s.active_plan_id::text,t.assigned_agent_id::text,
+	 (SELECT count(*) FROM undergrid.approvals WHERE plan_id=p.id AND purpose='plan' AND decision='approve'),
+	 (SELECT count(*) FROM undergrid.approvals WHERE plan_id=p.id AND purpose='rights' AND decision='approve'),
+	 (SELECT count(*) FROM undergrid.events WHERE aggregate_id=p.id AND type='plan.accepted')
+	 FROM undergrid.plan_versions p JOIN undergrid.swarms s ON s.id=p.swarm_id
+	 JOIN undergrid.tasks t ON t.plan_id=p.id WHERE p.id=$1`, plan["id"]).Scan(&persistedState, &persistedHash, &activePlan, &assignedAgent, &approvals, &rightsApprovals, &acceptanceEvents); err != nil {
+		t.Fatal(err)
+	}
+	if persistedState != "accepted" || persistedHash != plan["content_hash"] || activePlan != plan["id"] || assignedAgent != bid["agent_id"] || approvals != 2 || rightsApprovals != 2 || acceptanceEvents != 1 {
+		t.Fatalf("normalized acceptance contract: state=%s hash=%s head=%s agent=%s approvals=%d rights=%d events=%d", persistedState, persistedHash, activePlan, assignedAgent, approvals, rightsApprovals, acceptanceEvents)
 	}
 	_, currentTask := b.call("GET", taskPath, "", nil)
 	code, out = b.versioned("POST", taskPath+"/progress", "start", currentTask["etag"].(string), map[string]any{"state": "in_progress", "claim_epoch": currentTask["claim_epoch"]})
