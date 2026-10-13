@@ -42,13 +42,24 @@ func (s *Service) swarmCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, e
 	scope := "swarms:create"
 	if r.URL.Path != "/v1/swarms" {
 		parts := strings.Split(r.URL.Path, "/")
-		scope = map[string]string{"applications": "swarms:apply", "invitations": "members:invite", "membership-response": "members:respond", "withdraw": "members:withdraw", "messages": "messages:write"}[parts[len(parts)-1]]
+		scope = map[string]string{"plans": "plans:propose", "applications": "swarms:apply", "invitations": "members:invite", "membership-response": "members:respond", "withdraw": "members:withdraw", "messages": "messages:write"}[parts[len(parts)-1]]
 		if scope == "" {
 			return 0, nil, fail(404, "not_found")
 		}
 	}
 	if !slices.Contains(a.Scopes, scope) {
 		return 0, nil, fail(403, "insufficient_scope")
+	}
+	if r.URL.Path != "/v1/swarms" {
+		parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/v1/swarms/"), "/")
+		if len(parts) != 2 || !validID(parts[0]) {
+			return 0, nil, fail(404, "not_found")
+		}
+		if slices.Contains([]string{"plans", "messages", "invitations"}, parts[1]) {
+			if err := roomAuthority(r.Context(), tx, a, parts[0], parts[1] == "invitations"); err != nil {
+				return 0, nil, err
+			}
+		}
 	}
 	return idempotent(r, tx, a, func() (int, any, error) {
 		if r.URL.Path == "/v1/swarms" {
@@ -60,6 +71,8 @@ func (s *Service) swarmCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, e
 		}
 		id, action := parts[0], parts[1]
 		switch action {
+		case "plans":
+			return s.proposePlan(r, tx, a, id)
 		case "invitations":
 			return s.invite(r, tx, a, id)
 		case "applications":
@@ -315,6 +328,35 @@ func (s *Service) withdrawMembership(r *http.Request, tx pgx.Tx, a actor, swarm 
 	}
 	if role == "coordinator" {
 		return 0, nil, fail(409, "archive_or_transfer_before_withdrawal")
+	}
+	// Withdraw the live claim before removing membership visibility. Submitted
+	// evidence remains immutable; the old claim can no longer satisfy a task.
+	rows, err := tx.Query(r.Context(), "UPDATE tasks SET state='withdrawn',claim_epoch=claim_epoch+1,version=version+1 WHERE assigned_agent_id=$1 AND plan_id IN (SELECT id FROM plan_versions WHERE swarm_id=$2) AND state NOT IN ('accepted_output','abandoned','cancelled','withdrawn','open') RETURNING id,version", a.AgentID, swarm)
+	if err != nil {
+		return 0, nil, err
+	}
+	type changedTask struct {
+		id      string
+		version int64
+	}
+	changed := []changedTask{}
+	for rows.Next() {
+		var task changedTask
+		if err = rows.Scan(&task.id, &task.version); err != nil {
+			rows.Close()
+			return 0, nil, err
+		}
+		changed = append(changed, task)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return 0, nil, err
+	}
+	for _, task := range changed {
+		if err = s.roomEvent(r.Context(), tx, a, task.id, task.version, "task.withdrawn", swarm, "/v1/tasks/"+task.id); err != nil {
+			return 0, nil, err
+		}
 	}
 	version++
 	if _, err := tx.Exec(r.Context(), "UPDATE memberships SET state='withdrawn',version=$2 WHERE id=$1", id, version); err != nil {

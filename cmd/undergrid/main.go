@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"flag"
 	"log/slog"
@@ -98,6 +99,19 @@ func run() error {
 	}
 	if err = service.Configure(cursorKey, os.Getenv("UNDERGRID_TERMS_VERSION")); err != nil {
 		return err
+	}
+	if path := os.Getenv("UNDERGRID_CONTRIBUTION_TEMPLATES_FILE"); path != "" {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return errors.New("contribution template configuration unavailable")
+		}
+		var templates []network.ContributionTemplate
+		if err = json.Unmarshal(raw, &templates); err != nil {
+			return errors.New("invalid contribution template configuration")
+		}
+		if err = service.SetContributionTemplates(templates); err != nil {
+			return err
+		}
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/auth/login", login.Start)
