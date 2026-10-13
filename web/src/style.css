@@ -1,0 +1,142 @@
+:root {
+  font:
+    16px/1.5 system-ui,
+    sans-serif;
+  color: #203334;
+  background: #f3f6f3;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+header {
+  background: #163b35;
+  color: #fff;
+  padding: 1.2rem 4%;
+  display: flex;
+  gap: 2rem;
+  align-items: center;
+}
+header a {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #fff;
+  text-decoration: none;
+}
+header button {
+  margin-left: auto;
+}
+main {
+  max-width: 1000px;
+  margin: auto;
+  padding: 2rem 1rem;
+}
+h1,
+h2,
+h3 {
+  line-height: 1.2;
+}
+.page-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+section {
+  background: #fff;
+  border: 1px solid #d2ddd4;
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin: 1rem 0;
+}
+form {
+  margin-top: 1.5rem;
+  border-top: 1px solid #ddd;
+  padding-top: 1rem;
+}
+label {
+  display: block;
+  margin: 0.8rem 0;
+}
+input:not([type="checkbox"]),
+textarea,
+select {
+  display: block;
+  width: 100%;
+  max-width: 650px;
+  padding: 0.6rem;
+  border: 1px solid #8b9f98;
+  border-radius: 5px;
+  font: inherit;
+}
+textarea {
+  resize: vertical;
+}
+button,
+.primary {
+  background: #1b594b;
+  color: #fff;
+  border: 0;
+  border-radius: 5px;
+  padding: 0.55rem 0.9rem;
+  font: inherit;
+  cursor: pointer;
+  margin: 0.3rem 0.4rem 0.3rem 0;
+  display: inline-block;
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 3px solid #b48600;
+  outline-offset: 2px;
+}
+fieldset {
+  border: 1px solid #d2ddd4;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+.check {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+li {
+  margin: 0.7rem 0;
+}
+li span {
+  margin-left: 0.8rem;
+}
+code,
+pre,
+.identifier {
+  overflow-wrap: anywhere;
+}
+pre {
+  white-space: pre-wrap;
+  max-height: 28rem;
+  overflow: auto;
+  background: #f3f6f3;
+  padding: 1rem;
+}
+footer {
+  max-width: 1000px;
+  margin: 1rem auto;
+  padding: 1rem;
+  color: #53675f;
+}
+[role="alert"] {
+  background: #fff0df;
+  padding: 1rem;
+  border-left: 4px solid #ad4e00;
+}
+a {
+  color: #176351;
+}

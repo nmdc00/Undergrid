@@ -84,8 +84,11 @@ func (s *Service) ownerCommand(r *http.Request, tx pgx.Tx) (int, any, error) {
 	if _, err = tx.Exec(ctx, "SELECT set_config('undergrid.owner_issuer',$1,true),set_config('undergrid.owner_subject',$2,true)", o.Issuer, o.Subject); err != nil {
 		return 0, nil, err
 	}
-	if r.Method != "POST" && r.Method != "GET" {
+	if r.Method != "POST" && r.Method != "GET" && !(r.Method == "PATCH" && strings.HasPrefix(r.URL.Path, "/v1/owner/intents/")) {
 		return 0, nil, fail(405, "method_not_allowed")
+	}
+	if r.Method == "GET" && r.URL.Path == "/v1/owner/config" {
+		return 200, map[string]any{"terms_version": s.termsVersion, "contribution_templates": s.publicTemplates()}, nil
 	}
 	if r.URL.Path == "/v1/principals" {
 		if r.Method != "POST" {
@@ -117,6 +120,12 @@ func (s *Service) ownerCommand(r *http.Request, tx pgx.Tx) (int, any, error) {
 	}
 	if err != nil {
 		return 0, nil, err
+	}
+	if r.Method == "GET" && r.URL.Path == "/v1/owner/me" {
+		return 200, map[string]any{"id": principal}, nil
+	}
+	if r.URL.Path == "/v1/owner/intents" || strings.HasPrefix(r.URL.Path, "/v1/owner/intents/") {
+		return s.ownerIntents(r, tx, principal)
 	}
 	if r.Method == "GET" && r.URL.Path == "/v1/agents" {
 		return listOwnerAgents(ctx, tx, principal)

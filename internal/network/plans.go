@@ -37,7 +37,7 @@ func loadPlan(ctx context.Context, tx pgx.Tx, id string, lock bool) (storedPlan,
 	return p, err
 }
 func planResult(ctx context.Context, tx pgx.Tx, p storedPlan) (any, error) {
-	rows, err := tx.Query(ctx, "SELECT id,state,version,claim_epoch FROM tasks WHERE plan_id=$1 ORDER BY task_key", p.id)
+	rows, err := tx.Query(ctx, "SELECT id,state,version,claim_epoch,response_deadline,progress_deadline,cure_deadline FROM tasks WHERE plan_id=$1 ORDER BY task_key", p.id)
 	if err != nil {
 		return nil, err
 	}
@@ -46,10 +46,12 @@ func planResult(ctx context.Context, tx pgx.Tx, p storedPlan) (any, error) {
 	for rows.Next() {
 		var id, state string
 		var version, epoch int64
-		if err = rows.Scan(&id, &state, &version, &epoch); err != nil {
+		var response time.Time
+		var progress, cure *time.Time
+		if err = rows.Scan(&id, &state, &version, &epoch, &response, &progress, &cure); err != nil {
 			return nil, err
 		}
-		tasks = append(tasks, map[string]any{"id": id, "state": state, "version": version, "etag": etag(version), "claim_epoch": epoch})
+		tasks = append(tasks, map[string]any{"id": id, "state": state, "version": version, "etag": etag(version), "claim_epoch": epoch, "response_deadline": response, "progress_deadline": progress, "cure_deadline": cure})
 	}
 	if err = rows.Err(); err != nil {
 		return nil, err
@@ -343,6 +345,10 @@ func (s *Service) maybeAcceptPlan(ctx context.Context, tx pgx.Tx, a actor, p sto
 		if _, err := tx.Exec(ctx, "UPDATE tasks SET state='cancelled',version=version+1,claim_epoch=claim_epoch+1 WHERE plan_id=$1 AND state NOT IN ('accepted_output','abandoned','cancelled')", *head); err != nil {
 			return err
 		}
+	}
+	// Execution starts only after every exact plan and assignment approval.
+	if _, err := tx.Exec(ctx, "UPDATE tasks SET progress_deadline=$2::timestamptz+(specification->>'progress_interval_seconds')::int*interval '1 second' WHERE plan_id=$1 AND state='accepted'", p.id, time.Now().UTC()); err != nil {
+		return err
 	}
 	if _, err := tx.Exec(ctx, "UPDATE plan_versions SET state='accepted' WHERE id=$1", p.id); err != nil {
 		return err

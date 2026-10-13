@@ -21,11 +21,14 @@ type fanoutWorker struct {
 }
 
 func enqueueFanout(ctx context.Context, tx pgx.Tx, id string) error {
+	return enqueueFanoutInQueue(ctx, tx, id, "coordination")
+}
+func enqueueFanoutInQueue(ctx context.Context, tx pgx.Tx, id, queue string) error {
 	client, err := river.NewClient(riverpgxv5.New(nil), &river.Config{Schema: "undergrid_queue"})
 	if err != nil {
 		return err
 	}
-	_, err = client.InsertTx(ctx, tx, fanoutArgs{id}, &river.InsertOpts{MaxAttempts: 10})
+	_, err = client.InsertTx(ctx, tx, fanoutArgs{id}, &river.InsertOpts{MaxAttempts: 10, Queue: queue})
 	return err
 }
 func (w *fanoutWorker) Work(ctx context.Context, job *river.Job[fanoutArgs]) error {
@@ -49,7 +52,7 @@ func (w *fanoutWorker) Work(ctx context.Context, job *river.Job[fanoutArgs]) err
 	if err = json.Unmarshal(facts, &event); err != nil {
 		return err
 	}
-	rows, err := db.Query(ctx, "SELECT agent_id,principal_id FROM memberships WHERE swarm_id=$1 AND CASE WHEN $2='membership.offered' THEN id=$3 AND state='offered' ELSE state='accepted' END ORDER BY principal_id,agent_id", event.SwarmID, kind, aggregate)
+	rows, err := db.Query(ctx, "SELECT agent_id,principal_id FROM memberships WHERE swarm_id=$1 AND CASE WHEN $2='membership.offered' THEN id=$3 AND state='offered' WHEN $2='membership.expired' THEN state='accepted' OR id=$3 ELSE state='accepted' END ORDER BY principal_id,agent_id", event.SwarmID, kind, aggregate)
 	if err != nil {
 		return err
 	}
