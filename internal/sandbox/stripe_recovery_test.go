@@ -29,6 +29,9 @@ type stripeRecoveryFixture struct {
 	refundMode                                                      atomic.Int32 // 0 pending, 1 succeeded, 2 canceled, 3 wrong consent
 	lost                                                            atomic.Bool
 	posts                                                           atomic.Int32
+	sessionGets                                                     atomic.Int32
+	chargeBinding                                                   atomic.Int32 // 0 exact PI, 1 absent, 2 unrelated
+	wrongRetrievedSession                                           atomic.Bool
 	refund                                                          atomic.Value
 }
 
@@ -56,7 +59,13 @@ func newStripeRecoveryFixture(t *testing.T) *stripeRecoveryFixture {
 	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		write := func(v any) { json.NewEncoder(w).Encode(v) }
-		charge := map[string]any{"id": f.chargeID, "object": "charge", "livemode": false, "amount": 100, "amount_captured": 100, "currency": "usd", "paid": true, "captured": true, "status": "succeeded", "metadata": map[string]string{"undergrid_payment_id": p.ID, "undergrid_quote_hash": p.Hash}}
+		charge := map[string]any{"id": f.chargeID, "object": "charge", "livemode": false, "amount": 100, "amount_captured": 100, "currency": "usd", "paid": true, "captured": true, "status": "succeeded", "payment_intent": f.intentID, "metadata": map[string]string{"undergrid_payment_id": p.ID, "undergrid_quote_hash": p.Hash}}
+		if f.chargeBinding.Load() == 1 {
+			delete(charge, "payment_intent")
+		}
+		if f.chargeBinding.Load() == 2 {
+			charge["payment_intent"] = f.otherIntentID
+		}
 		intent := func(id, status string) any {
 			return map[string]any{"id": id, "object": "payment_intent", "livemode": false, "amount": 100, "currency": "usd", "status": status, "metadata": map[string]string{"undergrid_payment_id": p.ID, "undergrid_quote_hash": p.Hash}, "latest_charge": func() any {
 				if status == "succeeded" {
@@ -109,10 +118,17 @@ func newStripeRecoveryFixture(t *testing.T) *stripeRecoveryFixture {
 				}
 				write(session())
 			} else {
-				write(map[string]any{"object": "list", "has_more": false, "data": []any{session()}})
+				listed := session().(map[string]any)
+				listed["payment_intent"] = f.intentID // unexpanded list relationship
+				write(map[string]any{"object": "list", "has_more": false, "data": []any{listed}})
 			}
 		case "/v1/checkout/sessions/" + f.sessionID:
-			write(session())
+			f.sessionGets.Add(1)
+			retrieved := session().(map[string]any)
+			if f.wrongRetrievedSession.Load() {
+				retrieved["id"] = "cs_test_unrelated"
+			}
+			write(retrieved)
 		case "/v1/payment_intents/" + f.intentID:
 			write(intent(f.intentID, "canceled"))
 		case "/v1/payment_intents/" + f.otherIntentID:
@@ -201,6 +217,51 @@ func TestStripeUnknownClosedSessionRecoveryDoesNotNeedActiveURL(t *testing.T) {
 	}
 	if f.posts.Load() != 1 {
 		t.Fatal("unknown creation reposted")
+	}
+	if f.sessionGets.Load() == 0 {
+		t.Fatal("unknown recovery used an unexpanded list object as canonical session")
+	}
+}
+
+func TestStripeCompletedSessionRequiresExactChargeIntentBinding(t *testing.T) {
+	for _, binding := range []int32{1, 2} {
+		t.Run(fmt.Sprint(binding), func(t *testing.T) {
+			f := newStripeRecoveryFixture(t)
+			ctx := context.Background()
+			if err := f.service.DispatchPayment(ctx, f.p.ID); err != nil {
+				t.Fatal(err)
+			}
+			f.mode.Store(1)
+			f.chargeBinding.Store(binding)
+			if err := f.service.ReconcilePayment(ctx, f.p.ID); !errors.Is(err, ErrConflict) {
+				t.Fatalf("mismatched charge intent accepted without classification: %v", err)
+			}
+			p := f.payment(t)
+			if len(p.Anomalies) != 1 || p.Anomalies[0] != "checkout_binding_mismatch" {
+				t.Fatalf("canonical charge mismatch hidden: %+v", p)
+			}
+		})
+	}
+}
+
+func TestStripeUnknownSessionRetrievalMustMatchListIdentity(t *testing.T) {
+	f := newStripeRecoveryFixture(t)
+	ctx := context.Background()
+	f.lost.Store(true)
+	if err := f.service.DispatchPayment(ctx, f.p.ID); err == nil {
+		t.Fatal("expected unknown creation")
+	}
+	f.mode.Store(1)
+	f.wrongRetrievedSession.Store(true)
+	if err := f.service.ReconcileUnknown(ctx, f.p.ID); !errors.Is(err, ErrConflict) {
+		t.Fatalf("canonical retrieval changed object identity: %v", err)
+	}
+	if p := f.payment(t); p.State != "unknown" {
+		t.Fatalf("wrong canonical session mutated payment: %+v", p)
+	}
+	var facts int
+	if err := f.db.QueryRow(ctx, "SELECT count(*) FROM undergrid_sandbox.sandbox_effects WHERE payment_id=$1", f.p.ID).Scan(&facts); err != nil || facts != 0 {
+		t.Fatalf("wrong session wrote monetary facts: %d %v", facts, err)
 	}
 }
 func TestStripeCanceledIntentMustBelongToStoredSession(t *testing.T) {

@@ -163,6 +163,8 @@ func TestStripeCheckoutClaimCommitsBeforeIOAndUnknownNeverResubmits(t *testing.T
 				return
 			}
 			json.NewEncoder(w).Encode(map[string]any{"object": "list", "has_more": false, "data": []any{session}})
+		case "/v1/checkout/sessions/" + sessionID:
+			json.NewEncoder(w).Encode(session)
 		default:
 			t.Errorf("unexpected provider path %s", r.URL.Path)
 			w.WriteHeader(404)

@@ -127,7 +127,16 @@ func (s *StripeService) ReconcileUnknown(ctx context.Context, id string) error {
 	if match == nil {
 		return ErrConflict
 	}
-	return s.reconcileSession(ctx, p, match, "object-session/"+match.ID)
+	// List relationships are normally ID-only. Retrieve the unique candidate
+	// with the required expansion before interpreting canonical settlement.
+	session, err := s.client.V1CheckoutSessions.Retrieve(ctx, match.ID, &stripe.CheckoutSessionRetrieveParams{Expand: []*string{stripe.String("payment_intent.latest_charge")}})
+	if err != nil {
+		return err
+	}
+	if session.ID != match.ID {
+		return ErrConflict
+	}
+	return s.reconcileSession(ctx, p, session, "object-session/"+session.ID)
 }
 
 func (s *StripeService) DispatchRefund(ctx context.Context, id string) error {

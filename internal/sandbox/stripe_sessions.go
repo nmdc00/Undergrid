@@ -66,7 +66,7 @@ func (s *StripeService) reconcileSession(ctx context.Context, p Payment, session
 		if err != nil {
 			return err
 		}
-		if charged.ID != p.ID || ch.PaymentIntent != nil && ch.PaymentIntent.ID != session.PaymentIntent.ID {
+		if charged.ID != p.ID || ch.PaymentIntent == nil || ch.PaymentIntent.ID != session.PaymentIntent.ID {
 			return s.unexpectedCharge(ctx, ch.ID, event, "checkout_binding_mismatch", session.ID)
 		}
 		// Bind before monetary mutation; conflicting session identity cannot release
