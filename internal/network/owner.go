@@ -159,6 +159,9 @@ func (s *Service) ownerCommand(r *http.Request, tx pgx.Tx) (int, any, error) {
 			}
 		}
 	}
+	if err = admitPrincipalResource(ctx, tx, principal, "agents"); err != nil {
+		return 0, nil, err
+	}
 	id := NewID()
 	if len(input.Profile.Capabilities) > 20 {
 		return 0, nil, fail(422, "capability_limit")

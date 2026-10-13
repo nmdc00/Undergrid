@@ -81,6 +81,9 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			slog.Error("request failed", "path", r.URL.Path, "error", err)
 			p = problem{500, "internal_error"}
 		}
+		if p.Status == 429 {
+			w.Header().Set("Retry-After", "60")
+		}
 		status = p.Status
 		result = map[string]any{"error": map[string]string{"code": p.Code}}
 	}
