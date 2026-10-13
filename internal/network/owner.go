@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -120,6 +121,9 @@ func (s *Service) ownerCommand(r *http.Request, tx pgx.Tx) (int, any, error) {
 	if r.Method == "GET" && r.URL.Path == "/v1/agents" {
 		return listOwnerAgents(ctx, tx, principal)
 	}
+	if r.URL.Path == "/v1/owner/policy" {
+		return s.ownerPolicy(r, tx, principal)
+	}
 	if r.Method == "POST" && strings.HasPrefix(r.URL.Path, "/v1/owner/credentials/") && strings.HasSuffix(r.URL.Path, "/revoke") {
 		id := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/v1/owner/credentials/"), "/revoke")
 		return revokeOwnerCredential(r, tx, principal, id, s.environment)
@@ -139,8 +143,20 @@ func (s *Service) ownerCommand(r *http.Request, tx pgx.Tx) (int, any, error) {
 		return 0, nil, fail(422, "invalid_agent")
 	}
 	for _, scope := range input.Scopes {
-		if !slices.Contains([]string{"intents:read", "intents:write", "inbox:read", "swarms:read", "swarms:create", "swarms:apply", "members:invite", "members:respond", "members:withdraw", "messages:write"}, scope) {
+		ordinary := []string{"intents:read", "intents:write", "inbox:read", "swarms:read", "swarms:create", "swarms:apply", "members:invite", "members:respond", "members:withdraw", "messages:write", "plans:propose", "tasks:progress"}
+		rightsScopes := []string{"plans:approve", "rights:accept", "tasks:accept", "publication:approve"}
+		if !slices.Contains(ordinary, scope) && !slices.Contains(rightsScopes, scope) {
 			return 0, nil, fail(403, "scope_not_authorized")
+		}
+		if slices.Contains(rightsScopes, scope) {
+			var raw []byte
+			var policy CoordinationPolicy
+			if err = tx.QueryRow(ctx, "SELECT policy FROM principals WHERE id=$1", principal).Scan(&raw); err != nil {
+				return 0, nil, err
+			}
+			if json.Unmarshal(raw, &policy) != nil || !policy.ExpiresAt.After(time.Now()) || len(policy.TemplateIDs) == 0 {
+				return 0, nil, fail(403, "owner_policy_required")
+			}
 		}
 	}
 	id := NewID()
