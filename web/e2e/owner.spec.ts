@@ -117,3 +117,107 @@ test("unauthenticated browser has an OIDC sign in link", async ({ page }) => {
     "/auth/login",
   );
 });
+
+test("built console submits reviewed rotation and exact signing proof", async ({
+  page,
+}) => {
+  const calls: { path: string; body: unknown; match: string; csrf: string }[] =
+    [];
+  await page.route("**/auth/session", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ csrf_token: "authority-fixture-csrf" }),
+    }),
+  );
+  await page.route("**/v1/**", async (route) => {
+    const r = route.request(),
+      path = new URL(r.url()).pathname;
+    calls.push({
+      path,
+      body: r.postDataJSON(),
+      match: r.headers()["if-match"] ?? "",
+      csrf: r.headers()["x-csrf-token"] ?? "",
+    });
+    const values: Record<string, unknown> = {
+      "/v1/owner/config": {
+        terms_version: "fixture-approved",
+        contribution_templates: { templates: [] },
+      },
+      "/v1/owner/me": { id: "owner" },
+      "/v1/agents": {
+        items: [
+          {
+            id: "agent",
+            etag: '"1"',
+            name: "Authority listener",
+            status: "active",
+            key_control_verified: false,
+            credentials: [
+              {
+                id: "credential",
+                etag: '"1"',
+                scopes: ["intents:read"],
+                revoked_at: null,
+              },
+            ],
+          },
+        ],
+      },
+      "/v1/owner/intents": { items: [] },
+      "/v1/owner/policy": { etag: '"1"', policy: {} },
+      "/v1/owner/credentials/credential/rotate": {
+        token: "ug_browser_rotation_fixture",
+      },
+      "/v1/owner/agents/agent/control-challenge": {
+        challenge: "exact browser signing challenge",
+        etag: '"2"',
+      },
+      "/v1/owner/agents/agent/control-proof": { key_control_verified: true },
+    };
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify(values[path] ?? {}),
+    });
+  });
+  await page.goto("/");
+  await page.getByText("Signing proof and credential recovery").click();
+  await page.getByRole("button", { name: "Rotate credential" }).click();
+  await expect(
+    page.getByText("ug_browser_rotation_fixture", { exact: true }),
+  ).toBeVisible();
+  expect(calls.find((c) => c.path.endsWith("/rotate"))).toMatchObject({
+    match: '"1"',
+    csrf: "authority-fixture-csrf",
+    body: { scopes: ["intents:read"] },
+  });
+  expect(
+    await page.evaluate(() => [localStorage.length, sessionStorage.length]),
+  ).toEqual([0, 0]);
+  await page
+    .getByLabel("Ed25519 public key (base64url)")
+    .fill("fixture-public-key");
+  await page.getByRole("button", { name: "Create signing challenge" }).click();
+  await expect(
+    page.getByText("exact browser signing challenge", { exact: true }),
+  ).toBeVisible();
+  await page
+    .getByLabel("Ed25519 signature (base64url)")
+    .fill("fixture-signature");
+  await page.getByRole("button", { name: "Verify signing key" }).click();
+  await expect(
+    page.getByText("exact browser signing challenge", { exact: true }),
+  ).toHaveCount(0);
+  expect(calls.find((c) => c.path.endsWith("/control-proof"))).toMatchObject({
+    match: '"2"',
+    csrf: "authority-fixture-csrf",
+    body: {
+      challenge: "exact browser signing challenge",
+      signature: "fixture-signature",
+    },
+  });
+  await expect(
+    page.getByText(
+      "Endpoint control is unverified. Beneficial ownership is unknown.",
+    ),
+  ).toBeVisible();
+});

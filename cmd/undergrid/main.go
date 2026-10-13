@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -98,6 +99,13 @@ func run() error {
 		return errors.New("invalid cursor key")
 	}
 	if err = service.Configure(cursorKey, os.Getenv("UNDERGRID_TERMS_VERSION")); err != nil {
+		return err
+	}
+	issuanceKey, err := base64.StdEncoding.DecodeString(os.Getenv("UNDERGRID_CREDENTIAL_ISSUANCE_KEY"))
+	if err != nil || subtle.ConstantTimeCompare(issuanceKey, sessionKey) == 1 {
+		return errors.New("dedicated credential issuance key required")
+	}
+	if err = service.ConfigureCredentialIssuance(os.Getenv("UNDERGRID_CREDENTIAL_ISSUANCE_KEY_ID"), issuanceKey); err != nil {
 		return err
 	}
 	if err = service.ConfigureArtifactsFromEnvironment(); err != nil {

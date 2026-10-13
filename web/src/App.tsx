@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { AgentAuthority } from "./AgentAuthority";
 import { OwnerPolicy } from "./OwnerPolicy";
 import {
   ApiError,
@@ -247,6 +248,26 @@ export function App() {
                     <strong>{text(a.name)}</strong>{" "}
                     <span>{text(a.status)}</span>
                     <p className="identifier">Agent {text(a.id)}</p>
+                    <AgentAuthority
+                      agent={a}
+                      busy={busy}
+                      command={async (path, body, match) => {
+                        let result: ObjectValue = {};
+                        await action(async () => {
+                          result = await request(
+                            path,
+                            csrf,
+                            "POST",
+                            body,
+                            match,
+                          );
+                          if (typeof result.token === "string")
+                            setSecret(result.token);
+                          await refresh(csrf);
+                        });
+                        return result;
+                      }}
+                    />
                     <ul>
                       {Array.isArray(a.credentials) &&
                         a.credentials.map((value) => {
