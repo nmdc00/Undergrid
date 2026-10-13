@@ -41,7 +41,11 @@ func (s *Store) BeginDispatch(ctx context.Context, id string) (Payment, error) {
 		if err != nil {
 			return err
 		}
-		if !valid || !permits(policy, p.Quote) || !p.Quote.ExpiresAt.After(time.Now()) {
+		var consentValid bool
+		if err = tx.QueryRow(ctx, "SELECT subscription_id IS NULL OR EXISTS(SELECT FROM sandbox_subscriptions s WHERE s.id=p.subscription_id AND s.state<>'canceled' AND s.expires_at>now()) FROM sandbox_payments p WHERE p.id=$1", id).Scan(&consentValid); err != nil {
+			return err
+		}
+		if !consentValid || !valid || !permits(policy, p.Quote) || !p.Quote.ExpiresAt.After(time.Now()) {
 			blocked = true
 			p.State = "canceled"
 		} else {
