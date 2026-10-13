@@ -70,10 +70,14 @@ func (s *Store) MarkUnknown(ctx context.Context, id string) error {
 // This slice intentionally exposes no webhook/effect ingestion HTTP endpoint.
 type VerifiedEffect struct {
 	Provider, Account, EventID, FactID, PaymentID, Kind, Asset, Amount string
+	RefundID                                                           string
 	Evidence                                                           json.RawMessage
 }
 
 func (s *Store) RecordEffect(ctx context.Context, e VerifiedEffect) error {
+	if e.RefundID != "" && (e.Kind != "refund" || !validUUID(e.RefundID)) {
+		return ErrInvalid
+	}
 	if e.Provider != "stripe_test" || e.Account == "" || e.EventID == "" || e.FactID == "" || !positive(e.Amount, false) || !json.Valid(e.Evidence) || (e.Kind != "charge" && e.Kind != "refund") {
 		return ErrInvalid
 	}
@@ -96,18 +100,27 @@ func (s *Store) RecordEffect(ctx context.Context, e VerifiedEffect) error {
 		if e.Kind == "charge" && e.Amount != p.Quote.Amount {
 			return ErrConflict
 		}
+		if e.RefundID != "" {
+			r, err := loadRefund(ctx, tx, e.RefundID, true)
+			if err != nil {
+				return err
+			}
+			if r.PaymentID != e.PaymentID || r.Amount != e.Amount || r.Asset != e.Asset {
+				return ErrConflict
+			}
+		}
 		// Event replay must retain its original payment and body. Economic facts have
 		// separate identities because several legitimate provider events name one charge.
 		var oldPayment string
 		var oldEvidence []byte
-		var oldFact, oldKind, oldAsset, oldAmount string
-		err = tx.QueryRow(ctx, "SELECT payment_id::text,evidence,fact_id,kind,asset,amount::text FROM sandbox_provider_events WHERE provider=$1 AND account=$2 AND environment='test' AND event_id=$3", e.Provider, e.Account, e.EventID).Scan(&oldPayment, &oldEvidence, &oldFact, &oldKind, &oldAsset, &oldAmount)
+		var oldFact, oldKind, oldAsset, oldAmount, oldRefund string
+		err = tx.QueryRow(ctx, "SELECT payment_id::text,evidence,fact_id,kind,asset,amount::text,COALESCE(refund_id::text,'') FROM sandbox_provider_events WHERE provider=$1 AND account=$2 AND environment='test' AND event_id=$3", e.Provider, e.Account, e.EventID).Scan(&oldPayment, &oldEvidence, &oldFact, &oldKind, &oldAsset, &oldAmount, &oldRefund)
 		if err == nil {
 			var equal bool
 			if err = tx.QueryRow(ctx, "SELECT $1::jsonb=$2::jsonb", oldEvidence, []byte(e.Evidence)).Scan(&equal); err != nil {
 				return err
 			}
-			if oldPayment != e.PaymentID || !equal || oldFact != e.FactID || oldKind != e.Kind || oldAsset != e.Asset || oldAmount != e.Amount {
+			if oldPayment != e.PaymentID || !equal || oldFact != e.FactID || oldKind != e.Kind || oldAsset != e.Asset || oldAmount != e.Amount || oldRefund != e.RefundID {
 				return ErrConflict
 			}
 			return nil
@@ -116,9 +129,9 @@ func (s *Store) RecordEffect(ctx context.Context, e VerifiedEffect) error {
 			return err
 		}
 		var kind, asset, amount string
-		err = tx.QueryRow(ctx, "SELECT payment_id::text,kind,asset,amount::text FROM sandbox_effects WHERE provider=$1 AND account=$2 AND environment='test' AND fact_id=$3", e.Provider, e.Account, e.FactID).Scan(&oldPayment, &kind, &asset, &amount)
+		err = tx.QueryRow(ctx, "SELECT payment_id::text,kind,asset,amount::text,COALESCE(refund_id::text,'') FROM sandbox_effects WHERE provider=$1 AND account=$2 AND environment='test' AND fact_id=$3", e.Provider, e.Account, e.FactID).Scan(&oldPayment, &kind, &asset, &amount, &oldRefund)
 		exists := err == nil
-		if exists && (oldPayment != e.PaymentID || kind != e.Kind || asset != e.Asset || amount != e.Amount) {
+		if exists && (oldPayment != e.PaymentID || kind != e.Kind || asset != e.Asset || amount != e.Amount || oldRefund != e.RefundID) {
 			return ErrConflict
 		}
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
@@ -144,17 +157,20 @@ func (s *Store) RecordEffect(ctx context.Context, e VerifiedEffect) error {
 					return ErrConflict
 				}
 			}
-			if _, err = tx.Exec(ctx, "INSERT INTO sandbox_effects(provider,account,environment,fact_id,payment_id,kind,asset,amount,evidence) VALUES($1,$2,'test',$3,$4,$5,$6,$7,$8)", e.Provider, e.Account, e.FactID, e.PaymentID, e.Kind, e.Asset, e.Amount, []byte(e.Evidence)); err != nil {
+			if _, err = tx.Exec(ctx, "INSERT INTO sandbox_effects(provider,account,environment,fact_id,payment_id,kind,asset,amount,evidence,refund_id) VALUES($1,$2,'test',$3,$4,$5,$6,$7,$8,nullif($9,'')::uuid)", e.Provider, e.Account, e.FactID, e.PaymentID, e.Kind, e.Asset, e.Amount, []byte(e.Evidence), e.RefundID); err != nil {
 				return err
 			}
 		}
-		if _, err = tx.Exec(ctx, "INSERT INTO sandbox_provider_events(provider,account,environment,event_id,payment_id,evidence,fact_id,kind,asset,amount) VALUES($1,$2,'test',$3,$4,$5,$6,$7,$8,$9)", e.Provider, e.Account, e.EventID, e.PaymentID, []byte(e.Evidence), e.FactID, e.Kind, e.Asset, e.Amount); err != nil {
+		if _, err = tx.Exec(ctx, "INSERT INTO sandbox_provider_events(provider,account,environment,event_id,payment_id,evidence,fact_id,kind,asset,amount,refund_id) VALUES($1,$2,'test',$3,$4,$5,$6,$7,$8,$9,nullif($10,'')::uuid)", e.Provider, e.Account, e.EventID, e.PaymentID, []byte(e.Evidence), e.FactID, e.Kind, e.Asset, e.Amount, e.RefundID); err != nil {
 			return err
 		}
 		// Valid late provider facts survive policy revocation or local cancellation;
 		// financial truth must not be discarded because authorization changed.
 		if e.Kind == "charge" {
 			_, err = tx.Exec(ctx, "UPDATE sandbox_payments SET state='settled',provider_reference=$2,updated_at=now() WHERE id=$1", e.PaymentID, e.FactID)
+		}
+		if err == nil && e.RefundID != "" {
+			_, err = tx.Exec(ctx, "UPDATE sandbox_refunds SET state='succeeded',provider_reference=$2,updated_at=now() WHERE id=$1", e.RefundID, e.FactID)
 		}
 		return err
 	})

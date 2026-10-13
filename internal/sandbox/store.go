@@ -28,6 +28,12 @@ var (
 //go:embed migrations/001_authority.sql
 var migration string
 
+//go:embed migrations/002_refunds.sql
+var refundMigration string
+
+//go:embed migrations/003_refund_retry_privacy.sql
+var refundRetryMigration string
+
 func Migrate(ctx context.Context, c *pgx.Conn) error {
 	tx, err := c.Begin(ctx)
 	if err != nil {
@@ -47,20 +53,25 @@ func Migrate(ctx context.Context, c *pgx.Conn) error {
 	if _, err = tx.Exec(ctx, "CREATE TABLE IF NOT EXISTS public.undergrid_sandbox_migrations(version integer PRIMARY KEY, checksum text NOT NULL)"); err != nil {
 		return err
 	}
-	var checksum string
-	err = tx.QueryRow(ctx, "SELECT checksum FROM public.undergrid_sandbox_migrations WHERE version=1").Scan(&checksum)
-	switch {
-	case errors.Is(err, pgx.ErrNoRows):
-		if _, err = tx.Exec(ctx, migration); err != nil {
+	for _, step := range []struct {
+		version int
+		sql     string
+	}{{1, migration}, {2, refundMigration}, {3, refundRetryMigration}} {
+		var checksum string
+		err = tx.QueryRow(ctx, "SELECT checksum FROM public.undergrid_sandbox_migrations WHERE version=$1", step.version).Scan(&checksum)
+		switch {
+		case errors.Is(err, pgx.ErrNoRows):
+			if _, err = tx.Exec(ctx, step.sql); err != nil {
+				return err
+			}
+			if _, err = tx.Exec(ctx, "INSERT INTO public.undergrid_sandbox_migrations VALUES($1,$2)", step.version, hash([]byte(step.sql))); err != nil {
+				return err
+			}
+		case err != nil:
 			return err
+		case checksum != hash([]byte(step.sql)):
+			return errors.New("sandbox migration checksum mismatch")
 		}
-		if _, err = tx.Exec(ctx, "INSERT INTO public.undergrid_sandbox_migrations VALUES(1,$1)", hash([]byte(migration))); err != nil {
-			return err
-		}
-	case err != nil:
-		return err
-	case checksum != hash([]byte(migration)):
-		return errors.New("sandbox migration checksum mismatch")
 	}
 	if err = validateGroupRoles(ctx, tx); err != nil {
 		return err
@@ -77,11 +88,12 @@ type Owner struct {
 	Subject string `json:"subject"`
 }
 type Policy struct {
-	Asset     string    `json:"asset"`
-	Cap       string    `json:"cap_atomic"`
-	Products  []string  `json:"products"`
-	Payees    []string  `json:"payees"`
-	ExpiresAt time.Time `json:"expires_at"`
+	Asset        string    `json:"asset"`
+	Cap          string    `json:"cap_atomic"`
+	Products     []string  `json:"products"`
+	Payees       []string  `json:"payees"`
+	ExpiresAt    time.Time `json:"expires_at"`
+	AllowRefunds bool      `json:"allow_refunds"`
 }
 type Quote struct {
 	Product   string    `json:"product"`
@@ -249,11 +261,11 @@ func (s *Store) SetPolicy(ctx context.Context, o Owner, expected int64, p Policy
 	})
 }
 func (s *Store) IssueCredential(ctx context.Context, o Owner, name string, scopes []string) (string, error) {
-	if name == "" || len(name) > 128 || len(scopes) == 0 || len(scopes) > 3 {
+	if name == "" || len(name) > 128 || len(scopes) == 0 || len(scopes) > 6 {
 		return "", ErrInvalid
 	}
 	for _, scope := range scopes {
-		if !slices.Contains([]string{"payments:quote", "payments:authorize", "payments:read"}, scope) {
+		if !slices.Contains([]string{"payments:quote", "payments:authorize", "payments:read", "refunds:request", "refunds:authorize", "refunds:read"}, scope) {
 			return "", ErrInvalid
 		}
 	}
@@ -266,6 +278,11 @@ func (s *Store) IssueCredential(ctx context.Context, o Owner, name string, scope
 		a, err := ownerContext(ctx, tx, o)
 		if err != nil {
 			return err
+		}
+		for _, scope := range scopes {
+			if (scope == "refunds:request" || scope == "refunds:authorize") && (!a.policy.AllowRefunds || !a.policy.ExpiresAt.After(time.Now())) {
+				return ErrUnauthorized
+			}
 		}
 		_, err = tx.Exec(ctx, "INSERT INTO sandbox_credentials(id,actor_id,agent_name,digest,audience,scopes,expires_at) VALUES($1,$2,$3,$4,'undergrid-sandbox',$5,now()+interval '30 days')", randomID(), a.actor, name, hash([]byte(token)), scopes)
 		return err
@@ -302,7 +319,7 @@ func replay(ctx context.Context, tx pgx.Tx, a identity, op, key, digest string) 
 		return "", ErrInvalid
 	}
 	var id, old string
-	err := tx.QueryRow(ctx, "SELECT payment_id::text,request_hash FROM sandbox_idempotency WHERE credential_id=$1 AND operation=$2 AND key=$3", a.credential, op, key).Scan(&id, &old)
+	err := tx.QueryRow(ctx, "SELECT COALESCE(payment_id::text,refund_id::text),request_hash FROM sandbox_idempotency WHERE credential_id=$1 AND operation=$2 AND key=$3", a.credential, op, key).Scan(&id, &old)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", nil
 	}
@@ -312,7 +329,7 @@ func replay(ctx context.Context, tx pgx.Tx, a identity, op, key, digest string) 
 	return id, err
 }
 func remember(ctx context.Context, tx pgx.Tx, a identity, op, key, digest, id string) error {
-	_, err := tx.Exec(ctx, "INSERT INTO sandbox_idempotency VALUES($1,$2,$3,$4,$5,$6)", a.actor, a.credential, op, key, digest, id)
+	_, err := tx.Exec(ctx, "INSERT INTO sandbox_idempotency(actor_id,credential_id,operation,key,request_hash,payment_id) VALUES($1,$2,$3,$4,$5,$6)", a.actor, a.credential, op, key, digest, id)
 	return err
 }
 func (s *Store) CreateQuote(ctx context.Context, token, key string, q Quote) (Payment, error) {
