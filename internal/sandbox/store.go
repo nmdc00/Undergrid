@@ -43,6 +43,9 @@ var stripeMigration string
 //go:embed migrations/007_owner_subscription_retry.sql
 var ownerSubscriptionRetryMigration string
 
+//go:embed migrations/006_provider_anomalies.sql
+var anomalyMigration string
+
 func Migrate(ctx context.Context, c *pgx.Conn) error {
 	tx, err := c.Begin(ctx)
 	if err != nil {
@@ -65,7 +68,7 @@ func Migrate(ctx context.Context, c *pgx.Conn) error {
 	for _, step := range []struct {
 		version int
 		sql     string
-	}{{1, migration}, {2, refundMigration}, {3, refundRetryMigration}, {4, subscriptionMigration}, {5, stripeMigration}, {7, ownerSubscriptionRetryMigration}} {
+	}{{1, migration}, {2, refundMigration}, {3, refundRetryMigration}, {4, subscriptionMigration}, {5, stripeMigration}, {6, anomalyMigration}, {7, ownerSubscriptionRetryMigration}} {
 		var checksum string
 		err = tx.QueryRow(ctx, "SELECT checksum FROM public.undergrid_sandbox_migrations WHERE version=$1", step.version).Scan(&checksum)
 		switch {
@@ -116,13 +119,14 @@ type Quote struct {
 	ExpiresAt time.Time `json:"expires_at"`
 }
 type Payment struct {
-	CheckoutURL string `json:"checkout_url,omitempty"`
-	ID          string `json:"id"`
-	Hash        string `json:"quote_hash"`
-	State       string `json:"state"`
-	Quote       Quote  `json:"quote"`
-	Designation string `json:"designation"`
-	ProviderKey string `json:"-"`
+	Anomalies   []string `json:"anomalies,omitempty"`
+	CheckoutURL string   `json:"checkout_url,omitempty"`
+	ID          string   `json:"id"`
+	Hash        string   `json:"quote_hash"`
+	State       string   `json:"state"`
+	Quote       Quote    `json:"quote"`
+	Designation string   `json:"designation"`
+	ProviderKey string   `json:"-"`
 }
 type identity struct {
 	actor, credential string
@@ -315,7 +319,7 @@ func (s *Store) RevokeCredentials(ctx context.Context, o Owner) error {
 func loadPayment(ctx context.Context, tx pgx.Tx, id string) (Payment, error) {
 	p := Payment{Designation: "TEST — NOT A LIVE COMMITMENT"}
 	var raw []byte
-	err := tx.QueryRow(ctx, "SELECT id::text,quote_hash,state,quote,provider_key,COALESCE(checkout_url,'') FROM sandbox_payments WHERE id=$1", id).Scan(&p.ID, &p.Hash, &p.State, &raw, &p.ProviderKey, &p.CheckoutURL)
+	err := tx.QueryRow(ctx, "SELECT id::text,quote_hash,state,quote,provider_key,COALESCE(checkout_url,''),ARRAY(SELECT kind FROM sandbox_anomalies a WHERE a.payment_id=sandbox_payments.id ORDER BY kind) FROM sandbox_payments WHERE id=$1", id).Scan(&p.ID, &p.Hash, &p.State, &raw, &p.ProviderKey, &p.CheckoutURL, &p.Anomalies)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return p, ErrUnauthorized
 	}

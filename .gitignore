@@ -6,7 +6,7 @@
 /bin/
 /undergrid
 /coverage/
-/web/node_modules/
+/web/node_modules
 /web/dist/
 __pycache__/
 *.sqlite
