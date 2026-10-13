@@ -14,20 +14,28 @@ func TestPrincipalAgentAdmissionQuota(t *testing.T) {
 	s, db := fixture(t)
 	a := client(t, s)
 	body := map[string]any{"name": "another", "scopes": []string{"intents:read"}}
+	var first map[string]any
 	for i := 0; i < 9; i++ {
-		if code, out := a.call("POST", "/v1/agents", "", body); code != 201 {
+		code, out := a.call("POST", "/v1/agents", fmt.Sprint("quota-agent-", i), body)
+		if i == 0 {
+			first = out
+		}
+		if code != 201 {
 			t.Fatal(code, out)
 		}
 	}
-	if code, out := a.call("POST", "/v1/agents", "", body); code != 429 {
+	if code, out := a.call("POST", "/v1/agents", "quota-agent-overflow", body); code != 429 {
 		t.Fatalf("over-limit creation: %d %v", code, out)
+	}
+	if code, replay := a.call("POST", "/v1/agents", "quota-agent-0", body); code != 201 || replay["id"] != first["id"] || replay["token"] != first["token"] {
+		t.Fatalf("idempotent creation replay at quota: %d %v", code, replay)
 	}
 	var count int
 	if err := db.QueryRow(context.Background(), "SELECT count(*) FROM undergrid.agents WHERE principal_id=(SELECT id FROM undergrid.principals WHERE subject=$1)", a.owner).Scan(&count); err != nil || count != 10 {
 		t.Fatal(count, err)
 	}
 	b := client(t, s)
-	if code, out := b.call("POST", "/v1/agents", "", body); code != 201 {
+	if code, out := b.call("POST", "/v1/agents", "other-principal-agent", body); code != 201 {
 		t.Fatal("other principal", code, out)
 	}
 }
@@ -35,7 +43,7 @@ func TestPrincipalAgentAdmissionQuota(t *testing.T) {
 func TestPrincipalIntentAdmissionConcurrencyAndReplay(t *testing.T) {
 	s, db := fixture(t)
 	a := client(t, s)
-	code, sibling := a.call("POST", "/v1/agents", "", map[string]any{"name": "sibling", "scopes": []string{"intents:write"}})
+	code, sibling := a.call("POST", "/v1/agents", "quota-sibling", map[string]any{"name": "sibling", "scopes": []string{"intents:write"}})
 	if code != 201 {
 		t.Fatal(code, sibling)
 	}
@@ -93,8 +101,8 @@ func TestPrincipalSwarmAdmissionAcrossAgents(t *testing.T) {
 	s, db := fixture(t)
 	a := client(t, s)
 	body := map[string]any{"name": "coordinator", "scopes": []string{"swarms:create"}}
-	_, first := a.call("POST", "/v1/agents", "", body)
-	_, second := a.call("POST", "/v1/agents", "", body)
+	_, first := a.call("POST", "/v1/agents", "quota-first-agent", body)
+	_, second := a.call("POST", "/v1/agents", "quota-second-agent", body)
 	one, two := a, a
 	one.token = first["token"].(string)
 	two.token = second["token"].(string)

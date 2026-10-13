@@ -2,9 +2,6 @@ package network
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -84,6 +81,9 @@ func (s *Service) ownerCommand(r *http.Request, tx pgx.Tx) (int, any, error) {
 	if _, err = tx.Exec(ctx, "SELECT set_config('undergrid.owner_issuer',$1,true),set_config('undergrid.owner_subject',$2,true)", o.Issuer, o.Subject); err != nil {
 		return 0, nil, err
 	}
+	if _, err = tx.Exec(ctx, "SELECT set_config('undergrid.owner_verified','true',true)"); err != nil {
+		return 0, nil, err
+	}
 	if r.Method != "POST" && r.Method != "GET" && !(r.Method == "PATCH" && strings.HasPrefix(r.URL.Path, "/v1/owner/intents/")) {
 		return 0, nil, fail(405, "method_not_allowed")
 	}
@@ -121,6 +121,9 @@ func (s *Service) ownerCommand(r *http.Request, tx pgx.Tx) (int, any, error) {
 	if err != nil {
 		return 0, nil, err
 	}
+	if _, err = tx.Exec(ctx, "SELECT set_config('undergrid.principal_id',$1,true)", principal); err != nil {
+		return 0, nil, err
+	}
 	if r.Method == "GET" && r.URL.Path == "/v1/owner/me" {
 		return 200, map[string]any{"id": principal}, nil
 	}
@@ -149,45 +152,55 @@ func (s *Service) ownerCommand(r *http.Request, tx pgx.Tx) (int, any, error) {
 	if r.Method != "POST" || r.URL.Path != "/v1/agents" {
 		return 0, nil, fail(404, "not_found")
 	}
-	var input struct {
-		Name    string       `json:"name"`
-		Scopes  []string     `json:"scopes"`
-		Profile AgentProfile `json:"profile"`
-	}
-	if err = decode(r, &input); err != nil {
+	status, ref, err := idempotentOwner(r, tx, principal, func() (int, any, error) {
+		var input struct {
+			Name    string       `json:"name"`
+			Scopes  []string     `json:"scopes"`
+			Profile AgentProfile `json:"profile"`
+		}
+		if err := decode(r, &input); err != nil {
+			return 0, nil, err
+		}
+		if len(input.Name) < 1 || len(input.Name) > 120 || len(input.Scopes) == 0 || len(input.Scopes) > 30 {
+			return 0, nil, fail(422, "invalid_agent")
+		}
+		if err := s.validateAgentScopes(ctx, tx, principal, input.Scopes); err != nil {
+			return 0, nil, err
+		}
+		if err := admitPrincipalResource(ctx, tx, principal, "agents"); err != nil {
+			return 0, nil, err
+		}
+		if len(input.Profile.Capabilities) > 20 {
+			return 0, nil, fail(422, "capability_limit")
+		}
+		id := NewID()
+		if _, err := tx.Exec(ctx, "INSERT INTO agents(id,principal_id,name,profile) VALUES($1,$2,$3,$4)", id, principal, input.Name, canonical(input.Profile)); err != nil {
+			return 0, nil, err
+		}
+		out, err := s.issueRecoverableCredential(ctx, tx, principal, id, "", input.Scopes)
+		if err != nil {
+			return 0, nil, err
+		}
+		if input.Profile.Public && input.Profile.Recruitment {
+			if err = enqueueRecruitment(ctx, tx, ""); err != nil {
+				return 0, nil, err
+			}
+		}
+		return 201, out, nil
+	})
+	if err != nil {
 		return 0, nil, err
 	}
-	if len(input.Name) < 1 || len(input.Name) > 120 || len(input.Scopes) == 0 || len(input.Scopes) > 30 {
-		return 0, nil, fail(422, "invalid_agent")
+	refObject, ok := ref.(map[string]any)
+	if !ok {
+		return 0, nil, fail(500, "invalid_credential_result")
 	}
-	if err = s.validateAgentScopes(ctx, tx, principal, input.Scopes); err != nil {
-		return 0, nil, err
+	id, ok := refObject["id"].(string)
+	if !ok {
+		return 0, nil, fail(500, "invalid_credential_result")
 	}
-	if err = admitPrincipalResource(ctx, tx, principal, "agents"); err != nil {
-		return 0, nil, err
-	}
-	id := NewID()
-	if len(input.Profile.Capabilities) > 20 {
-		return 0, nil, fail(422, "capability_limit")
-	}
-	if _, err = tx.Exec(ctx, "INSERT INTO agents(id,principal_id,name,profile) VALUES($1,$2,$3,$4)", id, principal, input.Name, canonical(input.Profile)); err != nil {
-		return 0, nil, err
-	}
-	secret := make([]byte, 32)
-	if _, err = rand.Read(secret); err != nil {
-		return 0, nil, err
-	}
-	token := "ug_" + base64.RawURLEncoding.EncodeToString(secret)
-	hash := sha256.Sum256([]byte(token))
-	credentialID := NewID()
-	_, err = tx.Exec(ctx, "INSERT INTO credentials(id,agent_id,digest,scopes,audience,expires_at) VALUES($1,$2,$3,$4,'undergrid-network',now()+interval '30 days')", credentialID, id, hash[:], input.Scopes)
-	if err == nil {
-		err = credentialEvent(ctx, tx, principal, credentialID, 1, "credential.issued", s.environment)
-	}
-	if err == nil && input.Profile.Public && input.Profile.Recruitment {
-		err = enqueueRecruitment(ctx, tx, "")
-	}
-	return 201, map[string]any{"id": id, "principal_id": principal, "credential_id": credentialID, "token": token, "expires_in": 2592000}, err
+	result, err := s.regenerateCredential(ctx, tx, principal, id, ref)
+	return status, result, err
 }
 
 func (s *Service) validateAgentScopes(ctx context.Context, tx pgx.Tx, principal string, scopes []string) error {

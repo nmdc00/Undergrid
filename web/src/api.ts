@@ -23,6 +23,10 @@ export class ApiError extends Error {
 // Cookies carry owner identity. CSRF lives only in memory. No browser bearer key,
 // cross-origin target, arbitrary response URL, or credential persistence.
 const pendingIntentKeys = new Map<string, string>();
+const pendingOwnerAgentKeys = new Map<
+  string,
+  { identity: string; key: string }
+>();
 export async function request(
   path: string,
   csrf = "",
@@ -36,10 +40,17 @@ export async function request(
   const retryIdentity =
     (path.startsWith("/v1/owner/intents") ||
       path.startsWith("/v1/owner/agents/") ||
+      path === "/v1/agents" ||
       path.endsWith("/rotate")) &&
     method !== "GET"
       ? JSON.stringify([csrf, method, path, body, match])
       : "";
+  const isOwnerAgentCreation = path === "/v1/agents" && method === "POST";
+  if (isOwnerAgentCreation) {
+    const previous = pendingOwnerAgentKeys.get(csrf);
+    if (previous && previous.identity !== retryIdentity)
+      pendingIntentKeys.delete(previous.identity);
+  }
   const commandKey = retryIdentity
     ? (pendingIntentKeys.get(retryIdentity) ?? crypto.randomUUID())
     : crypto.randomUUID();
@@ -50,6 +61,11 @@ export async function request(
       );
     pendingIntentKeys.set(retryIdentity, commandKey);
   }
+  if (isOwnerAgentCreation)
+    pendingOwnerAgentKeys.set(csrf, {
+      identity: retryIdentity,
+      key: commandKey,
+    });
   if (method !== "GET") {
     headers.set("X-CSRF-Token", csrf);
     headers.set("Content-Type", "application/json");
@@ -64,8 +80,14 @@ export async function request(
     cache: "no-store",
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-  if (retryIdentity && response.status < 500)
+  if (retryIdentity && response.status < 500) {
     pendingIntentKeys.delete(retryIdentity);
+    if (
+      isOwnerAgentCreation &&
+      pendingOwnerAgentKeys.get(csrf)?.key === commandKey
+    )
+      pendingOwnerAgentKeys.delete(csrf);
+  }
   if (response.status === 204) return {};
   const value: unknown = await response.json().catch(() => ({}));
   const result = object(value);
