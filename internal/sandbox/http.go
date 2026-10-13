@@ -149,6 +149,20 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		respond(200, map[string]string{"state": "revoked", "designation": "TEST"})
+	case r.Method == "POST" && r.URL.Path == "/v1/refunds":
+		var cmd struct {
+			Payment string `json:"payment_id"`
+			Amount  string `json:"amount_atomic"`
+		}
+		if !decode(&cmd) {
+			return
+		}
+		refund, err := h.store.RequestRefund(r.Context(), token, r.Header.Get("Idempotency-Key"), cmd.Payment, cmd.Amount)
+		if err != nil {
+			fail(err)
+			return
+		}
+		respond(201, refund)
 	case r.Method == "POST" && r.URL.Path == "/v1/payments":
 		var cmd struct {
 			Product string `json:"product"`
@@ -170,6 +184,32 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		respond(201, p)
 	default:
 		parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+		if len(parts) >= 3 && parts[0] == "v1" && parts[1] == "refunds" && validUUID(parts[2]) {
+			if r.Method == "GET" && len(parts) == 3 {
+				refund, err := h.store.GetRefund(r.Context(), token, parts[2])
+				if err != nil {
+					fail(err)
+					return
+				}
+				respond(200, refund)
+				return
+			}
+			if r.Method == "POST" && len(parts) == 4 && parts[3] == "authorize" {
+				var cmd struct {
+					Hash string `json:"refund_hash"`
+				}
+				if !decode(&cmd) {
+					return
+				}
+				refund, err := h.store.AuthorizeRefund(r.Context(), token, parts[2], cmd.Hash, r.Header.Get("Idempotency-Key"))
+				if err != nil {
+					fail(err)
+					return
+				}
+				respond(200, refund)
+				return
+			}
+		}
 		if len(parts) >= 3 && parts[0] == "v1" && parts[1] == "payments" && validUUID(parts[2]) {
 			if r.Method == "GET" && len(parts) == 3 {
 				p, err := h.store.GetPayment(r.Context(), token, parts[2])
