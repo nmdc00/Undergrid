@@ -1,6 +1,7 @@
 package network
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
@@ -37,7 +38,17 @@ func New(dsn, environment string, auth OwnerAuthenticator) *Service {
 }
 
 func decode(r *http.Request, v any) error {
-	d := json.NewDecoder(io.LimitReader(r.Body, 65537))
+	// Read one byte past the limit before decoding. A decoder over a limited
+	// reader cannot distinguish EOF from a truncated oversized request.
+	const maxCommandBytes = 64 * 1024
+	raw, err := io.ReadAll(io.LimitReader(r.Body, maxCommandBytes+1))
+	if err != nil {
+		return fail(400, "invalid_json")
+	}
+	if len(raw) > maxCommandBytes {
+		return fail(413, "body_too_large")
+	}
+	d := json.NewDecoder(bytes.NewReader(raw))
 	d.DisallowUnknownFields()
 	if err := d.Decode(v); err != nil {
 		return fail(400, "invalid_json")

@@ -1,0 +1,4 @@
+FROM scratch
+COPY undergrid-verifier /undergrid-verifier
+USER 65532:65532
+ENTRYPOINT ["/undergrid-verifier"]
