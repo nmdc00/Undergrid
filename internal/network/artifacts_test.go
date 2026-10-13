@@ -151,9 +151,13 @@ func newArtifactScenario(t *testing.T) artifactScenario {
 	}
 	return artifactScenario{s, db, actors, ids, room, plan, task, server, config, workerDSN}
 }
-func (x artifactScenario) upload(t *testing.T, data []byte, key string) map[string]any {
+func (x artifactScenario) upload(t *testing.T, data []byte, key string, purpose ...string) map[string]any {
 	t.Helper()
-	code, out := x.actors[2].call("POST", "/v1/artifacts/uploads", key, map[string]any{"swarm_id": x.room["id"], "plan_id": x.plan["id"], "task_id": x.task["id"], "claim_epoch": x.task["claim_epoch"], "media_type": "application/json", "size_bytes": len(data)})
+	body := map[string]any{"swarm_id": x.room["id"], "plan_id": x.plan["id"], "task_id": x.task["id"], "claim_epoch": x.task["claim_epoch"], "media_type": "application/json", "size_bytes": len(data)}
+	if len(purpose) > 0 {
+		body["purpose"] = purpose[0]
+	}
+	code, out := x.actors[2].call("POST", "/v1/artifacts/uploads", key, body)
 	if code != 201 {
 		t.Fatal(code, out)
 	}

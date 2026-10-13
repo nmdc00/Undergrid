@@ -158,7 +158,7 @@ func authenticate(ctx context.Context, tx pgx.Tx, authorization, method, path st
 			}
 		}
 	}
-	if method == "POST" && (strings.HasPrefix(path, "/v1/plans/") || strings.HasSuffix(path, "/assignment-response")) {
+	if method == "POST" && (strings.HasPrefix(path, "/v1/plans/") || strings.HasPrefix(path, "/v1/tasks/")) {
 		parts := strings.Split(path, "/")
 		if len(parts) == 5 && validID(parts[3]) {
 			planID := parts[3]
