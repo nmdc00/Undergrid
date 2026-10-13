@@ -34,7 +34,10 @@ export async function request(
     throw new Error("Invalid API target");
   const headers = new Headers({ Accept: "application/json" });
   const retryIdentity =
-    path.startsWith("/v1/owner/intents") && method !== "GET"
+    (path.startsWith("/v1/owner/intents") ||
+      path.startsWith("/v1/owner/agents/") ||
+      path.endsWith("/rotate")) &&
+    method !== "GET"
       ? JSON.stringify([csrf, method, path, body, match])
       : "";
   const commandKey = retryIdentity
