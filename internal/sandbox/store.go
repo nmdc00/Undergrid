@@ -37,6 +37,9 @@ var refundRetryMigration string
 //go:embed migrations/004_subscriptions.sql
 var subscriptionMigration string
 
+//go:embed migrations/005_stripe.sql
+var stripeMigration string
+
 func Migrate(ctx context.Context, c *pgx.Conn) error {
 	tx, err := c.Begin(ctx)
 	if err != nil {
@@ -59,7 +62,7 @@ func Migrate(ctx context.Context, c *pgx.Conn) error {
 	for _, step := range []struct {
 		version int
 		sql     string
-	}{{1, migration}, {2, refundMigration}, {3, refundRetryMigration}, {4, subscriptionMigration}} {
+	}{{1, migration}, {2, refundMigration}, {3, refundRetryMigration}, {4, subscriptionMigration}, {5, stripeMigration}} {
 		var checksum string
 		err = tx.QueryRow(ctx, "SELECT checksum FROM public.undergrid_sandbox_migrations WHERE version=$1", step.version).Scan(&checksum)
 		switch {
@@ -110,6 +113,7 @@ type Quote struct {
 	ExpiresAt time.Time `json:"expires_at"`
 }
 type Payment struct {
+	CheckoutURL string `json:"checkout_url,omitempty"`
 	ID          string `json:"id"`
 	Hash        string `json:"quote_hash"`
 	State       string `json:"state"`
@@ -308,7 +312,7 @@ func (s *Store) RevokeCredentials(ctx context.Context, o Owner) error {
 func loadPayment(ctx context.Context, tx pgx.Tx, id string) (Payment, error) {
 	p := Payment{Designation: "TEST — NOT A LIVE COMMITMENT"}
 	var raw []byte
-	err := tx.QueryRow(ctx, "SELECT id::text,quote_hash,state,quote,provider_key FROM sandbox_payments WHERE id=$1", id).Scan(&p.ID, &p.Hash, &p.State, &raw, &p.ProviderKey)
+	err := tx.QueryRow(ctx, "SELECT id::text,quote_hash,state,quote,provider_key,COALESCE(checkout_url,'') FROM sandbox_payments WHERE id=$1", id).Scan(&p.ID, &p.Hash, &p.State, &raw, &p.ProviderKey, &p.CheckoutURL)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return p, ErrUnauthorized
 	}

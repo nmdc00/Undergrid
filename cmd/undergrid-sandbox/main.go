@@ -26,7 +26,7 @@ func main() {
 	}
 }
 func run() error {
-	mode := flag.String("mode", "api", "api, renewal-worker or migrate; TEST only")
+	mode := flag.String("mode", "api", "api, renewal-worker, stripe-worker or migrate; TEST only")
 	flag.Parse()
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer cancel()
@@ -37,6 +37,9 @@ func run() error {
 	if dsn == "" {
 		return errors.New("separate sandbox database configuration required")
 	}
+	if *mode == "api" && (os.Getenv("UNDERGRID_SANDBOX_STRIPE_SECRET_KEY") != "" || os.Getenv("UNDERGRID_SANDBOX_STRIPE_WEBHOOK_SECRET") != "") {
+		return errors.New("sandbox API must not carry provider worker credentials")
+	}
 	c, err := pgx.Connect(ctx, dsn)
 	if err != nil {
 		return errors.New("sandbox database unavailable")
@@ -45,19 +48,22 @@ func run() error {
 	if *mode == "migrate" {
 		return sandbox.Migrate(ctx, c)
 	}
-	if *mode != "api" && *mode != "renewal-worker" {
+	if *mode != "api" && *mode != "renewal-worker" && *mode != "stripe-worker" {
 		return errors.New("unsupported sandbox mode")
 	}
 	if err = sandbox.ValidateGroupRoles(ctx, c); err != nil {
 		return err
 	}
-	if *mode == "renewal-worker" {
+	if *mode == "renewal-worker" || *mode == "stripe-worker" {
 		var unsafe bool
 		err = c.QueryRow(ctx, `SELECT rolsuper OR rolbypassrls OR rolcreaterole OR rolcreatedb OR rolreplication OR CASE WHEN to_regrole('undergrid_app') IS NOT NULL THEN pg_has_role(current_user,'undergrid_app','MEMBER') ELSE false END OR CASE WHEN to_regrole('undergrid_worker') IS NOT NULL THEN pg_has_role(current_user,'undergrid_worker','MEMBER') ELSE false END OR NOT pg_has_role(current_user,'undergrid_sandbox_worker','MEMBER') OR pg_has_role(current_user,'undergrid_sandbox_app','MEMBER') OR EXISTS(SELECT FROM pg_tables WHERE schemaname='undergrid_sandbox' AND tableowner=current_user) OR to_regnamespace('undergrid') IS NOT NULL FROM pg_roles WHERE rolname=current_user`).Scan(&unsafe)
 		if err != nil || unsafe {
 			return errors.New("sandbox renewal worker requires isolated nonowner worker login without app privileges")
 		}
 		c.Close(ctx)
+		if *mode == "stripe-worker" {
+			return runStripe(ctx, dsn)
+		}
 		return sandbox.New(dsn).RunRenewalWorker(ctx)
 	}
 	var unsafe bool
