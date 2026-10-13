@@ -34,3 +34,5 @@ Unresolved external gates: hosting/domain/OIDC provider, approved rights and sou
 The README describes implementation and qualification limits. `main` and `develop` contain documentation only until the release is validated. Remote feature review, exact-SHA integration validation and subsequent promotion remain pending. Undergrid deployment requires its own approved hosting, identity and credentials; the Thufir deployment skill and server are not applicable.
 
 Merge order: plans authority, sandbox authority (independent database), principal quotas, then final integrated qualification. A feature must include its proving tests and reconciled evidence before merge. The fixed verifier’s merged history is retained; its outstanding OS isolation gate is not waived.
+
+Hosted CI blocker: GitHub account billing lock prevents jobs from starting. Feature PRs and draft release PR remain open; preserve required checks and rerun after account recovery. Local tests continue as explicitly local evidence.
