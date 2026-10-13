@@ -2,10 +2,10 @@
 
 > Superseded by [revision 2](UNDERGRID_TDD_v0.1-r2.md) following the adversarial review. Retained as historical design context; its broader schema and infrastructure are not the current proposal. Implementation remains unapproved.
 
-**Status:** proposed implementation design; no implementation or deployment has been performed.  
-**Date:** 12 October 2026.  
-**Target:** production-deployable, self-service public beta; financial integrations restricted to an explicitly separate sandbox at launch.  
-**Stack decision:** Go, PostgreSQL/pgvector, TypeScript/React operator UI.  
+**Status:** proposed implementation design; no implementation or deployment has been performed.
+**Date:** 12 October 2026.
+**Target:** production-deployable, self-service public beta; financial integrations restricted to an explicitly separate sandbox at launch.
+**Stack decision:** Go, PostgreSQL/pgvector, TypeScript/React operator UI.
 **Sources of product authority:** PRD v0.1, the project context and technical design brief, and the subsequent public-launch requirement. Later explicit user instructions take precedence where they change PRD scope.
 
 ## 1. Purpose, evidence and assumptions
