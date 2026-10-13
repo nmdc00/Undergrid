@@ -48,10 +48,10 @@ func loadSubscription(ctx context.Context, tx pgx.Tx, id string, lock bool) (Sub
 
 // The offer comes only from the operator's fixed catalog, never the owner body.
 // Consent is explicit, bounded and immutable. It does not itself debit anything.
-func (s *Store) CreateSubscription(ctx context.Context, o Owner, c SubscriptionConsent, q Quote) (Subscription, error) {
+func (s *Store) CreateSubscription(ctx context.Context, o Owner, key string, c SubscriptionConsent, q Quote) (Subscription, error) {
 	var sub Subscription
 	now := time.Now().UTC()
-	if !validUUID(c.CredentialID) || !positive(c.Maximum, false) || c.RenewalCount < 1 || c.RenewalCount > 2 || c.PeriodSeconds < 86400 || c.PeriodSeconds > 7776000 || !c.ExpiresAt.After(now) || c.ExpiresAt.After(now.Add(90*24*time.Hour)) || q.Rail != "stripe_test" || q.Asset != "USD" || !positive(q.Amount, false) || !positive(q.Fee, true) || q.Product == "" || q.Payee == "" || q.TermsID == "" || len(q.TermsHash) != 64 {
+	if key == "" || len(key) > 128 || !validUUID(c.CredentialID) || !positive(c.Maximum, false) || c.RenewalCount < 1 || c.RenewalCount > 2 || c.PeriodSeconds < 86400 || c.PeriodSeconds > 7776000 || q.Rail != "stripe_test" || q.Asset != "USD" || !positive(q.Amount, false) || !positive(q.Fee, true) || q.Product == "" || q.Payee == "" || q.TermsID == "" || len(q.TermsHash) != 64 {
 		return sub, ErrInvalid
 	}
 	if _, err := hex.DecodeString(q.TermsHash); err != nil {
@@ -65,6 +65,10 @@ func (s *Store) CreateSubscription(ctx context.Context, o Owner, c SubscriptionC
 	}
 	c.ExpiresAt = c.ExpiresAt.UTC()
 	q.ExpiresAt = time.Time{} // each debit gets its own bounded dispatch quote
+	digest := hash(encode(struct {
+		Consent SubscriptionConsent
+		Offer   Quote
+	}{c, q}))
 	err := s.transaction(ctx, "undergrid_sandbox_app", func(tx pgx.Tx) error {
 		a, err := ownerContext(ctx, tx, o)
 		if err != nil {
@@ -82,6 +86,23 @@ func (s *Store) CreateSubscription(ctx context.Context, o Owner, c SubscriptionC
 		if !valid {
 			return ErrUnauthorized
 		}
+		// Owner identity and present authority are checked before retrieving a
+		// prior result. The actor lock serializes both replay and new consent.
+		var oldHash, oldID string
+		err = tx.QueryRow(ctx, "SELECT request_hash,subscription_id::text FROM sandbox_idempotency WHERE actor_id=$1 AND credential_id IS NULL AND operation='subscription.create' AND key=$2", a.actor, key).Scan(&oldHash, &oldID)
+		if err == nil {
+			if oldHash != digest {
+				return ErrConflict
+			}
+			sub, err = loadSubscription(ctx, tx, oldID, false)
+			return err
+		}
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return err
+		}
+		if !c.ExpiresAt.After(now) || c.ExpiresAt.After(now.Add(90*24*time.Hour)) {
+			return ErrInvalid
+		}
 		id := randomID()
 		bound := hash(encode(struct {
 			Actor, Nonce string
@@ -90,6 +111,9 @@ func (s *Store) CreateSubscription(ctx context.Context, o Owner, c SubscriptionC
 		}{a.actor, id, c, q}))
 		_, err = tx.Exec(ctx, "INSERT INTO sandbox_subscriptions(id,actor_id,credential_id,offer,maximum,period_seconds,renewal_count,expires_at,next_due_at,consent_hash) VALUES($1,$2,$3,$4,$5,$6,$7,$8,now()+make_interval(secs=>$6::integer),$9)", id, a.actor, c.CredentialID, encode(q), c.Maximum, c.PeriodSeconds, c.RenewalCount, c.ExpiresAt, bound)
 		if err != nil {
+			return err
+		}
+		if _, err = tx.Exec(ctx, "INSERT INTO sandbox_idempotency(actor_id,operation,key,request_hash,subscription_id) VALUES($1,'subscription.create',$2,$3,$4)", a.actor, key, digest, id); err != nil {
 			return err
 		}
 		sub, err = loadSubscription(ctx, tx, id, false)
