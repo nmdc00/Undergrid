@@ -46,3 +46,17 @@ GitHub protection is verified on `release/v0.1`, `develop`, and `main`: PRs requ
 - Sprint evidence: [PR #3](https://github.com/nmdc00/Undergrid/pull/3), documentation-only; records repository setup, isolated assignments and blockers.
 
 The local reconciliation candidate `ce798ded40ff38303e5fb2f15ed452b73916227b` combines plans and quotas and passed `go test -race -count=1 ./...` on a completely fresh PostgreSQL 16 cluster at port 55440 (network 29.863s). The UTF-8 network database started with no copied schema, roles or participant data, so this proves the original migrations plus candidate migrations from scratch. Sandbox integration will receive a separate database and runtime role. This temporary candidate does not advance the protected release branch or establish deployment readiness.
+
+## Final resumed-wave evidence
+
+All task branches are published; feature PRs remain unmerged while hosted CI is blocked:
+
+| Task | PR | Feature head | Local state | Owning document |
+|---|---|---|---|---|
+| Plans and assignments | [#4](https://github.com/nmdc00/Undergrid/pull/4) | `a7425a9` | Runtime/lifecycle/race/build/vet proven; partial N3 | `docs/evidence/plans.md`, TDD §§6–8, 10 |
+| Sandbox authority | [#6](https://github.com/nmdc00/Undergrid/pull/6) | `2090513` | Runtime/lifecycle/race/build/vet proven; partial F1 | `docs/evidence/sandbox.md`, TDD §§2.2, 11 |
+| Principal quotas | [#5](https://github.com/nmdc00/Undergrid/pull/5) | `fd7c6ef` | Domain concurrency/replay/recovery proven; partial operational limits | `docs/evidence/quotas.md`, TDD §12 |
+
+The final combined preview is published as `reconcile/v0.1-wave1` at `9816ec99e3c5b1c6b3b2282a408111175b9ebe80`, tree `aea6267824e22524351937491c32987ac3c1423c`. All-package race tests with `CI=true`, vet, command builds, module verification, formatting, diff checks, and six separately labeled listener fixtures passed. Network and financial databases were distinct in the fresh cluster; sandbox transactions used a restricted test login. See [integration contract and retrospective](evidence/wave1-integration.md).
+
+This preview is review evidence, not a replacement for feature PRs or exact-release validation. After account recovery, rerun checks, merge feature PRs into release in the documented order with current-base validation, validate the resulting release SHA, then proceed through develop and main only when the complete release contract and external approvals allow it. No protected merge, public deployment, provider qualification or full milestone completion occurred.
