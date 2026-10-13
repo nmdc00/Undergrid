@@ -103,6 +103,9 @@ func (s *Service) createSwarm(r *http.Request, tx pgx.Tx, a actor) (int, any, er
 			return 0, nil, fail(404, "not_found")
 		}
 	}
+	if err := admitPrincipalResource(r.Context(), tx, a.PrincipalID, "active_swarms"); err != nil {
+		return 0, nil, err
+	}
 	id := NewID()
 	_, err := tx.Exec(r.Context(), "INSERT INTO swarms(id,creator_principal_id,coordinator_agent_id,objective,visibility,recruitment_roles,origin_opportunity_id) VALUES($1,$2,$3,$4,$5,$6,nullif($7,'')::uuid)", id, a.PrincipalID, a.AgentID, in.Objective, in.Visibility, canonical(in.RecruitmentRoles), in.OriginOpportunityID)
 	if err != nil {

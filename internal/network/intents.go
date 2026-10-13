@@ -55,6 +55,9 @@ func mutateIntentOnce(r *http.Request, tx pgx.Tx, a actor, environment string) (
 		if err = input.validate(); err != nil {
 			return 0, nil, err
 		}
+		if err = admitPrincipalResource(ctx, tx, a.PrincipalID, "active_intents"); err != nil {
+			return 0, nil, err
+		}
 		id = NewID()
 		version = 1
 		eventType = "intent.created"
@@ -98,6 +101,11 @@ func mutateIntentOnce(r *http.Request, tx pgx.Tx, a actor, environment string) (
 		}
 		if previous == "withdrawn" || previous == "expired" {
 			return 0, nil, fail(409, "terminal_intent")
+		}
+		if input.State == "active" && previous != "active" {
+			if err = admitPrincipalResource(ctx, tx, a.PrincipalID, "active_intents"); err != nil {
+				return 0, nil, err
+			}
 		}
 		version++
 		eventType = "intent." + input.State
