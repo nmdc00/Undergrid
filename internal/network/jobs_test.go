@@ -2,6 +2,8 @@ package network
 
 import (
 	"context"
+	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -85,11 +87,25 @@ func TestWorkerShutdownCancelsBlockedTransactionAndPreservesQueuedWork(t *testin
 	defer cancel()
 	stopped := make(chan error, 1)
 	started := time.Now().UTC()
-	go func() { stopped <- RunWorker(ctx, s.dsn, "development") }()
+	workerName := "shutdown_test_" + NewID()
+	workerDSN := s.dsn
+	if strings.HasPrefix(workerDSN, "postgres://") || strings.HasPrefix(workerDSN, "postgresql://") {
+		u, parseErr := url.Parse(workerDSN)
+		if parseErr != nil {
+			t.Fatal(parseErr)
+		}
+		query := u.Query()
+		query.Set("application_name", workerName)
+		u.RawQuery = query.Encode()
+		workerDSN = u.String()
+	} else {
+		workerDSN += " application_name=" + workerName
+	}
+	go func() { stopped <- RunWorker(ctx, workerDSN, "development") }()
 	deadline := time.Now().Add(10 * time.Second)
 	blocked := false
 	for time.Now().Before(deadline) {
-		if err = observer.QueryRow(context.Background(), "SELECT EXISTS(SELECT FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock' AND query LIKE 'SELECT status FROM principals WHERE id=%')").Scan(&blocked); err != nil {
+		if err = observer.QueryRow(context.Background(), "SELECT EXISTS(SELECT FROM pg_stat_activity WHERE datname=current_database() AND application_name=$1 AND wait_event_type='Lock' AND $2::integer=ANY(pg_blocking_pids(pid)))", workerName, db.PgConn().PID()).Scan(&blocked); err != nil {
 			t.Fatal(err)
 		}
 		if blocked {
@@ -101,6 +117,8 @@ func TestWorkerShutdownCancelsBlockedTransactionAndPreservesQueuedWork(t *testin
 		case <-time.After(20 * time.Millisecond):
 		}
 	}
+	// RLS may read the locked principal table before the explicit domain query.
+	// Prove the tagged worker waits on this exact lock owner, not SQL spelling.
 	if !blocked {
 		t.Fatal("no worker transaction reached the held principal lock")
 	}
