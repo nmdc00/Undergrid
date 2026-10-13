@@ -182,7 +182,7 @@ func (s *Service) invite(r *http.Request, tx pgx.Tx, a actor, swarm string) (int
 			return 0, nil, fail(422, "invalid_application")
 		}
 		id = in.ApplicationID
-		err = tx.QueryRow(r.Context(), "UPDATE memberships SET state='offered',role=$4,respond_by=$5,version=version+1 WHERE id=$1 AND swarm_id=$2 AND agent_id=$3 AND state='applied' RETURNING principal_id,version", id, swarm, in.AgentID, in.Role, in.RespondBy).Scan(&principal, &version)
+		err = tx.QueryRow(r.Context(), "UPDATE memberships SET state='offered',role=$4,respond_by=$5,version=version+1 WHERE id=$1 AND swarm_id=$2 AND agent_id=$3 AND state='applied' AND respond_by>now() RETURNING principal_id,version", id, swarm, in.AgentID, in.Role, in.RespondBy).Scan(&principal, &version)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return 0, nil, fail(409, "application_not_current")
 		}
