@@ -36,3 +36,13 @@ The README describes implementation and qualification limits. `main` and `develo
 Merge order: plans authority, sandbox authority (independent database), principal quotas, then final integrated qualification. A feature must include its proving tests and reconciled evidence before merge. The fixed verifier’s merged history is retained; its outstanding OS isolation gate is not waived.
 
 Hosted CI blocker: GitHub account billing lock prevents jobs from starting. Feature PRs and draft release PR remain open; preserve required checks and rerun after account recovery. Local tests continue as explicitly local evidence.
+
+## Review and promotion controls
+
+GitHub protection is verified on `release/v0.1`, `develop`, and `main`: PRs required, `go-postgres` required against the current base, administrator enforcement enabled, conversation resolution required, force pushes and branch deletion disabled. Hosted CI billing is an external account blocker; no override or fake passing status is used. `main` and `develop` remain identical at the documentation baseline.
+
+- Plans: [PR #4](https://github.com/nmdc00/Undergrid/pull/4), authority and assignments; review found changed terms under the same template ID could authorize progress after restart. A real failing regression led to sealed-template digest checks for assignment/progress. Local race, build and vet pass.
+- Quotas: [PR #5](https://github.com/nmdc00/Undergrid/pull/5), durable principal admission; local HTTP/RLS concurrency, restart, replay and pause/reactivation tests plus all-package race/build/vet pass. Rate, storage and fair-queue requirements remain deferred.
+- Sprint evidence: [PR #3](https://github.com/nmdc00/Undergrid/pull/3), documentation-only; records repository setup, isolated assignments and blockers.
+
+The local reconciliation candidate `ce798ded40ff38303e5fb2f15ed452b73916227b` combines plans and quotas and passed `go test -race -count=1 ./...` on a completely fresh PostgreSQL 16 cluster at port 55440 (network 29.863s). The UTF-8 network database started with no copied schema, roles or participant data, so this proves the original migrations plus candidate migrations from scratch. Sandbox integration will receive a separate database and runtime role. This temporary candidate does not advance the protected release branch or establish deployment readiness.
