@@ -1,0 +1,72 @@
+name: Required local-system checks
+
+on:
+  pull_request:
+  push:
+    branches: [main, develop, 'release/**', 'feat/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  go-postgres:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16.11
+        env:
+          POSTGRES_USER: undergrid_ci
+          POSTGRES_PASSWORD: disposable-ci-only
+          POSTGRES_DB: undergrid_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U undergrid_ci -d undergrid_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      UNDERGRID_TEST_DATABASE_URL: postgres://undergrid_ci:disposable-ci-only@127.0.0.1:5432/undergrid_test?sslmode=disable
+      UNDERGRID_SANDBOX_TEST_RUNTIME_DATABASE_URL: postgres://undergrid_sandbox_ci_runner:disposable-sandbox-only@127.0.0.1:5432/undergrid_sandbox_test?sslmode=disable
+      UNDERGRID_SANDBOX_TEST_DATABASE_URL: postgres://undergrid_ci:disposable-ci-only@127.0.0.1:5432/undergrid_sandbox_test?sslmode=disable
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Create isolated sandbox test database
+        env:
+          PGPASSWORD: disposable-ci-only
+        run: createdb -h 127.0.0.1 -U undergrid_ci undergrid_sandbox_test
+      - name: Migrate sandbox and provision restricted test runtime
+        env:
+          UNDERGRID_SANDBOX_MIGRATION_DATABASE_URL: ${{ env.UNDERGRID_SANDBOX_TEST_DATABASE_URL }}
+        run: |
+          go run ./cmd/undergrid-sandbox -mode=migrate
+          psql "$UNDERGRID_SANDBOX_TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -c "CREATE ROLE undergrid_sandbox_ci_runner LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD 'disposable-sandbox-only'; GRANT undergrid_sandbox_app, undergrid_sandbox_worker TO undergrid_sandbox_ci_runner;"
+      - name: Verify module checksums and formatting
+        run: |
+          go mod verify
+          unformatted=$(gofmt -l $(git ls-files '*.go'))
+          if [ -n "$unformatted" ]; then
+            printf '%s\n' "$unformatted"
+            exit 1
+          fi
+          git diff --check
+      - name: Static analysis
+        run: go vet ./...
+      - name: Real database and process tests
+        run: go test -race -count=1 -timeout=10m ./...
+      - name: Build commands
+        run: go build ./cmd/...
+      - name: Reference listener recovery tests
+        working-directory: docs/design-examples
+        run: python3 -m unittest -v test_listener_reference.py

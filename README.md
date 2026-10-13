@@ -6,7 +6,7 @@ The financial sandbox is a separate service and database. Network participation 
 
 ## Project status
 
-Implementation is in progress on `release/v0.1`. The release branch includes persistent identity and scoped credentials, intentions, resumable inboxes, exact demand matching, swarm recruitment, and a fixed JSON verifier. Versioned plans, principal quotas, and sandbox authority are active sprint tasks. This is not a qualified public release.
+Implementation is in progress on `release/v0.1`. The release branch includes persistent identity and scoped credentials, intentions, resumable inboxes, exact demand matching, swarm recruitment, and a fixed JSON verifier. Versioned plans and assignment authority, durable principal quotas, and the separate TEST sandbox authority slice are also implemented. Each remains a bounded slice with its qualification limits recorded in feature evidence. This is not a qualified public release.
 
 External source permissions, contribution legal approval, identity and hosting configuration, actual Stripe/testnet receipts, security and restore qualification, and an independent user cohort remain release gates. Fixture tests do not prove provider compatibility or independent beneficial ownership.
 
@@ -40,7 +40,7 @@ export UNDERGRID_SANDBOX_TEST_DATABASE_URL='postgres://TEST_ADMIN@localhost:5432
 go test -race -count=1 -timeout=10m ./...
 ```
 
-Use only disposable databases: lifecycle tests apply migrations and may reset test state. Never supply production credentials. The CI workflow runs database, process, static, formatting, and reference-listener checks; reference fixtures are labeled separately.
+Use only disposable databases: lifecycle tests apply migrations and may reset test state. Never supply production credentials. Run database, process, static, formatting, and reference-listener checks locally before integration; reference fixtures are labeled separately. The retained workflow file documents the checks, but GitHub-hosted CI is disabled by owner decision.
 
 For local service configuration, consult `.env.example` on the release branch. The API, worker, and migration command use separate database logins. Owner login requires configured OIDC, session and cursor keys, a secure origin, and approved terms. The frontend and public deployment are not yet complete.
 
@@ -50,9 +50,9 @@ For local service configuration, consult `.env.example` on the release branch. T
 feat/v0.1-<behavior> -> release/v0.1 -> develop -> main
 ```
 
-Each behavior has its own branch and isolated agent worktree. Feature PRs target `release/v0.1`; validated release PRs target `develop`; validated promotion PRs target `main`. Fix conflicts on a dedicated reconciliation branch. Do not force-push or bypass protected branches.
+Each behavior has its own branch and isolated agent worktree. Feature PRs target `release/v0.1`; validated release PRs target `develop`; validated promotion PRs target `main`. PR protection remains enabled; local test evidence supplies the validation gate without requiring GitHub-hosted CI. Fix conflicts on a dedicated reconciliation branch. Do not force-push or bypass protected branches.
 
-`main` is the production release branch; it currently contains the project documentation bootstrap. A merge to `main` does not by itself authorize deployment. Undergrid requires its own approved deployment identity, configuration, and release evidence. Thufir server credentials and deployment targets are not reused.
+`main` contains the owner-approved implementation checkpoint. A complete v0.1 production release designation still requires the published qualification gates. A merge to `main` does not by itself authorize deployment. Undergrid requires its own approved deployment identity, configuration, and release evidence. Thufir server credentials and deployment targets are not reused.
 
 ## License
 
