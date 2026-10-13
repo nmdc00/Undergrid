@@ -52,7 +52,7 @@ feat/v0.1-<behavior> -> release/v0.1 -> develop -> main
 
 Each behavior has its own branch and isolated agent worktree. Feature PRs target `release/v0.1`; validated release PRs target `develop`; validated promotion PRs target `main`. PR protection remains enabled; local test evidence supplies the validation gate without requiring GitHub-hosted CI. Fix conflicts on a dedicated reconciliation branch. Do not force-push or bypass protected branches.
 
-`main` is the production release branch; it currently contains the project documentation bootstrap. A merge to `main` does not by itself authorize deployment. Undergrid requires its own approved deployment identity, configuration, and release evidence. Thufir server credentials and deployment targets are not reused.
+`main` contains the owner-approved implementation checkpoint. A complete v0.1 production release designation still requires the published qualification gates. A merge to `main` does not by itself authorize deployment. Undergrid requires its own approved deployment identity, configuration, and release evidence. Thufir server credentials and deployment targets are not reused.
 
 ## License
 
