@@ -17,6 +17,7 @@ type testClient struct {
 	t            *testing.T
 	s            *Service
 	owner, token string
+	observe      func(*http.Request, *httptest.ResponseRecorder, any)
 }
 
 func (c testClient) call(method, path, key string, body any) (int, map[string]any) {
@@ -27,6 +28,9 @@ func (c testClient) call(method, path, key string, body any) (int, map[string]an
 	r.Header.Set("Idempotency-Key", key)
 	w := httptest.NewRecorder()
 	c.s.ServeHTTP(w, r)
+	if c.observe != nil {
+		c.observe(r, w, body)
+	}
 	var out map[string]any
 	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
 		c.t.Fatal(err)
