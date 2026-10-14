@@ -47,6 +47,25 @@ The combined runtime persisted three private-input lineage edges, each with pinn
 
 This is focused combined-migration and lifecycle evidence only. The full network suite remains pending its separately tracked run; required cgroup-isolation qualification, production storage/provider qualification, and production lifecycle qualification are not established by this test.
 
+## Progress artifact input-grant audience boundary
+
+Progress artifacts keep their immutable named audience when used as assembly or evaluation inputs. A grant recipient must already be in that audience and must still be the exact accepted agent/principal member of the source swarm. The recipient's all-source rights approval is a separate requirement; it does not add a person to the audience. Grant creation rejects an ineligible recipient before creating approvals, events, or durable jobs. Existing or malformed grant rows that fail the same predicate are excluded from grant reads, worker delivery, inbox reads, and agent context. The owner may still inspect or revoke their own grant. Ordinary output-artifact grant and publication behavior is unchanged.
+
+The test-first HTTP/PostgreSQL reproducer showed why the RLS guard alone was insufficient: an outside-audience assigned recipient received HTTP 200 and grant scope/hash metadata from `GET /v1/artifact-input-grants/{id}` and saw `artifact.input_grant_created` inbox events, while progress artifact metadata, evaluation, and content reads all returned 404. After the correction, that grant attempt returns 409 `progress_input_audience_required`; database assertions confirm no approval, event, or River job was added. Deliberately inserted legacy-invalid grant rows are not exposed by grant GET, inbox, or agent context, and the worker completes without delivering them. An accepted assigned recipient already in the audience can receive the separate source-rights approvals and read the progress artifact for assembly. The test also confirms that the named reviewer designation does not confer source rights by itself.
+
+The focused race-enabled test selection passed on the final raw-migration fixture:
+
+```sh
+UNDERGRID_TEST_DATABASE_URL='postgres://nmcdc@127.0.0.1:55469/undergrid_progress_proof?sslmode=disable' \
+GOCACHE=/tmp/undergrid-gocache GOMODCACHE=/tmp/undergrid-gomod \
+/tmp/undergrid-toolchain/go/bin/go test -race ./internal/network \
+-run '^TestProgressArtifactInputGrantsRespectImmutableAudience$|^TestTaskProgressEvidenceReviewLifecycle$|^TestPrivateArtifactNamedGrantsExposeOnlyInputAndPermitAssembly$|^TestPrivateArtifactGrantRevocationSerializesWithReadAndSeal$|^TestArtifactPublicationLifecycleThroughHTTPAndExecutableWorker$|^TestArtifactPublicationSerializesWithRightsPolicyRevocation$' -count=1
+```
+
+Result: `ok undergrid/internal/network 60.445s`. The fresh cluster reports PostgreSQL 16.11, UTF8, `C.UTF-8` database collation and character type. The unmodified application migrator created the `undergrid_progress_proof` database and its ledger contains `001_participation.sql` through `016_task_progress_evidence.sql` in order, followed by `river-0.49.0-ready`; no migration SQL was replayed and no ledger was edited. `undergrid_app` and `undergrid_worker` are both `NOSUPERUSER NOCREATEROLE NOCREATEDB NOBYPASSRLS`. The progress privacy implementation was committed at source SHA `a0ff2d3cb118b337555879123c3b836c533befa9`; the final migration 016 SHA-256 is `e7c439471609dbff95f9d5f4bae48e5bda4abf43a0f90d09cc24265c71f1377b`.
+
+This establishes focused fixture behavior and raw-migration application through 016 only. It does not establish the full network suite, cgroup isolation, provider or production qualification, legal approval, or deployment.
+
 ## Quality review and limits
 
 DRY: task epoch/window/rights/dependency policy now has one domain validator used by heartbeat and evidence submission; audience normalization is shared between upload and report commands. Similar but separate review and final-output approval rules stay distinct. Orthogonality: verifier execution is reused through the existing fixed worker, while progress evidence has its own normalized subject and never enters output acceptance or publication. Contracts: exact plan/artifact/evaluation/report hashes, sorted audience/reviewer, and claim epoch are checked under plan/task locks; principal authorization stays in the transaction. Failure recovery: evidence, approval, deadline and audience-scoped event updates commit or roll back together, and a restart reads the normalized task pointer. The restrictive RLS guard keeps future/additive permissive artifact grants from bypassing the progress audience. Readability: route names and `purpose` distinguish progress evidence from final output. The audience and report are bounded; no generic workflow engine or provider abstraction was added.
