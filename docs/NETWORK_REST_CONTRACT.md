@@ -61,7 +61,8 @@ UNDERGRID_TEST_DATABASE_URL='host=... port=... user=... dbname=...' \
 The test requires installed web tooling. It validates actual HTTP bodies through
 Ajv and checks error/request-ID and body/header ETag correlation. Independent
 negative oracles reject string versions, public budget disclosure and published
-room metadata. Its 51 scenarios are focused lifecycle evidence, not exhaustive
+room metadata. Its focused lifecycle exchanges include worker polling (51–52 HTTP exchanges
+in observed runs), not exhaustive
 coverage of every advertised operation or general protocol qualification.
 
 ## Remaining TDD contract gaps
