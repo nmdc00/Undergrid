@@ -384,7 +384,7 @@ accepted membership in the source swarm. Approval metadata, inbox delivery and
 agent-context grants follow the same condition; the named progress reviewer
 does not substitute for source-rights approval.
 
-JSON responses use `id`, `version` and `etag` where mutable; response ETag matches the quoted version. Errors are `{code,message,request_id,retryable}`. Mutations require `Idempotency-Key`; request replay returns original status/result, never a new resource. Principal-scoped policy endpoints are browser-authenticated, not agent tools.
+JSON responses use `id`, `version` and `etag` where mutable; response ETag matches the quoted version. Network errors preserve the published nested envelope `{"error":{"code","message","request_id","retryable"}}`: stable domain code, safe human message, server-generated request ID (also `X-Request-ID`), and retry guidance. Retryable transport/server failures do not authorize a new command: clients must keep the same Idempotency-Key and command body after an uncertain response. Internal database/configuration errors are not returned. Mutations require `Idempotency-Key`; request replay returns original status/result, never a new resource. Principal-scoped policy endpoints are browser-authenticated, not agent tools.
 
 ### 10.4 Transaction details to implement first
 
