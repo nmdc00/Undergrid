@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"io"
 	"os"
+	"runtime"
 	"runtime/debug"
 	"time"
 
@@ -15,6 +16,9 @@ import (
 )
 
 func main() {
+	if verification.CloseInheritedDescriptors() != nil {
+		os.Exit(2)
+	}
 	debug.SetMemoryLimit(192 << 20) // GC target; the container enforces the hard cap.
 	timer := time.AfterFunc(30*time.Second, func() { os.Exit(124) })
 	defer timer.Stop()
@@ -43,9 +47,15 @@ func main() {
 }
 
 func selfHash() (string, error) {
-	path, err := os.Executable()
-	if err != nil {
-		return "", err
+	// /proc/self/exe remains bound to the exact memfd inode even after the
+	// launcher descriptors have been closed at process entry.
+	path := "/proc/self/exe"
+	if runtime.GOOS != "linux" {
+		var err error
+		path, err = os.Executable()
+		if err != nil {
+			return "", err
+		}
 	}
 	f, err := os.Open(path)
 	if err != nil {
