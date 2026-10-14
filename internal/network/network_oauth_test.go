@@ -242,7 +242,8 @@ func TestOAuthResourceVerifierRequiresRFC9068AccessToken(t *testing.T) {
 		"expired":          as.token(t, "subject-a", "network-client", "intents:read", time.Now().Add(-time.Minute), "at+jwt", as.resource),
 		"bad signature":    string(tampered),
 	} {
-		code, _, _ = oauthCall(t, s, "unused", token, http.MethodGet, "/v1/me", "", "", nil)
+		code, denial, challenge := oauthCall(t, s, "unused", token, http.MethodGet, "/v1/me", "", "", nil)
+		assertOAuthErrorContract(t, denial, challenge, "invalid_credential")
 		if code != 401 {
 			t.Fatalf("%s accepted: %d", name, code)
 		}
@@ -437,6 +438,7 @@ func TestOAuthBindingScopesReplayOwnershipAndRevocation(t *testing.T) {
 	if code != 403 || out["error"].(map[string]any)["code"] != "insufficient_scope" || !strings.Contains(challenge.Get("WWW-Authenticate"), `error="insufficient_scope"`) {
 		t.Fatalf("token scope did not cap local grant: %d %v", code, out)
 	}
+	assertOAuthErrorContract(t, out, challenge, "insufficient_scope")
 	if err := db.QueryRow(context.Background(), `SELECT count(*) FROM undergrid.intents WHERE agent_id=$1`, agent).Scan(&count); err != nil || count != 0 {
 		t.Fatalf("narrow token wrote intent: rows=%d err=%v", count, err)
 	}
@@ -546,5 +548,16 @@ func TestOAuthCredentialWritesArtifactThroughUploadCapability(t *testing.T) {
 	}
 	if storedCredential != credentialID || state != "quarantine" {
 		t.Fatalf("artifact linked credential/state = %s/%s want %s/quarantine", storedCredential, state, credentialID)
+	}
+}
+
+func assertOAuthErrorContract(t *testing.T, body map[string]any, headers http.Header, code string) {
+	t.Helper()
+	e, ok := body["error"].(map[string]any)
+	if !ok || e["code"] != code || e["message"] == "" || e["request_id"] == "" || e["request_id"] != headers.Get("X-Request-ID") || e["retryable"] != false {
+		t.Fatalf("OAuth denial violates shared error contract: %v %v", body, headers)
+	}
+	if !strings.Contains(headers.Get("WWW-Authenticate"), "resource_metadata=") {
+		t.Fatalf("OAuth denial missing resource challenge: %v", headers)
 	}
 }
