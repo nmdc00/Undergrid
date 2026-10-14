@@ -41,6 +41,7 @@ type artifactScenario struct {
 	room, plan, task map[string]any
 	server           *httptest.Server
 	config           LocalArtifactConfig
+	isolated         *IsolatedVerifierConfig
 	workerDSN        string
 }
 
@@ -135,6 +136,7 @@ func newArtifactScenario(t *testing.T) artifactScenario {
 	t.Cleanup(server.Close)
 	bin := filepath.Join(t.TempDir(), "undergrid-verifier")
 	build := exec.Command(filepath.Join(runtime.GOROOT(), "bin", "go"), "build", "-o", bin, "../../cmd/undergrid-verifier")
+	build.Env = append(os.Environ(), "CGO_ENABLED=0")
 	if b, e := build.CombinedOutput(); e != nil {
 		t.Fatalf("build trusted verifier: %v %s", e, b)
 	}
@@ -149,7 +151,7 @@ func newArtifactScenario(t *testing.T) artifactScenario {
 	if err = s.SetLocalArtifactRuntime(config); err != nil {
 		t.Fatal(err)
 	}
-	return artifactScenario{s, db, actors, ids, room, plan, task, server, config, workerDSN}
+	return artifactScenario{s, db, actors, ids, room, plan, task, server, config, nil, workerDSN}
 }
 func (x artifactScenario) upload(t *testing.T, data []byte, key string) map[string]any {
 	t.Helper()
@@ -175,10 +177,16 @@ func (x artifactScenario) finalBody(data []byte) map[string]any {
 func (x artifactScenario) startWorker(t *testing.T) {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "artifact-config.json")
-	if err := os.WriteFile(path, canonical(x.config), 0600); err != nil {
+	config := any(x.config)
+	configEnv := "UNDERGRID_LOCAL_ARTIFACT_CONFIG_FILE"
+	if x.isolated != nil {
+		config = *x.isolated
+		configEnv = "UNDERGRID_ISOLATED_VERIFIER_CONFIG_FILE"
+	}
+	if err := os.WriteFile(path, canonical(config), 0600); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("UNDERGRID_LOCAL_ARTIFACT_CONFIG_FILE", path)
+	t.Setenv(configEnv, path)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- RunWorker(ctx, x.workerDSN, "development") }()
@@ -240,7 +248,7 @@ func TestArtifactPublicationLifecycleThroughHTTPAndExecutableWorker(t *testing.T
 	}
 	x.startWorker(t)
 	evaluation := x.waitEvaluation(t, id)
-	if evaluation["result"] != "passed" || evaluation["input_sha256"] != digest(data) || evaluation["verifier_sha256"] != x.config.VerifierSHA256 {
+	if evaluation["result"] != "passed" || evaluation["input_sha256"] != digest(data) || evaluation["verifier_sha256"] != x.config.VerifierSHA256 || evaluation["runtime_isolation"] != "development_process_not_qualified" || evaluation["image_identity_evidence"] != "operator_configured_digest_attestation_not_runtime_attestation" {
 		t.Fatal(evaluation)
 	}
 	acceptance := map[string]any{"evaluation_id": evaluation["id"], "artifact_sha256": digest(data), "plan_hash": x.plan["content_hash"]}
@@ -287,18 +295,58 @@ func TestArtifactPublicationLifecycleThroughHTTPAndExecutableWorker(t *testing.T
 	if code, _ = x.actors[3].call("GET", "/v1/swarms/"+x.room["id"].(string)+"/context", "", nil); code != 404 {
 		t.Fatal("published room transcript", code)
 	}
-	var state, taskState, sha, manifestHash, verifierHash string
+	var state, taskState, sha, manifestHash, verifierHash, runtimeIsolation, resourceEvidence, imageEvidence string
+	var bubblewrapHash, prlimitHash string
 	var evaluations, acceptances, consents, publications, reuse int
 	err := x.db.QueryRow(context.Background(), `SELECT a.state,t.state,a.sha256,a.manifest_hash,
  (SELECT verifier_sha256 FROM undergrid.evaluations WHERE artifact_id=a.id),
+ (SELECT runtime_isolation FROM undergrid.evaluations WHERE artifact_id=a.id),
+ (SELECT COALESCE(bubblewrap_sha256,'') FROM undergrid.evaluations WHERE artifact_id=a.id),
+ (SELECT COALESCE(prlimit_sha256,'') FROM undergrid.evaluations WHERE artifact_id=a.id),
+ (SELECT resource_limits_evidence FROM undergrid.evaluations WHERE artifact_id=a.id),
+ (SELECT image_identity_evidence FROM undergrid.evaluations WHERE artifact_id=a.id),
  (SELECT count(*) FROM undergrid.evaluations WHERE artifact_id=a.id),
  (SELECT count(*) FROM undergrid.approvals WHERE artifact_id=a.id AND purpose='acceptance'),
  (SELECT count(*) FROM undergrid.approvals WHERE artifact_id=a.id AND purpose='publication'),
  (SELECT count(*) FROM undergrid.events WHERE aggregate_id=a.id AND type='artifact.published'),
  (SELECT count(*) FROM undergrid.events WHERE facts->>'artifact_id'=a.id::text AND type='artifact.reuse_reported')
- FROM undergrid.artifacts a JOIN undergrid.tasks t ON t.id=a.task_id WHERE a.id=$1`, id).Scan(&state, &taskState, &sha, &manifestHash, &verifierHash, &evaluations, &acceptances, &consents, &publications, &reuse)
-	if err != nil || state != "published" || taskState != "accepted_output" || sha != digest(data) || manifestHash != artifact["manifest_hash"] || verifierHash != x.config.VerifierSHA256 || evaluations != 1 || acceptances != 2 || consents != 3 || publications != 1 || reuse != 1 {
-		t.Fatalf("normalized lifecycle: state=%s task=%s hash=%s manifest=%s verifier=%s counts=%d/%d/%d/%d/%d err=%v", state, taskState, sha, manifestHash, verifierHash, evaluations, acceptances, consents, publications, reuse, err)
+ FROM undergrid.artifacts a JOIN undergrid.tasks t ON t.id=a.task_id WHERE a.id=$1`, id).Scan(&state, &taskState, &sha, &manifestHash, &verifierHash, &runtimeIsolation, &bubblewrapHash, &prlimitHash, &resourceEvidence, &imageEvidence, &evaluations, &acceptances, &consents, &publications, &reuse)
+	if err != nil || state != "published" || taskState != "accepted_output" || sha != digest(data) || manifestHash != artifact["manifest_hash"] || verifierHash != x.config.VerifierSHA256 || runtimeIsolation != evaluation["runtime_isolation"] || bubblewrapHash != "" || prlimitHash != "" || resourceEvidence != "not_qualified" || imageEvidence != evaluation["image_identity_evidence"] || evaluations != 1 || acceptances != 2 || consents != 3 || publications != 1 || reuse != 1 {
+		t.Fatalf("normalized lifecycle: state=%s task=%s hash=%s manifest=%s verifier=%s runtime=%s bwrap=%s prlimit=%s limits=%s image=%s counts=%d/%d/%d/%d/%d err=%v", state, taskState, sha, manifestHash, verifierHash, runtimeIsolation, bubblewrapHash, prlimitHash, resourceEvidence, imageEvidence, evaluations, acceptances, consents, publications, reuse, err)
+	}
+	var modernEvidence []byte
+	if err = x.db.QueryRow(context.Background(), `SELECT evidence FROM undergrid.evaluations WHERE artifact_id=$1`, id).Scan(&modernEvidence); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = x.db.Exec(context.Background(), `UPDATE undergrid.evaluations SET evidence=evidence-'runtime_isolation' WHERE artifact_id=$1`, id); err != nil {
+		t.Fatal(err)
+	}
+	if code, _ = x.actors[2].call("GET", "/v1/artifacts/"+id+"/evaluations", "", nil); code != 500 {
+		t.Fatal("inconsistent modern evaluation evidence was projected", code)
+	}
+	if _, err = x.db.Exec(context.Background(), `UPDATE undergrid.evaluations SET evidence=$2::jsonb WHERE artifact_id=$1`, id, modernEvidence); err != nil {
+		t.Fatal(err)
+	}
+	// Model an evaluation created before isolation evidence columns existed:
+	// raw JSON stays untouched while the read path projects its legacy labels.
+	_, err = x.db.Exec(context.Background(), `UPDATE undergrid.evaluations SET evidence=evidence-'runtime_isolation'-'bubblewrap_sha256'-'prlimit_sha256'-'resource_limits_evidence'-'image_identity_evidence', runtime_isolation='legacy_unqualified_evidence', bubblewrap_sha256=NULL, prlimit_sha256=NULL, resource_limits_evidence='not_recorded_for_legacy_evaluation', image_identity_evidence='legacy_configured_digest_unverified' WHERE artifact_id=$1`, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rawBefore, rawAfter []byte
+	if err = x.db.QueryRow(context.Background(), `SELECT evidence FROM undergrid.evaluations WHERE artifact_id=$1`, id).Scan(&rawBefore); err != nil {
+		t.Fatal(err)
+	}
+	code, projected := x.actors[2].call("GET", "/v1/artifacts/"+id+"/evaluations", "", nil)
+	if code != 200 {
+		t.Fatalf("legacy evaluation projection: %d %#v", code, projected)
+	}
+	legacy := projected["items"].([]any)[0].(map[string]any)
+	if legacy["runtime_isolation"] != "legacy_unqualified_evidence" || legacy["resource_limits_evidence"] != "not_recorded_for_legacy_evaluation" || legacy["image_identity_evidence"] != "legacy_configured_digest_unverified" {
+		t.Fatalf("legacy normalized evidence was not projected: %#v", legacy)
+	}
+	if err = x.db.QueryRow(context.Background(), `SELECT evidence FROM undergrid.evaluations WHERE artifact_id=$1`, id).Scan(&rawAfter); err != nil || !bytes.Equal(rawBefore, rawAfter) {
+		t.Fatalf("evaluation read rewrote immutable evidence: before=%s after=%s err=%v", rawBefore, rawAfter, err)
 	}
 	// Storage generation can never be replaced, even through the old signed URL.
 	u, _ := url.Parse(upload["upload_url"].(string))
@@ -307,6 +355,41 @@ func TestArtifactPublicationLifecycleThroughHTTPAndExecutableWorker(t *testing.T
 	x.s.ServeHTTP(w, req)
 	if w.Code != 401 {
 		t.Fatal("sealed generation writable", w.Code)
+	}
+}
+
+func TestBubblewrapEvaluationEvidencePersistsThroughWorkerAndHTTP(t *testing.T) {
+	x := newArtifactScenario(t)
+	bwrap, err := exec.LookPath("bwrap")
+	if err != nil {
+		skipOrFailIsolationQualification(t, err.Error())
+	}
+	prlimit, err := exec.LookPath("prlimit")
+	if err != nil {
+		skipOrFailIsolationQualification(t, err.Error())
+	}
+	config := IsolatedVerifierConfig{LocalArtifactConfig: x.config, BubblewrapPath: bwrap, BubblewrapSHA256: fileHash(t, bwrap), PrlimitPath: prlimit, PrlimitSHA256: fileHash(t, prlimit), CgroupRoot: "/sys/fs/cgroup"}
+	if err = x.s.SetIsolatedVerifierRuntime(config); err != nil {
+		if strings.Contains(err.Error(), "cgroup") && os.Getenv("UNDERGRID_REQUIRE_VERIFIER_ISOLATION") != "1" {
+			t.Skipf("isolated worker lifecycle requires delegated cgroup controls: %v", err)
+		}
+		t.Fatalf("required isolated verifier runtime unavailable: %v", err)
+	}
+	x.isolated = &config
+	data := []byte(`{"sources":[{"source_id":"isolated-fixture","source_url":"https://example.org/"}]}`)
+	upload := x.upload(t, data, "isolated-upload")
+	path := "/v1/artifacts/" + upload["id"].(string)
+	if code, out := x.actors[2].call("POST", path+"/finalize", "isolated-seal", x.finalBody(data)); code != 200 {
+		t.Fatal(code, out)
+	}
+	x.startWorker(t)
+	evaluation := x.waitEvaluation(t, upload["id"].(string))
+	if evaluation["runtime_isolation"] != string(bubblewrapMode) || evaluation["bubblewrap_sha256"] != config.BubblewrapSHA256 || evaluation["prlimit_sha256"] != config.PrlimitSHA256 || evaluation["resource_limits_evidence"] == "" || evaluation["image_identity_evidence"] != "operator_configured_digest_attestation_not_runtime_attestation" {
+		t.Fatalf("runtime evidence was not exposed through the evaluation read path: %#v", evaluation)
+	}
+	var stored string
+	if err = x.db.QueryRow(context.Background(), `SELECT runtime_isolation FROM undergrid.evaluations WHERE artifact_id=$1`, upload["id"]).Scan(&stored); err != nil || stored != evaluation["runtime_isolation"] {
+		t.Fatalf("normalized evaluation runtime differs from HTTP evidence: %s %v", stored, err)
 	}
 }
 
