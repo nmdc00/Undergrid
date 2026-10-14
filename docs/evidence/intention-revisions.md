@@ -27,25 +27,27 @@ count.
 Revision changes keep the existing visibility value. A request that changes
 visibility fails with `visibility_change_requires_grant`; revision editing does
 not imply disclosure consent. Redacted-public projections retain the existing
-allowlist (`public_summary`, `output`, and `hard_constraints`). Field-scoped,
-expiry-bound sharing grants and consented disclosure transitions remain deferred
-under ID-03. This branch implements the currently supported `IntentInput`
-contract and does not claim a generalized intent schema.
+allowlist (`public_summary`, `output`, and `hard_constraints`). This feature
+branch adds expiry-bound selected-field grants for already-restricted
+intentions; see [restricted intention sharing](restricted-intention-sharing.md).
+It does not implement consented disclosure transitions or a generalized intent
+schema.
 
-No migration was needed: `intent_revisions` already denies app-role updates and
-allows inserts, while the deferred current-revision foreign key permits the
-append and pointer advance to commit atomically. The actual HTTP tests use the
-restricted application role and real UTF-8 PostgreSQL at port 55458. They assert
-old-row immutability, exact canonical hashes, current document/projection and
-pointer/version, stale/wrong-owner/invalid/visibility-change denials, owner and
-agent paths, pause preservation, worker-driven expiry, renewal, replay, fresh-
-handler recovery, and event/inbox/scan-job idempotency.
+The revision/renewal change needed no schema migration: `intent_revisions`
+already denies app-role updates and allows inserts, while the deferred
+current-revision foreign key permits the append and pointer advance atomically.
+This sharing feature adds migration 020 to bind new grants to a revision while
+leaving legacy grant rows unbound. The revision tests used real UTF-8 PostgreSQL
+at port 55458. They assert old-row immutability, exact canonical hashes, current
+document/projection and pointer/version, stale/wrong-owner/invalid/visibility-
+change denials, owner and agent paths, pause preservation, worker-driven expiry,
+renewal, replay, fresh-handler recovery, and event/inbox/scan-job idempotency.
 
 Validation on this branch:
 
 - Focused Go lifecycle tests with `-race`, including the unchanged
   `TestDurableParticipation` and owner isolation contract.
-- `go vet ./...` and `go build ./...`.
+- `go vet ./internal/network ./internal/identity` and `go build ./...`.
 - Owner-console Vitest suite and TypeScript/Vite production build.
 
 A broader `go test ./...` attempt at the time did not pass. The network package
