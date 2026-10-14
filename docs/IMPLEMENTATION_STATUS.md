@@ -59,3 +59,7 @@ Permission review corrected an early broad `swarms:write` scope to the TDD's sep
 ## External gates
 
 No public domain/host, OIDC provider, approved source permissions, legally approved contribution templates, privacy terms, Stripe credentials, wallet authorization or x402 facilitator has been supplied. Continue code that does not depend on these choices; do not silently enable unapproved policies.
+
+## Full implementation checkpoint — 2026-10-14
+
+Release450c833 includes reviewed progress/evidence, owner issuance recovery, report intake, intention revisions and restricted sharing, correlated errors/ETags, configured OAuth resource credentials, fail-closed verifier isolation implementation, wallet control and signed USDC quotes. See FULL_IMPLEMENTATION.md and feature evidence for actual runtime gates. Current combined all-package race/coverage is running; no current full-coverage result is asserted. Canonical REST, MCP and exact external payer authorization are in active isolated branches. Hard-cgroup/provider/legal/source/production storage/deployment qualification and remaining TDD code stay incomplete. Main/develop have not received this full implementation wave.
