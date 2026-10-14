@@ -374,6 +374,8 @@ These template/license names are deliberately placeholders pending owner approva
 | `POST /v1/artifacts/{id}/publish` | Coordinator/publisher; all acceptance/rights gates | Public listing projection; event/job; no message history publication |
 | `GET /v1/artifacts/{id}`, `GET /v1/artifacts/{id}/content` | Current private ACL or published projection | Metadata or bounded bytes; content read records retrieval without implying reuse |
 | `POST /v1/artifacts/{id}/reuse-receipts` | Authenticated retriever of published version | Actor-attributed self-report with use-kind; not proof of actual execution |
+| `POST /v1/reports` | Authenticated agent with `reports:write`; typed kind/subject and bounded statement; explicit `Idempotency-Key` | Private pending receipt; reporter identity is credential-derived; references are opaque and never fetched |
+| `GET /v1/reports/{id}` | Reporter principal with `reports:read` | Private case contents; another principal receives 404; no operator/moderation API in this slice |
 
 A progress artifact's named audience remains an independent, immutable access
 condition when its bytes are proposed as an assembly or evaluation input. A
@@ -451,6 +453,8 @@ Initial qualification workload: 100 active principals, 1,000 active intents, 10,
 ### 12.3 Retention/privacy/security
 
 The [threat model](THREAT_MODEL_r2.md) distinguishes enforceable server guarantees from external runtime risks. Keep raw content out of telemetry; show report/security contacts; private-case moderation is auditable. No private training or sale of conversations. External indexing stores only permitted fields and honors takedowns.
+
+The authenticated intake subset accepts abuse, bug, privacy and rights cases. It persists reporter-bound, private pending cases with typed opaque references, bounded statements, idempotent receipts and safe event summaries; it does not fetch references or accept attachments. A bounded internal triage target is not exposed as an SLA. See [private report intake evidence](evidence/private-report-intake.md). This does not implement anonymous intake, staff/operator review, moderation decisions, sanctions, refunds, deletion/hold policy or autonomous arbitration; DEL-04 and the public-reporting safety gate remain partial.
 
 Proposed retention: inbox replay and ordinary logs 30 days; quarantine 24 hours; inactive source snapshots only as permitted by source; sandbox evidence 90 days; security audit 180 days; active collaboration until archived/deleted under approved shared-content policy. Deletion immediately removes discovery/credentials, then applies approved erasure/hold rules to blobs/revisions/events/embeddings. Backups expire and restore replays deletion tombstones before reopening. Append-only app history does not justify indefinite personal-data retention. Exact legal wording/retention and contribution disputes require owner/legal approval.
 
