@@ -72,7 +72,7 @@ func (s *Service) evaluateArtifact(ctx context.Context, args artifactEvaluationA
 		return err
 	}
 	data, readErr := s.artifactBytes(art)
-	evidence := verification.Evidence{Result: "error", Code: "artifact_content_unavailable", InputSHA256: art.sha, ManifestSHA256: art.manifestHash, SpecSHA256: digest([]byte(verification.Spec)), VerifierSHA256: s.artifacts.config.VerifierSHA256, ImageSHA256: s.artifacts.config.ImageSHA256, CheckedAt: time.Now().UTC()}
+	evidence := verification.Evidence{Result: "error", Code: "artifact_content_unavailable", InputSHA256: art.sha, ManifestSHA256: art.manifestHash, SpecSHA256: digest([]byte(verification.Spec)), VerifierSHA256: s.artifacts.config.VerifierSHA256, ImageSHA256: s.artifacts.config.ImageSHA256, RuntimeIsolation: "not_run_content_unavailable", ResourceLimitsEvidence: "not_applied", ImageIdentityEvidence: "operator_configured_digest_attestation_not_runtime_attestation", CheckedAt: time.Now().UTC()}
 	if readErr == nil {
 		evidence, err = s.artifacts.verify(ctx, verification.Job{Data: data, Manifest: art.manifest, InputSHA256: art.sha, ManifestSHA256: art.manifestHash})
 		if err != nil {
@@ -92,7 +92,7 @@ func (s *Service) evaluateArtifact(ctx context.Context, args artifactEvaluationA
 		return nil
 	}
 	id := NewID()
-	tag, err := tx.Exec(ctx, `INSERT INTO evaluations(id,artifact_id,request_key,generation,evidence,result,input_sha256,manifest_sha256,spec_sha256,verifier_sha256,image_sha256) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT DO NOTHING`, id, art.id, key, art.generation, canonical(evidence), evidence.Result, evidence.InputSHA256, evidence.ManifestSHA256, evidence.SpecSHA256, evidence.VerifierSHA256, evidence.ImageSHA256)
+	tag, err := tx.Exec(ctx, `INSERT INTO evaluations(id,artifact_id,request_key,generation,evidence,result,input_sha256,manifest_sha256,spec_sha256,verifier_sha256,image_sha256,runtime_isolation,bubblewrap_sha256,prlimit_sha256,resource_limits_evidence,image_identity_evidence) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NULLIF($13,''),NULLIF($14,''),$15,$16) ON CONFLICT DO NOTHING`, id, art.id, key, art.generation, canonical(evidence), evidence.Result, evidence.InputSHA256, evidence.ManifestSHA256, evidence.SpecSHA256, evidence.VerifierSHA256, evidence.ImageSHA256, evidence.RuntimeIsolation, evidence.BubblewrapSHA256, evidence.PrlimitSHA256, evidence.ResourceLimitsEvidence, evidence.ImageIdentityEvidence)
 	if err != nil {
 		return err
 	}
@@ -111,7 +111,11 @@ func (s *Service) evaluateArtifact(ctx context.Context, args artifactEvaluationA
 		origin = "release_test"
 	}
 	event := NewID()
-	if _, err = tx.Exec(ctx, "INSERT INTO events(id,aggregate_kind,aggregate_id,version,principal_id,agent_id,type,facts,origin) VALUES($1,'swarm',$2,$3,$4,$5,'artifact.evaluated',$6,$7)", event, art.id, current.version+1, art.principal, art.agent, canonical(map[string]any{"swarm_id": art.swarm, "artifact_id": art.id, "evaluation_id": id, "result": evidence.Result, "resource_path": "/v1/artifacts/" + art.id}), origin); err != nil {
+	facts := map[string]any{"swarm_id": art.swarm, "artifact_id": art.id, "evaluation_id": id, "result": evidence.Result, "resource_path": "/v1/artifacts/" + art.id}
+	if current.purpose == "progress" {
+		facts["audience_principal_ids"] = current.audience
+	}
+	if _, err = tx.Exec(ctx, "INSERT INTO events(id,aggregate_kind,aggregate_id,version,principal_id,agent_id,type,facts,origin) VALUES($1,'swarm',$2,$3,$4,$5,'artifact.evaluated',$6,$7)", event, art.id, current.version+1, art.principal, art.agent, canonical(facts), origin); err != nil {
 		return err
 	}
 	if err = enqueueFanout(ctx, tx, event); err != nil {
