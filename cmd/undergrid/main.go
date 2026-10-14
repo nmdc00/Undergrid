@@ -101,6 +101,15 @@ func run() error {
 	if err = service.Configure(cursorKey, os.Getenv("UNDERGRID_TERMS_VERSION")); err != nil {
 		return err
 	}
+	if value := os.Getenv("UNDERGRID_REPORT_TRIAGE_WINDOW"); value != "" {
+		window, parseErr := time.ParseDuration(value)
+		if parseErr != nil {
+			return errors.New("invalid report triage window")
+		}
+		if err = service.ConfigureReportTriageWindow(window); err != nil {
+			return err
+		}
+	}
 	issuanceKey, err := base64.StdEncoding.DecodeString(os.Getenv("UNDERGRID_CREDENTIAL_ISSUANCE_KEY"))
 	if err != nil || subtle.ConstantTimeCompare(issuanceKey, sessionKey) == 1 {
 		return errors.New("dedicated credential issuance key required")
