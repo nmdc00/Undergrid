@@ -154,7 +154,6 @@ func run() error {
 		return err
 	}
 	mux := http.NewServeMux()
-	mux.Handle("/mcp", service)
 	mux.HandleFunc("/auth/login", login.Start)
 	mux.HandleFunc("/auth/callback", login.Callback)
 	mux.HandleFunc("/auth/session", sessions.Session)
@@ -184,6 +183,7 @@ func run() error {
 // Keep network route wiring together so public documentation reaches the same
 // handler as the domain API, instead of falling through to the static console.
 func registerNetworkRoutes(mux *http.ServeMux, service *network.Service) {
+	mux.Handle("/mcp", service)
 	mux.Handle("/v1/", service)
 	mux.Handle("/.well-known/", service)
 	mux.Handle("/health/", service)

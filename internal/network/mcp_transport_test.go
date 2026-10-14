@@ -5,10 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/jackc/pgx/v5"
 	"golang.org/x/oauth2"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -17,8 +20,35 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+func mcpFixture(t *testing.T) (*Service, *pgx.Conn) {
+	t.Helper()
+	s, db := fixture(t)
+	_, err := db.Exec(context.Background(), `DO $$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='undergrid_mcp_api_runner') THEN CREATE ROLE undergrid_mcp_api_runner LOGIN NOSUPERUSER NOBYPASSRLS; END IF; END $$; GRANT undergrid_app TO undergrid_mcp_api_runner`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := pgx.ParseConfig(s.dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	u := url.URL{Scheme: "postgres", User: url.User("undergrid_mcp_api_runner"), Path: "/" + cfg.Database, RawQuery: url.Values{"host": {cfg.Host}, "port": {strconv.Itoa(int(cfg.Port))}, "sslmode": {"disable"}}.Encode()}
+	s.dsn = u.String()
+	check, err := pgx.Connect(context.Background(), s.dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer check.Close(context.Background())
+	var unsafe bool
+	var name string
+	err = check.QueryRow(context.Background(), `SELECT session_user,rolsuper OR rolbypassrls OR EXISTS(SELECT 1 FROM pg_tables WHERE schemaname='undergrid' AND tableowner=session_user) FROM pg_roles WHERE rolname=session_user`).Scan(&name, &unsafe)
+	if err != nil || unsafe || name != "undergrid_mcp_api_runner" {
+		t.Fatalf("unsafe MCP runtime login %s %v %v", name, unsafe, err)
+	}
+	return s, db
+}
+
 func TestMCPDiscoveryThroughNetworkService(t *testing.T) {
-	s, _ := fixture(t)
+	s, _ := mcpFixture(t)
 	if err := s.ConfigureMCP("https://network.fixture.test"); err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +110,7 @@ func mcpToolData(t *testing.T, result *mcp.CallToolResult) map[string]any {
 	return data
 }
 func TestMCPIndependentSDKUsesDomainIdempotencyAndPrivacy(t *testing.T) {
-	s, db := fixture(t)
+	s, db := mcpFixture(t)
 	a, b := client(t, s), client(t, s)
 	if err := s.ConfigureMCP("https://network.fixture.test"); err != nil {
 		t.Fatal(err)
@@ -90,7 +120,7 @@ func TestMCPIndependentSDKUsesDomainIdempotencyAndPrivacy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(listed.Tools) != len(networkMCPOperations) {
+	if len(listed.Tools) != len(networkOperations) {
 		t.Fatalf("tool list mismatch %d", len(listed.Tools))
 	}
 	for _, tool := range listed.Tools {
@@ -140,7 +170,7 @@ func TestMCPIndependentSDKUsesDomainIdempotencyAndPrivacy(t *testing.T) {
 }
 
 func TestMCPOAuthCurrentScopeAndRevocation(t *testing.T) {
-	s, db := fixture(t)
+	s, db := mcpFixture(t)
 	a := client(t, s)
 	as := newTestOAuthAS(t)
 	as.configure(t, s)
@@ -182,7 +212,7 @@ func TestMCPOAuthCurrentScopeAndRevocation(t *testing.T) {
 }
 
 func TestMCPHTTPProtocolAndOriginGuards(t *testing.T) {
-	s, _ := fixture(t)
+	s, _ := mcpFixture(t)
 	a := client(t, s)
 	if err := s.ConfigureMCP("https://network.fixture.test"); err != nil {
 		t.Fatal(err)
@@ -193,13 +223,18 @@ func TestMCPHTTPProtocolAndOriginGuards(t *testing.T) {
 		needle                              string
 	}{
 		{"foreign origin", "https://foreign.fixture.test", "2026-07-28", "server/discover", `{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{}}`, 403, "invalid_origin"},
-		{"header method mismatch", "", "2026-07-28", "tools/list", `{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{}}`, 400, ""},
-		{"unsupported version", "", "2099-01-01", "tools/list", `{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}`, 400, ""},
+		{"header method mismatch", "", "2026-07-28", "tools/list", `{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{}}`, 400, `"code":-32020`},
+		{"unsupported version", "", "2099-01-01", "tools/list", `{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}`, 400, `"code":-32022`},
 		{"bounded body", "", "2026-07-28", "server/discover", strings.Repeat("x", 64*1024+1), 413, "body_too_large"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			r := httptest.NewRequest("POST", "/mcp", strings.NewReader(tc.body))
+			body := []byte(tc.body)
+			var rpc map[string]any
+			if json.Unmarshal(body, &rpc) == nil {
+				body = mcpWireBody(rpc["method"].(string), tc.version, map[string]any{})
+			}
+			r := httptest.NewRequest("POST", "/mcp", bytes.NewReader(body))
 			r.Header.Set("Authorization", "Bearer "+a.token)
 			r.Header.Set("Origin", tc.origin)
 			r.Header.Set("Content-Type", "application/json")
@@ -223,7 +258,7 @@ func mcpWireBody(method, version string, params map[string]any) []byte {
 	return canonical(map[string]any{"jsonrpc": "2.0", "id": 1, "method": method, "params": params})
 }
 func TestMCPInsufficientScopeReturnsHTTPChallenge(t *testing.T) {
-	s, _ := fixture(t)
+	s, _ := mcpFixture(t)
 	a := client(t, s)
 	as := newTestOAuthAS(t)
 	as.configure(t, s)
@@ -281,7 +316,7 @@ func (h *mcpStepUpHandler) Authorize(_ context.Context, _ *http.Request, respons
 	return nil
 }
 func TestMCPStandardSDKRetriesOnlyAfterDomainScopeChallenge(t *testing.T) {
-	s, db := fixture(t)
+	s, db := mcpFixture(t)
 	a := client(t, s)
 	as := newTestOAuthAS(t)
 	as.configure(t, s)
@@ -328,7 +363,7 @@ func TestMCPStandardSDKRetriesOnlyAfterDomainScopeChallenge(t *testing.T) {
 }
 
 func TestMCPFullTokenCannotStepUpNarrowLocalBinding(t *testing.T) {
-	s, db := fixture(t)
+	s, db := mcpFixture(t)
 	a := client(t, s)
 	as := newTestOAuthAS(t)
 	as.configure(t, s)
@@ -375,5 +410,32 @@ func TestMCPFullTokenCannotStepUpNarrowLocalBinding(t *testing.T) {
 	var count int
 	if err = db.QueryRow(context.Background(), "SELECT count(*) FROM undergrid.intents WHERE agent_id=$1", agent).Scan(&count); err != nil || count != 0 {
 		t.Fatalf("local denial side effect %d %v", count, err)
+	}
+}
+
+func TestMCPLegacyVersionNegotiationIsTruthful(t *testing.T) {
+	s, _ := mcpFixture(t)
+	a := client(t, s)
+	if err := s.ConfigureMCP("https://network.fixture.test"); err != nil {
+		t.Fatal(err)
+	}
+	body := canonical(map[string]any{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": map[string]any{"protocolVersion": "2025-11-25", "capabilities": map[string]any{}, "clientInfo": map[string]any{"name": "legacy-raw-client", "version": "1"}}})
+	r := httptest.NewRequest("POST", "/mcp", bytes.NewReader(body))
+	r.Header.Set("Authorization", "Bearer "+a.token)
+	r.Header.Set("Content-Type", "application/json")
+	r.Header.Set("Accept", "application/json, text/event-stream")
+	r.Header.Set("Mcp-Protocol-Version", "2025-11-25")
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, r)
+	var out struct {
+		Result struct {
+			ProtocolVersion string `json:"protocolVersion"`
+		}
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	if w.Code != 200 || out.Result.ProtocolVersion != "2025-11-25" || w.Header().Get("Mcp-Session-Id") != "" {
+		t.Fatalf("legacy stateless negotiation: %d %s", w.Code, w.Body.String())
 	}
 }
