@@ -97,6 +97,14 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.serveMCP(w, r)
 		return
 	}
+	if r.URL.Path == "/openapi.json" {
+		if r.Method != "GET" {
+			s.writeProblem(w, fail(405, "method_not_allowed"))
+			return
+		}
+		_, _ = w.Write(networkOpenAPI)
+		return
+	}
 	if r.URL.Path == "/health/live" && r.Method == "GET" {
 		w.Write([]byte(`{"status":"alive"}`))
 		return

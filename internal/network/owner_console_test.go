@@ -82,6 +82,9 @@ func ownerCallMatch(c testClient, method, path, key, match string, body any) (in
 	r.Header.Set("If-Match", match)
 	w := httptest.NewRecorder()
 	c.s.ServeHTTP(w, r)
+	if c.observe != nil {
+		c.observe(r, w, body)
+	}
 	var out map[string]any
 	_ = json.Unmarshal(w.Body.Bytes(), &out)
 	return w.Code, out
