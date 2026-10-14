@@ -23,7 +23,7 @@ CREATE TABLE undergrid_sandbox.sandbox_wallet_challenges (
  UNIQUE(actor_id,issue_key),
  UNIQUE(id,actor_id,epoch),
  CHECK(expires_at>issued_at),
- CHECK((state='bound' AND epoch=expected_epoch+1 AND proof_key IS NOT NULL AND length(proof_key) BETWEEN 1 AND 128 AND proof_request_hash ~ '^[a-f0-9]{64}$' AND proof_hash ~ '^[a-f0-9]{64}$' AND bound_at IS NOT NULL)
+ CHECK((state='bound' AND epoch IS NOT NULL AND epoch=expected_epoch+1 AND proof_key IS NOT NULL AND length(proof_key) BETWEEN 1 AND 128 AND proof_request_hash IS NOT NULL AND proof_request_hash ~ '^[a-f0-9]{64}$' AND proof_hash IS NOT NULL AND proof_hash ~ '^[a-f0-9]{64}$' AND bound_at IS NOT NULL)
     OR (state<>'bound' AND epoch IS NULL AND proof_key IS NULL AND proof_request_hash IS NULL AND proof_hash IS NULL AND bound_at IS NULL))
 );
 CREATE UNIQUE INDEX sandbox_wallet_proof_key ON undergrid_sandbox.sandbox_wallet_challenges(actor_id,proof_key) WHERE proof_key IS NOT NULL;
@@ -54,7 +54,7 @@ BEGIN
     NEW.proof_hash IS NOT NULL OR NEW.epoch IS NOT NULL OR NEW.bound_at IS NOT NULL) THEN
    RAISE EXCEPTION 'superseded challenge cannot contain a proof';
  END IF;
- IF NEW.state='bound' AND (NEW.epoch<>OLD.expected_epoch+1 OR NEW.proof_key IS NULL OR
+ IF NEW.state='bound' AND (NEW.epoch IS DISTINCT FROM OLD.expected_epoch+1 OR NEW.proof_key IS NULL OR
     NEW.proof_request_hash IS NULL OR NEW.proof_hash IS NULL OR NEW.bound_at IS NULL) THEN
    RAISE EXCEPTION 'wallet proof transition is incomplete';
  END IF;

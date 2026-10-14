@@ -450,3 +450,110 @@ func TestWalletControlConcurrentProofCreatesOneBindingAndRLSIsActorScoped(t *tes
 		t.Fatalf("wallet challenge RLS exposed foreign actor: %d", visible)
 	}
 }
+
+func TestWalletControlAppRoleCannotInsertUnprovedBoundHistory(t *testing.T) {
+	f := newWalletHTTPFixture(t)
+	ctx := context.Background()
+	app, err := pgx.Connect(ctx, os.Getenv("UNDERGRID_SANDBOX_TEST_RUNTIME_DATABASE_URL"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Close(ctx)
+	tx, err := app.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx)
+	if _, err = tx.Exec(ctx, "SET LOCAL ROLE undergrid_sandbox_app"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = tx.Exec(ctx, "SELECT set_config('undergrid_sandbox.actor',$1,true)", f.actorID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = tx.Exec(ctx, `SAVEPOINT reject_unproved_bound_insert`); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	id := randomID()
+	_, err = tx.Exec(ctx, `INSERT INTO undergrid_sandbox.sandbox_wallet_challenges
+		(id,actor_id,address,chain_id,expected_epoch,nonce,message,issue_key,issue_request_hash,state,issued_at,expires_at,proof_key,proof_request_hash,proof_hash,epoch,bound_at)
+		VALUES($1,$2,$3,84532,0,$4,'forged fixture row','forged-bound',repeat('a',64),'bound',$5,$6,'forged-proof',NULL,NULL,1,$5)`,
+		id, f.actorID, "0x0000000000000000000000000000000000000001", strings.Repeat("b", 64), now, now.Add(time.Minute))
+	if err == nil {
+		t.Fatal("app role inserted bound wallet history without proof hashes")
+	}
+	if _, rollbackErr := tx.Exec(ctx, `ROLLBACK TO SAVEPOINT reject_unproved_bound_insert`); rollbackErr != nil {
+		t.Fatal(rollbackErr)
+	}
+	var epoch int64
+	var binding *string
+	if err = tx.QueryRow(ctx, "SELECT wallet_binding_epoch,wallet_binding_id::text FROM undergrid_sandbox.sandbox_actors WHERE id=$1", f.actorID).Scan(&epoch, &binding); err != nil {
+		t.Fatal(err)
+	}
+	if epoch != 0 || binding != nil {
+		t.Fatalf("rejected direct insert changed current binding: epoch=%d id=%v", epoch, binding)
+	}
+	var rows int
+	if err = tx.QueryRow(ctx, "SELECT count(*) FROM undergrid_sandbox.sandbox_wallet_challenges WHERE actor_id=$1 AND id=$2", f.actorID, id).Scan(&rows); err != nil {
+		t.Fatal(err)
+	}
+	if rows != 0 {
+		t.Fatalf("rejected direct insert left a history row: %d", rows)
+	}
+}
+
+func TestWalletControlAppRoleCannotTransitionWithNullBindingEpoch(t *testing.T) {
+	f := newWalletHTTPFixture(t)
+	ctx := context.Background()
+	app, err := pgx.Connect(ctx, os.Getenv("UNDERGRID_SANDBOX_TEST_RUNTIME_DATABASE_URL"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Close(ctx)
+	tx, err := app.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx)
+	if _, err = tx.Exec(ctx, "SET LOCAL ROLE undergrid_sandbox_app"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = tx.Exec(ctx, "SELECT set_config('undergrid_sandbox.actor',$1,true)", f.actorID); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	id := randomID()
+	_, err = tx.Exec(ctx, `INSERT INTO undergrid_sandbox.sandbox_wallet_challenges
+		(id,actor_id,address,chain_id,expected_epoch,nonce,message,issue_key,issue_request_hash,issued_at,expires_at)
+		VALUES($1,$2,$3,84532,0,$4,'issued fixture row','issued-forged',repeat('a',64),$5,$6)`,
+		id, f.actorID, "0x0000000000000000000000000000000000000001", strings.Repeat("c", 64), now, now.Add(time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = tx.Exec(ctx, `SAVEPOINT reject_null_epoch_transition`); err != nil {
+		t.Fatal(err)
+	}
+	_, err = tx.Exec(ctx, `UPDATE undergrid_sandbox.sandbox_wallet_challenges SET state='bound',proof_key='forged-proof',
+		proof_request_hash=repeat('d',64),proof_hash=repeat('e',64),epoch=NULL,bound_at=$2 WHERE id=$1`, id, now)
+	if err == nil {
+		t.Fatal("app role transitioned an issued challenge to bound with null epoch")
+	}
+	if _, rollbackErr := tx.Exec(ctx, `ROLLBACK TO SAVEPOINT reject_null_epoch_transition`); rollbackErr != nil {
+		t.Fatal(rollbackErr)
+	}
+	var state string
+	if err = tx.QueryRow(ctx, "SELECT state FROM undergrid_sandbox.sandbox_wallet_challenges WHERE id=$1", id).Scan(&state); err != nil {
+		t.Fatal(err)
+	}
+	if state != "issued" {
+		t.Fatalf("rejected transition changed challenge state: %q", state)
+	}
+	var epoch int64
+	var binding *string
+	if err = tx.QueryRow(ctx, "SELECT wallet_binding_epoch,wallet_binding_id::text FROM undergrid_sandbox.sandbox_actors WHERE id=$1", f.actorID).Scan(&epoch, &binding); err != nil {
+		t.Fatal(err)
+	}
+	if epoch != 0 || binding != nil {
+		t.Fatalf("rejected transition changed current binding: epoch=%d id=%v", epoch, binding)
+	}
+}
