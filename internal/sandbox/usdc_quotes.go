@@ -50,20 +50,36 @@ func (s *Store) WithUSDCSigning(c USDCSigningConfig) (*Store, error) {
 	if !bytes.Equal(ed25519.NewKeyFromSeed(c.PrivateKey[:ed25519.SeedSize]), c.PrivateKey) {
 		return nil, ErrInvalid
 	}
-	keys := make(map[string]ed25519.PublicKey, len(c.PublicKeys))
-	for id, k := range c.PublicKeys {
-		if id == "" || len(id) > 128 || len(k) != ed25519.PublicKeySize {
-			return nil, ErrInvalid
-		}
-		keys[id] = append(ed25519.PublicKey(nil), k...)
+	clone, err := s.WithUSDCVerification(c.PublicKeys)
+	if err != nil {
+		return nil, err
 	}
-	if !bytes.Equal(c.PrivateKey.Public().(ed25519.PublicKey), keys[c.KeyID]) {
+	if !bytes.Equal(c.PrivateKey.Public().(ed25519.PublicKey), clone.usdcVerification[c.KeyID]) {
 		return nil, ErrInvalid
 	}
+	clone.usdcSigning = &USDCSigningConfig{KeyID: c.KeyID, PrivateKey: append(ed25519.PrivateKey(nil), c.PrivateKey...), PublicKeys: clone.usdcVerification}
+	return clone, nil
+}
+
+// WithUSDCVerification creates a public-only worker configuration. It also
+// clears any signing authority inherited from the original Store.
+func (s *Store) WithUSDCVerification(publicKeys map[string]ed25519.PublicKey) (*Store, error) {
+	if len(publicKeys) == 0 {
+		return nil, ErrInvalid
+	}
+	keys := make(map[string]ed25519.PublicKey, len(publicKeys))
+	for id, key := range publicKeys {
+		if id == "" || len(id) > 128 || len(key) != ed25519.PublicKeySize {
+			return nil, ErrInvalid
+		}
+		keys[id] = append(ed25519.PublicKey(nil), key...)
+	}
 	clone := *s
-	clone.usdcSigning = &USDCSigningConfig{KeyID: c.KeyID, PrivateKey: append(ed25519.PrivateKey(nil), c.PrivateKey...), PublicKeys: keys}
+	clone.usdcSigning = nil
+	clone.usdcVerification = keys
 	return &clone, nil
 }
+
 func validUSDCOffer(q Quote) bool {
 	address, err := normalizeWalletAddress(q.Payee)
 	return err == nil && address == q.Payee && q.Asset == "USDC" && q.Rail == "x402_test"
@@ -91,11 +107,11 @@ func (s *Store) checkUSDCQuote(ctx context.Context, tx pgx.Tx, p Payment, curren
 	if p.Quote.Asset != "USDC" {
 		return nil
 	}
-	if s.usdcSigning == nil || p.SignedQuote == nil {
+	if len(s.usdcVerification) == 0 || p.SignedQuote == nil {
 		return ErrUnauthorized
 	}
 	signed := p.SignedQuote
-	publicKey := s.usdcSigning.PublicKeys[signed.KeyID]
+	publicKey := s.usdcVerification[signed.KeyID]
 	if len(publicKey) != ed25519.PublicKeySize {
 		return ErrUnauthorized
 	}

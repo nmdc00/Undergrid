@@ -173,11 +173,20 @@ func TestUSDCQuoteSignedSnapshotAndRebinding(t *testing.T) {
 	if _, err = f.store.Authorize(context.Background(), f.token, p.ID, p.Hash, "auth-first"); err != nil {
 		t.Fatal(err)
 	}
-	dispatched, err := f.store.BeginDispatch(context.Background(), p.ID)
+	worker, err := New(f.store.dsn).WithUSDCVerification(map[string]ed25519.PublicKey{"fixture-1": pub})
+	if err != nil {
+		t.Fatal(err)
+	}
+	offer := q
+	offer.ExpiresAt = time.Now().UTC().Add(time.Hour)
+	if _, e := worker.createCatalogQuote(context.Background(), f.token, "no-worker-mint", offer); !errors.Is(e, ErrUnauthorized) {
+		t.Fatalf("public-only worker minted quote: %v", e)
+	}
+	dispatched, err := worker.BeginDispatch(context.Background(), p.ID)
 	if err != nil || dispatched.State != "submitting" {
 		t.Fatalf("dispatch %s %v", dispatched.State, err)
 	}
-	if err = f.store.MarkUnknown(context.Background(), p.ID); err != nil {
+	if err = worker.MarkUnknown(context.Background(), p.ID); err != nil {
 		t.Fatal(err)
 	}
 	stale := quote("stale")
@@ -189,14 +198,14 @@ func TestUSDCQuoteSignedSnapshotAndRebinding(t *testing.T) {
 	if _, err = f.store.Authorize(context.Background(), f.token, stale.ID, stale.Hash, "stale"); !errors.Is(err, ErrConflict) {
 		t.Fatalf("stale authorization accepted: %v", err)
 	}
-	if canceled, err := f.store.BeginDispatch(context.Background(), staleAuthorized.ID); !errors.Is(err, ErrUnauthorized) || canceled.State != "canceled" {
+	if canceled, err := worker.BeginDispatch(context.Background(), staleAuthorized.ID); !errors.Is(err, ErrUnauthorized) || canceled.State != "canceled" {
 		t.Fatalf("stale dispatch %s %v", canceled.State, err)
 	}
 	current, err := f.store.GetPayment(context.Background(), f.token, p.ID)
 	if err != nil || current.State != "unknown" || !bytes.Equal(current.SignedQuote.Payload, p.SignedQuote.Payload) {
 		t.Fatalf("unknown payment changed: %v %s", err, current.State)
 	}
-	if _, err = f.store.BeginDispatch(context.Background(), p.ID); !errors.Is(err, ErrConflict) {
+	if _, err = worker.BeginDispatch(context.Background(), p.ID); !errors.Is(err, ErrConflict) {
 		t.Fatal("unknown payment redispatched")
 	}
 	if quote("first").ID != p.ID {
@@ -280,5 +289,31 @@ func TestUSDCSigningRejectsMismatchedSeedAndEmbeddedPublicKey(t *testing.T) {
 	private[0] ^= 1
 	if _, err := New("unused").WithUSDCSigning(USDCSigningConfig{KeyID: "bad", PrivateKey: private, PublicKeys: map[string]ed25519.PublicKey{"bad": public}}); err == nil {
 		t.Fatal("malformed seed/public private key accepted")
+	}
+}
+
+func TestUSDCVerificationCopiesKeysAndClearsSigningAuthority(t *testing.T) {
+	seed := make([]byte, 32)
+	seed[0] = 33
+	private := ed25519.NewKeyFromSeed(seed)
+	public := private.Public().(ed25519.PublicKey)
+	signer, err := New("unused").WithUSDCSigning(USDCSigningConfig{KeyID: "current", PrivateKey: private, PublicKeys: map[string]ed25519.PublicKey{"current": public}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	keys := map[string]ed25519.PublicKey{"current": append(ed25519.PublicKey(nil), public...)}
+	worker, err := signer.WithUSDCVerification(keys)
+	if err != nil {
+		t.Fatal(err)
+	}
+	keys["current"][0] ^= 1
+	delete(keys, "current")
+	if worker.usdcSigning != nil || !bytes.Equal(worker.usdcVerification["current"], public) {
+		t.Fatal("worker retained signing authority or mutable keys")
+	}
+	for _, keys := range []map[string]ed25519.PublicKey{nil, {"bad": {1}}, {"": public}} {
+		if _, err := New("unused").WithUSDCVerification(keys); err == nil {
+			t.Fatal("invalid verification configuration accepted")
+		}
 	}
 }

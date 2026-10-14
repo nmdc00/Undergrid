@@ -4,6 +4,7 @@ package sandbox
 
 import (
 	"context"
+	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/sha256"
 	_ "embed"
@@ -101,6 +102,7 @@ type Store struct {
 	dsn                string
 	walletChallengeTTL time.Duration
 	usdcSigning        *USDCSigningConfig
+	usdcVerification   map[string]ed25519.PublicKey
 }
 
 func New(dsn string) *Store { return &Store{dsn: dsn} }
