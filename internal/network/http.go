@@ -76,6 +76,7 @@ func decode(r *http.Request, v any) error {
 	return nil
 }
 func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("X-Request-ID", NewID())
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -91,16 +92,8 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		status, result, err = s.waitInbox(r, status, result)
 	}
 	if err != nil {
-		var p problem
-		if !errors.As(err, &p) {
-			slog.Error("request failed", "path", r.URL.Path, "error", err)
-			p = problem{500, "internal_error"}
-		}
-		if p.Status == 429 {
-			w.Header().Set("Retry-After", "60")
-		}
-		status = p.Status
-		result = map[string]any{"error": map[string]string{"code": p.Code}}
+		s.writeProblem(w, err)
+		return
 	}
 	w.WriteHeader(status)
 	if content, ok := result.(artifactContent); ok {
@@ -108,6 +101,29 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = json.NewEncoder(w).Encode(result)
+}
+
+// One renderer keeps transaction errors and adapter-level authentication
+// denials on the same public contract. Internal errors are logged, never sent.
+func (s *Service) writeProblem(w http.ResponseWriter, err error) {
+	var p problem
+	requestID := w.Header().Get("X-Request-ID")
+	if !errors.As(err, &p) {
+		slog.Error("request failed", "request_id", requestID, "error", err)
+		p = problem{500, "internal_error"}
+	}
+	if p.Status == 429 {
+		w.Header().Set("Retry-After", "60")
+	}
+	message := strings.ReplaceAll(p.Code, "_", " ")
+	if p.Status >= 500 {
+		message = "The service could not complete the request."
+	}
+	w.WriteHeader(p.Status)
+	_ = json.NewEncoder(w).Encode(map[string]any{"error": map[string]any{
+		"code": p.Code, "message": message, "request_id": requestID,
+		"retryable": p.Status == 429 || p.Status == 500 || p.Status == 502 || p.Status == 503 || p.Status == 504,
+	}})
 }
 func (s *Service) execute(r *http.Request) (int, any, error) {
 	ctx := r.Context()

@@ -478,7 +478,7 @@ func (s *Service) finalizeArtifact(r *http.Request, tx pgx.Tx, a actor, p stored
 	return 200, artifactProjection(art), err
 }
 func artifactEvaluations(ctx context.Context, tx pgx.Tx, id string) (int, any, error) {
-	rows, err := tx.Query(ctx, "SELECT id,evidence FROM evaluations WHERE artifact_id=$1 ORDER BY created_at,id", id)
+	rows, err := tx.Query(ctx, "SELECT id,evidence,runtime_isolation,COALESCE(bubblewrap_sha256,''),COALESCE(prlimit_sha256,''),resource_limits_evidence,image_identity_evidence FROM evaluations WHERE artifact_id=$1 ORDER BY created_at,id", id)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -487,20 +487,38 @@ func artifactEvaluations(ctx context.Context, tx pgx.Tx, id string) (int, any, e
 	for rows.Next() {
 		var id string
 		var raw []byte
-		if err = rows.Scan(&id, &raw); err != nil {
+		var runtimeIsolation, bubblewrapHash, prlimitHash, resourceEvidence, imageEvidence string
+		if err = rows.Scan(&id, &raw, &runtimeIsolation, &bubblewrapHash, &prlimitHash, &resourceEvidence, &imageEvidence); err != nil {
 			return 0, nil, err
 		}
 		var item map[string]any
 		if err = json.Unmarshal(raw, &item); err != nil {
 			return 0, nil, err
 		}
+		legacy := runtimeIsolation == "legacy_unqualified_evidence"
+		if !matchesEvidenceField(item, "runtime_isolation", runtimeIsolation, legacy) || !matchesEvidenceField(item, "bubblewrap_sha256", nilIfEmpty(bubblewrapHash), legacy || bubblewrapHash == "") || !matchesEvidenceField(item, "prlimit_sha256", nilIfEmpty(prlimitHash), legacy || prlimitHash == "") || !matchesEvidenceField(item, "resource_limits_evidence", resourceEvidence, legacy) || !matchesEvidenceField(item, "image_identity_evidence", imageEvidence, legacy) {
+			return 0, nil, errors.New("evaluation evidence differs from normalized runtime identity")
+		}
 		item["id"] = id
 		item["limitations"] = artifactLimitations
-		item["runtime_isolation"] = "development_process_not_qualified"
-		item["image_identity_evidence"] = "operator_configured_fixture_not_container_attestation"
+		item["runtime_isolation"] = runtimeIsolation
+		item["bubblewrap_sha256"] = nilIfEmpty(bubblewrapHash)
+		item["prlimit_sha256"] = nilIfEmpty(prlimitHash)
+		item["resource_limits_evidence"] = resourceEvidence
+		item["image_identity_evidence"] = imageEvidence
 		items = append(items, item)
 	}
 	return 200, map[string]any{"items": items}, rows.Err()
+}
+func matchesEvidenceField(item map[string]any, key string, normalized any, missingAllowed bool) bool {
+	value, exists := item[key]
+	return exists && value == normalized || !exists && missingAllowed
+}
+func nilIfEmpty(value string) any {
+	if value == "" {
+		return nil
+	}
+	return value
 }
 func (s *Service) acceptArtifact(r *http.Request, tx pgx.Tx, a actor, p storedPlan, t storedTask, art storedArtifact) (int, any, error) {
 	var in struct {
