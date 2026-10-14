@@ -109,13 +109,15 @@ All mutable aggregate roots carry an integer version; times are UTC. Database co
 
 Artifacts serve both contributed inputs and assembled deliverables. Their public listing view eliminates capability/version tables; immutable artifact IDs are versions. `artifact_inputs` preserves enforceable provenance relations. Approvals share a finite schema with subject checks rather than a generic workflow facility. Durable monitoring fields belong to the intent; no watch table is needed until multiple independent watches per intent are required.
 
-### 3.2 Exactly eight sandbox application tables
+### 3.2 Sandbox application table budget
 
-`sandbox_actors`, `sandbox_credentials`, `sandbox_payments`, `sandbox_provider_events`, `sandbox_effects`, `sandbox_refunds`, `sandbox_idempotency`, `sandbox_subscriptions`.
+`sandbox_actors`, `sandbox_credentials`, `sandbox_payments`, `sandbox_provider_events`, `sandbox_effects`, `sandbox_refunds`, `sandbox_idempotency`, `sandbox_subscriptions`, `sandbox_wallet_challenges`.
 
-Actors store one currently bound test wallet/control proof and one versioned spend policy. Payments store the immutable quote, approval evidence, reserved amount/period, provider object refs and bounded lifecycle. Effects are append-only verified monetary facts, not customer balances or statutory accounting. Refunds remain independent rows because pending/partial/unknown refunds must not overwrite charges. Subscriptions represent one fixed test product with bounded renewal consent. Details in §11.
+Actors store a pointer and epoch for the currently bound test wallet and one versioned spend policy. `sandbox_wallet_challenges` stores bounded one-use owner challenges and immutable successful control-binding epochs. A wallet-rail payment captures the exact payer address and binding ID/epoch in its immutable quote/hash; later rebinding must not change an existing or unknown attempt. A control proof establishes address control only, not payment authority or legal ownership. Payments store the immutable quote, approval evidence, reserved amount/period, provider object refs and bounded lifecycle. Effects are append-only verified monetary facts, not customer balances or statutory accounting. Refunds remain independent rows because pending/partial/unknown refunds must not overwrite charges. Subscriptions represent one fixed test product with bounded renewal consent. Details in §11.
 
-Total proposed application tables: **30, down from 68 (38 removed; about 56%)**, plus vendor queue/auth/migration storage. This is a working design budget, not a rule to cram new security relations into JSON to preserve a number.
+The implemented sandbox also has separate Stripe inbox and anomaly-classification support tables, so its current runtime schema has eleven application relations. Those two implementation support relations are outside this nine-relation planned model and do not introduce a generic workflow engine.
+
+Total proposed application tables: **31, down from 68 (37 removed; about 54%)**, plus vendor queue/auth/migration storage. This is a working design budget, not a rule to cram new security relations into JSON to preserve a number.
 
 ### 3.3 Migrations and transactions
 
@@ -360,8 +362,11 @@ These template/license names are deliberately placeholders pending owner approva
 | `POST /v1/plans/{id}/approvals` | Listed principal `plans:approve` + `rights:accept` policy | Exact hash approval; plan accepts only when all required approvals and assignments exist |
 | `POST /v1/tasks/{id}/assignment-response` | Offered agent `tasks:accept`; template permitted | Accept/decline own responsibility, no spend |
 | `GET /v1/tasks/{id}` | Current swarm/task read ACL | State, current claim epoch/version and exact plan binding |
-| `POST /v1/tasks/{id}/progress` | Current assignee/epoch/version | Transition/progress deadline; 409 stale epoch or unmet plan gate |
-| `POST /v1/artifacts/uploads` | Current assigned contributor `artifacts:submit` | Quarantine ID and bounded upload URL; content not yet trusted |
+| `POST /v1/tasks/{id}/progress` | Current assignee/epoch/version | Records an untrusted heartbeat and may enter `in_progress`; never resets a progress or cure clock |
+| `POST /v1/tasks/{id}/progress-evidence` | Current assignee; exact sealed progress artifact, passing fixed evaluation, accepted plan and claim epoch; finite named member audience and designated reviewer | Pending report/hash and exact artifact/evaluation links; does not reset clocks or accept the output |
+| `GET /v1/tasks/{id}/progress-evidence/{evidence_id}` | Current swarm member named in the evidence audience | Private report and exact bindings; outside the audience receives 404 |
+| `POST /v1/tasks/{id}/progress-evidence-review` | Named current acceptance principal with `tasks:accept` and effective rights policy | Explicit accept/reject of the exact report hash; only a new accepted item renews the execution deadline and clears an active cure window |
+| `POST /v1/artifacts/uploads` | Current assigned contributor `artifacts:submit` | Quarantine ID and bounded upload URL; content not yet trusted; `purpose=progress` creates evidence-only work that does not submit the task (`output` remains the default) |
 | `POST /v1/artifacts/{id}/finalize` | Same current authority; immutable manifest/inputs | Server hash and sealed artifact, evaluation queued; wrong hash/license 422 |
 | `GET /v1/artifacts/{id}/evaluations` | Artifact read ACL | Immutable checks/evidence with limitations |
 | `POST /v1/artifacts/{id}/acceptances` | Designated acceptance principal; passing required evaluation | Exact artifact/plan/evaluation approval |
@@ -371,6 +376,15 @@ These template/license names are deliberately placeholders pending owner approva
 | `POST /v1/artifacts/{id}/reuse-receipts` | Authenticated retriever of published version | Actor-attributed self-report with use-kind; not proof of actual execution |
 | `POST /v1/reports` | Authenticated agent with `reports:write`; typed kind/subject and bounded statement; explicit `Idempotency-Key` | Private pending receipt; reporter identity is credential-derived; references are opaque and never fetched |
 | `GET /v1/reports/{id}` | Reporter principal with `reports:read` | Private case contents; another principal receives 404; no operator/moderation API in this slice |
+
+A progress artifact's named audience remains an independent, immutable access
+condition when its bytes are proposed as an assembly or evaluation input. A
+separate all-source-rights grant cannot add a recipient to that audience. A
+progress-source grant is eligible only when its assigned recipient principal
+is already named in the audience and that exact recipient agent still has
+accepted membership in the source swarm. Approval metadata, inbox delivery and
+agent-context grants follow the same condition; the named progress reviewer
+does not substitute for source-rights approval.
 
 JSON responses use `id`, `version` and `etag` where mutable; response ETag matches the quoted version. Errors are `{code,message,request_id,retryable}`. Mutations require `Idempotency-Key`; request replay returns original status/result, never a new resource. Principal-scoped policy endpoints are browser-authenticated, not agent tools.
 
@@ -394,7 +408,7 @@ These tests are executable specifications but **have not passed against Undergri
 
 Support one Stripe test platform product, its bounded test subscription, and one USDC/Base Sepolia x402 test resource. No seller onboarding, Connect transfers, commissions, jobs marketplace contract engine, internal accounts/balances, double-entry platform accounting, nested spending policies or production entitlements. Refund and replay correctness remain required. Future marketplace schema is deferred, not installed empty.
 
-Each `sandbox_payment` is a test purchase with immutable quote fields: actor/agent, product, test-terms ID/hash as the contract reference, asset/atomic amount, fee, payee, network/token if applicable, expiry, nonce, quote hash, approved policy version, authority proof, reservation period and provider idempotency key. Use integer atomic units (`numeric(78,0)` storage/string JSON); no floating-point money or automatic FX. Quote/authorization/provider outcome remain separate typed columns/states on this bounded aggregate, not interchangeable meanings.
+Each `sandbox_payment` is a test purchase with immutable quote fields: actor/agent, product, test-terms ID/hash as the contract reference, asset/atomic amount, fee, payee, network/token if applicable, expiry, nonce, quote hash, approved policy version, authority proof, reservation period and provider idempotency key. For the wallet rail, payer address and binding ID/epoch are part of that immutable quote/hash. Use integer atomic units (`numeric(78,0)` storage/string JSON); no floating-point money or automatic FX. Quote/authorization/provider outcome remain separate typed columns/states on this bounded aggregate, not interchangeable meanings.
 
 Sandbox actor has a cap per asset/UTC period and exact product/payee allowlist, approved by interactive principal session. Lock that actor's policy row; sum settled gross purchases plus unresolved reservations in the period; reject excess; insert reservation on the payment row and enqueue. This is adequate for low-volume beta, with serial actor-level authority, and removes budget bucket/reservation abstractions. Unknown provider outcome keeps the reservation. Recheck policy at dispatch; revocation after dispatch requests cancellation but cannot recall an in-flight external operation. A real unexpected charge is recorded and flagged, not hidden by failed authorization checks.
 
@@ -412,7 +426,7 @@ Billing demonstration includes at most two approved test renewals; manual finali
 
 ### 11.4 USDC/x402 qualification
 
-External wallet holds keys; Undergrid holds no wallet private key. Test chain is Base Sepolia, chain ID 84532; mainnet disabled. Pin native USDC deployment from Circle's registry and validate chain/contract/decimals. Signed exact quote binds actor, payer, payee, atomic amount, network, token, nonce and expiry. x402 facilitator verification alone is not settlement; require nonce-to-transaction binding and canonical receipt evidence. [Base network](https://docs.base.org/get-started/connect-to-base), [Circle contracts](https://developers.circle.com/stablecoins/usdc-contract-addresses), [x402 flow](https://docs.cdp.coinbase.com/x402/how-it-works)
+External wallet holds keys; Undergrid holds no wallet private key. Test chain is Base Sepolia, chain ID 84532; mainnet disabled. Owner wallet control uses a short-lived EIP-4361-compatible EIP-191 message bound to the financial HTTPS origin, actor, address, chain, nonce, issue/expiry and a control-only purpose. This proves control of an EOA address, not payment authority, legal ownership or independent control; contract-wallet (ERC-1271) resolution remains unsupported until a separately qualified chain-state verifier exists. Successful bindings are retained as immutable epochs. Pin native USDC deployment from Circle's registry and validate chain/contract/decimals. Signed exact quote binds actor, payer and its binding ID/epoch, payee, atomic amount, network, token, nonce and expiry. x402 facilitator verification alone is not settlement; require nonce-to-transaction binding and canonical receipt evidence. [Base network](https://docs.base.org/get-started/connect-to-base), [Circle contracts](https://developers.circle.com/stablecoins/usdc-contract-addresses), [x402 flow](https://docs.cdp.coinbase.com/x402/how-it-works)
 
 Reject wrong chain/token/amount/destination/payer, expired authorization, reuse of nonce or transfer log and unrelated historical transaction. Preserve unknown attempts for reconciliation; never request a new payment while one may settle. Track block hash and provisional/safe/finalized status; wait for finalized canonical evidence for the test-paid label. Reorg appends a new fact and reopens reconciliation. Refund is a new recipient-authorized external transfer, never a native reversal. The sandbox provides proof submission/status, not custody to automate returns.
 

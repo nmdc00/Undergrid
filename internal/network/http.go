@@ -164,15 +164,15 @@ func authenticate(ctx context.Context, tx pgx.Tx, authorization, method, path st
 	if _, err = tx.Exec(ctx, "SELECT set_config('undergrid.principal_id',$1,true),set_config('undergrid.agent_id',$2,true)", a.PrincipalID, a.AgentID); err != nil {
 		return a, err
 	}
-	if method == "POST" && strings.HasPrefix(path, "/v1/artifacts/") && !strings.HasSuffix(path, "/reuse-receipts") {
+	if (method == "POST" || method == "GET") && strings.HasPrefix(path, "/v1/artifacts/") && !strings.HasSuffix(path, "/reuse-receipts") {
 		parts := strings.Split(path, "/")
-		if len(parts) == 5 && validID(parts[3]) {
+		if (len(parts) == 5 || len(parts) == 4) && validID(parts[3]) {
 			if _, err = tx.Exec(ctx, "SELECT lock_artifact_authorities($1)", parts[3]); err != nil {
 				return a, err
 			}
 		}
 	}
-	if method == "POST" && (strings.HasPrefix(path, "/v1/plans/") || strings.HasSuffix(path, "/assignment-response")) {
+	if method == "POST" && (strings.HasPrefix(path, "/v1/plans/") || strings.HasPrefix(path, "/v1/tasks/")) {
 		parts := strings.Split(path, "/")
 		if len(parts) == 5 && validID(parts[3]) {
 			planID := parts[3]
@@ -222,6 +222,9 @@ func (s *Service) agentCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, e
 	}
 	if r.URL.Path == "/v1/artifacts" || strings.HasPrefix(r.URL.Path, "/v1/artifacts/") {
 		return s.artifactCommand(r, tx, a)
+	}
+	if strings.HasPrefix(r.URL.Path, "/v1/artifact-input-grants/") {
+		return s.inputGrantCommand(r, tx, a)
 	}
 	if strings.HasPrefix(r.URL.Path, "/v1/plans/") || strings.HasPrefix(r.URL.Path, "/v1/tasks/") {
 		return s.planCommand(r, tx, a)

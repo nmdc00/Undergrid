@@ -165,10 +165,10 @@ func TestProgressDeadlineCureAndExpiredPlan(t *testing.T) {
 		t.Fatal("restart lost obligation", obligations)
 	}
 	code, out = a.versioned("POST", taskPath+"/progress", "cure", risk["etag"].(string), map[string]any{"state": "in_progress", "claim_epoch": risk["claim_epoch"]})
-	if code != 200 || out["cure_deadline"] != nil {
+	if code != 200 || out["state"] != "at_risk" || out["cure_deadline"] != risk["cure_deadline"] || out["progress_deadline"] != risk["progress_deadline"] {
 		t.Fatal(code, out)
 	}
-	// The refreshed deadline excludes the old due job.
+	// An untrusted heartbeat leaves the at-risk state and original deadlines intact.
 	results := make(chan error, 2)
 	for range 2 {
 		go func() { results <- s.SweepCoordinationDeadlines(ctx, now) }()
@@ -179,12 +179,13 @@ func TestProgressDeadlineCureAndExpiredPlan(t *testing.T) {
 		}
 	}
 	_, fresh := a.call("GET", taskPath, "", nil)
-	if fresh["state"] != "in_progress" {
-		t.Fatal(fresh)
+	if fresh["state"] != "at_risk" || fresh["cure_deadline"] != risk["cure_deadline"] {
+		t.Fatal("heartbeat cleared at-risk cure: ", fresh)
 	}
-	if _, err := db.Exec(ctx, "UPDATE undergrid.tasks SET progress_deadline=$2 WHERE id=$1", task["id"], now.Add(-49*time.Hour)); err != nil {
+	if _, err := db.Exec(ctx, "UPDATE undergrid.tasks SET state='in_progress',version=version+1,progress_deadline=$2,cure_deadline=NULL WHERE id=$1", task["id"], now.Add(-49*time.Hour)); err != nil {
 		t.Fatal(err)
 	}
+	_, fresh = a.call("GET", taskPath, "", nil)
 	code, out = a.versioned("POST", taskPath+"/progress", "overdue-before-sweep", fresh["etag"].(string), map[string]any{"state": "in_progress", "claim_epoch": fresh["claim_epoch"]})
 	if code != 409 {
 		t.Fatal("elapsed cure bypassed before worker repair", code, out)
