@@ -24,6 +24,11 @@ const ordinaryScopes = [
   "plans:propose",
   "tasks:progress",
 ];
+function localDateTime(instant: string): string {
+  const date = new Date(instant);
+  const pad = (part: number) => String(part).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
 type Config = { terms: string; templates: ObjectValue[] };
 export function App() {
   const [phase, setPhase] = useState("loading"),
@@ -45,9 +50,17 @@ export function App() {
     ]);
   const [selectedAgent, setSelectedAgent] = useState(""),
     [objective, setObjective] = useState(""),
+    [intentVisibility, setIntentVisibility] = useState("private"),
     [watch, setWatch] = useState(true),
     [detail, setDetail] = useState<ObjectValue | null>(null),
-    [results, setResults] = useState<ObjectValue[]>([]);
+    [results, setResults] = useState<ObjectValue[]>([]),
+    [intentGrants, setIntentGrants] = useState<ObjectValue[]>([]),
+    [grantRecipient, setGrantRecipient] = useState(""),
+    [grantFields, setGrantFields] = useState<string[]>([]),
+    [grantExpiry, setGrantExpiry] = useState("");
+  const [editingRevision, setEditingRevision] = useState(false),
+    [revisionObjective, setRevisionObjective] = useState(""),
+    [revisionExpiry, setRevisionExpiry] = useState("");
   const generation = useRef(0);
   const [intentionExpiry, setIntentionExpiry] = useState(() =>
     new Date(Date.now() + 30 * 86400000).toISOString(),
@@ -369,12 +382,25 @@ export function App() {
                       onClick={() =>
                         void action(async () => {
                           const path = `/v1/owner/intents/${encodeURIComponent(text(i.id))}`;
-                          const [record, matches] = await Promise.all([
+                          const grantsPath = `${path}/grants`;
+                          const [record, matches, grants] = await Promise.all([
                             request(path, csrf),
                             request(path + "/opportunities", csrf),
+                            request(grantsPath, csrf),
                           ]);
                           setDetail(record);
+                          setRevisionObjective(text(record.objective));
+                          setRevisionExpiry(
+                            localDateTime(text(record.expires_at)),
+                          );
+                          setEditingRevision(false);
                           setResults(items(matches));
+                          setIntentGrants(items(grants));
+                          setGrantRecipient("");
+                          setGrantFields([]);
+                          setGrantExpiry(
+                            localDateTime(text(record.expires_at)),
+                          );
                         })
                       }
                     >
@@ -397,6 +423,109 @@ export function App() {
                     results.map((r) => (
                       <pre key={text(r.id)}>{JSON.stringify(r, null, 2)}</pre>
                     ))
+                  )}
+                  {detail.state !== "withdrawn" && (
+                    <>
+                      {!editingRevision ? (
+                        <button
+                          disabled={busy}
+                          onClick={() => setEditingRevision(true)}
+                        >
+                          {detail.state === "expired"
+                            ? "Renew intention"
+                            : "Edit intention"}
+                        </button>
+                      ) : (
+                        <form
+                          onSubmit={(e) =>
+                            submit(e, async () => {
+                              const revision = {
+                                objective: revisionObjective,
+                                output: detail.output,
+                                hard_constraints: detail.hard_constraints,
+                                ...(detail.preferences === undefined
+                                  ? {}
+                                  : { preferences: detail.preferences }),
+                                visibility: detail.visibility,
+                                ...(detail.public_summary === undefined
+                                  ? {}
+                                  : { public_summary: detail.public_summary }),
+                                budget: detail.budget ?? null,
+                                watch: detail.watch,
+                                expires_at: new Date(
+                                  revisionExpiry,
+                                ).toISOString(),
+                              };
+                              const out = await request(
+                                `/v1/owner/intents/${encodeURIComponent(text(detail.id))}`,
+                                csrf,
+                                "PATCH",
+                                { revision },
+                                text(detail.etag),
+                              );
+                              setDetail(out);
+                              setEditingRevision(false);
+                              setRevisionObjective(text(out.objective));
+                              setRevisionExpiry(
+                                localDateTime(text(out.expires_at)),
+                              );
+                              await refresh(csrf);
+                              setIntentGrants(
+                                items(
+                                  await request(
+                                    `/v1/owner/intents/${encodeURIComponent(text(out.id))}/grants`,
+                                    csrf,
+                                  ),
+                                ),
+                              );
+                            })
+                          }
+                        >
+                          <h4>New intention revision</h4>
+                          <p>
+                            This keeps the current output, constraints,
+                            visibility, budget, and watch settings. Changes take
+                            effect after you save; expired intentions resume
+                            with a new expiry.
+                          </p>
+                          <label>
+                            Objective
+                            <textarea
+                              required
+                              minLength={3}
+                              maxLength={4000}
+                              value={revisionObjective}
+                              onChange={(e) =>
+                                setRevisionObjective(e.target.value)
+                              }
+                            />
+                          </label>
+                          <label>
+                            Expires at (local time)
+                            <input
+                              type="datetime-local"
+                              required
+                              value={revisionExpiry}
+                              onChange={(e) =>
+                                setRevisionExpiry(e.target.value)
+                              }
+                            />
+                          </label>
+                          <button disabled={busy || !revisionObjective.trim()}>
+                            {detail.state === "expired"
+                              ? "Renew intention"
+                              : "Save new revision"}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => setEditingRevision(false)}
+                          >
+                            Cancel edit
+                          </button>
+                        </form>
+                      )}
+                    </>
                   )}
                   {["active", "paused", "withdrawn"].map((state) => (
                     <button
@@ -431,6 +560,145 @@ export function App() {
                   <button onClick={() => setDetail(null)}>
                     Close intention
                   </button>
+                  {detail.visibility === "restricted" && (
+                    <section aria-label="Restricted intention grants">
+                      <h4>Share selected fields with a named principal</h4>
+                      <p>
+                        Restricted intentions stay hidden until you grant
+                        access. Budget is shared only when you select it. New
+                        revisions require a fresh grant.
+                      </p>
+                      {intentGrants.map((grant) => (
+                        <div key={text(grant.principal_id)}>
+                          <p>
+                            {text(grant.principal_id)} · {text(grant.status)} ·{" "}
+                            {Array.isArray(grant.fields)
+                              ? grant.fields.map(String).join(", ")
+                              : ""}
+                          </p>
+                          {grant.status === "current" && (
+                            <button
+                              disabled={busy}
+                              onClick={() =>
+                                void action(async () => {
+                                  const intentPath = `/v1/owner/intents/${encodeURIComponent(text(detail.id))}`;
+                                  const out = await request(
+                                    `${intentPath}/grants/${encodeURIComponent(text(grant.principal_id))}/revoke`,
+                                    csrf,
+                                    "POST",
+                                    {},
+                                    text(detail.etag),
+                                  );
+                                  setDetail({
+                                    ...detail,
+                                    etag: out.etag,
+                                    version: out.version,
+                                  });
+                                  setIntentGrants(
+                                    items(
+                                      await request(
+                                        `${intentPath}/grants`,
+                                        csrf,
+                                      ),
+                                    ),
+                                  );
+                                })
+                              }
+                            >
+                              Revoke grant
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      <form
+                        onSubmit={(e) =>
+                          submit(e, async () => {
+                            const intentPath = `/v1/owner/intents/${encodeURIComponent(text(detail.id))}`;
+                            const out = await request(
+                              `${intentPath}/grants`,
+                              csrf,
+                              "POST",
+                              {
+                                principal_id: grantRecipient.trim(),
+                                fields: grantFields,
+                                expires_at: new Date(grantExpiry).toISOString(),
+                              },
+                              text(detail.etag),
+                            );
+                            setDetail({
+                              ...detail,
+                              etag: out.etag,
+                              version: out.version,
+                            });
+                            setGrantRecipient("");
+                            setGrantFields([]);
+                            setIntentGrants(
+                              items(
+                                await request(`${intentPath}/grants`, csrf),
+                              ),
+                            );
+                          })
+                        }
+                      >
+                        <label>
+                          Recipient principal ID
+                          <input
+                            required
+                            value={grantRecipient}
+                            onChange={(e) => setGrantRecipient(e.target.value)}
+                          />
+                        </label>
+                        <fieldset>
+                          <legend>Fields to share</legend>
+                          {[
+                            "objective",
+                            "output",
+                            "hard_constraints",
+                            "preferences",
+                            "public_summary",
+                            "budget",
+                          ].map((field) => (
+                            <label className="check" key={field}>
+                              <input
+                                type="checkbox"
+                                checked={grantFields.includes(field)}
+                                onChange={(e) =>
+                                  setGrantFields(
+                                    e.target.checked
+                                      ? [...grantFields, field]
+                                      : grantFields.filter(
+                                          (selected) => selected !== field,
+                                        ),
+                                  )
+                                }
+                              />
+                              {field === "budget"
+                                ? "budget (explicit opt-in)"
+                                : field}
+                            </label>
+                          ))}
+                        </fieldset>
+                        <label>
+                          Grant expires at (local time)
+                          <input
+                            type="datetime-local"
+                            required
+                            value={grantExpiry}
+                            onChange={(e) => setGrantExpiry(e.target.value)}
+                          />
+                        </label>
+                        <button
+                          disabled={
+                            busy ||
+                            !grantRecipient.trim() ||
+                            grantFields.length === 0
+                          }
+                        >
+                          Grant selected fields
+                        </button>
+                      </form>
+                    </section>
+                  )}
                 </article>
               )}
               <form
@@ -448,12 +716,13 @@ export function App() {
                           required_fields: ["source_id", "source_url"],
                           license_ids: ["CC0-1.0"],
                         },
-                        visibility: "private",
+                        visibility: intentVisibility,
                         watch: { enabled: watch, channels: ["inbox"] },
                         expires_at: intentionExpiry,
                       },
                     });
                     setObjective("");
+                    setIntentVisibility("private");
                     setIntentionExpiry(
                       new Date(Date.now() + 30 * 86400000).toISOString(),
                     );
@@ -461,12 +730,24 @@ export function App() {
                   })
                 }
               >
-                <h3>Create a private source-catalog intention</h3>
+                <h3>Create a source-catalog intention</h3>
                 <p>
                   JSON dataset with source_id and source_url, CC0-1.0
                   requirement. Expires in 30 days. This expresses a desired
                   license; it grants no contribution rights.
                 </p>
+                <label>
+                  Intention visibility
+                  <select
+                    value={intentVisibility}
+                    onChange={(e) => setIntentVisibility(e.target.value)}
+                  >
+                    <option value="private">Private</option>
+                    <option value="restricted">
+                      Restricted (grant selected fields to named principals)
+                    </option>
+                  </select>
+                </label>
                 <label>
                   Responsible agent
                   <select

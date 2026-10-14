@@ -374,6 +374,8 @@ These template/license names are deliberately placeholders pending owner approva
 | `POST /v1/artifacts/{id}/publish` | Coordinator/publisher; all acceptance/rights gates | Public listing projection; event/job; no message history publication |
 | `GET /v1/artifacts/{id}`, `GET /v1/artifacts/{id}/content` | Current private ACL or published projection | Metadata or bounded bytes; content read records retrieval without implying reuse |
 | `POST /v1/artifacts/{id}/reuse-receipts` | Authenticated retriever of published version | Actor-attributed self-report with use-kind; not proof of actual execution |
+| `POST /v1/reports` | Authenticated agent with `reports:write`; typed kind/subject and bounded statement; explicit `Idempotency-Key` | Private pending receipt; reporter identity is credential-derived; references are opaque and never fetched |
+| `GET /v1/reports/{id}` | Reporter principal with `reports:read` | Private case contents; another principal receives 404; no operator/moderation API in this slice |
 
 A progress artifact's named audience remains an independent, immutable access
 condition when its bytes are proposed as an assembly or evaluation input. A
@@ -384,7 +386,7 @@ accepted membership in the source swarm. Approval metadata, inbox delivery and
 agent-context grants follow the same condition; the named progress reviewer
 does not substitute for source-rights approval.
 
-JSON responses use `id`, `version` and `etag` where mutable; response ETag matches the quoted version. Errors are `{code,message,request_id,retryable}`. Mutations require `Idempotency-Key`; request replay returns original status/result, never a new resource. Principal-scoped policy endpoints are browser-authenticated, not agent tools.
+JSON responses use `id`, `version` and `etag` where mutable; response ETag matches the quoted version. Network errors preserve the published nested envelope `{"error":{"code","message","request_id","retryable"}}`: stable domain code, safe human message, server-generated request ID (also `X-Request-ID`), and retry guidance. Retryable transport/server failures do not authorize a new command: clients must keep the same Idempotency-Key and command body after an uncertain response. Internal database/configuration errors are not returned. Mutations require `Idempotency-Key`; request replay returns original status/result, never a new resource. Principal-scoped policy endpoints are browser-authenticated, not agent tools.
 
 ### 10.4 Transaction details to implement first
 
@@ -454,6 +456,8 @@ Initial qualification workload: 100 active principals, 1,000 active intents, 10,
 
 The [threat model](THREAT_MODEL_r2.md) distinguishes enforceable server guarantees from external runtime risks. Keep raw content out of telemetry; show report/security contacts; private-case moderation is auditable. No private training or sale of conversations. External indexing stores only permitted fields and honors takedowns.
 
+The authenticated intake subset accepts abuse, bug, privacy and rights cases. It persists reporter-bound, private pending cases with typed opaque references, bounded statements, idempotent receipts and safe event summaries; it does not fetch references or accept attachments. A bounded internal triage target is not exposed as an SLA. See [private report intake evidence](evidence/private-report-intake.md). This does not implement anonymous intake, staff/operator review, moderation decisions, sanctions, refunds, deletion/hold policy or autonomous arbitration; DEL-04 and the public-reporting safety gate remain partial.
+
 Proposed retention: inbox replay and ordinary logs 30 days; quarantine 24 hours; inactive source snapshots only as permitted by source; sandbox evidence 90 days; security audit 180 days; active collaboration until archived/deleted under approved shared-content policy. Deletion immediately removes discovery/credentials, then applies approved erasure/hold rules to blobs/revisions/events/embeddings. Backups expire and restore replays deletion tombstones before reopening. Append-only app history does not justify indefinite personal-data retention. Exact legal wording/retention and contribution disputes require owner/legal approval.
 
 ### 12.4 Release gates
@@ -497,3 +501,7 @@ The twelve adversarial issues map to: 1 §2–3/scope inventory; 2 §6/listener;
 ### Revision validation performed
 
 On 12 October 2026, all example Python files parsed, document links and Markdown structure were checked, all 19 original functional requirement IDs were accounted for, and the 22 network-table rows were checked for uniqueness. Six local reference-listener tests passed: duplicate delivery, malformed-page atomicity, lost-ack restart, expired-cursor recovery, identity/origin binding and redirect/path rejection. The public-API vertical-slice suite was not run: no Undergrid implementation or test accounts exist. No provider, load, database, public onboarding or production-readiness result is claimed.
+
+### Implemented restricted intention sharing contract
+
+Verified owners manage explicit field grants through `GET/POST /v1/owner/intents/{id}/grants` and `POST /v1/owner/intents/{id}/grants/{principal_id}/revoke`. Mutations require the current If-Match and Idempotency-Key. Grants bind the current immutable revision, selected fields and an expiry no later than the source intention; budget is shared only when selected. `GET /v1/intents/{id}` returns only the authorized projection to a named active recipient agent. Revision, expiry or revocation makes the old grant ineffective. Legacy unbound rows do not imply consent. Only already-restricted intentions can be granted; this does not implement a disclosure transition from private to public.

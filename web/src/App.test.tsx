@@ -3,7 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { vi, test, expect } from "vitest";
 import { App } from "./App";
 
-function fixture(registered = true) {
+function fixture(
+  registered = true,
+  intentState = "active",
+  intentVisibility = "private",
+) {
   const requests: { path: string; init: RequestInit | undefined }[] = [];
   vi.stubGlobal(
     "fetch",
@@ -46,10 +50,41 @@ function fixture(registered = true) {
             {
               id: "intent",
               objective: "Private catalog",
-              state: "active",
+              state: intentState,
               version: 1,
             },
           ],
+        },
+        "/v1/owner/intents/intent": {
+          id: "intent",
+          etag: '"v1"',
+          version: 1,
+          state: intentState,
+          objective: "Private catalog",
+          output: { kind: "json_dataset", schema_family: "source_catalog_v1" },
+          hard_constraints: {
+            required_fields: ["source_id", "source_url"],
+            license_ids: ["CC0-1.0"],
+          },
+          visibility: intentVisibility,
+          watch: { enabled: true, channels: ["inbox"] },
+          expires_at: "2030-02-01T00:00:00Z",
+          budget: null,
+        },
+        "/v1/owner/intents/intent/opportunities": { items: [] },
+        "/v1/owner/intents/intent/grants": {
+          items:
+            intentVisibility === "restricted"
+              ? [
+                  {
+                    principal_id: "recipient",
+                    fields: ["objective"],
+                    status: "current",
+                  },
+                ]
+              : [],
+          etag: '"v1"',
+          version: 1,
         },
         "/v1/owner/policy": {
           etag: '"v1"',
@@ -62,7 +97,42 @@ function fixture(registered = true) {
           },
         },
       };
-      return new Response(JSON.stringify(values[path] ?? {}), {
+      let result = values[path] ?? {};
+      if (
+        path === "/v1/owner/intents/intent/grants" &&
+        init?.method === "POST"
+      ) {
+        result = {
+          intent_id: "intent",
+          principal_id: "recipient",
+          version: 2,
+          etag: '"v2"',
+        };
+      }
+      if (
+        path.endsWith("/grants/recipient/revoke") &&
+        init?.method === "POST"
+      ) {
+        result = {
+          intent_id: "intent",
+          principal_id: "recipient",
+          version: 3,
+          etag: '"v3"',
+        };
+      }
+      if (path === "/v1/owner/intents/intent" && init?.method === "PATCH") {
+        const sent = JSON.parse(String(init.body)) as {
+          revision: Record<string, unknown>;
+        };
+        result = {
+          ...(values[path] as Record<string, unknown>),
+          ...sent.revision,
+          etag: '"v2"',
+          version: 2,
+          state: intentState === "expired" ? "active" : intentState,
+        };
+      }
+      return new Response(JSON.stringify(result), {
         status: path === "/v1/owner/me" && !registered ? 403 : 200,
         headers: { "Content-Type": "application/json" },
       });
@@ -121,6 +191,54 @@ test("shows owner records, renders untrusted names as text, logs out with CSRF",
     "session-csrf",
   );
 });
+test("owner can append a revision or renew while preserving typed fields and ETag", async () => {
+  const requests = fixture(true, "expired");
+  render(<App />);
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Review intention" }),
+  );
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Renew intention" }),
+  );
+  const objectives = screen.getAllByLabelText("Objective");
+  await userEvent.clear(objectives[0]);
+  await userEvent.type(objectives[0], "Renewed private catalog");
+  fireEvent.change(screen.getByLabelText("Expires at (local time)"), {
+    target: { value: "2030-03-01T00:00" },
+  });
+  await userEvent.click(
+    screen.getByRole("button", { name: "Renew intention" }),
+  );
+  await waitFor(() =>
+    expect(
+      requests.some(
+        (r) =>
+          r.path === "/v1/owner/intents/intent" && r.init?.method === "PATCH",
+      ),
+    ).toBe(true),
+  );
+  const sent = requests.find(
+    (r) => r.path === "/v1/owner/intents/intent" && r.init?.method === "PATCH",
+  )!;
+  expect(new Headers(sent.init?.headers).get("If-Match")).toBe('"v1"');
+  expect(new Headers(sent.init?.headers).get("X-CSRF-Token")).toBe(
+    "session-csrf",
+  );
+  expect(JSON.parse(sent.init!.body as string)).toEqual({
+    revision: {
+      objective: "Renewed private catalog",
+      output: { kind: "json_dataset", schema_family: "source_catalog_v1" },
+      hard_constraints: {
+        required_fields: ["source_id", "source_url"],
+        license_ids: ["CC0-1.0"],
+      },
+      visibility: "private",
+      budget: null,
+      watch: { enabled: true, channels: ["inbox"] },
+      expires_at: new Date("2030-03-01T00:00").toISOString(),
+    },
+  });
+});
 test("credential issuance is one-time display and never persisted in browser storage", async () => {
   fixture();
   const storage = vi.spyOn(Storage.prototype, "setItem");
@@ -165,4 +283,104 @@ test("policy controls send explicit bounded fields and the reviewed ETag", async
     max_active_tasks: 0,
     expires_at: "2030-01-02T00:00:00.000Z",
   });
+});
+test("new intention defaults to private and can explicitly choose restricted visibility", async () => {
+  const requests = fixture();
+  render(<App />);
+  const visibility = await screen.findByRole("combobox", {
+    name: "Intention visibility",
+  });
+  expect((visibility as HTMLSelectElement).value).toBe("private");
+  await userEvent.selectOptions(visibility, "restricted");
+  await userEvent.type(
+    screen.getByRole("textbox", { name: "Objective" }),
+    "Shareable catalog request",
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "Create intention" }),
+  );
+  await waitFor(() =>
+    expect(
+      requests.some(
+        (r) => r.path === "/v1/owner/intents" && r.init?.method === "POST",
+      ),
+    ).toBe(true),
+  );
+  const sent = requests.find(
+    (r) => r.path === "/v1/owner/intents" && r.init?.method === "POST",
+  )!;
+  expect(JSON.parse(sent.init!.body as string).intent.visibility).toBe(
+    "restricted",
+  );
+  expect(new Headers(sent.init?.headers).get("X-CSRF-Token")).toBe(
+    "session-csrf",
+  );
+});
+test("restricted grant controls require a named principal and explicit field selection", async () => {
+  const requests = fixture(true, "active", "restricted");
+  render(<App />);
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Review intention" }),
+  );
+  const recipient = await screen.findByLabelText("Recipient principal ID");
+  expect(
+    (screen.getByLabelText("budget (explicit opt-in)") as HTMLInputElement)
+      .checked,
+  ).toBe(false);
+  await userEvent.type(recipient, "recipient-principal-uuid");
+  await userEvent.click(
+    screen.getByLabelText("objective", { selector: "input" }),
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "Grant selected fields" }),
+  );
+  await waitFor(() =>
+    expect(
+      requests.some(
+        (r) =>
+          r.path === "/v1/owner/intents/intent/grants" &&
+          r.init?.method === "POST",
+      ),
+    ).toBe(true),
+  );
+  const sent = requests.find(
+    (r) =>
+      r.path === "/v1/owner/intents/intent/grants" && r.init?.method === "POST",
+  )!;
+  expect(JSON.parse(sent.init!.body as string)).toMatchObject({
+    principal_id: "recipient-principal-uuid",
+    fields: ["objective"],
+  });
+  expect(new Headers(sent.init?.headers).get("If-Match")).toBe('"v1"');
+  expect(new Headers(sent.init?.headers).get("X-CSRF-Token")).toBe(
+    "session-csrf",
+  );
+});
+test("owner revokes a current restricted grant through the versioned CSRF command", async () => {
+  const requests = fixture(true, "active", "restricted");
+  render(<App />);
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Review intention" }),
+  );
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Revoke grant" }),
+  );
+  await waitFor(() =>
+    expect(
+      requests.some(
+        (r) =>
+          r.path === "/v1/owner/intents/intent/grants/recipient/revoke" &&
+          r.init?.method === "POST",
+      ),
+    ).toBe(true),
+  );
+  const sent = requests.find(
+    (r) =>
+      r.path === "/v1/owner/intents/intent/grants/recipient/revoke" &&
+      r.init?.method === "POST",
+  )!;
+  expect(new Headers(sent.init?.headers).get("If-Match")).toBe('"v1"');
+  expect(new Headers(sent.init?.headers).get("X-CSRF-Token")).toBe(
+    "session-csrf",
+  );
 });
