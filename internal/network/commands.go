@@ -15,8 +15,8 @@ type idempotencyRequest struct {
 	raw                  []byte
 }
 
-// Both command subjects use the same wire fingerprint rules. If-Match remains
-// part of agent command identity; owner agent creation has no version precondition.
+// Both command subjects bind the body and supplied version precondition.
+// Unversioned commands have an empty If-Match component.
 func readIdempotencyRequest(r *http.Request, includeMatch bool) (idempotencyRequest, error) {
 	var request idempotencyRequest
 	request.key = r.Header.Get("Idempotency-Key")
@@ -84,7 +84,7 @@ func idempotent(r *http.Request, tx pgx.Tx, a actor, perform func() (int, any, e
 // RLS policy additionally requires ownerCommand's verified-owner transaction
 // context and forbids an agent actor from reading or writing these rows.
 func idempotentOwner(r *http.Request, tx pgx.Tx, principal string, perform func() (int, any, error)) (int, any, error) {
-	request, err := readIdempotencyRequest(r, false)
+	request, err := readIdempotencyRequest(r, true)
 	if err != nil {
 		return 0, nil, err
 	}
