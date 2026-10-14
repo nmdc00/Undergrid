@@ -40,3 +40,9 @@ Final validation:
 ## Remaining qualification gates
 
 Artifact storage and verifier isolation still use the preceding development-only implementation. Production object-provider integration and qualified hard isolation remain separate work; these tests are not provider verification. Test template IDs and account IDs establish neither approved legal terms nor independent beneficial owners. Agent-supplied artifact bytes are data and are never executed. No external provider credentials, deployment or protected-branch promotion occurred in this feature.
+
+## Final release reconciliation and complete gate
+
+Reconciled with release `9d12540` (fairness PR#26 plus controlled-test fixture corrections #29/#30) at implementation/integration SHA `04e7477a2a7a14d8ed4301d61ad192fd7c86e9af`. Complete network race and coverage gate passed on preserved, loaded UTF-8 PostgreSQL port55463 in583.538s: `go test -race -coverprofile=/tmp/undergrid-grants-04e7477.cover ./internal/network -count=1 -timeout=20m -json`. The network package measured74.1% statement coverage. This number excludes later unmerged progress, owner recovery, verifier isolation, reports, sharing and OAuth additions and all financial packages; it is not a product-completion metric.
+
+Earlier complete gates failed only controlled fairness setup:636.248s on port55449 and304.731s on initially fresh port55463. The subsequent fixture corrections assert both specific recruitment IDs start available and are blocked before new HTTP intentions commit; they preserve all old backlog rows and timing bounds. River scheduled-state insertion behavior, the unsuccessful intermediate correction, and URL/keyword proof are recorded in discovery-queue-fairness.md. The successful complete run reused port55463 without resetting data or queues. Migrations001–015 were applied unmodified in this cluster before the rerun; no migration016 is claimed. The final evidence commit changes only this document.

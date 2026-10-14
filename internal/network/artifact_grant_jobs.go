@@ -36,7 +36,10 @@ func (w *inputGrantDeliveryWorker) Work(ctx context.Context, job *river.Job[inpu
 		return err
 	}
 	var agent, principal, event string
-	err = db.QueryRow(ctx, "SELECT g.grant_recipient_agent_id,g.grant_recipient_principal_id,e.id FROM approvals g JOIN events e ON e.aggregate_id=g.id AND e.type='artifact.input_grant_created' WHERE g.id=$1 AND g.grant_state='active' AND g.grant_expires_at>clock_timestamp()", job.Args.GrantID).Scan(&agent, &principal, &event)
+	err = db.QueryRow(ctx, `SELECT g.grant_recipient_agent_id,g.grant_recipient_principal_id,e.id FROM approvals g
+		JOIN events e ON e.aggregate_id=g.id AND e.type='artifact.input_grant_created'
+		WHERE g.id=$1 AND g.grant_state='active' AND g.grant_expires_at>clock_timestamp()
+		AND input_grant_progress_audience_allowed(g.artifact_id,g.grant_recipient_agent_id,g.grant_recipient_principal_id)`, job.Args.GrantID).Scan(&agent, &principal, &event)
 	if err == pgx.ErrNoRows {
 		return nil
 	}
