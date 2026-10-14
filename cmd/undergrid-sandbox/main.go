@@ -95,10 +95,13 @@ func run() error {
 			return errors.New("invalid TEST catalog")
 		}
 	}
-	service := sandbox.NewHandler(sandbox.New(dsn), func(r *http.Request) (sandbox.Owner, error) {
+	service, err := sandbox.NewHandler(sandbox.New(dsn), func(r *http.Request) (sandbox.Owner, error) {
 		o, e := sessions.Authenticate(r)
 		return sandbox.Owner{Issuer: o.Issuer, Subject: o.Subject}, e
-	}, catalog)
+	}, catalog, os.Getenv("UNDERGRID_SANDBOX_ORIGIN"))
+	if err != nil {
+		return err
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/auth/login", login.Start)
 	mux.HandleFunc("/auth/callback", login.Callback)

@@ -55,7 +55,7 @@ func refundFixture(t *testing.T) (*Store, *pgx.Conn, Owner, string, Payment, *Ha
 	if err = s.RecordEffect(ctx, effect); err != nil {
 		t.Fatal(err)
 	}
-	h := NewHandler(s, func(r *http.Request) (Owner, error) {
+	h := mustWalletHandler(t, s, func(r *http.Request) (Owner, error) {
 		if r.Header.Get("X-Fixture-Owner") != owner.Subject {
 			return Owner{}, ErrUnauthorized
 		}
