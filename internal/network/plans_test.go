@@ -18,7 +18,7 @@ func planningClient(t *testing.T, s *Service) testClient {
 	if code != 200 {
 		t.Fatal(code, out)
 	}
-	code, out = c.call("POST", "/v1/agents", "", map[string]any{"name": "planner", "scopes": []string{"intents:read", "intents:write", "inbox:read", "swarms:read", "swarms:create", "swarms:apply", "members:invite", "members:respond", "members:withdraw", "messages:write", "plans:propose", "plans:approve", "rights:accept", "tasks:accept", "tasks:progress"}, "profile": map[string]any{"public": true, "accept_invitations": true, "recruitment": true, "capabilities": []string{"source_catalog_v1"}}})
+	code, out = c.call("POST", "/v1/agents", "planner-agent", map[string]any{"name": "planner", "scopes": []string{"intents:read", "intents:write", "inbox:read", "swarms:read", "swarms:create", "swarms:apply", "members:invite", "members:respond", "members:withdraw", "messages:write", "plans:propose", "plans:approve", "rights:accept", "tasks:accept", "tasks:progress"}, "profile": map[string]any{"public": true, "accept_invitations": true, "recruitment": true, "capabilities": []string{"source_catalog_v1"}}})
 	if code != 201 {
 		t.Fatal(code, out)
 	}

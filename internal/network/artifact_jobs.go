@@ -111,7 +111,11 @@ func (s *Service) evaluateArtifact(ctx context.Context, args artifactEvaluationA
 		origin = "release_test"
 	}
 	event := NewID()
-	if _, err = tx.Exec(ctx, "INSERT INTO events(id,aggregate_kind,aggregate_id,version,principal_id,agent_id,type,facts,origin) VALUES($1,'swarm',$2,$3,$4,$5,'artifact.evaluated',$6,$7)", event, art.id, current.version+1, art.principal, art.agent, canonical(map[string]any{"swarm_id": art.swarm, "artifact_id": art.id, "evaluation_id": id, "result": evidence.Result, "resource_path": "/v1/artifacts/" + art.id}), origin); err != nil {
+	facts := map[string]any{"swarm_id": art.swarm, "artifact_id": art.id, "evaluation_id": id, "result": evidence.Result, "resource_path": "/v1/artifacts/" + art.id}
+	if current.purpose == "progress" {
+		facts["audience_principal_ids"] = current.audience
+	}
+	if _, err = tx.Exec(ctx, "INSERT INTO events(id,aggregate_kind,aggregate_id,version,principal_id,agent_id,type,facts,origin) VALUES($1,'swarm',$2,$3,$4,$5,'artifact.evaluated',$6,$7)", event, art.id, current.version+1, art.principal, art.agent, canonical(facts), origin); err != nil {
 		return err
 	}
 	if err = enqueueFanout(ctx, tx, event); err != nil {
