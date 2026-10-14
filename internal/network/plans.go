@@ -149,7 +149,7 @@ func (s *Service) proposePlan(r *http.Request, tx pgx.Tx, a actor, swarm string)
 		}
 	}
 	in.RespondBy = in.RespondBy.UTC()
-	sealed := sealedPlan{in, template.SHA256}
+	sealed := sealedPlan{Plan: in, TemplateHash: template.SHA256, InputGrantPolicyHash: inputGrantPolicyHash(template)}
 	hash := digest(canonical(sealed))
 	id := NewID()
 	if _, err = tx.Exec(r.Context(), "INSERT INTO plan_versions(id,swarm_id,parent_id,version,specification,content_hash,respond_by) VALUES($1,$2,$3,$4,$5,$6,$7)", id, swarm, parent, nextVersion, canonical(sealed), hash, in.RespondBy); err != nil {
@@ -175,16 +175,21 @@ func (s *Service) proposePlan(r *http.Request, tx pgx.Tx, a actor, swarm string)
 }
 func (s *Service) planCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, error) {
 	parts := strings.Split(r.URL.Path, "/")
-	if len(parts) < 4 || len(parts) > 5 || !validID(parts[3]) {
+	if len(parts) < 4 || len(parts) > 6 || !validID(parts[3]) {
 		return 0, nil, fail(404, "not_found")
 	}
 	id := parts[3]
+	if r.Method == "GET" && parts[2] == "tasks" && len(parts) == 6 && parts[4] == "progress-evidence" && validID(parts[5]) {
+		// The evidence row supplies the room binding; row security additionally
+		// restricts report reads to its finite named audience.
+		return s.readTaskProgressEvidence(r, tx, a, id, parts[5])
+	}
 	if r.Method == "GET" && len(parts) == 4 {
 		if !slices.Contains(a.Scopes, "swarms:read") {
 			return 0, nil, fail(403, "insufficient_scope")
 		}
 		if parts[2] == "tasks" {
-			return taskResult(r.Context(), tx, id)
+			return taskResult(r.Context(), tx, id, a.PrincipalID)
 		}
 		p, err := loadPlan(r.Context(), tx, id, false)
 		if err != nil {
@@ -201,7 +206,7 @@ func (s *Service) planCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, er
 		scope = "plans:approve"
 	}
 	if parts[2] == "tasks" {
-		scope = map[string]string{"assignment-response": "tasks:accept", "progress": "tasks:progress"}[parts[4]]
+		scope = map[string]string{"assignment-response": "tasks:accept", "progress": "tasks:progress", "progress-evidence": "tasks:progress", "progress-evidence-review": "tasks:accept"}[parts[4]]
 	}
 	if scope == "" {
 		return 0, nil, fail(404, "not_found")
@@ -227,6 +232,12 @@ func (s *Service) planCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, er
 	return idempotent(r, tx, a, func() (int, any, error) {
 		if parts[2] == "plans" {
 			return s.approvePlan(r, tx, a, planID)
+		}
+		if parts[4] == "progress-evidence" {
+			return s.taskProgressEvidenceCommand(r, tx, a, id)
+		}
+		if parts[4] == "progress-evidence-review" {
+			return s.reviewTaskProgressEvidence(r, tx, a, id)
 		}
 		return s.updateTask(r, tx, a, id, parts[4])
 	})

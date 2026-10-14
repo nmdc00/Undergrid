@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -201,5 +202,80 @@ func TestExpiredIntentionCanBeRenewedByAppendingRevision(t *testing.T) {
 	}
 	if events != 3 || inbox != 3 || scanJobs != 2 {
 		t.Fatalf("renewal replay effects: events=%d inbox=%d scan jobs=%d", events, inbox, scanJobs)
+	}
+}
+
+func TestExpiredIntentionRenewalHonorsActiveQuotaAtomically(t *testing.T) {
+	s, db := fixture(t)
+	a := client(t, s)
+	initial := revisionInput("Expired intention at quota")
+	initial.ExpiresAt = time.Now().Add(time.Hour)
+	code, created := a.call("POST", "/v1/intents", "create-expired-at-quota", initial)
+	if code != 201 {
+		t.Fatal(code, created)
+	}
+	id := created["id"].(string)
+	if _, err := db.Exec(context.Background(), "UPDATE undergrid.intents SET expires_at=now()-interval '1 second',next_scan=now() WHERE id=$1", id); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ScanDueIntentions(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	code, expired := a.call("GET", "/v1/intents/"+id, "", nil)
+	if code != 200 || expired["state"] != "expired" || expired["version"] != float64(2) {
+		t.Fatalf("worker expiry %d %#v", code, expired)
+	}
+
+	// The expired row no longer consumes an active slot. Fill all 25 slots with
+	// separate live requests through the HTTP command before attempting renewal.
+	for i := 0; i < 25; i++ {
+		body := revisionInput(fmt.Sprintf("Active quota occupant %02d", i))
+		if code, out := a.call("POST", "/v1/intents", fmt.Sprintf("fill-active-slot-%02d", i), body); code != 201 {
+			t.Fatalf("fill active slot %d: %d %#v", i, code, out)
+		}
+	}
+
+	var beforeRevision, beforeVersion int
+	var beforeState string
+	var beforeExpiry time.Time
+	if err := db.QueryRow(context.Background(), "SELECT current_revision,version,state,expires_at FROM undergrid.intents WHERE id=$1", id).Scan(&beforeRevision, &beforeVersion, &beforeState, &beforeExpiry); err != nil {
+		t.Fatal(err)
+	}
+	var beforeEvents, beforeInbox, beforeJobs int
+	if err := db.QueryRow(context.Background(), "SELECT count(*) FROM undergrid.events WHERE aggregate_id=$1", id).Scan(&beforeEvents); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRow(context.Background(), "SELECT count(*) FROM undergrid.inbox b JOIN undergrid.events e ON e.id=b.event_id WHERE e.aggregate_id=$1", id).Scan(&beforeInbox); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRow(context.Background(), "SELECT count(*) FROM undergrid_queue.river_job WHERE kind='intention_scan_v1' AND args->>'cause_id'=$1", id).Scan(&beforeJobs); err != nil {
+		t.Fatal(err)
+	}
+
+	renewed := revisionInput("Renewal must wait for an active slot")
+	renewed.ExpiresAt = time.Now().Add(48 * time.Hour)
+	code, denied := revisionCall(a, "PATCH", "/v1/intents/"+id, "renew-at-active-quota", expired["etag"].(string), map[string]any{"revision": renewed})
+	if code != 429 || denied["error"].(map[string]any)["code"] != "active_intents_quota_exceeded" {
+		t.Fatalf("renewal bypassed full active quota: %d %#v", code, denied)
+	}
+
+	var afterRevision, afterVersion int
+	var afterState string
+	var afterExpiry time.Time
+	if err := db.QueryRow(context.Background(), "SELECT current_revision,version,state,expires_at FROM undergrid.intents WHERE id=$1", id).Scan(&afterRevision, &afterVersion, &afterState, &afterExpiry); err != nil {
+		t.Fatal(err)
+	}
+	var afterEvents, afterInbox, afterJobs int
+	if err := db.QueryRow(context.Background(), "SELECT count(*) FROM undergrid.events WHERE aggregate_id=$1", id).Scan(&afterEvents); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRow(context.Background(), "SELECT count(*) FROM undergrid.inbox b JOIN undergrid.events e ON e.id=b.event_id WHERE e.aggregate_id=$1", id).Scan(&afterInbox); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRow(context.Background(), "SELECT count(*) FROM undergrid_queue.river_job WHERE kind='intention_scan_v1' AND args->>'cause_id'=$1", id).Scan(&afterJobs); err != nil {
+		t.Fatal(err)
+	}
+	if beforeRevision != 1 || afterRevision != beforeRevision || beforeVersion != 2 || afterVersion != beforeVersion || beforeState != "expired" || afterState != beforeState || !beforeExpiry.Equal(afterExpiry) || beforeEvents != afterEvents || beforeInbox != afterInbox || beforeJobs != afterJobs {
+		t.Fatalf("quota denial was not atomic: before=(r%d v%d %s %s e%d i%d j%d) after=(r%d v%d %s %s e%d i%d j%d)", beforeRevision, beforeVersion, beforeState, beforeExpiry, beforeEvents, beforeInbox, beforeJobs, afterRevision, afterVersion, afterState, afterExpiry, afterEvents, afterInbox, afterJobs)
 	}
 }

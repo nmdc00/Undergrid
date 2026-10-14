@@ -105,6 +105,10 @@ func TestBrowserOwnerDomainCSRFAndIsolation(t *testing.T) {
 	if code != 201 {
 		t.Fatal(code, out)
 	}
+	code, retried := call(a, "POST", "/v1/agents", "https://undergrid.test", "fixture-csrf", body)
+	if code != 201 || retried["id"] != out["id"] || retried["credential_id"] != out["credential_id"] || retried["token"] != out["token"] {
+		t.Fatalf("same-session owner creation retry: %d %#v", code, retried)
+	}
 	credential := out["credential_id"].(string)
 	code, ownerMe := call(a, "GET", "/v1/owner/me", "", "", nil)
 	if code != 200 {

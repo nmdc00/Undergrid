@@ -154,6 +154,12 @@ func TestControlRejectsBadSignatureExpiryAndReplacement(t *testing.T) {
 func TestRotationConcurrencyScopeEscalationAndUnconfiguredRollback(t *testing.T) {
 	s, db := fixture(t)
 	a := client(t, s)
+	// The shared fixture configures issuance so initial owner agent creation can
+	// use the production path; this scenario deliberately removes it to prove
+	// rotation leaves the prior credential live when operator configuration is
+	// absent.
+	s.issuanceKey = nil
+	s.issuanceKeyID = ""
 	_, list := a.call("GET", "/v1/agents", "", nil)
 	agent := list["items"].([]any)[0].(map[string]any)
 	id := agent["id"].(string)

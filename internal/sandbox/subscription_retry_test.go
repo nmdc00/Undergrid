@@ -17,7 +17,7 @@ func TestSubscriptionHTTPRetryCannotMultiplyRenewalConsent(t *testing.T) {
 	if err := db.QueryRow(context.Background(), "SELECT id::text FROM undergrid_sandbox.sandbox_credentials WHERE digest=$1", hash([]byte(token))).Scan(&credential); err != nil {
 		t.Fatal(err)
 	}
-	h := NewHandler(s, func(r *http.Request) (Owner, error) {
+	h := mustWalletHandler(t, s, func(r *http.Request) (Owner, error) {
 		if r.Header.Get("X-Fixture-Owner") != owner.Subject {
 			return Owner{}, ErrUnauthorized
 		}
@@ -124,7 +124,7 @@ func TestSubscriptionExpiryIsRecheckedAfterActorLock(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer observer.Close(ctx)
-			h := NewHandler(s, func(*http.Request) (Owner, error) { return owner, nil }, map[string]Quote{"platform-test": payment.Quote})
+			h := mustWalletHandler(t, s, func(*http.Request) (Owner, error) { return owner, nil }, map[string]Quote{"platform-test": payment.Quote})
 			body := map[string]any{"credential_id": credential, "product": "platform-test", "maximum_atomic": "600", "period_seconds": 86400, "renewal_count": 2, "expires_at": consentExpiry}
 			result := make(chan int, 1)
 			go func() {
@@ -173,7 +173,7 @@ func TestSubscriptionHTTPRequiresStableOwnerCommandKey(t *testing.T) {
 	if err := db.QueryRow(context.Background(), "SELECT id::text FROM undergrid_sandbox.sandbox_credentials WHERE digest=$1", hash([]byte(token))).Scan(&credential); err != nil {
 		t.Fatal(err)
 	}
-	h := NewHandler(s, func(*http.Request) (Owner, error) { return owner, nil }, map[string]Quote{"platform-test": payment.Quote})
+	h := mustWalletHandler(t, s, func(*http.Request) (Owner, error) { return owner, nil }, map[string]Quote{"platform-test": payment.Quote})
 	body := map[string]any{"credential_id": credential, "product": "platform-test", "maximum_atomic": "600", "period_seconds": 86400, "renewal_count": 2, "expires_at": time.Now().Add(72 * time.Hour)}
 	code, out := refundCall(t, h, "", owner.Subject, "POST", "/v1/owner/subscriptions", "", body)
 	if code != 400 {

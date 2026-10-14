@@ -31,10 +31,12 @@ The client additionally uses existing owner principal registration, agent
 issuance/list/revoke and versioned policy routes. It never issues an agent token
 for browser browsing. A newly registered agent's token is displayed once in
 memory, dismissible, and never saved to browser storage. If issuance loses its
-response, refresh the credential list and revoke any uncollected credential
-before reissuing. Intention requests retain an uncertain command key and expiry
-in memory for a same-session retry; after a browser reload review server state
-before creating another intention.
+response, retry the unchanged form in the same page: it keeps the same command
+key, and the server reconstructs the same credential for up to 15 minutes. A
+changed form starts a new command and clears the old pending key. After a reload,
+review the agent and credential list; use explicit credential recovery if the
+one-time token is no longer recoverable. Intention requests likewise retain an
+uncertain command key in memory for same-session retries.
 
 Browser checks run against the production bundle and explicitly mocked API wire
 fixtures, while Go tests prove real encrypted session/CSRF/domain/RLS persistence.
