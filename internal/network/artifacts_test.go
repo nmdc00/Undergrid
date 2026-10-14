@@ -151,11 +151,39 @@ func newArtifactScenario(t *testing.T) artifactScenario {
 	}
 	return artifactScenario{s, db, actors, ids, room, plan, task, server, config, workerDSN}
 }
-func (x artifactScenario) upload(t *testing.T, data []byte, key string) map[string]any {
+func (x artifactScenario) upload(t *testing.T, data []byte, key string, purpose ...string) map[string]any {
 	t.Helper()
-	code, out := x.actors[2].call("POST", "/v1/artifacts/uploads", key, map[string]any{"swarm_id": x.room["id"], "plan_id": x.plan["id"], "task_id": x.task["id"], "claim_epoch": x.task["claim_epoch"], "media_type": "application/json", "size_bytes": len(data)})
+	artifactPurpose := "output"
+	if len(purpose) > 0 {
+		artifactPurpose = purpose[0]
+	}
+	var audience []string
+	if artifactPurpose == "progress" {
+		audience = x.principals[:3]
+	}
+	return x.uploadForAudience(t, data, key, artifactPurpose, audience)
+}
+func (x artifactScenario) uploadForAudience(t *testing.T, data []byte, key, purpose string, audience []string) map[string]any {
+	t.Helper()
+	body := map[string]any{"swarm_id": x.room["id"], "plan_id": x.plan["id"], "task_id": x.task["id"], "claim_epoch": x.task["claim_epoch"], "media_type": "application/json", "size_bytes": len(data)}
+	if purpose != "" {
+		body["purpose"] = purpose
+	}
+	if purpose == "progress" {
+		body["audience_principal_ids"] = audience
+		body["reviewer_principal_id"] = x.principals[0]
+	}
+	code, out := x.actors[2].call("POST", "/v1/artifacts/uploads", key, body)
 	if code != 201 {
 		t.Fatal(code, out)
+	}
+	if purpose != "progress" {
+		if _, ok := out["audience_principal_ids"]; ok {
+			t.Fatal("ordinary output upload response changed with progress-only audience fields")
+		}
+		if _, ok := out["reviewer_principal_id"]; ok {
+			t.Fatal("ordinary output upload response changed with progress-only reviewer field")
+		}
 	}
 	req, _ := http.NewRequest("PUT", out["upload_url"].(string), bytes.NewReader(data))
 	req.Header.Set("Content-Type", "application/json")

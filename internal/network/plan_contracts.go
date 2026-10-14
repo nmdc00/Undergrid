@@ -25,8 +25,9 @@ type PlanSpec struct {
 	RespondBy             time.Time  `json:"respond_by"`
 }
 type sealedPlan struct {
-	Plan         PlanSpec `json:"plan"`
-	TemplateHash string   `json:"template_hash"`
+	Plan                 PlanSpec `json:"plan"`
+	TemplateHash         string   `json:"template_hash"`
+	InputGrantPolicyHash string   `json:"input_grant_policy_hash,omitempty"`
 }
 
 func (p PlanSpec) validate() error {

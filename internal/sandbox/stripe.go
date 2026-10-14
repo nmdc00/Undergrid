@@ -159,14 +159,14 @@ func (s *StripeService) ProcessEvents(ctx context.Context) error {
 	return nil
 }
 
-func (s *StripeService) verifyCharge(ctx context.Context, id, event string) (*stripe.Charge, Payment, error) {
+func (s *StripeService) fetchCharge(ctx context.Context, id, event string) (*stripe.Charge, Payment, VerifiedEffect, error) {
 	var p Payment
 	ch, err := s.client.V1Charges.Retrieve(ctx, id, nil)
 	if err != nil {
-		return nil, p, err
+		return nil, p, VerifiedEffect{}, err
 	}
 	if ch.ID != id || ch.Livemode || ch.Currency != "usd" || !ch.Paid || !ch.Captured || ch.Status != "succeeded" || ch.Amount <= 0 || ch.AmountCaptured != ch.Amount || !validUUID(ch.Metadata["undergrid_payment_id"]) {
-		return ch, p, ErrConflict
+		return ch, p, VerifiedEffect{}, ErrConflict
 	}
 	err = s.store.transaction(ctx, "undergrid_sandbox_worker", func(tx pgx.Tx) error {
 		var err error
@@ -174,14 +174,31 @@ func (s *StripeService) verifyCharge(ctx context.Context, id, event string) (*st
 		return err
 	})
 	if err != nil {
-		return ch, p, err
+		return ch, p, VerifiedEffect{}, err
 	}
 	if p.Quote.Payee != s.config.AccountID || p.Quote.Product != s.config.Product || p.Quote.Rail != "stripe_test" || p.Quote.Asset != "USD" || p.Quote.Amount != strconv.FormatInt(ch.Amount, 10) || p.Quote.Fee != "0" || p.Hash != ch.Metadata["undergrid_quote_hash"] {
-		return ch, p, ErrConflict
+		return ch, p, VerifiedEffect{}, ErrConflict
 	}
 	evidence := encode(map[string]any{"verified_by": s.evidenceClass, "account": s.config.AccountID, "api_version": stripe.APIVersion, "livemode": false, "object_id": ch.ID, "amount_atomic": p.Quote.Amount, "quote_hash": p.Hash, "designation": "TEST"})
-	err = s.store.RecordEffect(ctx, VerifiedEffect{Provider: "stripe_test", Account: s.config.AccountID, EventID: event, FactID: ch.ID, PaymentID: p.ID, Kind: "charge", Asset: "USD", Amount: p.Quote.Amount, Evidence: evidence})
-	return ch, p, err
+	effect := VerifiedEffect{Provider: "stripe_test", Account: s.config.AccountID, EventID: event, FactID: ch.ID, PaymentID: p.ID, Kind: "charge", Asset: "USD", Amount: p.Quote.Amount, Evidence: evidence}
+	return ch, p, effect, nil
+}
+func (s *StripeService) verifyCharge(ctx context.Context, id, event string) (*stripe.Charge, Payment, error) {
+	ch, p, effect, err := s.fetchCharge(ctx, id, event)
+	if err != nil {
+		return ch, p, err
+	}
+	return ch, p, s.store.RecordEffect(ctx, effect)
+}
+func (s *StripeService) unexpectedCharge(ctx context.Context, id, event, kind, object string) error {
+	_, _, effect, err := s.fetchCharge(ctx, id, event)
+	if err != nil {
+		return err
+	}
+	if err = s.store.recordUnexpectedCharge(ctx, effect, kind, object, s.evidenceClass); err != nil {
+		return err
+	}
+	return ErrConflict
 }
 func (s *StripeService) reconcileEvent(ctx context.Context, e stripeInboxEvent) error {
 	switch e.Type {
@@ -196,13 +213,13 @@ func (s *StripeService) reconcileEvent(ctx context.Context, e stripeInboxEvent) 
 		if refund.ID != e.ObjectID || refund.Currency != "usd" || refund.Charge == nil || refund.Amount <= 0 {
 			return ErrConflict
 		}
-		_, p, err := s.verifyCharge(ctx, refund.Charge.ID, e.ID+"/charge")
+		_, p, chargeEffect, err := s.fetchCharge(ctx, refund.Charge.ID, e.ID+"/charge")
 		if err != nil {
 			return err
 		}
 		id := refund.Metadata["undergrid_refund_id"]
 		if id != "" && !validUUID(id) {
-			return ErrConflict
+			return s.unexpectedCharge(ctx, refund.Charge.ID, e.ID+"/charge", "refund_binding_mismatch", refund.ID)
 		}
 		if id != "" {
 			if err = s.store.transaction(ctx, "undergrid_sandbox_worker", func(tx pgx.Tx) error {
@@ -215,13 +232,19 @@ func (s *StripeService) reconcileEvent(ctx context.Context, e stripeInboxEvent) 
 				}
 				return nil
 			}); err != nil {
+				if errors.Is(err, ErrConflict) || errors.Is(err, ErrUnauthorized) {
+					return s.unexpectedCharge(ctx, refund.Charge.ID, e.ID+"/charge", "refund_binding_mismatch", refund.ID)
+				}
 				return err
 			}
+		}
+		if err = s.store.RecordEffect(ctx, chargeEffect); err != nil {
+			return err
 		}
 		if refund.Status == "succeeded" {
 			return s.store.RecordEffect(ctx, VerifiedEffect{Provider: "stripe_test", Account: s.config.AccountID, EventID: e.ID, FactID: refund.ID, PaymentID: p.ID, RefundID: id, Kind: "refund", Asset: "USD", Amount: strconv.FormatInt(refund.Amount, 10), Evidence: encode(map[string]any{"verified_by": s.evidenceClass, "object_id": refund.ID, "charge_id": refund.Charge.ID, "livemode": false, "api_version": stripe.APIVersion, "designation": "TEST"})})
 		}
-		if id != "" && refund.Status == "failed" {
+		if id != "" && (refund.Status == "failed" || refund.Status == "canceled") {
 			return s.store.transaction(ctx, "undergrid_sandbox_worker", func(tx pgx.Tx) error {
 				r, err := loadRefund(ctx, tx, id, true)
 				if err != nil {
@@ -240,17 +263,14 @@ func (s *StripeService) reconcileEvent(ctx context.Context, e stripeInboxEvent) 
 		if err != nil {
 			return err
 		}
-		if session.Livemode || session.Mode != "payment" || session.Currency != "usd" || session.PaymentStatus != "paid" || session.PaymentIntent == nil || session.PaymentIntent.LatestCharge == nil {
+		if !validUUID(session.ClientReferenceID) {
 			return ErrConflict
 		}
-		_, p, err := s.verifyCharge(ctx, session.PaymentIntent.LatestCharge.ID, e.ID)
+		p, err := s.workerPayment(ctx, session.ClientReferenceID)
 		if err != nil {
 			return err
 		}
-		if session.ClientReferenceID != p.ID || session.Metadata["undergrid_quote_hash"] != p.Hash || session.AmountTotal != session.PaymentIntent.LatestCharge.Amount {
-			return ErrConflict
-		}
-		return nil
+		return s.reconcileSession(ctx, p, session, e.ID)
 	case "payment_intent.canceled":
 		intent, err := s.client.V1PaymentIntents.Retrieve(ctx, e.ObjectID, nil)
 		if err != nil {
@@ -266,10 +286,14 @@ func (s *StripeService) reconcileEvent(ctx context.Context, e stripeInboxEvent) 
 		if p.Hash != intent.Metadata["undergrid_quote_hash"] || p.Quote.Payee != s.config.AccountID || p.Quote.Product != s.config.Product || p.Quote.Rail != "stripe_test" || p.Quote.Amount != strconv.FormatInt(intent.Amount, 10) {
 			return ErrConflict
 		}
-		return s.store.transaction(ctx, "undergrid_sandbox_worker", func(tx pgx.Tx) error {
-			_, err := tx.Exec(ctx, "UPDATE sandbox_payments SET state='failed',provider_reference=$2,updated_at=now() WHERE id=$1 AND state IN('authorized','submitting','pending','unknown')", p.ID, intent.ID)
+		session, err := s.knownSession(ctx, p)
+		if err != nil {
 			return err
-		})
+		}
+		if session.PaymentIntent == nil || session.PaymentIntent.ID != intent.ID || session.Status != "expired" || session.PaymentStatus != "unpaid" {
+			return ErrConflict
+		}
+		return s.reconcileSession(ctx, p, session, e.ID)
 	default:
 		return ErrInvalid
 	}
