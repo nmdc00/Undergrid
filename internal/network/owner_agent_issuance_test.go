@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestOwnerAgentCreationResponseLossReplay(t *testing.T) {
@@ -144,6 +145,75 @@ func TestOwnerAgentCreationWithoutIssuanceKeyRollsBack(t *testing.T) {
 	}
 	if agents != 1 || credentials != 1 || results != 0 {
 		t.Fatalf("missing-key partial write agents=%d credentials=%d command-results=%d", agents, credentials, results)
+	}
+}
+
+func TestOwnerAgentCreationReplayWindowAndKeyIDFailClosed(t *testing.T) {
+	s, db := fixture(t)
+	const issuanceKeyID = "owner-replay-test-key"
+	key := bytes.Repeat([]byte{73}, 32)
+	if err := s.ConfigureCredentialIssuance(issuanceKeyID, key); err != nil {
+		t.Fatal(err)
+	}
+	a := client(t, s)
+	body := map[string]any{"name": "windowed listener", "scopes": []string{"intents:read"}}
+	const commandKey = "owner-replay-window-key-001"
+	call := func() (int, map[string]any) {
+		t.Helper()
+		r := httptest.NewRequest("POST", "/v1/agents", bytes.NewReader(canonical(body)))
+		r.Header.Set("X-Test-Owner", a.owner)
+		r.Header.Set("Idempotency-Key", commandKey)
+		w := httptest.NewRecorder()
+		s.ServeHTTP(w, r)
+		var out map[string]any
+		_ = json.Unmarshal(w.Body.Bytes(), &out)
+		return w.Code, out
+	}
+	code, first := call()
+	if code != 201 || first["token"] == nil {
+		t.Fatalf("initial owner agent: %d %#v", code, first)
+	}
+	var agentsBefore, credentialsBefore, issuedBefore, idempotencyBefore int
+	if err := db.QueryRow(context.Background(), "SELECT count(*) FROM undergrid.agents WHERE principal_id=(SELECT id FROM undergrid.principals WHERE subject=$1)", a.owner).Scan(&agentsBefore); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRow(context.Background(), "SELECT count(*) FROM undergrid.credentials WHERE agent_id=$1", first["id"]).Scan(&credentialsBefore); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRow(context.Background(), "SELECT count(*) FROM undergrid.events WHERE aggregate_id=$1 AND type='credential.issued'", first["credential_id"]).Scan(&issuedBefore); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRow(context.Background(), "SELECT count(*) FROM undergrid.idempotency WHERE owner_principal_id=(SELECT id FROM undergrid.principals WHERE subject=$1) AND operation='POST /v1/agents' AND key=$2", a.owner, commandKey).Scan(&idempotencyBefore); err != nil {
+		t.Fatal(err)
+	}
+
+	s.credentialClock = func() time.Time { return time.Now().Add(16 * time.Minute) }
+	if code, out := call(); code != 409 || out["error"].(map[string]any)["code"] != "credential_replay_unavailable" {
+		t.Fatalf("expired owner replay window was not denied: %d %#v", code, out)
+	}
+	s.credentialClock = nil
+	if err := s.ConfigureCredentialIssuance("changed-owner-replay-key", key); err != nil {
+		t.Fatal(err)
+	}
+	if code, out := call(); code != 409 || out["error"].(map[string]any)["code"] != "credential_replay_unavailable" {
+		t.Fatalf("owner replay under changed issuance key ID was not denied: %d %#v", code, out)
+	}
+
+	var agentsAfter, credentialsAfter, issuedAfter, idempotencyAfter int
+	if err := db.QueryRow(context.Background(), "SELECT count(*) FROM undergrid.agents WHERE principal_id=(SELECT id FROM undergrid.principals WHERE subject=$1)", a.owner).Scan(&agentsAfter); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRow(context.Background(), "SELECT count(*) FROM undergrid.credentials WHERE agent_id=$1", first["id"]).Scan(&credentialsAfter); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRow(context.Background(), "SELECT count(*) FROM undergrid.events WHERE aggregate_id=$1 AND type='credential.issued'", first["credential_id"]).Scan(&issuedAfter); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRow(context.Background(), "SELECT count(*) FROM undergrid.idempotency WHERE owner_principal_id=(SELECT id FROM undergrid.principals WHERE subject=$1) AND operation='POST /v1/agents' AND key=$2", a.owner, commandKey).Scan(&idempotencyAfter); err != nil {
+		t.Fatal(err)
+	}
+	if agentsAfter != agentsBefore || credentialsAfter != credentialsBefore || issuedAfter != issuedBefore || idempotencyAfter != idempotencyBefore {
+		t.Fatalf("denied replay changed effects: agents %d->%d credentials %d->%d events %d->%d results %d->%d", agentsBefore, agentsAfter, credentialsBefore, credentialsAfter, issuedBefore, issuedAfter, idempotencyBefore, idempotencyAfter)
 	}
 }
 

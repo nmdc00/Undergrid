@@ -80,16 +80,32 @@ export async function request(
     cache: "no-store",
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-  if (retryIdentity && response.status < 500) {
+  const clearRetryKey = () => {
+    if (!retryIdentity) return;
     pendingIntentKeys.delete(retryIdentity);
     if (
       isOwnerAgentCreation &&
       pendingOwnerAgentKeys.get(csrf)?.key === commandKey
     )
       pendingOwnerAgentKeys.delete(csrf);
+  };
+  if (!response.ok && response.status < 500) clearRetryKey();
+  if (response.status === 204) {
+    clearRetryKey();
+    return {};
   }
-  if (response.status === 204) return {};
-  const value: unknown = await response.json().catch(() => ({}));
+  let value: unknown;
+  if (response.ok) {
+    try {
+      value = await response.json();
+    } catch {
+      // The server may have committed even when the response body was lost.
+      // Keep the command key so a same-form retry recovers that exact result.
+      throw new Error("Invalid server response");
+    }
+  } else {
+    value = await response.json().catch(() => ({}));
+  }
   const result = object(value);
   if (!response.ok) {
     const code =
@@ -101,5 +117,6 @@ export async function request(
       typeof code === "string" ? code : `HTTP ${response.status}`,
     );
   }
+  clearRetryKey();
   return result;
 }

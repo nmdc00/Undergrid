@@ -82,6 +82,13 @@ existing agent helper only in command subject and If-Match semantics; no generic
 command engine or new result store was added. SQL uses the existing table and
 restricted role, and the result remains bearer-free.
 
+Integration note: this branch predates private artifact grants migration 015.
+When that scope is integrated, preserve `artifacts:grant` in owner agent scope
+validation alongside the other protected rights scopes; it must still require
+the current owner coordination policy rather than becoming an ordinary scope.
+The integrated configured-policy allow/deny scenario remains a root integration
+check.
+
 ## Validation status
 
 Migration017 applied from a fresh UTF8 PostgreSQL 16 cluster on port 55451 using
@@ -89,13 +96,29 @@ the real restricted app role. Focused network tests passed for owner creation,
 quota replay and the existing unconfigured-rotation rollback. The owner-creation
 tests passed under `go test -race`, including same-key parallel requests and an
 RLS read proving an agent context cannot see the owner command result. The
-encrypted-cookie/CSRF runtime test passed through the restricted DB login.
+encrypted-cookie/CSRF runtime test passed through the restricted DB login. A
+focused owner replay test also proves that an expired 15-minute replay window and
+a changed issuance key ID return `credential_replay_unavailable` without adding
+agents, credentials, issue events or idempotency results.
 
 `go build ./...`, `go vet ./...`, and `git diff --check` passed. Frontend Vitest
-passed 9 tests and the strict TypeScript/Vite build passed. Chromium passed all 3
-production-bundle browser tests; the owner creation flow deliberately aborts the
-first POST after submission, then retries the unchanged form and asserts the
-same CSRF-protected `Idempotency-Key`.
+passed 11 tests and the strict TypeScript/Vite build passed. Chromium passed all 3
+production-bundle browser tests before the follow-up correction; the owner
+creation flow deliberately aborts the first POST after submission, then retries
+the unchanged form and asserts the same CSRF-protected `Idempotency-Key`.
+
+Follow-up correction validation: the new frontend red test initially showed that
+a `201` whose response body stream failed was converted to `{}` and resolved.
+Afterward the owner-create key is retained until a parseable JSON object arrives;
+a definitive 4xx releases it. The body-loss retry and 4xx cases pass. Full Vitest
+now passes 11 tests and `npm run build` passes. The focused real-PostgreSQL
+`TestOwnerAgentCreation` tests pass normally and under `-race` on a fresh UTF-8
+PostgreSQL 16 cluster at port 55457, including replay-window and issuance-key-ID
+denials with no additional persisted effects. `go vet ./...` and `go build ./...`
+pass. An owner Playwright rerun was attempted but Chromium failed before test
+execution because this runtime lacks `libnspr4.so`; the earlier browser evidence
+above predates this correction, so the owner browser scenario should be rerun
+once that system library is available.
 
 The full network package ran on a fresh UTF8 cluster but did not pass in that
 run: `TestCommittedIntentionRunsThroughDurableWorker` failed to produce its

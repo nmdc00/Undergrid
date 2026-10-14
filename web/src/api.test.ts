@@ -51,3 +51,62 @@ test("initial agent creation retries response loss and drops the old key after f
   expect(keys[0]).not.toBe(keys[1]);
   expect(keys[0]).not.toBe(keys[2]);
 });
+
+test("initial agent creation retains its key when a 201 response body is lost", async () => {
+  const keys: string[] = [];
+  let attempt = 0;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (_path: string, init?: RequestInit) => {
+      keys.push(new Headers(init?.headers).get("Idempotency-Key")!);
+      if (attempt++ === 0) {
+        const body = new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.error(new Error("response body connection reset"));
+          },
+        });
+        return new Response(body, { status: 201 });
+      }
+      return new Response('{"id":"agent","token":"ug_secret"}', {
+        status: 201,
+      });
+    }),
+  );
+  const body = { name: "listener", scopes: ["intents:read"] };
+  await expect(
+    request("/v1/agents", "csrf-agent-body-loss", "POST", body),
+  ).rejects.toThrow("Invalid server response");
+  const recovered = await request(
+    "/v1/agents",
+    "csrf-agent-body-loss",
+    "POST",
+    body,
+  );
+  expect(recovered.token).toBe("ug_secret");
+  expect(keys).toHaveLength(2);
+  expect(keys[0]).toBe(keys[1]);
+});
+
+test("a definitive client rejection releases the pending agent command key", async () => {
+  const keys: string[] = [];
+  let attempt = 0;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (_path: string, init?: RequestInit) => {
+      keys.push(new Headers(init?.headers).get("Idempotency-Key")!);
+      if (attempt++ === 0)
+        return new Response('{"error":{"code":"invalid_agent"}}', {
+          status: 422,
+        });
+      return new Response('{"id":"agent","token":"ug_secret"}', {
+        status: 201,
+      });
+    }),
+  );
+  const body = { name: "listener", scopes: ["intents:read"] };
+  await expect(
+    request("/v1/agents", "csrf-agent-rejected", "POST", body),
+  ).rejects.toMatchObject({ status: 422, code: "invalid_agent" });
+  await request("/v1/agents", "csrf-agent-rejected", "POST", body);
+  expect(keys[0]).not.toBe(keys[1]);
+});
