@@ -14,6 +14,12 @@ import (
 // ScanDueIntentions is the durable queue worker's repair sweep. Each intention
 // commits independently; a crash can retry without losing or duplicating output.
 func (s *Service) ScanDueIntentions(ctx context.Context) error {
+	return s.scanIntentions(ctx, "")
+}
+
+// A committed intention gets its own bounded job; background repair retains
+// the existing sweep for other watches without occupying foreground slots.
+func (s *Service) scanIntentions(ctx context.Context, cause string) error {
 	db, err := pgx.Connect(ctx, s.dsn)
 	if err != nil {
 		return err
@@ -21,6 +27,9 @@ func (s *Service) ScanDueIntentions(ctx context.Context) error {
 	defer db.Close(ctx)
 	if _, err = db.Exec(ctx, "SET ROLE undergrid_worker; SET search_path=undergrid,pg_catalog"); err != nil {
 		return err
+	}
+	if cause != "" {
+		return s.scanIntent(ctx, db, cause)
 	}
 	rows, err := db.Query(ctx, "SELECT id FROM intents WHERE state='active' AND watch_enabled AND next_scan<=now() ORDER BY next_scan,id LIMIT 1000")
 	if err != nil {
