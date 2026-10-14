@@ -54,4 +54,29 @@ GOCACHE=/tmp/undergrid-gocache GOMODCACHE=/tmp/undergrid-gomod UNDERGRID_TEST_DA
 
 The first invocation ran from the clean release worktree; the second ran from this feature worktree. This proves the old-to-new migration preserved an existing raw evaluation and that the new lifecycle uses non-superuser, non-BYPASSRLS API/worker logins. It does not qualify the bubblewrap cgroup resource gate or production object storage.
 
+## Combined sibling migrations and runtime validation
+
+After local integration of private-artifact grants, task-progress evidence, and owner issuance recovery, the merged verifier branch ran focused race validation on a fresh UTF-8 network-only PostgreSQL 16 cluster at port 55464 (`undergrid_test`). The tests invoke the unmodified application `network.Migrate`. The recorded migration ledger contains every network migration `001`–`018` in order, including sibling migrations `015`–`017` and verifier migration `018`; no migration SQL was copied, skipped, or reordered. `pg_database` reported the database encoding as UTF8.
+
+The selector exercised the ordinary artifact publication lifecycle through the real worker and HTTP APIs, progress-artifact audience and reviewer privacy, private input-grant reads and exact rights, serialized revocation, owner issuance replay/concurrency/protected-scope policy, and verifier configuration, sealed-executable, and namespace regressions. It passed under `go test -race` in 68.606 seconds. The publication lifecycle checked modern evidence against normalized evaluation columns and exercised legacy-label projection after removing new fields from the raw JSON; the raw JSON bytes were unchanged by the HTTP read. The real worker recorded `development_process_not_qualified`, kept the operator-configured image digest distinct from runtime image identity, and persisted matching normalized columns. The same fixture contained one legacy-default evaluation row, one progress artifact, two task-progress evidence rows, and 18 grant approvals after the focused tests.
+
+Database inspection confirmed `undergrid_app` and `undergrid_worker` are NOLOGIN, NOSUPERUSER, and NOBYPASSRLS. The separately used `undergrid_artifact_api_runner` and `undergrid_artifact_worker_runner` are LOGIN, NOSUPERUSER, and NOBYPASSRLS. The focused API/worker lifecycle tests connect through these restricted login roles and switch only to their corresponding app/worker role. Progress audience and grant tests passed against the combined 015→016 schema, including the restrictive audience policy, grant read policy, and approval constraint extensions.
+
+The required hard-cgroup qualification was run separately with `UNDERGRID_REQUIRE_VERIFIER_ISOLATION=1`; it failed as required in 0.382 seconds with `required isolated verifier qualification unavailable: delegated cgroup root must be owned by the service and not group/world writable`. No cgroup or host-global policy was changed. This host therefore still has no successful kernel-enforced resource-limit qualification. The focused run does not replace the broader network/fairness suite or establish production storage, provider, legal, or deployment qualification.
+
+Commands:
+
+```sh
+GOCACHE=/tmp/undergrid-gocache GOMODCACHE=/tmp/undergrid-gomod \
+UNDERGRID_TEST_DATABASE_URL='postgres://nmcdc@127.0.0.1:55464/undergrid_test?sslmode=disable' \
+/tmp/undergrid-toolchain/go/bin/go test -race ./internal/network \
+-run '^(TestArtifactPublicationLifecycleThroughHTTPAndExecutableWorker|TestTaskProgressEvidenceReviewLifecycle|TestPrivateArtifactNamedGrantsExposeOnlyInputAndPermitAssembly|TestPrivateArtifactGrantRejectsWrongExactScopes|TestPrivateArtifactDerivedPublicationStillNeedsAllExactRightsConsent|TestPrivateArtifactGrantRevocationSerializesWithReadAndSeal|TestOwnerAgentIssuanceRequiresPolicyForProtectedArtifactGrantScope|TestOwnerAgentCreationResponseLossReplay|TestOwnerAgentCreationWithoutIssuanceKeyRollsBack|TestOwnerAgentCreationReplayWindowAndKeyIDFailClosed|TestOwnerAgentCreationConcurrentSameKey|TestMalformedIsolatedEnvironmentConfigClearsEarlierLocalRunner|TestIsolatedVerifierConfigurationFailsClosedWithoutDelegatedCgroups|TestBubblewrapProcessBoundaryWithoutQualification|TestVerifierAndLauncherBytesAreSealedBeforeExecution|TestSealedVerifierExecutesAndReportsItsCopiedBinaryHash)$' \
+-count=1 -timeout=12m
+
+GOCACHE=/tmp/undergrid-gocache GOMODCACHE=/tmp/undergrid-gomod \
+UNDERGRID_REQUIRE_VERIFIER_ISOLATION=1 \
+/tmp/undergrid-toolchain/go/bin/go test ./internal/network \
+-run '^TestBubblewrapVerifierIsolationEnforcesFilesystemNetworkAndLimits$' -count=1
+```
+
 Quality review: pinned executable validation and process/cgroup lifecycle now live in `verifier_runner.go`, separate from local artifact storage. Configuration, worker writes, normalized evidence, and the HTTP projection retain concrete contracts. The runner closes sealed files and cgroup descriptors, kills the whole group on cancellation, waits for an empty cgroup before removal, and turns cleanup uncertainty into a failed job. No agent-controlled process attributes enter the launch. The remaining resource-limit uncertainty is an explicit host qualification gate, not a fixture claim.
