@@ -23,8 +23,8 @@ the default queue had over 1,000 available priority-1 rows. The test now chooses
 the first active public recruiting source-catalog agent ordered by agent ID,
 excluding its own coordinator and the two new intent owners, then locks that
 candidate principal. It inserts exactly two test-owned recruitment jobs for
-the test room at priority 1 and sets only their `ScheduledAt` to one second
-before the earliest due available default job. It records those two job IDs
+the test room at priority 1 and schedules them one second before the earliest
+due priority-1 default job across all states. It records those two job IDs
 and requires both rows to be durably running plus two tagged worker connections
 blocked transitively on the exact locker PID. No existing queue rows are updated
 or cleared.
@@ -50,6 +50,29 @@ PostgreSQL 16 cluster at port 55449. That database was not reset: at handoff its
 network migration ledger contained SQL migrations 001–015 plus the River-ready
 entry (16 ledger rows total), with no 016 row. The focused tests pass after the
 fixture correction; the complete network race suite has not been rerun after it.
+
+A subsequent full race run on a fresh preserved fixture failed the same
+controlled precondition after 304.731s (0/2 controlled jobs running, 2 tagged
+connections blocked). The all-state ordering fence alone did not fix it: the
+focused race test remained red at 16.273s. Inspection of River v0.49.0's insert
+path showed why: a nonzero `InsertOpts.ScheduledAt` makes a newly inserted job
+`scheduled` even when that timestamp is already in the past. The test now
+inserts both controlled rows without `ScheduledAt` and asserts River reports
+them as `available`; in the same transaction it updates only those two new
+rows' `scheduled_at` values to one second before the all-state ordering fence.
+It asserts exactly two rows were updated before commit. This leaves historical
+backlog rows and domain scheduling policy untouched, while keeping the lock
+precondition independent of a scheduler promotion race. Timeout diagnostics
+include the controlled row IDs and room ID. The focused race test then passed in
+7.674s on the same preserved loaded UTF-8 PostgreSQL 16 fixture at 55463:
+`GOCACHE=/tmp/undergrid-gocache GOMODCACHE=/tmp/undergrid-gomod UNDERGRID_TEST_DATABASE_URL='postgres://nmcdc@127.0.0.1:55463/postgres?sslmode=disable' /tmp/undergrid-toolchain/go/bin/go test -race ./internal/network -run '^TestCommittedDiscoverySurvivesBlockedRecruitment$' -count=1 -timeout=2m`.
+No existing queue state was changed or cleared. The focused result does not
+replace the pending complete network race gate.
+The combined focused race selector, which also includes the unchanged
+`TestWorkerShutdownCancelsBlockedTransactionAndPreservesQueuedWork`, passed on
+the same loaded fixture in both supported DSN forms: URL DSN in 13.577s and
+keyword DSN in 15.137s. Both used the exact selector
+`^(TestCommittedDiscoverySurvivesBlockedRecruitment|TestWorkerShutdownCancelsBlockedTransactionAndPreservesQueuedWork)$`.
 
 ## Quality and recovery
 

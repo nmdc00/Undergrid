@@ -48,19 +48,21 @@ func TestCommittedDiscoverySurvivesBlockedRecruitment(t *testing.T) {
 	if targetAgent == organizerIdentity["agent_id"] {
 		t.Fatal("selected coordinator as the recruitment target")
 	}
-	// Explicitly queue two jobs for only this room. Place these test-owned jobs
-	// just ahead of the already-loaded default-queue backlog without changing
-	// existing job state or priority; this makes the lock precondition causal
-	// even when earlier tests have left many available jobs behind.
+	// Explicitly queue two jobs for only this room. River fetches jobs by
+	// priority, scheduled_at, then ID; its startup scheduler can promote due
+	// retryable/scheduled jobs after this query. Place these test-owned jobs
+	// just ahead of every due priority-1 default-queue row, across all states,
+	// without changing existing job state or priority. This keeps the lock
+	// precondition causal under either scheduler ordering.
 	queueDB, err := pgx.Connect(ctx, s.dsn)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer queueDB.Close(ctx)
-	var firstAvailable time.Time
+	var earliestDefault time.Time
 	if err = queueDB.QueryRow(ctx, `SELECT COALESCE(min(scheduled_at),clock_timestamp())
-		FROM undergrid_queue.river_job WHERE queue=$1 AND state='available' AND priority=1
-		AND scheduled_at<=clock_timestamp()`, river.QueueDefault).Scan(&firstAvailable); err != nil {
+		FROM undergrid_queue.river_job WHERE queue=$1 AND priority=1
+		AND scheduled_at<=clock_timestamp()`, river.QueueDefault).Scan(&earliestDefault); err != nil {
 		t.Fatal(err)
 	}
 	queue, err := river.NewClient(riverpgxv5.New(nil), &river.Config{Schema: "undergrid_queue"})
@@ -75,13 +77,32 @@ func TestCommittedDiscoverySurvivesBlockedRecruitment(t *testing.T) {
 	for range 2 {
 		inserted, insertErr := queue.InsertTx(ctx, jobTx, recruitArgs{SwarmID: room["id"].(string)}, &river.InsertOpts{
 			Queue: river.QueueDefault, Priority: 1, MaxAttempts: 10,
-			ScheduledAt: firstAvailable.Add(-time.Second),
 		})
 		if insertErr != nil {
 			_ = jobTx.Rollback(ctx)
 			t.Fatal(insertErr)
 		}
+		if inserted.Job.State != "available" {
+			_ = jobTx.Rollback(ctx)
+			t.Fatalf("controlled recruitment insert was not immediately available: state=%s job_id=%d", inserted.Job.State, inserted.Job.ID)
+		}
 		jobIDs = append(jobIDs, inserted.Job.ID)
+	}
+	// River marks any insert with a nonzero ScheduledAt as scheduled, even if
+	// the requested time is in the past. Keep these two controlled jobs in the
+	// available state, then adjust only their schedule values in this same
+	// fixture transaction so a startup scheduler cannot delay them behind the
+	// existing ready backlog. The all-state minimum also fences rows River may
+	// promote from retryable/scheduled while the worker starts.
+	updated, err := jobTx.Exec(ctx, `UPDATE undergrid_queue.river_job SET scheduled_at=$1
+		WHERE id=ANY($2::bigint[]) AND queue=$3 AND priority=1 AND state='available'`, earliestDefault.Add(-time.Second), jobIDs, river.QueueDefault)
+	if err != nil {
+		_ = jobTx.Rollback(ctx)
+		t.Fatal(err)
+	}
+	if updated.RowsAffected() != 2 {
+		_ = jobTx.Rollback(ctx)
+		t.Fatalf("only controlled fixture jobs should be rescheduled while available: updated=%d", updated.RowsAffected())
 	}
 	if err = jobTx.Commit(ctx); err != nil {
 		t.Fatal(err)
@@ -143,7 +164,7 @@ func TestCommittedDiscoverySurvivesBlockedRecruitment(t *testing.T) {
 			if err = observer.QueryRow(ctx, "SELECT count(*) FROM pg_stat_activity WHERE application_name=$1", tag).Scan(&tagged); err != nil {
 				t.Fatal(err)
 			}
-			t.Fatalf("two controlled recruitment jobs did not block: jobs=%d/%d tagged_connections=%d blocked_connections=%d locker_pid=%d target_agent=%s", lastRunning, len(jobIDs), tagged, lastBlocked, lockerPID, targetAgent)
+			t.Fatalf("two controlled recruitment jobs did not block: jobs=%d/%d job_ids=%v controlled_swarm=%s tagged_connections=%d blocked_connections=%d locker_pid=%d target_agent=%s", lastRunning, len(jobIDs), jobIDs, room["id"], tagged, lastBlocked, lockerPID, targetAgent)
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
