@@ -13,7 +13,7 @@ import (
 )
 
 func listOwnerAgents(ctx context.Context, tx pgx.Tx, principal string) (int, any, error) {
-	rows, err := tx.Query(ctx, `SELECT jsonb_build_object('id',a.id,'name',a.name,'status',a.status,'version',a.version,'etag','"'||a.version||'"','key_control_verified',a.key_control_verified_at IS NOT NULL,'endpoint_control_verified',a.endpoint_control_verified_at IS NOT NULL,'credentials',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',c.id,'scopes',c.scopes,'generation',c.generation,'etag','"'||c.generation||'"','expires_at',c.expires_at,'revoked_at',c.revoked_at) ORDER BY c.created_at) FROM credentials c WHERE c.agent_id=a.id),'[]'::jsonb)) FROM agents a WHERE a.principal_id=$1 ORDER BY a.created_at`, principal)
+	rows, err := tx.Query(ctx, `SELECT jsonb_build_object('id',a.id,'name',a.name,'status',a.status,'version',a.version,'etag','"'||a.version||'"','key_control_verified',a.key_control_verified_at IS NOT NULL,'endpoint_control_verified',a.endpoint_control_verified_at IS NOT NULL,'credentials',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',c.id,'kind',c.kind,'scopes',c.scopes,'generation',c.generation,'etag','"'||c.generation||'"','expires_at',c.expires_at,'revoked_at',c.revoked_at) ORDER BY c.created_at) FROM credentials c WHERE c.agent_id=a.id),'[]'::jsonb)) FROM agents a WHERE a.principal_id=$1 ORDER BY a.created_at`, principal)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -127,6 +127,15 @@ func (s *Service) ownerCommand(r *http.Request, tx pgx.Tx) (int, any, error) {
 	if r.Method == "GET" && r.URL.Path == "/v1/owner/me" {
 		return 200, map[string]any{"id": principal}, nil
 	}
+	if agent, ok := ownerOAuthBindingsPath(r.URL.Path); ok {
+		return s.ownerOAuthBindings(r, tx, principal, agent)
+	}
+	if id, ok := ownerOAuthRevokePath(r.URL.Path); ok {
+		return s.ownerOAuthRevoke(r, tx, principal, id)
+	}
+	if id, ok := ownerOAuthRotatePath(r.URL.Path); ok {
+		return s.ownerOAuthRotate(r, tx, principal, id)
+	}
 	if r.URL.Path == "/v1/owner/intents" || strings.HasPrefix(r.URL.Path, "/v1/owner/intents/") {
 		return s.ownerIntents(r, tx, principal)
 	}
@@ -201,6 +210,30 @@ func (s *Service) ownerCommand(r *http.Request, tx pgx.Tx) (int, any, error) {
 	}
 	result, err := s.regenerateCredential(ctx, tx, principal, id, ref)
 	return status, result, err
+}
+
+func ownerOAuthBindingsPath(path string) (string, bool) {
+	parts := strings.Split(path, "/")
+	if len(parts) == 6 && parts[1] == "v1" && parts[2] == "owner" && parts[3] == "agents" && parts[5] == "oauth-bindings" {
+		return parts[4], true
+	}
+	return "", false
+}
+
+func ownerOAuthRevokePath(path string) (string, bool) {
+	parts := strings.Split(path, "/")
+	if len(parts) == 6 && parts[1] == "v1" && parts[2] == "owner" && parts[3] == "oauth-bindings" && parts[5] == "revoke" {
+		return parts[4], true
+	}
+	return "", false
+}
+
+func ownerOAuthRotatePath(path string) (string, bool) {
+	parts := strings.Split(path, "/")
+	if len(parts) == 6 && parts[1] == "v1" && parts[2] == "owner" && parts[3] == "oauth-bindings" && parts[5] == "rotate" {
+		return parts[4], true
+	}
+	return "", false
 }
 
 func (s *Service) validateAgentScopes(ctx context.Context, tx pgx.Tx, principal string, scopes []string) error {
