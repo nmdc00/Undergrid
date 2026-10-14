@@ -64,3 +64,11 @@ Observed backlog delays are release-relevant. Deadline routing has focused exact
 | Qualification | §§10.5/12.4 | Public HTTP discovery-to-reuse acceptance, load/concurrency/fault/restore/security and unfamiliar cohort | Automated local tests independent; provider/host/cohort proof cannot be synthesized |
 
 No percentage of Go statements or passing helper suite marks a missing requirement complete. Each entry moves to implemented/proven/deferred/blocked with a named entrypoint, proving test and evidence artifact. An externally blocked qualification is distinct from unimplemented code. Full release is not declared until network, both financial rails, public operations/security and external acceptance gates actually pass.
+
+## Next-wave locked vertical behavior
+
+| Agent | Branch/worktree | Acceptance/runtime/persistence | Owning documentation |
+|---|---|---|---|
+| revision worker | feat/v0.1-intention-revisions / /tmp/undergrid-worktrees/revisions/feat-v0.1-intention-revisions | Agent and owner HTTP append immutable typed revisions under ETag/idempotency; expired renewal respects quota; old evidence survives; disclosure cannot widen; one event/job per committed command | TDD §§4–5, INT-01; docs/evidence/intention-revisions.md; grants/disclosure remain separate subsequent behavior |
+
+Discovery fairness passed the full network race in268.286s and merged through PR#26 into release `dd1f585`. Private grants integration remains pending; progress branch is locally reconciled with grants but has not passed combined migration/lifecycle tests.
