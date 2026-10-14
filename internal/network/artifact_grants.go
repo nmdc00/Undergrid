@@ -103,6 +103,13 @@ func (s *Service) createInputGrant(r *http.Request, tx pgx.Tx, a actor, p stored
 	if target.Agent != scope.RecipientAgent || target.Principal != scope.RecipientPrincipal || target.Hash != scope.TargetPlanHash || target.Epoch != scope.TargetEpoch || target.Template != scope.TemplateID || target.TemplateHash != scope.TemplateHash || target.PolicyHash != scope.GrantPolicyHash || target.License != scope.LicenseID || target.Schema != scope.SchemaFamily {
 		return 0, nil, fail(409, "exact_target_scope_required")
 	}
+	var audienceAllowed bool
+	if err = tx.QueryRow(r.Context(), "SELECT input_grant_progress_audience_allowed($1,$2,$3)", source.id, target.Agent, target.Principal).Scan(&audienceAllowed); err != nil {
+		return 0, nil, err
+	}
+	if !audienceAllowed {
+		return 0, nil, fail(409, "progress_input_audience_required")
+	}
 	_, version, err := s.requireRights(r.Context(), tx, a, p.sealed.Plan.Rights)
 	if err != nil {
 		return 0, nil, err
@@ -150,7 +157,9 @@ func (s *Service) inputGrantCommand(r *http.Request, tx pgx.Tx, a actor) (int, a
 	}
 	var principal, artifact, state, hash string
 	var scope []byte
-	err := tx.QueryRow(r.Context(), "SELECT principal_id,artifact_id,grant_state,content_hash,grant_scope FROM approvals WHERE id=$1 AND grant_scope IS NOT NULL", parts[3]).Scan(&principal, &artifact, &state, &hash, &scope)
+	err := tx.QueryRow(r.Context(), `SELECT principal_id,artifact_id,grant_state,content_hash,grant_scope FROM approvals
+		WHERE id=$1 AND grant_scope IS NOT NULL AND (principal_id=actor_principal() OR
+		input_grant_progress_audience_allowed(artifact_id,grant_recipient_agent_id,grant_recipient_principal_id))`, parts[3]).Scan(&principal, &artifact, &state, &hash, &scope)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return 0, nil, fail(404, "not_found")
 	}
@@ -188,7 +197,10 @@ func (s *Service) inputGrantCommand(r *http.Request, tx pgx.Tx, a actor) (int, a
 	})
 }
 func (s *Service) inputGrantSnapshot(ctx context.Context, tx pgx.Tx, a actor) ([]any, error) {
-	rows, err := tx.Query(ctx, `SELECT g.id,g.artifact_id,g.grant_scope FROM approvals g JOIN artifacts source ON source.id=g.artifact_id WHERE g.grant_recipient_agent_id=$1 AND g.grant_state='active' AND g.grant_expires_at>clock_timestamp() AND effective_input_grant_count(g.artifact_id,g.grant_target_task_id,split_part(g.purpose,'_',1))=cardinality(source.required_rights) ORDER BY g.id`, a.AgentID)
+	rows, err := tx.Query(ctx, `SELECT g.id,g.artifact_id,g.grant_scope FROM approvals g JOIN artifacts source ON source.id=g.artifact_id
+		WHERE g.grant_recipient_agent_id=$1 AND g.grant_state='active' AND g.grant_expires_at>clock_timestamp()
+		AND input_grant_progress_audience_allowed(g.artifact_id,g.grant_recipient_agent_id,g.grant_recipient_principal_id)
+		AND effective_input_grant_count(g.artifact_id,g.grant_target_task_id,split_part(g.purpose,'_',1))=cardinality(source.required_rights) ORDER BY g.id`, a.AgentID)
 	if err != nil {
 		return nil, err
 	}

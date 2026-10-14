@@ -52,6 +52,9 @@ func fixture(t *testing.T) (*Service, *pgx.Conn) {
 	})
 	s.cursorKey = bytes.Repeat([]byte{42}, 32)
 	s.termsVersion = "test-v1"
+	if err = s.ConfigureCredentialIssuance("network-test-key", bytes.Repeat([]byte{41}, 32)); err != nil {
+		t.Fatal(err)
+	}
 	return s, db
 }
 func client(t *testing.T, s *Service) testClient {
@@ -61,7 +64,7 @@ func client(t *testing.T, s *Service) testClient {
 	if code != 201 {
 		t.Fatalf("register %d %v", code, out)
 	}
-	code, out = c.call("POST", "/v1/agents", "", map[string]any{"name": "listener", "scopes": []string{"intents:read", "intents:write", "inbox:read"}})
+	code, out = c.call("POST", "/v1/agents", "fixture-agent-creation", map[string]any{"name": "listener", "scopes": []string{"intents:read", "intents:write", "inbox:read"}})
 	if code != 201 {
 		t.Fatalf("agent %d %v", code, out)
 	}

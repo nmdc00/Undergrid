@@ -36,6 +36,10 @@ type privateGrantScenario struct {
 }
 
 func newPrivateGrantScenario(t *testing.T, survival bool) privateGrantScenario {
+	return newPrivateGrantScenarioWithSourcePurpose(t, survival, "output")
+}
+
+func newPrivateGrantScenarioWithSourcePurpose(t *testing.T, survival bool, sourcePurpose string) privateGrantScenario {
 	t.Helper()
 	x := newArtifactScenario(t)
 	template := x.s.templates["test-contribution-v1"]
@@ -49,7 +53,7 @@ func newPrivateGrantScenario(t *testing.T, survival bool) privateGrantScenario {
 	agents := []string{}
 	for i, c := range x.actors {
 		scopes := []string{"intents:read", "inbox:read", "swarms:read", "swarms:create", "members:invite", "members:respond", "members:withdraw", "plans:propose", "plans:approve", "rights:accept", "tasks:accept", "tasks:progress", "artifacts:read", "artifacts:submit", "artifacts:accept", "artifacts:reuse", "publication:approve", "artifacts:grant"}
-		code, out := c.call("POST", "/v1/agents", "", map[string]any{"name": "scoped input agent", "scopes": scopes, "profile": map[string]any{"accept_invitations": true}})
+		code, out := c.call("POST", "/v1/agents", "scoped-input-agent-"+x.principals[i], map[string]any{"name": "scoped input agent", "scopes": scopes, "profile": map[string]any{"accept_invitations": true}})
 		if code != 201 {
 			t.Fatal(code, out)
 		}
@@ -65,6 +69,12 @@ func newPrivateGrantScenario(t *testing.T, survival bool) privateGrantScenario {
 			if code != 200 {
 				t.Fatal(code, out)
 			}
+			if sourcePurpose == "progress" && i > 0 {
+				code, out = oldActors[i].call("POST", roomPath+"/withdraw", "withdraw-old-progress-agent", map[string]any{})
+				if code != 200 {
+					t.Fatal("replace duplicate membership before progress audience fixture", code, out)
+				}
+			}
 		}
 	}
 	_, snapshot := x.actors[0].call("GET", roomPath+"/context", "", nil)
@@ -72,6 +82,14 @@ func newPrivateGrantScenario(t *testing.T, survival bool) privateGrantScenario {
 	spec["parent_version"] = 1
 	spec["respond_by"] = time.Now().Add(time.Hour)
 	spec["tasks"].([]any)[0].(map[string]any)["assignee_agent_id"] = agents[2]
+	if sourcePurpose == "progress" {
+		spec["acceptance_principals"] = []string{x.principals[1], x.principals[2]}
+		spec["publication_principals"] = []string{x.principals[1], x.principals[2]}
+		spec["tasks"] = append(spec["tasks"].([]any), map[string]any{
+			"key": "in-audience-recipient", "assignee_agent_id": agents[1], "depends_on": []any{},
+			"output_schema": "source_catalog_v1", "checks": []string{"json_schema_v1"}, "progress_interval_seconds": 86400,
+		})
+	}
 	code, plan := x.actors[0].versioned("POST", roomPath+"/plans", "input-plan", snapshot["swarm"].(map[string]any)["etag"].(string), spec)
 	if code != 201 {
 		t.Fatal(code, plan)
@@ -89,11 +107,31 @@ func newPrivateGrantScenario(t *testing.T, survival bool) privateGrantScenario {
 		t.Fatal(code, out)
 	}
 	_, x.task = x.actors[2].call("GET", "/v1/tasks/"+x.task["id"].(string), "", nil)
+	if sourcePurpose == "progress" {
+		tasks := x.plan["tasks"].([]any)
+		audienceTask := tasks[1].(map[string]any)
+		code, out = x.actors[1].versioned("POST", "/v1/tasks/"+audienceTask["id"].(string)+"/assignment-response", "accept-audience-task", audienceTask["etag"].(string), map[string]any{"decision": "accept", "plan_hash": x.plan["content_hash"]})
+		if code != 200 {
+			t.Fatal(code, out)
+		}
+		_, tasks[1] = x.actors[1].call("GET", "/v1/tasks/"+audienceTask["id"].(string), "", nil)
+	}
 	data := []byte(`{"sources":[{"source_id":"private-input","source_url":"https://example.org/"}]}`)
-	upload := x.upload(t, data, "input")
+	var upload map[string]any
+	if sourcePurpose == "progress" {
+		upload = x.uploadForAudienceWithReviewer(t, data, "input", "progress", x.principals[1:3], x.principals[1])
+	} else {
+		upload = x.upload(t, data, "input")
+	}
 	code, input := x.actors[2].call("POST", "/v1/artifacts/"+upload["id"].(string)+"/finalize", "seal-input", x.finalBody(data))
 	if code != 200 {
 		t.Fatal(code, input)
+	}
+	if sourcePurpose == "progress" {
+		x.startWorker(t)
+		if evaluation := x.waitEvaluation(t, input["id"].(string)); evaluation["result"] != "passed" {
+			t.Fatal("progress input did not verify", evaluation)
+		}
 	}
 	builder := x.actors[3]
 	coordinator := oldActors[3]
@@ -144,7 +182,11 @@ func (x privateGrantScenario) grant(t *testing.T, purpose string) []string {
 	scope := x.scope
 	scope.Purpose = purpose
 	ids := []string{}
-	for _, c := range x.source.actors[:3] {
+	grantors := x.source.actors[:3]
+	if x.input["purpose"] == "progress" {
+		grantors = x.source.actors[1:3]
+	}
+	for _, c := range grantors {
 		code, out := c.call("POST", "/v1/artifacts/"+x.input["id"].(string)+"/input-grants", "grant-"+purpose, scope)
 		if code != 201 {
 			t.Fatal(code, out)
@@ -506,7 +548,7 @@ func TestPrivateArtifactOldAgreementCannotGainImplicitInputGrantPowers(t *testin
 	// Owner issues a new grant-scoped agent through self-service and deliberately
 	// admits it to the original room; neither action reapproves the old plan.
 	owner := x.actors[2]
-	code, agent := owner.call("POST", "/v1/agents", "", map[string]any{"name": "new grant agent", "scopes": []string{"rights:accept", "artifacts:grant", "members:respond"}, "profile": map[string]any{"accept_invitations": true}})
+	code, agent := owner.call("POST", "/v1/agents", "old-agreement-new-grant-agent", map[string]any{"name": "new grant agent", "scopes": []string{"rights:accept", "artifacts:grant", "members:respond"}, "profile": map[string]any{"accept_invitations": true}})
 	if code != 201 {
 		t.Fatal(code, agent)
 	}
