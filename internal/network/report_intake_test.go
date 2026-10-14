@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -114,7 +115,7 @@ func TestAuthenticatedReportReceiptIsBoundAndPrivate(t *testing.T) {
 	if err := db.QueryRow(ctx, `SELECT facts FROM undergrid.events WHERE aggregate_id=$1 AND type='report.submitted'`, id).Scan(&eventFacts); err != nil {
 		t.Fatal("safe submission event missing", err)
 	}
-	for _, private := range []string{body["statement"].(string), evidenceID, writerPrincipal, writerAgent} {
+	for _, private := range []string{body["statement"].(string), subjectID, evidenceID, writerPrincipal, writerAgent} {
 		if strings.Contains(string(eventFacts), private) {
 			t.Fatalf("event facts disclose private report input %q: %s", private, eventFacts)
 		}
@@ -233,7 +234,7 @@ func TestReportIntakeRateCeilingIsPrincipalScoped(t *testing.T) {
 	sibling := writer
 	sibling.token = issued["token"].(string)
 	body := map[string]any{"kind": "bug", "subject": map[string]any{"kind": "agent", "id": NewID()}, "statement": "A repeated test report."}
-	for i := 0; i < 30; i++ {
+	for i := 0; i < 29; i++ {
 		actor := writer
 		if i%2 == 1 {
 			actor = sibling
@@ -242,12 +243,50 @@ func TestReportIntakeRateCeilingIsPrincipalScoped(t *testing.T) {
 			t.Fatalf("report %d before ceiling: %d %v", i, code, out)
 		}
 	}
-	if code, out := writer.call("POST", "/v1/reports", "rate-overflow", body); code != 429 || out["error"].(map[string]any)["code"] != "report_write_rate_exceeded" {
-		t.Fatalf("report rate exceeded without admission denial: %d %v", code, out)
+	start := make(chan struct{})
+	type submission struct {
+		code int
+		out  map[string]any
+	}
+	results := make(chan submission, 2)
+	var requests sync.WaitGroup
+	requests.Add(2)
+	for i, actor := range []testClient{writer, sibling} {
+		go func(i int, actor testClient) {
+			defer requests.Done()
+			<-start
+			code, out := actor.call("POST", "/v1/reports", "rate-race-"+strconv.Itoa(i), body)
+			results <- submission{code, out}
+		}(i, actor)
+	}
+	close(start)
+	requests.Wait()
+	close(results)
+	accepted, denied := 0, 0
+	for result := range results {
+		switch result.code {
+		case 201:
+			accepted++
+		case 429:
+			if result.out["error"].(map[string]any)["code"] != "report_write_rate_exceeded" {
+				t.Fatalf("concurrent rate denial had wrong error: %v", result.out)
+			}
+			denied++
+		default:
+			t.Fatalf("concurrent submission returned unexpected status: %d %v", result.code, result.out)
+		}
+	}
+	if accepted != 1 || denied != 1 {
+		t.Fatalf("concurrent final-slot admissions: accepted=%d denied=%d", accepted, denied)
 	}
 	var count int
 	if err := db.QueryRow(context.Background(), `SELECT count(*) FROM undergrid.reports
  WHERE reporter_principal_id=(SELECT id FROM undergrid.principals WHERE subject=$1)`, owner).Scan(&count); err != nil || count != 30 {
 		t.Fatalf("rate denial persisted a report: count=%d err=%v", count, err)
+	}
+	var reportEvents int
+	if err := db.QueryRow(context.Background(), `SELECT count(*) FROM undergrid.events
+ WHERE principal_id=(SELECT id FROM undergrid.principals WHERE subject=$1) AND type='report.submitted'`, owner).Scan(&reportEvents); err != nil || reportEvents != 30 {
+		t.Fatalf("rate denial wrote an event or accepted report lacks one: report events=%d err=%v", reportEvents, err)
 	}
 }
