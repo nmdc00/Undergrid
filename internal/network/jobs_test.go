@@ -10,6 +10,21 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+func testWorkerDSN(t *testing.T, dsn, applicationName string) string {
+	t.Helper()
+	if strings.HasPrefix(dsn, "postgres://") || strings.HasPrefix(dsn, "postgresql://") {
+		u, err := url.Parse(dsn)
+		if err != nil {
+			t.Fatal(err)
+		}
+		query := u.Query()
+		query.Set("application_name", applicationName)
+		u.RawQuery = query.Encode()
+		return u.String()
+	}
+	return dsn + " application_name=" + applicationName
+}
+
 func TestCommittedIntentionRunsThroughDurableWorker(t *testing.T) {
 	s, db := fixture(t)
 	a, b := client(t, s), client(t, s)
@@ -88,19 +103,7 @@ func TestWorkerShutdownCancelsBlockedTransactionAndPreservesQueuedWork(t *testin
 	stopped := make(chan error, 1)
 	started := time.Now().UTC()
 	workerName := "shutdown_test_" + NewID()
-	workerDSN := s.dsn
-	if strings.HasPrefix(workerDSN, "postgres://") || strings.HasPrefix(workerDSN, "postgresql://") {
-		u, parseErr := url.Parse(workerDSN)
-		if parseErr != nil {
-			t.Fatal(parseErr)
-		}
-		query := u.Query()
-		query.Set("application_name", workerName)
-		u.RawQuery = query.Encode()
-		workerDSN = u.String()
-	} else {
-		workerDSN += " application_name=" + workerName
-	}
+	workerDSN := testWorkerDSN(t, s.dsn, workerName)
 	go func() { stopped <- RunWorker(ctx, workerDSN, "development") }()
 	deadline := time.Now().Add(10 * time.Second)
 	blocked := false
