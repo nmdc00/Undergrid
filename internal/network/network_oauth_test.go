@@ -259,6 +259,14 @@ func TestOAuthResourceVerifierRequiresRFC9068AccessToken(t *testing.T) {
 		t.Fatalf("protected resource metadata: %d %v", response.Code, metadata)
 	}
 
+	supported := map[string]bool{}
+	for _, scope := range metadata["scopes_supported"].([]any) {
+		supported[scope.(string)] = true
+	}
+	if !supported["reports:read"] || !supported["reports:write"] {
+		t.Fatalf("metadata omits live report scopes: %v", metadata)
+	}
+
 	oldKey, oldKeyID := as.key, as.keyID
 	rotatedKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {

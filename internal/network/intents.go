@@ -29,7 +29,21 @@ func getIntent(ctx context.Context, tx pgx.Tx, a actor, id string) (int, any, er
 	var watch bool
 	err := tx.QueryRow(ctx, `SELECT r.document,i.version,i.state,i.watch_enabled FROM intents i JOIN intent_revisions r ON r.intent_id=i.id AND r.revision=i.current_revision WHERE i.id=$1 AND i.principal_id=$2`, id, a.PrincipalID).Scan(&document, &version, &state, &watch)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return publicIntent(ctx, tx, id)
+		var granted []byte
+		var grantedVersion int64
+		err = tx.QueryRow(ctx, `SELECT document,version FROM granted_intent($1)`, id).Scan(&granted, &grantedVersion)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return publicIntent(ctx, tx, id)
+		}
+		if err != nil {
+			return 0, nil, err
+		}
+		var shared map[string]any
+		if err = json.Unmarshal(granted, &shared); err != nil {
+			return 0, nil, err
+		}
+		shared["etag"] = etag(grantedVersion)
+		return 200, shared, nil
 	}
 	if err != nil {
 		return 0, nil, err

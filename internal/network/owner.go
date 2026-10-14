@@ -242,7 +242,7 @@ func (s *Service) validateAgentScopes(ctx context.Context, tx pgx.Tx, principal 
 	}
 	var err error
 	for _, scope := range scopes {
-		ordinary := []string{"intents:read", "intents:write", "inbox:read", "swarms:read", "swarms:create", "swarms:apply", "members:invite", "members:respond", "members:withdraw", "messages:write", "plans:propose", "tasks:progress", "artifacts:submit", "artifacts:read", "artifacts:accept", "artifacts:reuse"}
+		ordinary := []string{"intents:read", "intents:write", "inbox:read", "swarms:read", "swarms:create", "swarms:apply", "members:invite", "members:respond", "members:withdraw", "messages:write", "plans:propose", "tasks:progress", "artifacts:submit", "artifacts:read", "artifacts:accept", "artifacts:reuse", "reports:write", "reports:read"}
 		rightsScopes := []string{"plans:approve", "rights:accept", "tasks:accept", "publication:approve", "artifacts:grant"}
 		if !slices.Contains(ordinary, scope) && !slices.Contains(rightsScopes, scope) {
 			return fail(403, "scope_not_authorized")

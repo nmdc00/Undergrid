@@ -19,16 +19,17 @@ import (
 
 type OwnerAuthenticator func(*http.Request) (Owner, error)
 type Service struct {
-	dsn, environment string
-	ownerAuth        OwnerAuthenticator
-	cursorKey        []byte
-	issuanceKey      []byte
-	issuanceKeyID    string
-	credentialClock  func() time.Time
-	termsVersion     string
-	templates        map[string]ContributionTemplate
-	artifacts        *localArtifactRuntime
-	oauth            *oauthVerifier
+	dsn, environment   string
+	ownerAuth          OwnerAuthenticator
+	cursorKey          []byte
+	issuanceKey        []byte
+	issuanceKeyID      string
+	credentialClock    func() time.Time
+	termsVersion       string
+	templates          map[string]ContributionTemplate
+	artifacts          *localArtifactRuntime
+	oauth              *oauthVerifier
+	reportTriageWindow time.Duration
 }
 
 func (s *Service) Configure(cursorKey []byte, termsVersion string) error {
@@ -41,7 +42,17 @@ func (s *Service) Configure(cursorKey []byte, termsVersion string) error {
 }
 
 func New(dsn, environment string, auth OwnerAuthenticator) *Service {
-	return &Service{dsn: dsn, environment: environment, ownerAuth: auth}
+	return &Service{dsn: dsn, environment: environment, ownerAuth: auth, reportTriageWindow: 72 * time.Hour}
+}
+
+// ConfigureReportTriageWindow sets an internal queue target. It is not a
+// reporter-facing service promise or a legal response deadline.
+func (s *Service) ConfigureReportTriageWindow(window time.Duration) error {
+	if window < time.Hour || window > 30*24*time.Hour {
+		return errors.New("report triage window must be between one hour and thirty days")
+	}
+	s.reportTriageWindow = window
+	return nil
 }
 
 func (s *Service) ConfigureOAuthResource(cfg OAuthResourceConfig) error {
@@ -316,9 +327,12 @@ func scopeIntersection(current, token []string) []string {
 }
 
 func networkOAuthScopes() []string {
-	return []string{"intents:read", "intents:write", "inbox:read", "swarms:read", "swarms:create", "swarms:apply", "members:invite", "members:respond", "members:withdraw", "messages:write", "plans:propose", "plans:approve", "tasks:progress", "tasks:accept", "artifacts:submit", "artifacts:read", "artifacts:accept", "artifacts:reuse", "artifacts:grant", "rights:accept", "publication:approve"}
+	return []string{"intents:read", "intents:write", "inbox:read", "swarms:read", "swarms:create", "swarms:apply", "members:invite", "members:respond", "members:withdraw", "messages:write", "plans:propose", "plans:approve", "tasks:progress", "tasks:accept", "artifacts:submit", "artifacts:read", "artifacts:accept", "artifacts:reuse", "artifacts:grant", "rights:accept", "publication:approve", "reports:read", "reports:write"}
 }
 func (s *Service) agentCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, error) {
+	if r.URL.Path == "/v1/reports" || strings.HasPrefix(r.URL.Path, "/v1/reports/") {
+		return s.reportCommand(r, tx, a)
+	}
 	if r.Method == "GET" && r.URL.Path == "/v1/policies/contribution-templates" {
 		return 200, s.publicTemplates(), nil
 	}
