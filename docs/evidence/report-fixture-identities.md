@@ -1,0 +1,7 @@
+# Repeatable private-report lifecycle fixtures
+
+Full combined source450c833 failed network846.032s with two report setup failures and one discovery oracle failure. Other packages passed. Report tests used fixed owner subjects and the same initial-agent command key across runs; existing stored credential replay windows expired as designed, returning409credential_replay_unavailable before report behavior was exercised. A focused retained-fixture reproducer failed both setup paths again (0.740s). Production recovery limits must not be relaxed.
+
+The two affected report tests now create distinct per-run owner subjects, as the shared client fixture already does. The principal-scoped rate test retains its explicit same-owner sibling arrangement. Report privacy, binding, strict input, idempotency and concurrent final-slot assertions remain intact; no production code, roles, migrations or stored prior fixtures were changed.
+
+Race-enabled report privacy/bounds/principal concurrency tests with-count=2 passed12.085s on retained network55463 and7.955s on network55486. The latter cluster was initialized raw UTF8/C.UTF-8 and migrated normally through001–021 by the discovery proof; report validation did not replay SQL or alter its ledger. Account separation is fixture access-control evidence, not beneficial-owner independence. Full corrected release gate remains pending; the failed full run is preserved at /tmp/undergrid-release-450c833-full.jsonl.
