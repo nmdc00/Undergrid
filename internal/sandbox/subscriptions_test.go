@@ -22,7 +22,7 @@ func TestSubscriptionHTTPConsentIsOwnerOnlyAndBounded(t *testing.T) {
 		return owner, nil
 	}, map[string]Quote{"platform-test": payment.Quote})
 	body := map[string]any{"credential_id": credential, "product": "platform-test", "maximum_atomic": "600", "period_seconds": 86400, "renewal_count": 2, "expires_at": time.Now().Add(72 * time.Hour)}
-	code, out := refundCall(t, h, "", owner.Subject, "POST", "/v1/owner/subscriptions", "", body)
+	code, out := refundCall(t, h, "", owner.Subject, "POST", "/v1/owner/subscriptions", "bounded-consent", body)
 	if code != 201 || out["state"] != "active" || out["consent_hash"] == "" {
 		t.Fatalf("bounded owner consent: %d %v", code, out)
 	}
@@ -55,7 +55,7 @@ func TestSubscriptionRenewalsReserveOnceAndCannotExceedTwo(t *testing.T) {
 		t.Fatal(err)
 	}
 	consent := SubscriptionConsent{CredentialID: credential, Maximum: "600", PeriodSeconds: 86400, RenewalCount: 2, ExpiresAt: time.Now().Add(72 * time.Hour)}
-	sub, err := s.CreateSubscription(ctx, owner, consent, p.Quote)
+	sub, err := s.CreateSubscription(ctx, owner, "bounded-consent", consent, p.Quote)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,7 +115,7 @@ func TestSubscriptionRevocationAndCapacityAreRechecked(t *testing.T) {
 	if err := db.QueryRow(ctx, "SELECT id::text FROM undergrid_sandbox.sandbox_credentials WHERE digest=$1", hash([]byte(token))).Scan(&credential); err != nil {
 		t.Fatal(err)
 	}
-	sub, err := s.CreateSubscription(ctx, owner, SubscriptionConsent{CredentialID: credential, Maximum: "600", PeriodSeconds: 86400, RenewalCount: 2, ExpiresAt: time.Now().Add(72 * time.Hour)}, p.Quote)
+	sub, err := s.CreateSubscription(ctx, owner, "bounded-consent", SubscriptionConsent{CredentialID: credential, Maximum: "600", PeriodSeconds: 86400, RenewalCount: 2, ExpiresAt: time.Now().Add(72 * time.Hour)}, p.Quote)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -154,7 +154,7 @@ func TestRenewalWorkerRunsPersistedConsentAndStops(t *testing.T) {
 	if err := db.QueryRow(ctx, "SELECT id::text FROM undergrid_sandbox.sandbox_credentials WHERE digest=$1", hash([]byte(token))).Scan(&credential); err != nil {
 		t.Fatal(err)
 	}
-	sub, err := s.CreateSubscription(ctx, owner, SubscriptionConsent{CredentialID: credential, Maximum: "600", PeriodSeconds: 86400, RenewalCount: 2, ExpiresAt: time.Now().Add(72 * time.Hour)}, p.Quote)
+	sub, err := s.CreateSubscription(ctx, owner, "bounded-consent", SubscriptionConsent{CredentialID: credential, Maximum: "600", PeriodSeconds: 86400, RenewalCount: 2, ExpiresAt: time.Now().Add(72 * time.Hour)}, p.Quote)
 	if err != nil {
 		t.Fatal(err)
 	}

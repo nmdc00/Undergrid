@@ -14,12 +14,14 @@ import (
 )
 
 type ContributionTemplate struct {
-	ID               string   `json:"id"`
-	SHA256           string   `json:"sha256"`
-	LicenseIDs       []string `json:"license_ids"`
-	TermsURL         string   `json:"terms_url"`
-	ApprovalEvidence string   `json:"approval_evidence"`
-	TestOnly         bool     `json:"test_only"`
+	ID                               string   `json:"id"`
+	SHA256                           string   `json:"sha256"`
+	LicenseIDs                       []string `json:"license_ids"`
+	TermsURL                         string   `json:"terms_url"`
+	ApprovalEvidence                 string   `json:"approval_evidence"`
+	TestOnly                         bool     `json:"test_only"`
+	InputGrantPurposes               []string `json:"input_grant_purposes,omitempty"`
+	SubmittedGrantSurvivesWithdrawal bool     `json:"submitted_grant_survives_withdrawal,omitempty"`
 }
 type CoordinationPolicy struct {
 	TemplateIDs    []string  `json:"template_ids"`
@@ -39,6 +41,14 @@ type RightsSpec struct {
 func (s *Service) SetContributionTemplates(templates []ContributionTemplate) error {
 	next := map[string]ContributionTemplate{}
 	for _, v := range templates {
+		for _, purpose := range v.InputGrantPurposes {
+			if purpose != "assembly" && purpose != "evaluation" {
+				return errors.New("unsupported input grant purpose")
+			}
+		}
+		if len(v.InputGrantPurposes) > 2 || (v.SubmittedGrantSurvivesWithdrawal && len(v.InputGrantPurposes) == 0) {
+			return errors.New("explicit bounded input grant template required")
+		}
 		u, err := url.Parse(v.TermsURL)
 		hash, hashErr := hex.DecodeString(v.SHA256)
 		if v.ID == "" || len(v.ID) > 100 || err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || hashErr != nil || len(hash) != 32 || len(v.LicenseIDs) == 0 || v.ApprovalEvidence == "" || (s.environment == "production" && v.TestOnly) {
@@ -48,6 +58,7 @@ func (s *Service) SetContributionTemplates(templates []ContributionTemplate) err
 			return errors.New("duplicate contribution template ID")
 		}
 		v.LicenseIDs = append([]string(nil), v.LicenseIDs...)
+		v.InputGrantPurposes = append([]string(nil), v.InputGrantPurposes...)
 		next[v.ID] = v
 	}
 	s.templates = next
@@ -56,7 +67,7 @@ func (s *Service) SetContributionTemplates(templates []ContributionTemplate) err
 func (s *Service) publicTemplates() any {
 	items := []any{}
 	for _, t := range s.templates {
-		items = append(items, map[string]any{"id": t.ID, "sha256": t.SHA256, "license_ids": t.LicenseIDs, "terms_url": t.TermsURL, "test_only": t.TestOnly})
+		items = append(items, map[string]any{"id": t.ID, "sha256": t.SHA256, "license_ids": t.LicenseIDs, "terms_url": t.TermsURL, "test_only": t.TestOnly, "input_grant_purposes": t.InputGrantPurposes, "submitted_grant_survives_withdrawal": t.SubmittedGrantSurvivesWithdrawal, "input_grant_policy_hash": inputGrantPolicyHash(t)})
 	}
 	return map[string]any{"templates": items}
 }

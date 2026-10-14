@@ -45,12 +45,15 @@ func loadArtifact(ctx context.Context, tx pgx.Tx, id string, lock bool) (storedA
 	return a, err
 }
 func artifactProjection(a storedArtifact) any {
+	return artifactProjectionWithContext(a, a.state != "published")
+}
+func artifactProjectionWithContext(a storedArtifact, includeContext bool) any {
 	out := map[string]any{"id": a.id, "state": a.state, "sha256": a.sha, "manifest_hash": a.manifestHash, "size_bytes": a.size, "media_type": a.media, "license_id": a.license, "limitations": artifactLimitations, "content_trust": "untrusted"}
 	if len(a.manifest) > 0 {
 		out["manifest"] = json.RawMessage(a.manifest)
 	}
 	// Public projection omits room, plan, task, policy and credential information.
-	if a.state != "published" {
+	if includeContext {
 		out["swarm_id"] = a.swarm
 		out["plan_id"] = a.plan
 		out["task_id"] = a.task
@@ -98,6 +101,8 @@ func (s *Service) artifactCommand(r *http.Request, tx pgx.Tx, a actor) (int, any
 		scope = "artifacts:submit"
 	case strings.HasSuffix(r.URL.Path, "/acceptances"):
 		scope = "artifacts:accept"
+	case strings.HasSuffix(r.URL.Path, "/input-grants"):
+		scope = "artifacts:grant"
 	case strings.HasSuffix(r.URL.Path, "/publication-approvals") || strings.HasSuffix(r.URL.Path, "/publish"):
 		scope = "publication:approve"
 	case strings.HasSuffix(r.URL.Path, "/reuse-receipts"):
@@ -151,13 +156,27 @@ func (s *Service) artifactCommand(r *http.Request, tx pgx.Tx, a actor) (int, any
 		return 0, nil, err
 	}
 	if r.Method == "GET" {
+		var member bool
+		if err = tx.QueryRow(r.Context(), "SELECT swarm_member($1)", art.swarm).Scan(&member); err != nil {
+			return 0, nil, err
+		}
+		if art.state != "published" && !member {
+			if err = s.privateInputRead(r, tx, a, art); err != nil {
+				return 0, nil, err
+			}
+		}
 		if len(parts) == 4 {
-			return 200, artifactProjection(art), nil
+			return 200, artifactProjectionWithContext(art, member && art.state != "published"), nil
 		}
 		switch parts[4] {
 		case "evaluations":
 			return artifactEvaluations(r.Context(), tx, art.id)
 		case "content":
+			if art.state != "published" && art.agent != a.AgentID {
+				if err = s.privateInputRead(r, tx, a, art); err != nil {
+					return 0, nil, err
+				}
+			}
 			if art.state == "quarantine" {
 				return 0, nil, fail(409, "artifact_not_sealed")
 			}
@@ -223,6 +242,8 @@ func (s *Service) artifactCommand(r *http.Request, tx pgx.Tx, a actor) (int, any
 			return s.approveArtifactPublication(r, tx, a, p, art)
 		case "publish":
 			return s.publishArtifact(r, tx, a, p, t, art)
+		case "input-grants":
+			return s.createInputGrant(r, tx, a, p, t, art)
 		}
 		return 0, nil, fail(404, "not_found")
 	})
@@ -381,14 +402,25 @@ func (s *Service) finalizeArtifact(r *http.Request, tx pgx.Tx, a actor, p stored
 		if err != nil {
 			return 0, nil, err
 		}
-		if source.state != "published" || source.sha != input.SHA256 || source.license != input.LicenseID || source.license != m.LicenseID {
+		if source.sha != input.SHA256 || source.license != input.LicenseID || source.license != m.LicenseID {
 			return 0, nil, fail(409, "input_rights_not_established")
+		}
+		grantHash := source.manifestHash
+		var grantIDs []string
+		if source.state != "published" {
+			if !slices.Contains([]string{"sealed", "verified"}, source.state) {
+				return 0, nil, fail(409, "input_rights_not_established")
+			}
+			grantHash, grantIDs, err = s.inputGrantEvidence(r.Context(), tx, a, source, t.id, "assembly", nil)
+			if err != nil {
+				return 0, nil, err
+			}
 		}
 		if _, err = s.artifactBytes(source); err != nil {
 			return 0, nil, err
 		}
 		rights = append(rights, source.rights...)
-		if _, err = tx.Exec(r.Context(), "INSERT INTO artifact_inputs(artifact_id,input_artifact_id,input_sha256,purpose,rights_grant_hash) VALUES($1,$2,$3,'assembly',$4)", art.id, source.id, source.sha, source.manifestHash); err != nil {
+		if _, err = tx.Exec(r.Context(), "INSERT INTO artifact_inputs(artifact_id,input_artifact_id,input_sha256,purpose,rights_grant_hash,grant_approval_ids) VALUES($1,$2,$3,'assembly',$4,$5)", art.id, source.id, source.sha, grantHash, grantIDs); err != nil {
 			return 0, nil, err
 		}
 	}
@@ -581,15 +613,18 @@ func (s *Service) publishArtifact(r *http.Request, tx pgx.Tx, a actor, p storedP
 	}
 	// Revalidate immutable input grants and bytes immediately before the public
 	// transition. A missing, tampered or held input never gets laundered by output.
-	rows, err := tx.Query(r.Context(), "SELECT input_artifact_id,input_sha256,rights_grant_hash FROM artifact_inputs WHERE artifact_id=$1 ORDER BY input_artifact_id", art.id)
+	rows, err := tx.Query(r.Context(), "SELECT input_artifact_id,input_sha256,rights_grant_hash,grant_approval_ids FROM artifact_inputs WHERE artifact_id=$1 ORDER BY input_artifact_id", art.id)
 	if err != nil {
 		return 0, nil, err
 	}
-	type link struct{ id, sha, grant string }
+	type link struct {
+		id, sha, grant string
+		grantIDs       []string
+	}
 	links := []link{}
 	for rows.Next() {
 		var x link
-		if err = rows.Scan(&x.id, &x.sha, &x.grant); err != nil {
+		if err = rows.Scan(&x.id, &x.sha, &x.grant, &x.grantIDs); err != nil {
 			rows.Close()
 			return 0, nil, err
 		}
@@ -601,12 +636,24 @@ func (s *Service) publishArtifact(r *http.Request, tx pgx.Tx, a actor, p storedP
 		return 0, nil, err
 	}
 	for _, x := range links {
-		input, err := loadArtifact(r.Context(), tx, x.id, false)
+		input, err := loadLineageInput(r.Context(), tx, art.id, x.id)
 		if err != nil {
 			return 0, nil, err
 		}
-		if input.state != "published" || input.sha != x.sha || input.manifestHash != x.grant || input.license != art.license {
+		if input.sha != x.sha || input.license != art.license {
 			return 0, nil, fail(409, "input_rights_not_established")
+		}
+		grantHash := input.manifestHash
+		if x.grantIDs != nil {
+			grantHash, _, err = s.inputGrantEvidence(r.Context(), tx, a, input, t.id, "assembly", x.grantIDs)
+			if err != nil {
+				return 0, nil, err
+			}
+		} else if input.state != "published" {
+			return 0, nil, fail(409, "input_rights_not_established")
+		}
+		if grantHash != x.grant {
+			return 0, nil, fail(409, "input_grant_evidence_changed")
 		}
 		if _, err = s.artifactBytes(input); err != nil {
 			return 0, nil, err

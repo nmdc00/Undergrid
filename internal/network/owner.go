@@ -16,7 +16,7 @@ import (
 )
 
 func listOwnerAgents(ctx context.Context, tx pgx.Tx, principal string) (int, any, error) {
-	rows, err := tx.Query(ctx, `SELECT jsonb_build_object('id',a.id,'name',a.name,'status',a.status,'credentials',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',c.id,'scopes',c.scopes,'expires_at',c.expires_at,'revoked_at',c.revoked_at) ORDER BY c.created_at) FROM credentials c WHERE c.agent_id=a.id),'[]'::jsonb)) FROM agents a WHERE a.principal_id=$1 ORDER BY a.created_at`, principal)
+	rows, err := tx.Query(ctx, `SELECT jsonb_build_object('id',a.id,'name',a.name,'status',a.status,'version',a.version,'etag','"'||a.version||'"','key_control_verified',a.key_control_verified_at IS NOT NULL,'endpoint_control_verified',a.endpoint_control_verified_at IS NOT NULL,'credentials',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',c.id,'scopes',c.scopes,'generation',c.generation,'etag','"'||c.generation||'"','expires_at',c.expires_at,'revoked_at',c.revoked_at) ORDER BY c.created_at) FROM credentials c WHERE c.agent_id=a.id),'[]'::jsonb)) FROM agents a WHERE a.principal_id=$1 ORDER BY a.created_at`, principal)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -127,6 +127,15 @@ func (s *Service) ownerCommand(r *http.Request, tx pgx.Tx) (int, any, error) {
 	if r.URL.Path == "/v1/owner/intents" || strings.HasPrefix(r.URL.Path, "/v1/owner/intents/") {
 		return s.ownerIntents(r, tx, principal)
 	}
+	if id, action, ok := ownerAgentPath(r.URL.Path); ok {
+		return s.ownerAgentControl(r, tx, principal, id, action)
+	}
+	if id, ok := ownerRotationPath(r.URL.Path); ok {
+		if r.Method != "POST" {
+			return 0, nil, fail(405, "method_not_allowed")
+		}
+		return s.ownerRotation(r, tx, principal, id)
+	}
 	if r.Method == "GET" && r.URL.Path == "/v1/agents" {
 		return listOwnerAgents(ctx, tx, principal)
 	}
@@ -151,22 +160,8 @@ func (s *Service) ownerCommand(r *http.Request, tx pgx.Tx) (int, any, error) {
 	if len(input.Name) < 1 || len(input.Name) > 120 || len(input.Scopes) == 0 || len(input.Scopes) > 30 {
 		return 0, nil, fail(422, "invalid_agent")
 	}
-	for _, scope := range input.Scopes {
-		ordinary := []string{"intents:read", "intents:write", "inbox:read", "swarms:read", "swarms:create", "swarms:apply", "members:invite", "members:respond", "members:withdraw", "messages:write", "plans:propose", "tasks:progress", "artifacts:submit", "artifacts:read", "artifacts:accept", "artifacts:reuse"}
-		rightsScopes := []string{"plans:approve", "rights:accept", "tasks:accept", "publication:approve"}
-		if !slices.Contains(ordinary, scope) && !slices.Contains(rightsScopes, scope) {
-			return 0, nil, fail(403, "scope_not_authorized")
-		}
-		if slices.Contains(rightsScopes, scope) {
-			var raw []byte
-			var policy CoordinationPolicy
-			if err = tx.QueryRow(ctx, "SELECT policy FROM principals WHERE id=$1", principal).Scan(&raw); err != nil {
-				return 0, nil, err
-			}
-			if json.Unmarshal(raw, &policy) != nil || !policy.ExpiresAt.After(time.Now()) || len(policy.TemplateIDs) == 0 {
-				return 0, nil, fail(403, "owner_policy_required")
-			}
-		}
+	if err = s.validateAgentScopes(ctx, tx, principal, input.Scopes); err != nil {
+		return 0, nil, err
 	}
 	if err = admitPrincipalResource(ctx, tx, principal, "agents"); err != nil {
 		return 0, nil, err
@@ -193,4 +188,29 @@ func (s *Service) ownerCommand(r *http.Request, tx pgx.Tx) (int, any, error) {
 		err = enqueueRecruitment(ctx, tx, "")
 	}
 	return 201, map[string]any{"id": id, "principal_id": principal, "credential_id": credentialID, "token": token, "expires_in": 2592000}, err
+}
+
+func (s *Service) validateAgentScopes(ctx context.Context, tx pgx.Tx, principal string, scopes []string) error {
+	if len(scopes) == 0 || len(scopes) > 30 {
+		return fail(422, "invalid_scopes")
+	}
+	var err error
+	for _, scope := range scopes {
+		ordinary := []string{"intents:read", "intents:write", "inbox:read", "swarms:read", "swarms:create", "swarms:apply", "members:invite", "members:respond", "members:withdraw", "messages:write", "plans:propose", "tasks:progress", "artifacts:submit", "artifacts:read", "artifacts:accept", "artifacts:reuse"}
+		rightsScopes := []string{"plans:approve", "rights:accept", "tasks:accept", "publication:approve", "artifacts:grant"}
+		if !slices.Contains(ordinary, scope) && !slices.Contains(rightsScopes, scope) {
+			return fail(403, "scope_not_authorized")
+		}
+		if slices.Contains(rightsScopes, scope) {
+			var raw []byte
+			var policy CoordinationPolicy
+			if err = tx.QueryRow(ctx, "SELECT policy FROM principals WHERE id=$1", principal).Scan(&raw); err != nil {
+				return err
+			}
+			if json.Unmarshal(raw, &policy) != nil || !policy.ExpiresAt.After(time.Now()) || len(policy.TemplateIDs) == 0 {
+				return fail(403, "owner_policy_required")
+			}
+		}
+	}
+	return nil
 }

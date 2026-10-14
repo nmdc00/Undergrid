@@ -2,6 +2,7 @@ package network
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -9,6 +10,9 @@ import (
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 )
+
+const discoveryQueue = "intention_discovery"
+const discoveryRepairQueue = "intention_repair"
 
 type scanArgs struct {
 	CauseID string `json:"cause_id"`
@@ -22,7 +26,16 @@ type scanWorker struct {
 }
 
 func (w *scanWorker) Work(ctx context.Context, job *river.Job[scanArgs]) error {
-	if job.Args.CauseID != "repair" {
+	// Jobs committed before queue isolation retain their sweep and recruitment
+	// effects while the new queues keep matching independent of recruitment.
+	legacy := job.Queue == river.QueueDefault
+	if !legacy && job.Args.CauseID != "repair" && job.Args.CauseID != "refresh" {
+		if !validID(job.Args.CauseID) {
+			return errors.New("invalid committed intention ID")
+		}
+		return w.service.scanIntentions(ctx, job.Args.CauseID)
+	}
+	if job.Args.CauseID == "refresh" || (legacy && job.Args.CauseID != "repair") {
 		db, err := pgx.Connect(ctx, w.service.dsn)
 		if err != nil {
 			return err
@@ -38,14 +51,35 @@ func (w *scanWorker) Work(ctx context.Context, job *river.Job[scanArgs]) error {
 	if err := w.service.ScanDueIntentions(ctx); err != nil {
 		return err
 	}
-	return w.service.ScanRecruitment(ctx, "")
+	if legacy {
+		return w.service.ScanRecruitment(ctx, "")
+	}
+	return nil
 }
 func enqueueScan(ctx context.Context, tx pgx.Tx, cause string) error {
 	client, err := river.NewClient(riverpgxv5.New(nil), &river.Config{Schema: "undergrid_queue"})
 	if err != nil {
 		return err
 	}
-	_, err = client.InsertTx(ctx, tx, scanArgs{cause}, &river.InsertOpts{MaxAttempts: 10})
+	if _, err = client.InsertTx(ctx, tx, scanArgs{cause}, &river.InsertOpts{MaxAttempts: 10, Queue: discoveryQueue, Priority: 1}); err != nil {
+		return err
+	}
+	// At most one queued refresh follows a running sweep. Lock the queued row
+	// until the originating command commits, so a fetch cannot consume its
+	// wakeup before the new candidate is visible. Running or delayed/failed
+	// sweeps never absorb another command's immediate wakeup.
+	if _, err = tx.Exec(ctx, "SELECT pg_advisory_xact_lock(74932523)"); err != nil {
+		return err
+	}
+	var queued int64
+	err = tx.QueryRow(ctx, `SELECT id FROM undergrid_queue.river_job WHERE kind='intention_scan_v1' AND queue=$1 AND args->>'cause_id'='refresh' AND state='available' ORDER BY id LIMIT 1 FOR UPDATE`, discoveryRepairQueue).Scan(&queued)
+	if err == nil {
+		return nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return err
+	}
+	_, err = client.InsertTx(ctx, tx, scanArgs{"refresh"}, &river.InsertOpts{MaxAttempts: 10, Queue: discoveryRepairQueue, Priority: 4})
 	return err
 }
 func RunWorker(ctx context.Context, dsn, environment string) error {
@@ -53,9 +87,9 @@ func RunWorker(ctx context.Context, dsn, environment string) error {
 	if err != nil {
 		return err
 	}
-	// Four queue fetchers, completion and periodic/leader maintenance must
+	// Six queue fetchers, completion and periodic/leader maintenance must
 	// retain pool capacity even while another queue has a backlog.
-	config.MaxConns = 10
+	config.MaxConns = 14
 	config.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
 		_, err := conn.Exec(ctx, "SET ROLE undergrid_worker")
 		return err
@@ -72,12 +106,15 @@ func RunWorker(ctx context.Context, dsn, environment string) error {
 	}
 	river.AddWorker(workers, &deadlineWorker{service: service})
 	river.AddWorker(workers, &artifactEvaluationWorker{service: service})
+	river.AddWorker(workers, &inputGrantDeliveryWorker{dsn: dsn})
 	river.AddWorker(workers, &scanWorker{service: service})
 	river.AddWorker(workers, &fanoutWorker{dsn: dsn})
 	river.AddWorker(workers, &recruitWorker{service: New(dsn, environment, nil)})
-	client, err := river.NewClient(riverpgxv5.New(pool), &river.Config{Schema: "undergrid_queue", SoftStopTimeout: 5 * time.Second, Workers: workers, Queues: map[string]river.QueueConfig{river.QueueDefault: {MaxWorkers: 2}, "artifact_verification": {MaxWorkers: 2}, "coordination": {MaxWorkers: 2}, "coordination_deadlines": {MaxWorkers: 2}}, PeriodicJobs: []*river.PeriodicJob{river.NewPeriodicJob(river.PeriodicInterval(time.Minute), func() (river.JobArgs, *river.InsertOpts) {
+	client, err := river.NewClient(riverpgxv5.New(pool), &river.Config{Schema: "undergrid_queue", SoftStopTimeout: 5 * time.Second, Workers: workers, Queues: map[string]river.QueueConfig{river.QueueDefault: {MaxWorkers: 2}, "artifact_verification": {MaxWorkers: 2}, "coordination": {MaxWorkers: 2}, "coordination_deadlines": {MaxWorkers: 2}, discoveryQueue: {MaxWorkers: 2}, discoveryRepairQueue: {MaxWorkers: 1}}, PeriodicJobs: []*river.PeriodicJob{river.NewPeriodicJob(river.PeriodicInterval(time.Minute), func() (river.JobArgs, *river.InsertOpts) {
 		return deadlineArgs{}, &river.InsertOpts{MaxAttempts: 10, Queue: "coordination_deadlines", Priority: 1}
-	}, &river.PeriodicJobOpts{RunOnStart: true}), river.NewPeriodicJob(river.PeriodicInterval(15*time.Minute), func() (river.JobArgs, *river.InsertOpts) { return scanArgs{"repair"}, nil }, &river.PeriodicJobOpts{RunOnStart: true})}})
+	}, &river.PeriodicJobOpts{RunOnStart: true}), river.NewPeriodicJob(river.PeriodicInterval(15*time.Minute), func() (river.JobArgs, *river.InsertOpts) {
+		return scanArgs{"repair"}, &river.InsertOpts{Queue: discoveryRepairQueue, Priority: 4}
+	}, &river.PeriodicJobOpts{RunOnStart: true}), river.NewPeriodicJob(river.PeriodicInterval(15*time.Minute), func() (river.JobArgs, *river.InsertOpts) { return recruitArgs{}, nil }, &river.PeriodicJobOpts{RunOnStart: true})}})
 	if err != nil {
 		return err
 	}

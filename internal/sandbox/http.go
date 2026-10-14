@@ -167,7 +167,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			fail(ErrInvalid)
 			return
 		}
-		sub, err := h.store.CreateSubscription(r.Context(), o, cmd.SubscriptionConsent, q)
+		sub, err := h.store.CreateSubscription(r.Context(), o, r.Header.Get("Idempotency-Key"), cmd.SubscriptionConsent, q)
 		if err != nil {
 			fail(err)
 			return

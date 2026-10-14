@@ -63,6 +63,9 @@ func TestBrowserOwnerDomainCSRFAndIsolation(t *testing.T) {
 	if err = service.Configure(bytes.Repeat([]byte{6}, 32), "fixture-approved-terms"); err != nil {
 		t.Fatal(err)
 	}
+	if err = service.ConfigureCredentialIssuance("browser-fixture-key", bytes.Repeat([]byte{10}, 32)); err != nil {
+		t.Fatal(err)
+	}
 	cookie := func(subject string) *http.Cookie {
 		w := httptest.NewRecorder()
 		if err = sessions.writeCookie(w, ownerCookie, session{Issuer: "https://fixture.identity", Subject: subject, CSRF: "fixture-csrf", Expires: time.Now().Add(time.Minute).Unix()}, 60); err != nil {
@@ -77,6 +80,8 @@ func TestBrowserOwnerDomainCSRFAndIsolation(t *testing.T) {
 		r.AddCookie(c)
 		r.Header.Set("Origin", origin)
 		r.Header.Set("X-CSRF-Token", csrf)
+		r.Header.Set("Idempotency-Key", method+path)
+		r.Header.Set("If-Match", `"1"`)
 		w := httptest.NewRecorder()
 		service.ServeHTTP(w, r)
 		var out map[string]any
@@ -101,6 +106,28 @@ func TestBrowserOwnerDomainCSRFAndIsolation(t *testing.T) {
 		t.Fatal(code, out)
 	}
 	credential := out["credential_id"].(string)
+	rotationPath := "/v1/owner/credentials/" + credential + "/rotate"
+	rotation := map[string]any{"scopes": []string{"intents:read"}}
+	for _, attack := range [][2]string{{"https://attacker.test", "fixture-csrf"}, {"https://undergrid.test", ""}} {
+		code, _ := call(a, "POST", rotationPath, attack[0], attack[1], rotation)
+		if code != 401 {
+			t.Fatalf("rotation CSRF bypass %d", code)
+		}
+	}
+	code, _ = call(b, "POST", rotationPath, "https://undergrid.test", "fixture-csrf", rotation)
+	if code != 404 {
+		t.Fatalf("foreign rotation %d", code)
+	}
+	code, rotated := call(a, "POST", rotationPath, "https://undergrid.test", "fixture-csrf", rotation)
+	if code != 201 {
+		t.Fatal(code, rotated)
+	}
+	code, replayed := call(a, "POST", rotationPath, "https://undergrid.test", "fixture-csrf", rotation)
+	if code != 201 || replayed["token"] != rotated["token"] {
+		t.Fatal("browser rotation replay", code, replayed)
+	}
+	credential = rotated["credential_id"].(string)
+
 	code, list := call(b, "GET", "/v1/agents", "", "", nil)
 	if code != 200 || len(list["items"].([]any)) != 0 {
 		t.Fatal("owner isolation", code, list)

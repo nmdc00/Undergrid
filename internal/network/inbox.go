@@ -98,7 +98,11 @@ func (s *Service) inboxCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, e
 		if err != nil {
 			return 0, nil, err
 		}
-		return 200, map[string]any{"assignments": assignments, "snapshot_id": NewID(), "inbox_cursor": s.encodeCursor(a.AgentID, sequence, time.Now()), "pending": pending, "intent_watches": watches, "swarm_refs": refs}, nil
+		grants, err := s.inputGrantSnapshot(ctx, tx, a)
+		if err != nil {
+			return 0, nil, err
+		}
+		return 200, map[string]any{"input_grants": grants, "assignments": assignments, "snapshot_id": NewID(), "inbox_cursor": s.encodeCursor(a.AgentID, sequence, time.Now()), "pending": pending, "intent_watches": watches, "swarm_refs": refs}, nil
 	}
 	if r.Method == "POST" && strings.HasSuffix(r.URL.Path, "/ack") {
 		id := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/v1/inbox/"), "/ack")
@@ -136,7 +140,8 @@ func (s *Service) inboxCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, e
 		}
 	}
 	rows, err := tx.Query(ctx, `SELECT i.sequence,i.event_id,e.type,i.resource_path,
-CASE WHEN e.facts->>'swarm_id' IS NULL THEN true
+CASE WHEN e.type='artifact.input_grant_created' THEN EXISTS(SELECT 1 FROM approvals g WHERE g.id=e.aggregate_id AND g.grant_recipient_agent_id=$1 AND g.grant_state='active' AND g.grant_expires_at>clock_timestamp() AND has_scoped_input_read(g.artifact_id))
+WHEN e.facts->>'swarm_id' IS NULL THEN true
 WHEN e.type='membership.offered' THEN EXISTS(SELECT 1 FROM memberships m WHERE m.id=e.aggregate_id AND m.agent_id=$1 AND m.state='offered' AND m.respond_by>now())
 WHEN e.facts ? 'audience_principal_ids' THEN swarm_member((e.facts->>'swarm_id')::uuid)
  AND actor_principal()::text IN (SELECT jsonb_array_elements_text(e.facts->'audience_principal_ids'))
