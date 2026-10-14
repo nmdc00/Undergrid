@@ -4,9 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"golang.org/x/oauth2"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -52,6 +56,9 @@ func mcpSDKClient(t *testing.T, s *Service, token string) *mcp.ClientSession {
 	session, err := client.Connect(context.Background(), &mcp.StreamableClientTransport{Endpoint: server.URL + "/mcp", HTTPClient: &http.Client{Transport: mcpBearerTransport{token}}, MaxRetries: -1}, nil)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if session.InitializeResult().ProtocolVersion != "2026-07-28" {
+		t.Fatalf("unexpected negotiated protocol %s", session.InitializeResult().ProtocolVersion)
 	}
 	t.Cleanup(func() { session.Close() })
 	return session
@@ -150,8 +157,8 @@ func TestMCPOAuthCurrentScopeAndRevocation(t *testing.T) {
 	narrow := as.token(t, "mcp-subject", "mcp-client", "intents:read", time.Now().Add(time.Hour), "at+jwt", as.resource)
 	peer := mcpSDKClient(t, s, narrow)
 	result, err := peer.CallTool(context.Background(), &mcp.CallToolParams{Name: "intention_create", Arguments: map[string]any{"body": intentFixture(), "idempotency_key": "mcp-narrow"}})
-	if err != nil || !result.IsError {
-		t.Fatalf("narrow token wrote: %v %+v", err, result)
+	if err == nil {
+		t.Fatalf("narrow token did not receive HTTP authorization failure: %+v", result)
 	}
 	var count int
 	if err = db.QueryRow(context.Background(), "SELECT count(*) FROM undergrid.intents WHERE agent_id=$1", agent).Scan(&count); err != nil || count != 0 {
@@ -243,5 +250,130 @@ func TestMCPInsufficientScopeReturnsHTTPChallenge(t *testing.T) {
 	challenge := w.Header().Get("WWW-Authenticate")
 	if w.Code != 403 || !strings.Contains(challenge, `error="insufficient_scope"`) || !strings.Contains(challenge, `scope="intents:write"`) || !strings.Contains(challenge, "resource_metadata=") {
 		t.Fatalf("scope challenge: %d %v %s", w.Code, w.Header(), w.Body.String())
+	}
+}
+
+// The ordinary SDK owns retry/step-up. This fixture supplies already-issued
+// signed access tokens; it does not claim AS onboarding or consent UI proof.
+type mcpStepUpHandler struct {
+	mu            sync.Mutex
+	current, full string
+	calls         int
+	challenge     string
+}
+
+func (h *mcpStepUpHandler) TokenSource(context.Context) (oauth2.TokenSource, error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return oauth2.StaticTokenSource(&oauth2.Token{AccessToken: h.current, TokenType: "Bearer"}), nil
+}
+func (h *mcpStepUpHandler) Authorize(_ context.Context, _ *http.Request, response *http.Response) error {
+	defer response.Body.Close()
+	io.Copy(io.Discard, response.Body)
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.calls++
+	h.challenge = response.Header.Get("WWW-Authenticate")
+	if response.StatusCode != 403 || !strings.Contains(h.challenge, `error="insufficient_scope"`) || !strings.Contains(h.challenge, `scope="intents:write"`) {
+		return fmt.Errorf("unexpected step-up challenge %d %s", response.StatusCode, h.challenge)
+	}
+	h.current = h.full
+	return nil
+}
+func TestMCPStandardSDKRetriesOnlyAfterDomainScopeChallenge(t *testing.T) {
+	s, db := fixture(t)
+	a := client(t, s)
+	as := newTestOAuthAS(t)
+	as.configure(t, s)
+	_, me := a.call("GET", "/v1/me", "", nil)
+	agent := me["agent_id"].(string)
+	full := as.token(t, "mcp-step-subject", "mcp-step-client", "intents:read intents:write", time.Now().Add(time.Hour), "at+jwt", as.resource)
+	code, _, _ := oauthCall(t, s, a.owner, full, "POST", "/v1/owner/agents/"+agent+"/oauth-bindings", "step-bind", "", map[string]any{"scopes": []string{"intents:read", "intents:write"}})
+	if code != 201 {
+		t.Fatal(code)
+	}
+	if err := s.ConfigureMCP("https://undergrid.fixture.test"); err != nil {
+		t.Fatal(err)
+	}
+	narrow := as.token(t, "mcp-step-subject", "mcp-step-client", "intents:read", time.Now().Add(time.Hour), "at+jwt", as.resource)
+	handler := &mcpStepUpHandler{current: narrow, full: full}
+	httpServer := httptest.NewServer(s)
+	defer httpServer.Close()
+	peer, err := mcp.NewClient(&mcp.Implementation{Name: "ordinary-step-up-client", Version: "1"}, nil).Connect(context.Background(), &mcp.StreamableClientTransport{Endpoint: httpServer.URL + "/mcp", OAuthHandler: handler, MaxRetries: -1}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer peer.Close()
+	result, err := peer.CallTool(context.Background(), &mcp.CallToolParams{Name: "intention_create", Arguments: map[string]any{"body": intentFixture(), "idempotency_key": "sdk-step-retry"}})
+	if err != nil || result.IsError {
+		t.Fatalf("step-up retry: %v %+v", err, result)
+	}
+	id := mcpToolData(t, result)["id"].(string)
+	handler.mu.Lock()
+	calls := handler.calls
+	handler.mu.Unlock()
+	if calls != 1 {
+		t.Fatalf("unexpected authorization loops %d", calls)
+	}
+	var events, jobs int
+	if err = db.QueryRow(context.Background(), "SELECT count(*) FROM undergrid.events WHERE aggregate_id=$1 AND type='intent.created'", id).Scan(&events); err != nil {
+		t.Fatal(err)
+	}
+	if err = db.QueryRow(context.Background(), "SELECT count(*) FROM undergrid_queue.river_job WHERE kind='intention_scan_v1' AND args->>'cause_id'=$1", id).Scan(&jobs); err != nil {
+		t.Fatal(err)
+	}
+	if events != 1 || jobs != 1 {
+		t.Fatalf("step-up duplicated domain effects events=%d jobs=%d", events, jobs)
+	}
+}
+
+func TestMCPFullTokenCannotStepUpNarrowLocalBinding(t *testing.T) {
+	s, db := fixture(t)
+	a := client(t, s)
+	as := newTestOAuthAS(t)
+	as.configure(t, s)
+	_, me := a.call("GET", "/v1/me", "", nil)
+	agent := me["agent_id"].(string)
+	full := as.token(t, "mcp-local-subject", "mcp-local-client", "intents:read intents:write", time.Now().Add(time.Hour), "at+jwt", as.resource)
+	code, _, _ := oauthCall(t, s, a.owner, full, "POST", "/v1/owner/agents/"+agent+"/oauth-bindings", "local-narrow-bind", "", map[string]any{"scopes": []string{"intents:read"}})
+	if code != 201 {
+		t.Fatal(code)
+	}
+	if err := s.ConfigureMCP("https://undergrid.fixture.test"); err != nil {
+		t.Fatal(err)
+	}
+	handler := &mcpStepUpHandler{current: full, full: full}
+	httpServer := httptest.NewServer(s)
+	defer httpServer.Close()
+	peer, err := mcp.NewClient(&mcp.Implementation{Name: "local-binding-client", Version: "1"}, nil).Connect(context.Background(), &mcp.StreamableClientTransport{Endpoint: httpServer.URL + "/mcp", OAuthHandler: handler, MaxRetries: -1}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer peer.Close()
+	result, err := peer.CallTool(context.Background(), &mcp.CallToolParams{Name: "intention_create", Arguments: map[string]any{"body": intentFixture(), "idempotency_key": "local-cannot-step"}})
+	if err != nil || !result.IsError {
+		t.Fatalf("local grant authority widened %v %+v", err, result)
+	}
+	handler.mu.Lock()
+	calls := handler.calls
+	handler.mu.Unlock()
+	if calls != 0 {
+		t.Fatalf("offered false OAuth fix for local authority %d", calls)
+	}
+	raw := httptest.NewRequest("POST", "/mcp", bytes.NewReader(mcpWireBody("tools/call", "2026-07-28", map[string]any{"name": "intention_create", "arguments": map[string]any{"body": intentFixture(), "idempotency_key": "raw-local-deny"}})))
+	raw.Header.Set("Authorization", "Bearer "+full)
+	raw.Header.Set("Content-Type", "application/json")
+	raw.Header.Set("Accept", "application/json, text/event-stream")
+	raw.Header.Set("Mcp-Method", "tools/call")
+	raw.Header.Set("Mcp-Name", "intention_create")
+	raw.Header.Set("Mcp-Protocol-Version", "2026-07-28")
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, raw)
+	if w.Code != 200 || w.Header().Get("WWW-Authenticate") != "" || !strings.Contains(w.Body.String(), `"isError":true`) {
+		t.Fatalf("false raw step-up %d %v %s", w.Code, w.Header(), w.Body.String())
+	}
+	var count int
+	if err = db.QueryRow(context.Background(), "SELECT count(*) FROM undergrid.intents WHERE agent_id=$1", agent).Scan(&count); err != nil || count != 0 {
+		t.Fatalf("local denial side effect %d %v", count, err)
 	}
 }

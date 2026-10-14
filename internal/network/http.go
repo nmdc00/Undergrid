@@ -311,6 +311,7 @@ func authenticate(ctx context.Context, tx pgx.Tx, authorization, method, path st
 		return a, err
 	}
 	if claims, ok := ctx.Value(oauthResourceContextKey).(verifiedOAuth); ok && !strings.HasPrefix(token, "ug_") {
+		a.grantedScopes = append([]string(nil), a.Scopes...)
 		a.Scopes = scopeIntersection(a.Scopes, claims.Scopes)
 	}
 	return a, nil
@@ -368,7 +369,7 @@ func (s *Service) agentCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, e
 	}
 	if r.Method == "GET" && strings.HasPrefix(r.URL.Path, "/v1/invitations/") {
 		if !slices.Contains(a.Scopes, "swarms:read") {
-			return 0, nil, fail(403, "insufficient_scope")
+			return 0, nil, insufficientScope(a, "swarms:read")
 		}
 		return invitationPacket(r, tx, a)
 	}
@@ -377,13 +378,13 @@ func (s *Service) agentCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, e
 	}
 	if r.Method == "GET" && (r.URL.Path == "/v1/opportunities" || strings.HasPrefix(r.URL.Path, "/v1/opportunities/") || (strings.HasPrefix(r.URL.Path, "/v1/intents/") && strings.HasSuffix(r.URL.Path, "/opportunities"))) {
 		if !slices.Contains(a.Scopes, "intents:read") {
-			return 0, nil, fail(403, "insufficient_scope")
+			return 0, nil, insufficientScope(a, "intents:read")
 		}
 		return listOpportunities(r, tx, a)
 	}
 	if r.URL.Path == "/v1/inbox" || r.URL.Path == "/v1/agent-context" || strings.HasPrefix(r.URL.Path, "/v1/inbox/") {
 		if !slices.Contains(a.Scopes, "inbox:read") {
-			return 0, nil, fail(403, "insufficient_scope")
+			return 0, nil, insufficientScope(a, "inbox:read")
 		}
 		return s.inboxCommand(r, tx, a)
 	}
@@ -399,13 +400,13 @@ func (s *Service) agentCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, e
 	}
 	if r.Method == "GET" && strings.HasPrefix(r.URL.Path, "/v1/intents/") {
 		if !slices.Contains(a.Scopes, "intents:read") {
-			return 0, nil, fail(403, "insufficient_scope")
+			return 0, nil, insufficientScope(a, "intents:read")
 		}
 		return getIntent(r.Context(), tx, a, strings.TrimPrefix(r.URL.Path, "/v1/intents/"))
 	}
 	if (r.Method == "POST" && r.URL.Path == "/v1/intents") || (r.Method == "PATCH" && strings.HasPrefix(r.URL.Path, "/v1/intents/")) {
 		if !slices.Contains(a.Scopes, "intents:write") {
-			return 0, nil, fail(403, "insufficient_scope")
+			return 0, nil, insufficientScope(a, "intents:write")
 		}
 		return mutateIntent(r, tx, a, s.environment)
 	}

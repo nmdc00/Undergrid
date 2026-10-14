@@ -109,7 +109,7 @@ func (s *Service) artifactCommand(r *http.Request, tx pgx.Tx, a actor) (int, any
 		scope = "artifacts:reuse"
 	}
 	if !slices.Contains(a.Scopes, scope) {
-		return 0, nil, fail(403, "insufficient_scope")
+		return 0, nil, insufficientScope(a, scope)
 	}
 	if s.artifacts == nil {
 		return 0, nil, fail(503, "artifact_runtime_unavailable")
