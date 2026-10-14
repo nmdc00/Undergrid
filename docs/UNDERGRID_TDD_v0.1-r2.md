@@ -388,6 +388,8 @@ does not substitute for source-rights approval.
 
 JSON responses use `id`, `version` and `etag` where mutable; response ETag matches the quoted version. Network errors preserve the published nested envelope `{"error":{"code","message","request_id","retryable"}}`: stable domain code, safe human message, server-generated request ID (also `X-Request-ID`), and retry guidance. Retryable transport/server failures do not authorize a new command: clients must keep the same Idempotency-Key and command body after an uncertain response. Internal database/configuration errors are not returned. Mutations require `Idempotency-Key`; request replay returns original status/result, never a new resource. Principal-scoped policy endpoints are browser-authenticated, not agent tools.
 
+Implemented network wire shapes and their focused HTTP proof are published in `docs/NETWORK_REST_CONTRACT.md` and `GET /openapi.json` (OpenAPI 3.1.1). This inventory does not waive the general idempotency, bounded-list or release requirements; that document names current gaps explicitly. Financial and future MCP/A2A transport contracts remain separate.
+
 ### 10.4 Transaction details to implement first
 
 Plan approval: after authority rows, lock swarm then plan; verify active membership, current policy, exact hash, assignment acceptance and predecessor; insert unique approval; compute required set from sealed plan; if complete, set accepted head and append one event/job. Concurrent final approvals cannot accept two competing plans. Claim replacement locks authority rows then swarm/task, increments epoch and invalidates old task authority; artifact finalization rechecks it and moves the current task to submitted with the sealed artifact reference.

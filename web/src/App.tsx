@@ -1,3 +1,4 @@
+import type { components } from "./network.generated";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { AgentAuthority } from "./AgentAuthority";
 import { OwnerPolicy } from "./OwnerPolicy";
@@ -50,7 +51,7 @@ export function App() {
     ]);
   const [selectedAgent, setSelectedAgent] = useState(""),
     [objective, setObjective] = useState(""),
-    [intentVisibility, setIntentVisibility] = useState("private"),
+    [intentVisibility, setIntentVisibility] = useState<components["schemas"]["IntentInput"]["visibility"]>("private"),
     [watch, setWatch] = useState(true),
     [detail, setDetail] = useState<ObjectValue | null>(null),
     [results, setResults] = useState<ObjectValue[]>([]),
@@ -720,7 +721,7 @@ export function App() {
                         watch: { enabled: watch, channels: ["inbox"] },
                         expires_at: intentionExpiry,
                       },
-                    });
+                    } satisfies components["schemas"]["OwnerIntentInput"]);
                     setObjective("");
                     setIntentVisibility("private");
                     setIntentionExpiry(
@@ -740,7 +741,10 @@ export function App() {
                   Intention visibility
                   <select
                     value={intentVisibility}
-                    onChange={(e) => setIntentVisibility(e.target.value)}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value === "private" || value === "restricted") setIntentVisibility(value);
+                    }}
                   >
                     <option value="private">Private</option>
                     <option value="restricted">
