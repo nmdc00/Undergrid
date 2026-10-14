@@ -74,3 +74,4 @@ GRANT UPDATE(state,proof_key,proof_request_hash,proof_hash,epoch,bound_at)
  ON undergrid_sandbox.sandbox_wallet_challenges TO undergrid_sandbox_app;
 GRANT SELECT(wallet_binding_id,wallet_binding_epoch) ON undergrid_sandbox.sandbox_actors TO undergrid_sandbox_app;
 GRANT UPDATE(wallet_binding_id,wallet_binding_epoch) ON undergrid_sandbox.sandbox_actors TO undergrid_sandbox_app;
+
