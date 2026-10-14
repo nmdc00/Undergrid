@@ -37,7 +37,7 @@ GOCACHE=/tmp/undergrid-gocache GOMODCACHE=/tmp/undergrid-gomod \
 -run '^TestTaskProgress(HeartbeatDoesNotExtendDeadline|EvidenceReviewLifecycle)$|^TestArtifactPublicationLifecycleThroughHTTPAndExecutableWorker$' -count=1
 ```
 
-Result: focused progress heartbeat/evidence plus ordinary output publication passed on the isolated fixture; the progress lifecycle passed under `go test -race`. `go vet ./...`, `go build ./...`, and `git diff --check` passed. Port 55450's pre-existing data was preserved; the isolated test cluster is owned at port 55454. The broad `go test ./internal/network` and full race package gate remain pending the separately tracked durable-worker opportunity timeout; the parent is fixing queue fairness, and this feature does not weaken or mask that failure. The timeout was independently reproduced on clean and loaded fixtures. No provider qualification is claimed.
+Result at the time of this run: focused progress heartbeat/evidence plus ordinary output publication passed on the isolated fixture; the progress lifecycle passed under `go test -race`. `go vet ./...`, `go build ./...`, and `git diff --check` passed. Port 55450's pre-existing data was preserved; the isolated test cluster is owned at port 55454. The broad network race was then blocked by the durable-worker opportunity timeout, which had been independently reproduced on clean and loaded fixtures. That timeout was subsequently corrected through discovery-fairness PR #26 and follow-up recovery changes in PRs #29 and #30; the current blocker is not being reported as open. No provider qualification is claimed.
 
 ## Combined grants/progress migration and runtime check
 
@@ -45,7 +45,7 @@ After private-artifact-grant migration 015 was integrated ahead of progress migr
 
 The combined runtime persisted three private-input lineage edges, each with pinned grant approval IDs; one progress artifact with its reviewer in the recorded audience; 45 grant approvals; and two progress reviews. The audience-restrictive artifact policy and scoped-input-read policy coexist. The approval-purpose check includes both grant purposes and `progress`, and the approval-subject check preserves both grant subjects while adding the progress subject. API and worker test login roles were `NOSUPERUSER NOBYPASSRLS`; the `undergrid_app` and `undergrid_worker` roles are non-login roles without superuser or RLS-bypass privileges. `go vet ./...`, `go build ./...`, and `git diff --check` passed on the same combined branch.
 
-This is focused combined-migration and lifecycle evidence only. The full network suite remains pending its separately tracked run; required cgroup-isolation qualification, production storage/provider qualification, and production lifecycle qualification are not established by this test.
+This is focused combined-migration and lifecycle evidence only. Subsequent to that run, the full network race suite on the integrated release 014+015 state passed in 583.538 seconds (74.1%); this does not qualify migration 016 in the full suite. The progress-specific 016 code has focused race-enabled HTTP/PostgreSQL evidence above, but the full release 016 network race and combined release gates remain outstanding. Required cgroup-isolation qualification, production storage/provider qualification, and production lifecycle qualification are not established by these tests.
 
 ## Progress artifact input-grant audience boundary
 
