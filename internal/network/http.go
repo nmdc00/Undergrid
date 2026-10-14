@@ -95,6 +95,13 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.writeProblem(w, err)
 		return
 	}
+	// The response owns its validator, including an original idempotent replay.
+	// Lists, compound snapshots and errors do not acquire guessed validators.
+	if resource, ok := result.(map[string]any); ok {
+		if tag, ok := resource["etag"].(string); ok {
+			w.Header().Set("ETag", tag)
+		}
+	}
 	w.WriteHeader(status)
 	if content, ok := result.(artifactContent); ok {
 		_, _ = w.Write(content)
