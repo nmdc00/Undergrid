@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"net/http"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -211,20 +212,26 @@ func TestUSDCQuoteSignedSnapshotAndRebinding(t *testing.T) {
 	if _, e = rotated.Authorize(context.Background(), f.token, historical.ID, historical.Hash, "historical-auth"); e != nil {
 		t.Fatalf("historical configured key rejected: %v", e)
 	}
-	// Actual application role constraints must reject NULL signatures without
-	// relying on HTTP validation. Existing quote rows stay immutable.
-	err = f.store.transaction(context.Background(), "undergrid_sandbox_app", func(tx pgx.Tx) error {
-		a, e := agentContext(context.Background(), tx, f.token, "payments:quote")
-		if e != nil {
+
+	// Exercise every nullable USDC shape component under the real app role.
+	columns := []string{"wallet_binding_id", "wallet_binding_epoch", "signed_quote_payload", "signed_quote_signature", "signed_quote_key_id"}
+	for nullIndex, column := range columns {
+		expressions := append([]string(nil), columns...)
+		expressions[nullIndex] = "NULL"
+		err = f.store.transaction(context.Background(), "undergrid_sandbox_app", func(tx pgx.Tx) error {
+			a, e := agentContext(context.Background(), tx, f.token, "payments:quote")
+			if e != nil {
+				return e
+			}
+			_, e = tx.Exec(context.Background(), `INSERT INTO sandbox_payments(id,actor_id,credential_id,quote,quote_hash,asset,amount,fee,provider_key,wallet_binding_id,wallet_binding_epoch,signed_quote_payload,signed_quote_signature,signed_quote_key_id) SELECT $1,actor_id,credential_id,quote,quote_hash,asset,amount,fee,$2,`+strings.Join(expressions, ",")+` FROM sandbox_payments WHERE id=$3 AND actor_id=$4`, randomID(), randomID(), p.ID, a.actor)
 			return e
+		})
+		var pgerr *pgconn.PgError
+		if !errors.As(err, &pgerr) || pgerr.Code != "23514" {
+			t.Fatalf("NULL %s accepted or wrong error: %v", column, err)
 		}
-		_, e = tx.Exec(context.Background(), `INSERT INTO sandbox_payments(id,actor_id,credential_id,quote,quote_hash,asset,amount,fee,provider_key,wallet_binding_id,wallet_binding_epoch,signed_quote_payload,signed_quote_signature,signed_quote_key_id) SELECT $1,actor_id,credential_id,quote,quote_hash,asset,amount,fee,$2,wallet_binding_id,wallet_binding_epoch,signed_quote_payload,NULL,signed_quote_key_id FROM sandbox_payments WHERE id=$3 AND actor_id=$4`, randomID(), randomID(), p.ID, a.actor)
-		return e
-	})
-	var pgerr *pgconn.PgError
-	if !errors.As(err, &pgerr) || pgerr.Code != "23514" {
-		t.Fatalf("NULL signature accepted or wrong error: %v", err)
 	}
+
 }
 
 func TestUSDCSigningConfigurationRequiresExplicitMatchingKeys(t *testing.T) {
