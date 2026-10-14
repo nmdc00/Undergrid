@@ -19,6 +19,8 @@ import (
 
 type OwnerAuthenticator func(*http.Request) (Owner, error)
 type Service struct {
+	mcpHandler         http.Handler
+	mcpOrigin          string
 	dsn, environment   string
 	ownerAuth          OwnerAuthenticator
 	cursorKey          []byte
@@ -91,6 +93,10 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
+	if r.URL.Path == "/mcp" {
+		s.serveMCP(w, r)
+		return
+	}
 	if r.URL.Path == "/health/live" && r.Method == "GET" {
 		w.Write([]byte(`{"status":"alive"}`))
 		return

@@ -150,7 +150,11 @@ func run() error {
 			return err
 		}
 	}
+	if err = service.ConfigureMCP(origin); err != nil {
+		return err
+	}
 	mux := http.NewServeMux()
+	mux.Handle("/mcp", service)
 	mux.HandleFunc("/auth/login", login.Start)
 	mux.HandleFunc("/auth/callback", login.Callback)
 	mux.HandleFunc("/auth/session", sessions.Session)
