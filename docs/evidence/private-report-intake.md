@@ -35,3 +35,11 @@ git diff --check                              PASS
 ```
 
 After the test-only hardening, `git diff --check` passed again. `go vet` and `go build` were not repeated because no implementation code changed.
+
+## Owner-17 integration proof
+
+After merging the owner-agent issuance recovery feature, a separate fresh UTF8 PostgreSQL 16.11 fixture on port 55477 ran the focused report and owner-lifecycle race suite against the integrated source. It passed in 31.331 seconds. The suite included private receipt and scope behavior, the principal-scoped final-slot race, protected `artifacts:grant` issuance policy, owner creation response-loss recovery, missing-key rollback, replay-window/key-ID fail-closed behavior, and same-key concurrency.
+
+The fixture's application migration ledger contains `001` through `017`, then `019_private_report_intake.sql`, plus `river-0.49.0-ready`. Migration `018` is not present on this integration branch, so this proves the actual available ordered migration set, not a contiguous `001`–`019` chain. The earlier port-55462 fixture and its report counts remain historical evidence for the original feature branch; no fixture was reset to produce this integration result.
+
+The final integrated validation ran `go vet ./...`, `go build ./...`, and `git diff --check origin/release/v0.1...HEAD`; all passed. The protected wallet migration `008_wallet_control.sql` matches the release blob byte-for-byte (SHA-256 `5fe8b8871772fa9d0a99ccd4ae61c4ca2187b5ddf8ab1e2a0acb207695f0cfe4`).
