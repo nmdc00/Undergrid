@@ -163,6 +163,8 @@ func TestStripeCheckoutClaimCommitsBeforeIOAndUnknownNeverResubmits(t *testing.T
 				return
 			}
 			json.NewEncoder(w).Encode(map[string]any{"object": "list", "has_more": false, "data": []any{session}})
+		case "/v1/checkout/sessions/" + sessionID:
+			json.NewEncoder(w).Encode(session)
 		default:
 			t.Errorf("unexpected provider path %s", r.URL.Path)
 			w.WriteHeader(404)
@@ -345,7 +347,7 @@ func TestStripeRefundDispatchKeepsIndependentUnknownAuthority(t *testing.T) {
 	}
 }
 
-func TestStripeVerifiedCanceledIntentReleasesOnlyUnsettledReservation(t *testing.T) {
+func TestStripeCanceledIntentCannotReleaseUnboundReservation(t *testing.T) {
 	s, db, owner, token, old, _ := refundFixture(t)
 	ctx := context.Background()
 	accountID := "acct_" + randomID()
@@ -386,12 +388,12 @@ func TestStripeVerifiedCanceledIntentReleasesOnlyUnsettledReservation(t *testing
 	if err = service.VerifyAccount(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if err = service.reconcileEvent(ctx, stripeInboxEvent{ID: "evt_" + randomID(), Type: "payment_intent.canceled", ObjectID: intentID}); err != nil {
-		t.Fatal(err)
+	if err = service.reconcileEvent(ctx, stripeInboxEvent{ID: "evt_" + randomID(), Type: "payment_intent.canceled", ObjectID: intentID}); !errors.Is(err, ErrConflict) {
+		t.Fatalf("unbound canceled intent accepted: %v", err)
 	}
 	got, err := s.GetPayment(ctx, token, p.ID)
-	if err != nil || got.State != "failed" {
-		t.Fatalf("verified cancellation did not terminate reservation: %+v %v", got, err)
+	if err != nil || got.State != "authorized" {
+		t.Fatalf("unbound cancellation changed reservation: %+v %v", got, err)
 	}
 	var effects int
 	if err = db.QueryRow(ctx, "SELECT count(*) FROM undergrid_sandbox.sandbox_effects WHERE payment_id=$1", p.ID).Scan(&effects); err != nil || effects != 0 {

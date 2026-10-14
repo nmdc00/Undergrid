@@ -37,7 +37,7 @@ func (s *StripeService) tick(ctx context.Context) error {
 	}
 	var candidates []candidate
 	err := s.store.transaction(ctx, "undergrid_sandbox_worker", func(tx pgx.Tx) error {
-		rows, err := tx.Query(ctx, `SELECT p.id::text,p.state,false FROM sandbox_payments p WHERE subscription_id IS NULL AND state IN('authorized','submitting','unknown') AND quote->>'payee'=$1 AND quote->>'product'=$2 AND quote->>'rail'='stripe_test'
+		rows, err := tx.Query(ctx, `SELECT p.id::text,p.state,false FROM sandbox_payments p WHERE subscription_id IS NULL AND state IN('authorized','submitting','unknown','pending') AND quote->>'payee'=$1 AND quote->>'product'=$2 AND quote->>'rail'='stripe_test'
  UNION ALL SELECT r.id::text,r.state,true FROM sandbox_refunds r JOIN sandbox_payments p ON p.id=r.payment_id WHERE r.state IN('authorized','pending','unknown') AND p.quote->>'payee'=$1 AND p.quote->>'product'=$2 AND p.quote->>'rail'='stripe_test' LIMIT 100`, s.config.AccountID, s.config.Product)
 		if err != nil {
 			return err
@@ -70,6 +70,8 @@ func (s *StripeService) tick(ctx context.Context) error {
 		} else {
 			if c.State == "authorized" {
 				_ = s.DispatchPayment(ctx, c.ID)
+			} else if c.State == "pending" {
+				_ = s.ReconcilePayment(ctx, c.ID)
 			} else {
 				_ = s.ReconcileUnknown(ctx, c.ID)
 			}
