@@ -47,7 +47,7 @@ type artifactScenario struct {
 func artifactClient(t *testing.T, s *Service) testClient {
 	c := planningClient(t, s)
 	scopes := []string{"intents:read", "intents:write", "inbox:read", "swarms:read", "swarms:create", "members:invite", "members:respond", "members:withdraw", "plans:propose", "plans:approve", "rights:accept", "tasks:accept", "tasks:progress", "artifacts:read", "artifacts:submit", "artifacts:accept", "artifacts:reuse", "publication:approve"}
-	code, out := c.call("POST", "/v1/agents", "", map[string]any{"name": "artifact actor", "scopes": scopes, "profile": map[string]any{"public": true, "accept_invitations": true}})
+	code, out := c.call("POST", "/v1/agents", "artifact-agent", map[string]any{"name": "artifact actor", "scopes": scopes, "profile": map[string]any{"public": true, "accept_invitations": true}})
 	if code != 201 {
 		t.Fatal(code, out)
 	}

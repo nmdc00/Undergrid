@@ -53,7 +53,7 @@ func newPrivateGrantScenarioWithSourcePurpose(t *testing.T, survival bool, sourc
 	agents := []string{}
 	for i, c := range x.actors {
 		scopes := []string{"intents:read", "inbox:read", "swarms:read", "swarms:create", "members:invite", "members:respond", "members:withdraw", "plans:propose", "plans:approve", "rights:accept", "tasks:accept", "tasks:progress", "artifacts:read", "artifacts:submit", "artifacts:accept", "artifacts:reuse", "publication:approve", "artifacts:grant"}
-		code, out := c.call("POST", "/v1/agents", "", map[string]any{"name": "scoped input agent", "scopes": scopes, "profile": map[string]any{"accept_invitations": true}})
+		code, out := c.call("POST", "/v1/agents", "scoped-input-agent-"+x.principals[i], map[string]any{"name": "scoped input agent", "scopes": scopes, "profile": map[string]any{"accept_invitations": true}})
 		if code != 201 {
 			t.Fatal(code, out)
 		}
@@ -548,7 +548,7 @@ func TestPrivateArtifactOldAgreementCannotGainImplicitInputGrantPowers(t *testin
 	// Owner issues a new grant-scoped agent through self-service and deliberately
 	// admits it to the original room; neither action reapproves the old plan.
 	owner := x.actors[2]
-	code, agent := owner.call("POST", "/v1/agents", "", map[string]any{"name": "new grant agent", "scopes": []string{"rights:accept", "artifacts:grant", "members:respond"}, "profile": map[string]any{"accept_invitations": true}})
+	code, agent := owner.call("POST", "/v1/agents", "old-agreement-new-grant-agent", map[string]any{"name": "new grant agent", "scopes": []string{"rights:accept", "artifacts:grant", "members:respond"}, "profile": map[string]any{"accept_invitations": true}})
 	if code != 201 {
 		t.Fatal(code, agent)
 	}

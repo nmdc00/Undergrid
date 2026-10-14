@@ -23,6 +23,10 @@ export class ApiError extends Error {
 // Cookies carry owner identity. CSRF lives only in memory. No browser bearer key,
 // cross-origin target, arbitrary response URL, or credential persistence.
 const pendingIntentKeys = new Map<string, string>();
+const pendingOwnerAgentKeys = new Map<
+  string,
+  { identity: string; key: string }
+>();
 export async function request(
   path: string,
   csrf = "",
@@ -36,10 +40,17 @@ export async function request(
   const retryIdentity =
     (path.startsWith("/v1/owner/intents") ||
       path.startsWith("/v1/owner/agents/") ||
+      path === "/v1/agents" ||
       path.endsWith("/rotate")) &&
     method !== "GET"
       ? JSON.stringify([csrf, method, path, body, match])
       : "";
+  const isOwnerAgentCreation = path === "/v1/agents" && method === "POST";
+  if (isOwnerAgentCreation) {
+    const previous = pendingOwnerAgentKeys.get(csrf);
+    if (previous && previous.identity !== retryIdentity)
+      pendingIntentKeys.delete(previous.identity);
+  }
   const commandKey = retryIdentity
     ? (pendingIntentKeys.get(retryIdentity) ?? crypto.randomUUID())
     : crypto.randomUUID();
@@ -50,6 +61,11 @@ export async function request(
       );
     pendingIntentKeys.set(retryIdentity, commandKey);
   }
+  if (isOwnerAgentCreation)
+    pendingOwnerAgentKeys.set(csrf, {
+      identity: retryIdentity,
+      key: commandKey,
+    });
   if (method !== "GET") {
     headers.set("X-CSRF-Token", csrf);
     headers.set("Content-Type", "application/json");
@@ -64,10 +80,33 @@ export async function request(
     cache: "no-store",
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-  if (retryIdentity && response.status < 500)
+  const clearRetryKey = () => {
+    if (!retryIdentity) return;
     pendingIntentKeys.delete(retryIdentity);
-  if (response.status === 204) return {};
-  const value: unknown = await response.json().catch(() => ({}));
+    if (
+      isOwnerAgentCreation &&
+      pendingOwnerAgentKeys.get(csrf)?.key === commandKey
+    )
+      pendingOwnerAgentKeys.delete(csrf);
+  };
+  if (!response.ok && response.status < 500) clearRetryKey();
+  if (response.status === 204) {
+    if (isOwnerAgentCreation) throw new Error("Invalid server response");
+    clearRetryKey();
+    return {};
+  }
+  let value: unknown;
+  if (response.ok) {
+    try {
+      value = await response.json();
+    } catch {
+      // The server may have committed even when the response body was lost.
+      // Keep the command key so a same-form retry recovers that exact result.
+      throw new Error("Invalid server response");
+    }
+  } else {
+    value = await response.json().catch(() => ({}));
+  }
   const result = object(value);
   if (!response.ok) {
     const code =
@@ -79,5 +118,14 @@ export async function request(
       typeof code === "string" ? code : `HTTP ${response.status}`,
     );
   }
+  if (
+    isOwnerAgentCreation &&
+    (typeof result.id !== "string" ||
+      result.id.length === 0 ||
+      typeof result.token !== "string" ||
+      result.token.length === 0)
+  )
+    throw new Error("Invalid server response");
+  clearRetryKey();
   return result;
 }

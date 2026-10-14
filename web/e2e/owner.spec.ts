@@ -4,14 +4,21 @@ import { test, expect } from "@playwright/test";
 test("built console signs in, displays untrusted data safely and submits owner changes with CSRF", async ({
   page,
 }) => {
-  const sent: { path: string; method: string; csrf: string; body: unknown }[] =
-    [];
+  const sent: {
+    path: string;
+    method: string;
+    csrf: string;
+    key: string;
+    body: unknown;
+  }[] = [];
+  let agentCreateAttempts = 0;
   await page.route("**/auth/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     sent.push({
       path,
       method: route.request().method(),
       csrf: route.request().headers()["x-csrf-token"] ?? "",
+      key: route.request().headers()["idempotency-key"] ?? "",
       body: null,
     });
     await route.fulfill({
@@ -30,8 +37,17 @@ test("built console signs in, displays untrusted data safely and submits owner c
       path,
       method: r.method(),
       csrf: r.headers()["x-csrf-token"] ?? "",
+      key: r.headers()["idempotency-key"] ?? "",
       body: r.postDataJSON(),
     });
+    if (
+      path === "/v1/agents" &&
+      r.method() === "POST" &&
+      agentCreateAttempts++ === 0
+    ) {
+      await route.abort();
+      return;
+    }
     const fixture: Record<string, unknown> = {
       "/v1/owner/config": {
         terms_version: "browser-fixture-approved-terms",
@@ -85,15 +101,24 @@ test("built console signs in, displays untrusted data safely and submits owner c
   await page
     .getByRole("button", { name: "Register agent", exact: true })
     .click();
+  await expect(page.getByRole("alert")).toBeVisible();
+  await page
+    .getByRole("button", { name: "Register agent", exact: true })
+    .click();
   await expect(
     page.getByText("ug_browser_fixture_once", { exact: true }),
   ).toBeVisible();
   expect(
     await page.evaluate(() => [localStorage.length, sessionStorage.length]),
   ).toEqual([0, 0]);
-  expect(
-    sent.find((r) => r.path === "/v1/agents" && r.method === "POST")?.csrf,
-  ).toBe("browser-fixture-csrf");
+  const creates = sent.filter(
+    (r) => r.path === "/v1/agents" && r.method === "POST",
+  );
+  expect(creates.map((r) => r.csrf)).toEqual([
+    "browser-fixture-csrf",
+    "browser-fixture-csrf",
+  ]);
+  expect(creates[0].key).toBe(creates[1].key);
   await page.getByRole("button", { name: "Dismiss credential" }).click();
   await expect(
     page.getByText("ug_browser_fixture_once", { exact: true }),
