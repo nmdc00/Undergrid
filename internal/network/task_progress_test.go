@@ -1,7 +1,9 @@
 package network
 
 import (
+	"bytes"
 	"context"
+	"net/http/httptest"
 	"slices"
 	"testing"
 	"time"
@@ -9,6 +11,160 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/riverqueue/river"
 )
+
+func newPrivateProgressGrantScenario(t *testing.T) privateGrantScenario {
+	t.Helper()
+	return newPrivateGrantScenarioWithSourcePurpose(t, true, "progress")
+}
+
+func insertLegacyProgressInputGrants(t *testing.T, x privateGrantScenario, scope InputGrantScope) ([]string, []string) {
+	t.Helper()
+	scope.Purpose = "assembly"
+	ids := make([]string, 0, 2)
+	eventIDs := make([]string, 0, 2)
+	tx, err := x.source.db.Begin(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(context.Background())
+	for _, i := range []int{1, 2} {
+		meCode, me := x.source.actors[i].call("GET", "/v1/me", "", nil)
+		if meCode != 200 {
+			t.Fatal(meCode, me)
+		}
+		grantID, eventID := NewID(), NewID()
+		var policyVersion int64
+		if err = tx.QueryRow(context.Background(), "SELECT undergrid.current_policy_version($1::uuid)", x.source.principals[i]).Scan(&policyVersion); err != nil {
+			t.Fatal(err)
+		}
+		if _, err = tx.Exec(context.Background(), `INSERT INTO undergrid.approvals(id,principal_id,agent_id,purpose,plan_id,artifact_id,content_hash,decision,policy_version,
+			grant_recipient_agent_id,grant_recipient_principal_id,grant_target_task_id,grant_target_plan_id,grant_scope,grant_expires_at,grant_survives_withdrawal,grant_state)
+			VALUES($1,$2,$3,'assembly_grant',$4,$5,$6,'approve',$7,$8,$9,$10,$11,$12,$13,$14,'active')`,
+			grantID, x.source.principals[i], me["agent_id"], x.source.plan["id"], x.input["id"], digest(canonical(scope)), policyVersion,
+			scope.RecipientAgent, scope.RecipientPrincipal, scope.TargetTaskID, x.target.plan["id"], canonical(scope), scope.ExpiresAt, scope.SurviveWithdrawal); err != nil {
+			t.Fatal(err)
+		}
+		facts := canonical(map[string]any{"grant_id": grantID, "artifact_id": x.input["id"]})
+		if _, err = tx.Exec(context.Background(), `INSERT INTO undergrid.events(id,aggregate_kind,aggregate_id,version,principal_id,agent_id,type,facts,origin)
+			VALUES($1,'artifact_grant',$2,1,$3,$4,'artifact.input_grant_created',$5,'release_test')`, eventID, grantID, x.source.principals[i], me["agent_id"], facts); err != nil {
+			t.Fatal(err)
+		}
+		if err = enqueueInputGrantDelivery(context.Background(), tx, grantID); err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, grantID)
+		eventIDs = append(eventIDs, eventID)
+	}
+	if err = tx.Commit(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	return ids, eventIDs
+}
+
+// Progress artifacts keep their named audience when separate source-rights
+// approvals exist. The direct legacy rows exercise recovery/read predicates.
+func TestProgressArtifactInputGrantsRespectImmutableAudience(t *testing.T) {
+	x := newPrivateProgressGrantScenario(t)
+	scope := x.scope
+	scope.Purpose = "assembly"
+	query := `SELECT count(*) FROM undergrid_queue.river_job WHERE kind='artifact_input_grant_delivery_v1'`
+	var jobsBefore, jobsAfter int
+	if err := x.source.db.QueryRow(context.Background(), query).Scan(&jobsBefore); err != nil {
+		t.Fatal(err)
+	}
+	code, denied := x.source.actors[1].call("POST", "/v1/artifacts/"+x.input["id"].(string)+"/input-grants", "outside-progress-audience", scope)
+	if code != 409 || denied["error"].(map[string]any)["code"] != "progress_input_audience_required" {
+		t.Fatalf("out-of-audience progress grant was not denied: %d %v", code, denied)
+	}
+	var approvals, events int
+	if err := x.source.db.QueryRow(context.Background(), "SELECT count(*) FROM undergrid.approvals WHERE artifact_id=$1 AND purpose='assembly_grant'", x.input["id"]).Scan(&approvals); err != nil {
+		t.Fatal(err)
+	}
+	if err := x.source.db.QueryRow(context.Background(), "SELECT count(*) FROM undergrid.events WHERE type='artifact.input_grant_created' AND facts->>'artifact_id'=$1", x.input["id"]).Scan(&events); err != nil {
+		t.Fatal(err)
+	}
+	if err := x.source.db.QueryRow(context.Background(), query).Scan(&jobsAfter); err != nil {
+		t.Fatal(err)
+	}
+	if approvals != 0 || events != 0 || jobsBefore != jobsAfter {
+		t.Fatalf("denied grant left persistence or work: approvals=%d events=%d jobs=%d->%d", approvals, events, jobsBefore, jobsAfter)
+	}
+
+	legacyIDs, eventIDs := insertLegacyProgressInputGrants(t, x, scope)
+	deadline := time.Now().Add(10 * time.Second)
+	var completed int
+	for time.Now().Before(deadline) {
+		if err := x.source.db.QueryRow(context.Background(), `SELECT count(*) FROM undergrid_queue.river_job
+			WHERE kind='artifact_input_grant_delivery_v1' AND args->>'grant_id'=ANY($1::text[]) AND state='completed'`, legacyIDs).Scan(&completed); err != nil {
+			t.Fatal(err)
+		}
+		if completed == len(legacyIDs) {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if completed != len(legacyIDs) {
+		t.Fatalf("legacy grant delivery jobs did not complete: %d/%d", completed, len(legacyIDs))
+	}
+	var delivered int
+	if err := x.source.db.QueryRow(context.Background(), "SELECT count(*) FROM undergrid.inbox WHERE agent_id=$1 AND event_id=ANY($2::uuid[])", x.scope.RecipientAgent, eventIDs).Scan(&delivered); err != nil {
+		t.Fatal(err)
+	}
+	grantCode, grant := x.target.actors[2].call("GET", "/v1/artifact-input-grants/"+legacyIDs[0], "", nil)
+	contextCode, agentContext := x.target.actors[2].call("GET", "/v1/agent-context", "", nil)
+	contextGrantIDs := []string{}
+	if grants, ok := agentContext["input_grants"].([]any); ok {
+		for _, raw := range grants {
+			contextGrantIDs = append(contextGrantIDs, raw.(map[string]any)["id"].(string))
+		}
+	}
+	inboxCode, inbox := x.target.actors[2].call("GET", "/v1/inbox", "", nil)
+	inboxGrantEvents := 0
+	if listed, ok := inbox["events"].([]any); ok {
+		for _, raw := range listed {
+			if raw.(map[string]any)["type"] == "artifact.input_grant_created" {
+				inboxGrantEvents++
+			}
+		}
+	}
+	if delivered != 0 || grantCode != 404 || contextCode != 200 || inboxCode != 200 || len(contextGrantIDs) != 0 || inboxGrantEvents != 0 {
+		t.Fatalf("legacy out-of-audience grant escaped filter: inbox_rows=%d GET=%d %v context=%d %v inbox=%d %v", delivered, grantCode, grant, contextCode, contextGrantIDs, inboxCode, inbox)
+	}
+	readCodes := []int{}
+	for _, path := range []string{
+		"/v1/artifacts/" + x.input["id"].(string),
+		"/v1/artifacts/" + x.input["id"].(string) + "/evaluations",
+		"/v1/artifacts/" + x.input["id"].(string) + "/content?purpose=assembly&task_id=" + x.scope.TargetTaskID,
+	} {
+		code, _ := x.target.actors[2].call("GET", path, "", nil)
+		readCodes = append(readCodes, code)
+	}
+	if !slices.Equal(readCodes, []int{404, 404, 404}) {
+		t.Fatalf("out-of-audience recipient read progress source: %v", readCodes)
+	}
+
+	// A currently accepted recipient already in the immutable audience may use
+	// a separate complete set of exact source-rights approvals.
+	audienceTask := x.source.plan["tasks"].([]any)[1].(map[string]any)
+	scope.TargetTaskID = audienceTask["id"].(string)
+	scope.TargetPlanHash = x.source.plan["content_hash"].(string)
+	scope.TargetEpoch = int64(audienceTask["claim_epoch"].(float64))
+	scope.RecipientAgent = audienceTask["assigned_agent_id"].(string)
+	scope.RecipientPrincipal = x.source.principals[1]
+	for _, i := range []int{1, 2} {
+		if code, out := x.source.actors[i].call("POST", "/v1/artifacts/"+x.input["id"].(string)+"/input-grants", "in-audience-progress-grant", scope); code != 201 {
+			t.Fatalf("in-audience source-right grant %d: %d %v", i, code, out)
+		}
+	}
+	contentPath := "/v1/artifacts/" + x.input["id"].(string) + "/content?purpose=assembly&task_id=" + scope.TargetTaskID
+	request := httptest.NewRequest("GET", contentPath, nil)
+	request.Header.Set("Authorization", "Bearer "+x.source.actors[1].token)
+	response := httptest.NewRecorder()
+	x.source.s.ServeHTTP(response, request)
+	if response.Code != 200 || !bytes.Equal(response.Body.Bytes(), x.inputData) {
+		t.Fatalf("in-audience separately granted progress input unavailable: %d %s", response.Code, response.Body.String())
+	}
+}
 
 // A state/epoch heartbeat remains wire compatible, but does not prove useful
 // work and therefore cannot renew the execution clock.

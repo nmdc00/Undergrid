@@ -4,11 +4,13 @@ go 1.27.2
 
 require (
 	github.com/coreos/go-oidc/v3 v3.21.0
+	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0
 	github.com/go-jose/go-jose/v4 v4.1.4
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/riverqueue/river v0.49.0
 	github.com/riverqueue/river/riverdriver/riverpgxv5 v0.49.0
 	github.com/stripe/stripe-go/v87 v87.0.0
+	golang.org/x/crypto v0.38.0
 	golang.org/x/oauth2 v0.37.0
 )
 
@@ -25,5 +27,6 @@ require (
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
 	golang.org/x/sync v0.23.0 // indirect
+	golang.org/x/sys v0.33.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
 )
