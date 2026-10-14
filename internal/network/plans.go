@@ -149,7 +149,7 @@ func (s *Service) proposePlan(r *http.Request, tx pgx.Tx, a actor, swarm string)
 		}
 	}
 	in.RespondBy = in.RespondBy.UTC()
-	sealed := sealedPlan{in, template.SHA256}
+	sealed := sealedPlan{Plan: in, TemplateHash: template.SHA256, InputGrantPolicyHash: inputGrantPolicyHash(template)}
 	hash := digest(canonical(sealed))
 	id := NewID()
 	if _, err = tx.Exec(r.Context(), "INSERT INTO plan_versions(id,swarm_id,parent_id,version,specification,content_hash,respond_by) VALUES($1,$2,$3,$4,$5,$6,$7)", id, swarm, parent, nextVersion, canonical(sealed), hash, in.RespondBy); err != nil {

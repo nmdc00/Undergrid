@@ -106,6 +106,7 @@ func RunWorker(ctx context.Context, dsn, environment string) error {
 	}
 	river.AddWorker(workers, &deadlineWorker{service: service})
 	river.AddWorker(workers, &artifactEvaluationWorker{service: service})
+	river.AddWorker(workers, &inputGrantDeliveryWorker{dsn: dsn})
 	river.AddWorker(workers, &scanWorker{service: service})
 	river.AddWorker(workers, &fanoutWorker{dsn: dsn})
 	river.AddWorker(workers, &recruitWorker{service: New(dsn, environment, nil)})
