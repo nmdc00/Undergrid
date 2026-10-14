@@ -160,17 +160,17 @@ func (s *Store) checkPayerAuthorization(ctx context.Context, tx pgx.Tx, p Paymen
 	if p.Quote.Asset != "USDC" {
 		return nil
 	}
-	if p.WalletAuthorization == nil {
+	if p.walletAuthorization == nil {
 		return ErrUnauthorized
 	}
 	var storedHash string
 	if err := tx.QueryRow(ctx, "SELECT payer_authorization_hash FROM sandbox_payments WHERE id=$1", p.ID).Scan(&storedHash); err != nil {
 		return err
 	}
-	if hash(encode(p.WalletAuthorization)) != storedHash {
+	if hash(encode(p.walletAuthorization)) != storedHash {
 		return ErrConflict
 	}
-	return s.verifyPayerAuthorization(p, *p.WalletAuthorization, true)
+	return s.verifyPayerAuthorization(p, *p.walletAuthorization, true)
 }
 
 func (s *Store) AuthorizeWalletPayment(ctx context.Context, token, id, key string, c WalletPaymentCommand) (Payment, error) {
@@ -199,7 +199,7 @@ func (s *Store) AuthorizeWalletPayment(ctx context.Context, token, id, key strin
 		if s.usdcTokenDomain == nil {
 			return ErrUnauthorized
 		}
-		if p.State != "authorized" || p.Quote.Asset != "USDC" || p.WalletAuthorization != nil {
+		if p.State != "authorized" || p.Quote.Asset != "USDC" || p.walletAuthorization != nil {
 			return ErrConflict
 		}
 		var valid bool
@@ -229,7 +229,8 @@ func (s *Store) AuthorizeWalletPayment(ctx context.Context, token, id, key strin
 		if err = remember(ctx, tx, a, "wallet_authorization", key, digest, id); err != nil {
 			return err
 		}
-		p.WalletAuthorization = &record
+		p.walletAuthorization = &record
+		p.WalletAuthorizationHash = hash(encode(record))
 		return nil
 	})
 	return p, err

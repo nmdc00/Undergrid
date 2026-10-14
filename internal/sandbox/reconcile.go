@@ -50,7 +50,7 @@ func (s *Store) BeginDispatch(ctx context.Context, id string) (Payment, error) {
 			return walletErr
 		}
 		walletValid := walletErr == nil
-		if walletValid && p.Quote.Asset == "USDC" && p.WalletAuthorization == nil {
+		if walletValid && p.Quote.Asset == "USDC" && p.walletAuthorization == nil {
 			return ErrUnauthorized
 		}
 		if walletValid {

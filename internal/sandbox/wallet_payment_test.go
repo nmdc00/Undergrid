@@ -121,6 +121,36 @@ func newPayerFixture(t *testing.T) (*walletHTTPFixture, *secp256k1.PrivateKey, P
 	}
 	return f, key, p
 }
+
+func TestPayerSignatureIsNotExposedToPaymentReaders(t *testing.T) {
+	f, key, p := newPayerFixture(t)
+	command := payerCommandFor(t, p, key)
+	issued := f.call(t, "", http.MethodPost, "/v1/payments/"+p.ID+"/wallet-authorization", "private-payer-proof", command, f.token)
+	if issued.Code != 200 {
+		t.Fatalf("payer proof: %d %s", issued.Code, issued.Body.String())
+	}
+	reader, err := f.store.IssueCredential(context.Background(), f.owner, "payment-reader", []string{"payments:read"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	read := f.call(t, "", http.MethodGet, "/v1/payments/"+p.ID, "", nil, reader)
+	if read.Code != 200 {
+		t.Fatalf("payment read: %d %s", read.Code, read.Body.String())
+	}
+	for _, response := range []string{issued.Body.String(), read.Body.String()} {
+		if strings.Contains(response, command.Signature) {
+			t.Fatal("public payment response exposed a broadcastable payer signature")
+		}
+		var receipt map[string]any
+		if err := json.Unmarshal([]byte(response), &receipt); err != nil {
+			t.Fatal(err)
+		}
+		if digest, ok := receipt["wallet_authorization_hash"].(string); !ok || len(digest) != 64 {
+			t.Fatal("public payment lost its durable payer authorization receipt")
+		}
+	}
+}
+
 func TestWalletPaymentAuthorizationHTTP(t *testing.T) {
 	f, key, p := newPayerFixture(t)
 	command := payerCommandFor(t, p, key)
@@ -210,8 +240,8 @@ func TestWalletPaymentAuthorizationHTTP(t *testing.T) {
 		t.Fatal(r.Body.String())
 	}
 	var result Payment
-	if e = json.Unmarshal(r.Body.Bytes(), &result); e != nil || result.WalletAuthorization == nil {
-		t.Fatal("missing normalized proof")
+	if e = json.Unmarshal(r.Body.Bytes(), &result); e != nil || len(result.WalletAuthorizationHash) != 64 {
+		t.Fatal("missing authorization receipt")
 	}
 	altered := command
 	altered.Authorization.Value = "1"
@@ -234,8 +264,12 @@ func TestWalletPaymentAuthorizationHTTP(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	replayed, e := restarted.AuthorizeWalletPayment(context.Background(), f.token, p.ID, "external-payer", result.WalletAuthorization.WalletPaymentCommand)
-	if e != nil || replayed.WalletAuthorization == nil {
+	var submitted WalletPaymentCommand
+	if e = json.Unmarshal(encode(command), &submitted); e != nil {
+		t.Fatal(e)
+	}
+	replayed, e := restarted.AuthorizeWalletPayment(context.Background(), f.token, p.ID, "external-payer", submitted)
+	if e != nil || replayed.walletAuthorization == nil {
 		t.Fatal("restart recovery failed")
 	}
 	persistedBefore, e := f.store.GetPayment(context.Background(), f.token, p.ID)
@@ -256,8 +290,8 @@ func TestWalletPaymentAuthorizationHTTP(t *testing.T) {
 	if _, e = f.store.ProveWalletControl(context.Background(), f.owner, challenge.ID, "rebind-proof", signWalletMessage(t, newKey, challenge.Message), walletTestOrigin); e != nil {
 		t.Fatal(e)
 	}
-	replayed, e = restarted.AuthorizeWalletPayment(context.Background(), f.token, p.ID, "external-payer", result.WalletAuthorization.WalletPaymentCommand)
-	if e != nil || replayed.State != "unknown" || !bytes.Equal(encode(replayed.WalletAuthorization), encode(result.WalletAuthorization)) || replayed.ProviderKey != persistedBefore.ProviderKey {
+	replayed, e = restarted.AuthorizeWalletPayment(context.Background(), f.token, p.ID, "external-payer", submitted)
+	if e != nil || replayed.State != "unknown" || !bytes.Equal(encode(replayed.walletAuthorization), encode(persistedBefore.walletAuthorization)) || replayed.ProviderKey != persistedBefore.ProviderKey {
 		t.Fatal("unknown authorization/snapshot/key changed after rebind")
 	}
 	if _, e = restarted.BeginDispatch(context.Background(), p.ID); !errors.Is(e, ErrConflict) {

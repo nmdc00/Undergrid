@@ -135,16 +135,18 @@ type Quote struct {
 	ExpiresAt time.Time `json:"expires_at"`
 }
 type Payment struct {
-	WalletAuthorization *WalletPaymentAuthorization `json:"wallet_authorization,omitempty"`
-	SignedQuote         *SignedQuote                `json:"signed_quote,omitempty"`
-	Anomalies           []string                    `json:"anomalies,omitempty"`
-	CheckoutURL         string                      `json:"checkout_url,omitempty"`
-	ID                  string                      `json:"id"`
-	Hash                string                      `json:"quote_hash"`
-	State               string                      `json:"state"`
-	Quote               Quote                       `json:"quote"`
-	Designation         string                      `json:"designation"`
-	ProviderKey         string                      `json:"-"`
+	WalletAuthorizationHash string `json:"wallet_authorization_hash,omitempty"`
+	// Payer signatures are broadcast capabilities, retained only for internal dispatch.
+	walletAuthorization *WalletPaymentAuthorization
+	SignedQuote         *SignedQuote `json:"signed_quote,omitempty"`
+	Anomalies           []string     `json:"anomalies,omitempty"`
+	CheckoutURL         string       `json:"checkout_url,omitempty"`
+	ID                  string       `json:"id"`
+	Hash                string       `json:"quote_hash"`
+	State               string       `json:"state"`
+	Quote               Quote        `json:"quote"`
+	Designation         string       `json:"designation"`
+	ProviderKey         string       `json:"-"`
 }
 type identity struct {
 	actor, credential string
@@ -337,7 +339,7 @@ func (s *Store) RevokeCredentials(ctx context.Context, o Owner) error {
 func loadPayment(ctx context.Context, tx pgx.Tx, id string) (Payment, error) {
 	p := Payment{Designation: "TEST — NOT A LIVE COMMITMENT"}
 	var raw, authorization []byte
-	err := tx.QueryRow(ctx, "SELECT id::text,quote_hash,state,quote,provider_key,payer_authorization,COALESCE(checkout_url,''),ARRAY(SELECT kind FROM sandbox_anomalies a WHERE a.payment_id=sandbox_payments.id ORDER BY kind) FROM sandbox_payments WHERE id=$1", id).Scan(&p.ID, &p.Hash, &p.State, &raw, &p.ProviderKey, &authorization, &p.CheckoutURL, &p.Anomalies)
+	err := tx.QueryRow(ctx, "SELECT id::text,quote_hash,state,quote,provider_key,payer_authorization,COALESCE(payer_authorization_hash,''),COALESCE(checkout_url,''),ARRAY(SELECT kind FROM sandbox_anomalies a WHERE a.payment_id=sandbox_payments.id ORDER BY kind) FROM sandbox_payments WHERE id=$1", id).Scan(&p.ID, &p.Hash, &p.State, &raw, &p.ProviderKey, &authorization, &p.WalletAuthorizationHash, &p.CheckoutURL, &p.Anomalies)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return p, ErrUnauthorized
 	}
@@ -349,8 +351,8 @@ func loadPayment(ctx context.Context, tx pgx.Tx, id string) (Payment, error) {
 		err = tx.QueryRow(ctx, "SELECT signed_quote_key_id,signed_quote_payload,signed_quote_signature FROM sandbox_payments WHERE id=$1", id).Scan(&p.SignedQuote.KeyID, &p.SignedQuote.Payload, &p.SignedQuote.Signature)
 	}
 	if err == nil && authorization != nil {
-		p.WalletAuthorization = &WalletPaymentAuthorization{}
-		err = json.Unmarshal(authorization, p.WalletAuthorization)
+		p.walletAuthorization = &WalletPaymentAuthorization{}
+		err = json.Unmarshal(authorization, p.walletAuthorization)
 	}
 
 	return p, err
