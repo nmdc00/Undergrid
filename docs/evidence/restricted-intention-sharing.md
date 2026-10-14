@@ -88,3 +88,7 @@ rather than promising to cancel an already executing read. The identity test use
 it proves the CSRF/owner transaction boundary, not external OIDC-provider
 verification. No provider, source-permission, deployment, legal, financial, or
 full-release qualification is claimed. The branch remains local and unmerged.
+
+## Ordered integration with reports and verifier
+
+Reconciled source671253ddb4e4c4565421a953a7d5b4a5f7696d03 includes released018/019 and the error contract. The existing loaded001–019 network fixture55463 migrated normally through020, retaining prior data and queues. Restricted read/grant/revoke/race, revision/expired renewal and HTTP error tests passed with-race25.369s; the explicit agent-credential grant-management denial passed1.306s separately. No ledger edits or migration replay occurred. The prior fresh55479 noncontiguous proof remains recorded separately. Full integrated release gate is pending021; this proof grants no provider/legal/production qualification.

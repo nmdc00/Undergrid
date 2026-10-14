@@ -499,3 +499,7 @@ The twelve adversarial issues map to: 1 §2–3/scope inventory; 2 §6/listener;
 ### Revision validation performed
 
 On 12 October 2026, all example Python files parsed, document links and Markdown structure were checked, all 19 original functional requirement IDs were accounted for, and the 22 network-table rows were checked for uniqueness. Six local reference-listener tests passed: duplicate delivery, malformed-page atomicity, lost-ack restart, expired-cursor recovery, identity/origin binding and redirect/path rejection. The public-API vertical-slice suite was not run: no Undergrid implementation or test accounts exist. No provider, load, database, public onboarding or production-readiness result is claimed.
+
+### Implemented restricted intention sharing contract
+
+Verified owners manage explicit field grants through `GET/POST /v1/owner/intents/{id}/grants` and `POST /v1/owner/intents/{id}/grants/{principal_id}/revoke`. Mutations require the current If-Match and Idempotency-Key. Grants bind the current immutable revision, selected fields and an expiry no later than the source intention; budget is shared only when selected. `GET /v1/intents/{id}` returns only the authorized projection to a named active recipient agent. Revision, expiry or revocation makes the old grant ineffective. Legacy unbound rows do not imply consent. Only already-restricted intentions can be granted; this does not implement a disclosure transition from private to public.
