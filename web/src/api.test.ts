@@ -87,6 +87,63 @@ test("initial agent creation retains its key when a 201 response body is lost", 
   expect(keys[0]).toBe(keys[1]);
 });
 
+test("initial agent creation retains its key for a malformed success body", async () => {
+  const keys: string[] = [];
+  let attempt = 0;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (_path: string, init?: RequestInit) => {
+      keys.push(new Headers(init?.headers).get("Idempotency-Key")!);
+      if (attempt++ === 0)
+        return new Response('{"id":"agent"}', { status: 201 });
+      return new Response('{"id":"agent","token":"ug_secret"}', {
+        status: 201,
+      });
+    }),
+  );
+  const body = { name: "listener", scopes: ["intents:read"] };
+  await expect(
+    request("/v1/agents", "csrf-agent-malformed-success", "POST", body),
+  ).rejects.toThrow("Invalid server response");
+  const recovered = await request(
+    "/v1/agents",
+    "csrf-agent-malformed-success",
+    "POST",
+    body,
+  );
+  expect(recovered.token).toBe("ug_secret");
+  expect(keys).toHaveLength(2);
+  expect(keys[0]).toBe(keys[1]);
+});
+
+test("initial agent creation retains its key when the server returns 204", async () => {
+  const keys: string[] = [];
+  let attempt = 0;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (_path: string, init?: RequestInit) => {
+      keys.push(new Headers(init?.headers).get("Idempotency-Key")!);
+      if (attempt++ === 0) return new Response(null, { status: 204 });
+      return new Response('{"id":"agent","token":"ug_secret"}', {
+        status: 201,
+      });
+    }),
+  );
+  const body = { name: "listener", scopes: ["intents:read"] };
+  await expect(
+    request("/v1/agents", "csrf-agent-no-content", "POST", body),
+  ).rejects.toThrow("Invalid server response");
+  const recovered = await request(
+    "/v1/agents",
+    "csrf-agent-no-content",
+    "POST",
+    body,
+  );
+  expect(recovered.token).toBe("ug_secret");
+  expect(keys).toHaveLength(2);
+  expect(keys[0]).toBe(keys[1]);
+});
+
 test("a definitive client rejection releases the pending agent command key", async () => {
   const keys: string[] = [];
   let attempt = 0;

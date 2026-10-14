@@ -82,12 +82,15 @@ existing agent helper only in command subject and If-Match semantics; no generic
 command engine or new result store was added. SQL uses the existing table and
 restricted role, and the result remains bearer-free.
 
-Integration note: this branch predates private artifact grants migration 015.
-When that scope is integrated, preserve `artifacts:grant` in owner agent scope
-validation alongside the other protected rights scopes; it must still require
-the current owner coordination policy rather than becoming an ordinary scope.
-The integrated configured-policy allow/deny scenario remains a root integration
-check.
+Integration note: this local branch now includes private artifact grants
+migration 015 and task progress migration 016 before owner issuance migration
+017. Owner `artifacts:grant` remains in centralized `validateAgentScopes` with
+the other protected scopes and still requires current owner coordination policy.
+The integration regression uses the real owner HTTP path to prove issuance is
+denied before policy configuration and succeeds afterward with the persisted
+credential scope exactly `artifacts:grant`. Existing grant scenario fixtures now
+send stable owner idempotency keys, preserving migration 017's required-key
+contract.
 
 ## Validation status
 
@@ -99,19 +102,27 @@ RLS read proving an agent context cannot see the owner command result. The
 encrypted-cookie/CSRF runtime test passed through the restricted DB login. A
 focused owner replay test also proves that an expired 15-minute replay window and
 a changed issuance key ID return `credential_replay_unavailable` without adding
-agents, credentials, issue events or idempotency results.
+agents, credentials, issue events or idempotency results. The combined focused
+suite ran from raw migrations 001–017 on fresh UTF8 PostgreSQL 16 at port 55461;
+under `-race` it passed owner creation/key replay, protected grant-scope policy,
+progress heartbeat/evidence-review lifecycle, and explicit grant scope,
+configuration, prior-agreement, expiry and concurrent revocation cases.
 
 `go build ./...`, `go vet ./...`, and `git diff --check` passed. Frontend Vitest
-passed 11 tests and the strict TypeScript/Vite build passed. Chromium passed all 3
+passed 13 tests and the strict TypeScript/Vite build passed. Chromium passed all 3
 production-bundle browser tests, including the owner creation flow that aborts
 the first POST after submission, then retries the unchanged form and asserts the
 same CSRF-protected `Idempotency-Key`.
 
-Follow-up correction validation: the new frontend red test initially showed that
-a `201` whose response body stream failed was converted to `{}` and resolved.
-Afterward the owner-create key is retained until a parseable JSON object arrives;
-a definitive 4xx releases it. The body-loss retry and 4xx cases pass. Full Vitest
-now passes 11 tests and `npm run build` passes. The focused real-PostgreSQL
+Follow-up correction validation: the frontend red test initially showed that a
+`201` whose response body stream failed was converted to `{}` and resolved. The
+new malformed-201 regression also went red because `{ "id": "agent" }` resolved
+successfully before the missing token was rendered by the caller. The
+owner-create key is retained until the response has nonempty `id` and `token`
+fields; malformed success JSON and unexpected `204` responses fail while
+preserving same-key recovery. A definitive 4xx releases the key. Body-loss,
+malformed-success, 204 and 4xx cases pass. Full Vitest now passes 13 tests and
+`npm run build` passes. The focused real-PostgreSQL
 `TestOwnerAgentCreation` tests pass normally and under `-race` on a fresh UTF-8
 PostgreSQL 16 cluster at port 55457, including replay-window and issuance-key-ID
 denials with no additional persisted effects. `go vet ./...` and `go build ./...`

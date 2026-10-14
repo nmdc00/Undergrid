@@ -91,6 +91,7 @@ export async function request(
   };
   if (!response.ok && response.status < 500) clearRetryKey();
   if (response.status === 204) {
+    if (isOwnerAgentCreation) throw new Error("Invalid server response");
     clearRetryKey();
     return {};
   }
@@ -117,6 +118,14 @@ export async function request(
       typeof code === "string" ? code : `HTTP ${response.status}`,
     );
   }
+  if (
+    isOwnerAgentCreation &&
+    (typeof result.id !== "string" ||
+      result.id.length === 0 ||
+      typeof result.token !== "string" ||
+      result.token.length === 0)
+  )
+    throw new Error("Invalid server response");
   clearRetryKey();
   return result;
 }

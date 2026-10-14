@@ -11,6 +11,37 @@ import (
 	"time"
 )
 
+func TestOwnerAgentIssuanceRequiresPolicyForProtectedArtifactGrantScope(t *testing.T) {
+	s, db := fixture(t)
+	enableTestTerms(t, s)
+	owner := client(t, s)
+	body := map[string]any{"name": "grant issuer", "scopes": []string{"artifacts:grant"}}
+	code, denied := owner.call("POST", "/v1/agents", "grant-agent-without-policy", body)
+	if code != 403 || denied["error"].(map[string]any)["code"] != "owner_policy_required" {
+		t.Fatalf("unconfigured owner issued a protected scope: %d %#v", code, denied)
+	}
+	_, policy := owner.call("GET", "/v1/owner/policy", "", nil)
+	code, configured := owner.versioned("POST", "/v1/owner/policy", "configure-grant-agent-policy", policy["etag"].(string), map[string]any{
+		"template_ids": []string{"test-contribution-v1"}, "license_ids": []string{"CC0-1.0"},
+		"task_categories": []string{"json_dataset"}, "max_active_tasks": 5,
+		"expires_at": time.Now().Add(time.Hour),
+	})
+	if code != 200 {
+		t.Fatalf("configure owner policy: %d %#v", code, configured)
+	}
+	code, issued := owner.call("POST", "/v1/agents", "grant-agent-with-policy", body)
+	if code != 201 || issued["id"] == "" || issued["token"] == "" {
+		t.Fatalf("configured owner could not issue protected grant scope: %d %#v", code, issued)
+	}
+	var scopes []string
+	if err := db.QueryRow(context.Background(), "SELECT scopes FROM undergrid.credentials WHERE id=$1", issued["credential_id"]).Scan(&scopes); err != nil {
+		t.Fatal(err)
+	}
+	if len(scopes) != 1 || scopes[0] != "artifacts:grant" {
+		t.Fatalf("issued agent lost protected grant scope: %#v", scopes)
+	}
+}
+
 func TestOwnerAgentCreationResponseLossReplay(t *testing.T) {
 	s, db := fixture(t)
 	if err := s.ConfigureCredentialIssuance("owner-issue-fixture", bytes.Repeat([]byte{71}, 32)); err != nil {
