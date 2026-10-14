@@ -18,15 +18,16 @@ import (
 
 type OwnerAuthenticator func(*http.Request) (Owner, error)
 type Service struct {
-	dsn, environment string
-	ownerAuth        OwnerAuthenticator
-	cursorKey        []byte
-	issuanceKey      []byte
-	issuanceKeyID    string
-	credentialClock  func() time.Time
-	termsVersion     string
-	templates        map[string]ContributionTemplate
-	artifacts        *localArtifactRuntime
+	dsn, environment   string
+	ownerAuth          OwnerAuthenticator
+	cursorKey          []byte
+	issuanceKey        []byte
+	issuanceKeyID      string
+	credentialClock    func() time.Time
+	termsVersion       string
+	templates          map[string]ContributionTemplate
+	artifacts          *localArtifactRuntime
+	reportTriageWindow time.Duration
 }
 
 func (s *Service) Configure(cursorKey []byte, termsVersion string) error {
@@ -39,7 +40,17 @@ func (s *Service) Configure(cursorKey []byte, termsVersion string) error {
 }
 
 func New(dsn, environment string, auth OwnerAuthenticator) *Service {
-	return &Service{dsn: dsn, environment: environment, ownerAuth: auth}
+	return &Service{dsn: dsn, environment: environment, ownerAuth: auth, reportTriageWindow: 72 * time.Hour}
+}
+
+// ConfigureReportTriageWindow sets an internal queue target. It is not a
+// reporter-facing service promise or a legal response deadline.
+func (s *Service) ConfigureReportTriageWindow(window time.Duration) error {
+	if window < time.Hour || window > 30*24*time.Hour {
+		return errors.New("report triage window must be between one hour and thirty days")
+	}
+	s.reportTriageWindow = window
+	return nil
 }
 
 func decode(r *http.Request, v any) error {
@@ -223,6 +234,9 @@ func lockActor(ctx context.Context, tx pgx.Tx, a actor) (actor, error) {
 	return a, err
 }
 func (s *Service) agentCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, error) {
+	if r.URL.Path == "/v1/reports" || strings.HasPrefix(r.URL.Path, "/v1/reports/") {
+		return s.reportCommand(r, tx, a)
+	}
 	if r.Method == "GET" && r.URL.Path == "/v1/policies/contribution-templates" {
 		return 200, s.publicTemplates(), nil
 	}
