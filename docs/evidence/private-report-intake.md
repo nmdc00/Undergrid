@@ -43,3 +43,7 @@ After merging the owner-agent issuance recovery feature, a separate fresh UTF8 P
 The fixture's application migration ledger contains `001` through `017`, then `019_private_report_intake.sql`, plus `river-0.49.0-ready`. Migration `018` is not present on this integration branch, so this proves the actual available ordered migration set, not a contiguous `001`–`019` chain. The earlier port-55462 fixture and its report counts remain historical evidence for the original feature branch; no fixture was reset to produce this integration result.
 
 The final integrated validation ran `go vet ./...`, `go build ./...`, and `git diff --check origin/release/v0.1...HEAD`; all passed. The protected wallet migration `008_wallet_control.sql` matches the release blob byte-for-byte (SHA-256 `5fe8b8871772fa9d0a99ccd4ae61c4ca2187b5ddf8ab1e2a0acb207695f0cfe4`).
+
+## Ordered release integration
+
+Reconciled source `de632519db39c9e8c361152b221915420d4a1c30` incorporates released verifier018 and correlated network errors. The existing loaded network fixture55463 retained001–017 data; unmodified Migrate then applied018 and019 in order. Report bounds/principal rate-concurrency plus error contract races passed5.377s; the reporter-only privacy/receipt lifecycle passed2.258s separately. The earlier fresh55477 noncontiguous proof remains historical and is not described as raw001–019 proof. No SQL replay or ledger edits occurred. Full integrated network gate is pending020/021; no moderation/legal/provider qualification is claimed.
