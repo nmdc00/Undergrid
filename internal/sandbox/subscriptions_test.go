@@ -15,7 +15,7 @@ func TestSubscriptionHTTPConsentIsOwnerOnlyAndBounded(t *testing.T) {
 	if err := db.QueryRow(context.Background(), "SELECT id::text FROM undergrid_sandbox.sandbox_credentials WHERE digest=$1", hash([]byte(token))).Scan(&credential); err != nil {
 		t.Fatal(err)
 	}
-	h := NewHandler(s, func(r *http.Request) (Owner, error) {
+	h := mustWalletHandler(t, s, func(r *http.Request) (Owner, error) {
 		if r.Header.Get("X-Fixture-Owner") != owner.Subject {
 			return Owner{}, ErrUnauthorized
 		}
