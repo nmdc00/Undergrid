@@ -87,15 +87,30 @@ func run() error {
 		return errors.New("sandbox OIDC configuration failed")
 	}
 	var catalog map[string]sandbox.Quote
-	if err = json.Unmarshal([]byte(os.Getenv("UNDERGRID_SANDBOX_TEST_CATALOG")), &catalog); err != nil || len(catalog) != 1 {
-		return errors.New("exactly one server-selected TEST product required")
+	if err = json.Unmarshal([]byte(os.Getenv("UNDERGRID_SANDBOX_TEST_CATALOG")), &catalog); err != nil || len(catalog) < 1 || len(catalog) > 10 {
+		return errors.New("one to ten server-selected TEST products required")
 	}
+	store := sandbox.New(dsn)
+	usdcConfigured := false
 	for id, q := range catalog {
-		if id != q.Product || q.Rail != "stripe_test" || q.Asset != "USD" {
+		if id != q.Product || !(q.Rail == "stripe_test" && q.Asset == "USD" || q.Rail == "x402_test" && q.Asset == "USDC") {
 			return errors.New("invalid TEST catalog")
 		}
+		if q.Asset == "USDC" {
+			usdcConfigured = true
+		}
 	}
-	service, err := sandbox.NewHandler(sandbox.New(dsn), func(r *http.Request) (sandbox.Owner, error) {
+	if usdcConfigured {
+		config, e := sandbox.ParseUSDCSigningConfig(os.Getenv("UNDERGRID_SANDBOX_USDC_SIGNING_KEY_ID"), os.Getenv("UNDERGRID_SANDBOX_USDC_SIGNING_PRIVATE_KEY"), os.Getenv("UNDERGRID_SANDBOX_USDC_SIGNING_PUBLIC_KEYS"))
+		if e != nil {
+			return errors.New("explicit trusted USDC signing configuration required")
+		}
+		store, e = store.WithUSDCSigning(config)
+		if e != nil {
+			return e
+		}
+	}
+	service, err := sandbox.NewHandler(store, func(r *http.Request) (sandbox.Owner, error) {
 		o, e := sessions.Authenticate(r)
 		return sandbox.Owner{Issuer: o.Issuer, Subject: o.Subject}, e
 	}, catalog, os.Getenv("UNDERGRID_SANDBOX_ORIGIN"))
