@@ -362,8 +362,11 @@ These template/license names are deliberately placeholders pending owner approva
 | `POST /v1/plans/{id}/approvals` | Listed principal `plans:approve` + `rights:accept` policy | Exact hash approval; plan accepts only when all required approvals and assignments exist |
 | `POST /v1/tasks/{id}/assignment-response` | Offered agent `tasks:accept`; template permitted | Accept/decline own responsibility, no spend |
 | `GET /v1/tasks/{id}` | Current swarm/task read ACL | State, current claim epoch/version and exact plan binding |
-| `POST /v1/tasks/{id}/progress` | Current assignee/epoch/version | Transition/progress deadline; 409 stale epoch or unmet plan gate |
-| `POST /v1/artifacts/uploads` | Current assigned contributor `artifacts:submit` | Quarantine ID and bounded upload URL; content not yet trusted |
+| `POST /v1/tasks/{id}/progress` | Current assignee/epoch/version | Records an untrusted heartbeat and may enter `in_progress`; never resets a progress or cure clock |
+| `POST /v1/tasks/{id}/progress-evidence` | Current assignee; exact sealed progress artifact, passing fixed evaluation, accepted plan and claim epoch; finite named member audience and designated reviewer | Pending report/hash and exact artifact/evaluation links; does not reset clocks or accept the output |
+| `GET /v1/tasks/{id}/progress-evidence/{evidence_id}` | Current swarm member named in the evidence audience | Private report and exact bindings; outside the audience receives 404 |
+| `POST /v1/tasks/{id}/progress-evidence-review` | Named current acceptance principal with `tasks:accept` and effective rights policy | Explicit accept/reject of the exact report hash; only a new accepted item renews the execution deadline and clears an active cure window |
+| `POST /v1/artifacts/uploads` | Current assigned contributor `artifacts:submit` | Quarantine ID and bounded upload URL; content not yet trusted; `purpose=progress` creates evidence-only work that does not submit the task (`output` remains the default) |
 | `POST /v1/artifacts/{id}/finalize` | Same current authority; immutable manifest/inputs | Server hash and sealed artifact, evaluation queued; wrong hash/license 422 |
 | `GET /v1/artifacts/{id}/evaluations` | Artifact read ACL | Immutable checks/evidence with limitations |
 | `POST /v1/artifacts/{id}/acceptances` | Designated acceptance principal; passing required evaluation | Exact artifact/plan/evaluation approval |
@@ -371,6 +374,15 @@ These template/license names are deliberately placeholders pending owner approva
 | `POST /v1/artifacts/{id}/publish` | Coordinator/publisher; all acceptance/rights gates | Public listing projection; event/job; no message history publication |
 | `GET /v1/artifacts/{id}`, `GET /v1/artifacts/{id}/content` | Current private ACL or published projection | Metadata or bounded bytes; content read records retrieval without implying reuse |
 | `POST /v1/artifacts/{id}/reuse-receipts` | Authenticated retriever of published version | Actor-attributed self-report with use-kind; not proof of actual execution |
+
+A progress artifact's named audience remains an independent, immutable access
+condition when its bytes are proposed as an assembly or evaluation input. A
+separate all-source-rights grant cannot add a recipient to that audience. A
+progress-source grant is eligible only when its assigned recipient principal
+is already named in the audience and that exact recipient agent still has
+accepted membership in the source swarm. Approval metadata, inbox delivery and
+agent-context grants follow the same condition; the named progress reviewer
+does not substitute for source-rights approval.
 
 JSON responses use `id`, `version` and `etag` where mutable; response ETag matches the quoted version. Errors are `{code,message,request_id,retryable}`. Mutations require `Idempotency-Key`; request replay returns original status/result, never a new resource. Principal-scoped policy endpoints are browser-authenticated, not agent tools.
 

@@ -21,21 +21,24 @@ import (
 const artifactLimitations = "Fixed structural checks only: no factual truth, coverage, legal ownership or fitness proof; content is untrusted."
 
 type storedArtifact struct {
-	id, swarm, plan, task, principal, agent, generation, state, media string
-	sha, manifestHash, planHash, agreement, license                   string
-	size, epoch, version                                              int64
-	manifest                                                          []byte
-	rights                                                            []string
+	id, swarm, plan, task, principal, agent, generation, state, purpose, media string
+	sha, manifestHash, planHash, agreement, license                            string
+	size, epoch, version                                                       int64
+	manifest                                                                   []byte
+	rights                                                                     []string
+	audience                                                                   []string
+	reviewer                                                                   string
 }
 
 func loadArtifact(ctx context.Context, tx pgx.Tx, id string, lock bool) (storedArtifact, error) {
 	var a storedArtifact
-	q := `SELECT id,swarm_id,plan_id,task_id,principal_id,agent_id,generation,state,media_type,size_bytes,claim_epoch,version,
- COALESCE(sha256,''),COALESCE(manifest_hash,''),COALESCE(plan_hash,''),COALESCE(agreement_hash,''),COALESCE(license_id,''),manifest_bytes,required_rights FROM artifacts WHERE id=$1`
+	q := `SELECT id,swarm_id,plan_id,task_id,principal_id,agent_id,generation,state,purpose,media_type,size_bytes,claim_epoch,version,
+	 COALESCE(sha256,''),COALESCE(manifest_hash,''),COALESCE(plan_hash,''),COALESCE(agreement_hash,''),COALESCE(license_id,''),manifest_bytes,required_rights,
+	 audience_principal_ids::text[],COALESCE(progress_reviewer_principal_id::text,'') FROM artifacts WHERE id=$1`
 	if lock {
 		q += " FOR UPDATE"
 	}
-	err := tx.QueryRow(ctx, q, id).Scan(&a.id, &a.swarm, &a.plan, &a.task, &a.principal, &a.agent, &a.generation, &a.state, &a.media, &a.size, &a.epoch, &a.version, &a.sha, &a.manifestHash, &a.planHash, &a.agreement, &a.license, &a.manifest, &a.rights)
+	err := tx.QueryRow(ctx, q, id).Scan(&a.id, &a.swarm, &a.plan, &a.task, &a.principal, &a.agent, &a.generation, &a.state, &a.purpose, &a.media, &a.size, &a.epoch, &a.version, &a.sha, &a.manifestHash, &a.planHash, &a.agreement, &a.license, &a.manifest, &a.rights, &a.audience, &a.reviewer)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return a, fail(404, "not_found")
 	}
@@ -54,6 +57,11 @@ func artifactProjectionWithContext(a storedArtifact, includeContext bool) any {
 		out["swarm_id"] = a.swarm
 		out["plan_id"] = a.plan
 		out["task_id"] = a.task
+		out["purpose"] = a.purpose
+		if a.purpose == "progress" {
+			out["audience_principal_ids"] = a.audience
+			out["reviewer_principal_id"] = a.reviewer
+		}
 		out["claim_epoch"] = a.epoch
 		out["agreement_hash"] = a.agreement
 		out["submission_attestation"] = "authenticated_platform_submission_not_agent_signature_or_legal_ownership_proof"
@@ -263,12 +271,15 @@ func (s *Service) currentArtifactAuthority(ctx context.Context, tx pgx.Tx, a act
 }
 
 type artifactUploadInput struct {
-	Swarm string `json:"swarm_id"`
-	Plan  string `json:"plan_id"`
-	Task  string `json:"task_id"`
-	Epoch int64  `json:"claim_epoch"`
-	Media string `json:"media_type"`
-	Size  int64  `json:"size_bytes"`
+	Swarm    string   `json:"swarm_id"`
+	Plan     string   `json:"plan_id"`
+	Task     string   `json:"task_id"`
+	Epoch    int64    `json:"claim_epoch"`
+	Purpose  string   `json:"purpose,omitempty"`
+	Audience []string `json:"audience_principal_ids,omitempty"`
+	Reviewer string   `json:"reviewer_principal_id,omitempty"`
+	Media    string   `json:"media_type"`
+	Size     int64    `json:"size_bytes"`
 }
 
 func (s *Service) createArtifactUpload(r *http.Request, tx pgx.Tx, a actor) (int, any, error) {
@@ -278,6 +289,12 @@ func (s *Service) createArtifactUpload(r *http.Request, tx pgx.Tx, a actor) (int
 	}
 	if !validID(in.Swarm) || !validID(in.Plan) || !validID(in.Task) || in.Epoch < 1 || in.Media != "application/json" || in.Size < 1 || in.Size > verification.MaxDataBytes {
 		return 0, nil, fail(422, "invalid_artifact_upload")
+	}
+	if in.Purpose == "" {
+		in.Purpose = "output"
+	}
+	if in.Purpose != "output" && in.Purpose != "progress" {
+		return 0, nil, fail(422, "invalid_artifact_purpose")
 	}
 	if err := roomAuthority(r.Context(), tx, a, in.Swarm, false); err != nil {
 		return 0, nil, err
@@ -292,6 +309,14 @@ func (s *Service) createArtifactUpload(r *http.Request, tx pgx.Tx, a actor) (int
 	}
 	if p.swarm != in.Swarm || !slices.Contains([]string{"accepted", "in_progress", "changes_requested", "at_risk"}, t.state) {
 		return 0, nil, fail(409, "artifact_assignment_not_current")
+	}
+	if in.Purpose == "progress" {
+		in.Audience, err = validateProgressAudience(r.Context(), tx, p, a.PrincipalID, in.Audience, in.Reviewer)
+		if err != nil {
+			return 0, nil, err
+		}
+	} else if len(in.Audience) != 0 || in.Reviewer != "" {
+		return 0, nil, fail(422, "output_artifact_cannot_set_progress_audience")
 	}
 	art := storedArtifact{plan: in.Plan, task: in.Task, swarm: in.Swarm, agent: a.AgentID, principal: a.PrincipalID, epoch: in.Epoch, state: "quarantine"}
 	if err = s.currentArtifactAuthority(r.Context(), tx, a, p, t, art, true); err != nil {
@@ -312,10 +337,23 @@ func (s *Service) createArtifactUpload(r *http.Request, tx pgx.Tx, a actor) (int
 	token := hex.EncodeToString(capability)
 	hash := sha256.Sum256([]byte(token))
 	expires := time.Now().UTC().Add(60 * time.Second)
-	if _, err = tx.Exec(r.Context(), `INSERT INTO artifacts(id,swarm_id,plan_id,task_id,principal_id,agent_id,claim_epoch,generation,size_bytes,media_type,upload_digest,upload_credential_id,upload_expires_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`, id, in.Swarm, in.Plan, in.Task, a.PrincipalID, a.AgentID, in.Epoch, generation, in.Size, in.Media, hash[:], a.CredentialID, expires); err != nil {
+	audience := in.Audience
+	if audience == nil {
+		audience = []string{}
+	}
+	var reviewer any
+	if in.Reviewer != "" {
+		reviewer = in.Reviewer
+	}
+	if _, err = tx.Exec(r.Context(), `INSERT INTO artifacts(id,swarm_id,plan_id,task_id,principal_id,agent_id,claim_epoch,generation,purpose,audience_principal_ids,progress_reviewer_principal_id,size_bytes,media_type,upload_digest,upload_credential_id,upload_expires_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::uuid[],$11,$12,$13,$14,$15,$16)`, id, in.Swarm, in.Plan, in.Task, a.PrincipalID, a.AgentID, in.Epoch, generation, in.Purpose, audience, reviewer, in.Size, in.Media, hash[:], a.CredentialID, expires); err != nil {
 		return 0, nil, err
 	}
-	return 201, map[string]any{"id": id, "state": "quarantine", "generation": generation, "upload_url": s.artifacts.config.Origin + "/v1/artifacts/" + id + "/upload?token=" + token, "expires_at": expires, "size_bytes": in.Size, "media_type": in.Media}, nil
+	result := map[string]any{"id": id, "state": "quarantine", "purpose": in.Purpose, "generation": generation, "upload_url": s.artifacts.config.Origin + "/v1/artifacts/" + id + "/upload?token=" + token, "expires_at": expires, "size_bytes": in.Size, "media_type": in.Media}
+	if in.Purpose == "progress" {
+		result["audience_principal_ids"] = audience
+		result["reviewer_principal_id"] = in.Reviewer
+	}
+	return 201, result, nil
 }
 func (s *Service) artifactBytes(a storedArtifact) ([]byte, error) {
 	b, err := s.artifacts.read(a.generation, a.size)
@@ -420,13 +458,20 @@ func (s *Service) finalizeArtifact(r *http.Request, tx pgx.Tx, a actor, p stored
 	if _, err = tx.Exec(r.Context(), `UPDATE artifacts SET state='sealed',sha256=$2,manifest=$3,manifest_bytes=$4,manifest_hash=$5,plan_hash=$6,agreement_hash=$7,license_id=$8,required_rights=$9,sealed_at=now(),version=version+1 WHERE id=$1`, art.id, sha, manifest, manifest, manifestHash, p.hash, p.sealed.TemplateHash, m.LicenseID, rights); err != nil {
 		return 0, nil, err
 	}
-	if _, err = tx.Exec(r.Context(), "UPDATE tasks SET state='submitted',submitted_artifact_id=$2,version=version+1 WHERE id=$1", t.id, art.id); err != nil {
-		return 0, nil, err
+	if art.purpose == "output" {
+		if _, err = tx.Exec(r.Context(), "UPDATE tasks SET state='submitted',submitted_artifact_id=$2,version=version+1 WHERE id=$1", t.id, art.id); err != nil {
+			return 0, nil, err
+		}
 	}
 	if err = enqueueArtifactEvaluation(r.Context(), tx, art.id, art.generation, manifestHash); err != nil {
 		return 0, nil, err
 	}
-	if err = s.roomEvent(r.Context(), tx, a, art.id, 2, "artifact.sealed", art.swarm, "/v1/artifacts/"+art.id); err != nil {
+	if art.purpose == "progress" {
+		err = s.roomEventAudience(r.Context(), tx, a, art.id, 2, "artifact.sealed", art.swarm, "/v1/artifacts/"+art.id, art.audience)
+	} else {
+		err = s.roomEvent(r.Context(), tx, a, art.id, 2, "artifact.sealed", art.swarm, "/v1/artifacts/"+art.id)
+	}
+	if err != nil {
 		return 0, nil, err
 	}
 	art, err = loadArtifact(r.Context(), tx, art.id, false)
@@ -469,7 +514,7 @@ func (s *Service) acceptArtifact(r *http.Request, tx pgx.Tx, a actor, p storedPl
 	if !slices.Contains(p.sealed.Plan.AcceptancePrincipals, a.PrincipalID) {
 		return 0, nil, fail(403, "designated_acceptance_principal_required")
 	}
-	if !validID(in.Evaluation) || in.SHA != art.sha || in.PlanHash != p.hash || !slices.Contains([]string{"verified", "published"}, art.state) {
+	if art.purpose != "output" || !validID(in.Evaluation) || in.SHA != art.sha || in.PlanHash != p.hash || !slices.Contains([]string{"verified", "published"}, art.state) {
 		return 0, nil, fail(409, "exact_passing_evaluation_required")
 	}
 	var passed bool
@@ -531,7 +576,7 @@ func (s *Service) approveArtifactPublication(r *http.Request, tx pgx.Tx, a actor
 	if !slices.Contains(art.rights, a.PrincipalID) {
 		return 0, nil, fail(403, "required_rights_principal_required")
 	}
-	if in.Hash != art.manifestHash || in.License != art.license || !slices.Contains([]string{"sealed", "verified", "published"}, art.state) {
+	if art.purpose != "output" || in.Hash != art.manifestHash || in.License != art.license || !slices.Contains([]string{"sealed", "verified", "published"}, art.state) {
 		return 0, nil, fail(409, "exact_manifest_required")
 	}
 	_, version, err := s.requireRights(r.Context(), tx, a, p.sealed.Plan.Rights)
@@ -557,7 +602,7 @@ func (s *Service) publishArtifact(r *http.Request, tx pgx.Tx, a actor, p storedP
 	if !coordinator {
 		return 0, nil, fail(403, "coordinator_required")
 	}
-	if in.Hash != art.manifestHash || art.state != "verified" || t.state != "accepted_output" {
+	if art.purpose != "output" || in.Hash != art.manifestHash || art.state != "verified" || t.state != "accepted_output" {
 		return 0, nil, fail(409, "publication_not_ready")
 	}
 	if _, err := s.artifactBytes(art); err != nil {
