@@ -12,17 +12,21 @@ import (
 
 type OwnerAuthenticator func(*http.Request) (Owner, error)
 type Handler struct {
-	store    *Store
-	owner    OwnerAuthenticator
-	products map[string]Quote
+	store           *Store
+	owner           OwnerAuthenticator
+	products        map[string]Quote
+	financialOrigin string
 }
 
-func NewHandler(store *Store, owner OwnerAuthenticator, products map[string]Quote) *Handler {
+func NewHandler(store *Store, owner OwnerAuthenticator, products map[string]Quote, financialOrigin string) (*Handler, error) {
+	if _, err := validateFinancialOrigin(financialOrigin); err != nil {
+		return nil, errors.New("HTTPS financial sandbox origin required")
+	}
 	catalog := make(map[string]Quote, len(products))
 	for k, v := range products {
 		catalog[k] = v
 	}
-	return &Handler{store, owner, catalog}
+	return &Handler{store: store, owner: owner, products: catalog, financialOrigin: financialOrigin}, nil
 }
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
@@ -40,6 +44,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			code = 413
 		case errors.Is(err, ErrConflict):
 			code = 409
+		case errors.Is(err, ErrNotFound):
+			code = 404
 		case errors.Is(err, ErrLimit):
 			code = 403
 		}
@@ -85,6 +91,36 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		respond(201, map[string]string{"id": id, "designation": "TEST"})
+	case r.Method == "POST" && r.URL.Path == "/v1/owner/wallet-challenges":
+		var cmd struct {
+			Address string `json:"address"`
+		}
+		if !decode(&cmd) {
+			return
+		}
+		o, err := owner()
+		if err != nil {
+			fail(ErrUnauthorized)
+			return
+		}
+		challenge, err := h.store.CreateWalletChallenge(r.Context(), o, r.Header.Get("Idempotency-Key"), cmd.Address, h.financialOrigin)
+		if err != nil {
+			fail(err)
+			return
+		}
+		respond(201, challenge)
+	case r.Method == "GET" && r.URL.Path == "/v1/owner/wallet-binding":
+		o, err := owner()
+		if err != nil {
+			fail(ErrUnauthorized)
+			return
+		}
+		binding, err := h.store.GetWalletBinding(r.Context(), o)
+		if err != nil {
+			fail(err)
+			return
+		}
+		respond(200, binding)
 	case r.Method == "GET" && r.URL.Path == "/v1/owner/policy":
 		o, err := owner()
 		if err != nil {
@@ -208,6 +244,26 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		respond(201, p)
 	default:
 		parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+		if r.Method == "POST" && len(parts) == 5 && parts[0] == "v1" && parts[1] == "owner" && parts[2] == "wallet-challenges" && validUUID(parts[3]) && parts[4] == "prove" {
+			var cmd struct {
+				Signature string `json:"signature"`
+			}
+			if !decode(&cmd) {
+				return
+			}
+			o, err := owner()
+			if err != nil {
+				fail(ErrUnauthorized)
+				return
+			}
+			binding, err := h.store.ProveWalletControl(r.Context(), o, parts[3], r.Header.Get("Idempotency-Key"), cmd.Signature, h.financialOrigin)
+			if err != nil {
+				fail(err)
+				return
+			}
+			respond(200, binding)
+			return
+		}
 		if len(parts) >= 4 && parts[0] == "v1" && parts[1] == "owner" && parts[2] == "subscriptions" && validUUID(parts[3]) {
 			if r.Method == "GET" && len(parts) == 4 {
 				o, err := owner()
