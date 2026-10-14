@@ -37,20 +37,26 @@ transitions.
 
 Validation on this branch:
 
-- Implementation code and tests are committed at `a1c77c67d5f7e5d7c0039b425b211c7897d2c5a2`.
-  The focused `go test -race ./internal/network ./internal/identity` selection
-  passed against fresh database `undergrid_sharing_proof` on port 55467, after
-  initializing a new PostgreSQL 16.11 cluster with UTF-8 encoding and
-  `C.UTF-8` locale. The cluster initially had no Undergrid roles or migration
-  ledger. The embedded migrations created `undergrid_app` in 001 and
-  `undergrid_worker` in 002; both are `NOLOGIN`, non-superuser, and
-  `NOBYPASSRLS`, and neither has role memberships. The exact Undergrid ledger
-  entries were `001_participation.sql` through `014_agent_control_rotation.sql`
-  and `020_intent_grant_revision.sql`; the test harness also recorded
-  `river-0.49.0-ready`. This proves migration 020 from raw cluster state with
-  the migrations available on this branch. It does not claim contiguous
-  migrations 001–020; migrations 015–019 are absent here and remain an
-  integration check for the root owner.
+- Final reconciled implementation SHA: `ce5433e` (release baseline `06fc773`).
+  Fresh PostgreSQL 16.11 cluster `/tmp/undergrid-pg-sharing-55479/data`, socket
+  `/tmp/undergrid-pg-sharing-55479/socket`, port 55479, database `postgres`,
+  UTF-8 / `C.UTF-8`, initially had no migration ledger or Undergrid roles.
+  The unmodified application `Migrate` recorded raw network migrations
+  001–017 plus 020 and `river-0.49.0-ready` (19 ledger rows). Migrations
+  018 and 019 are absent; this is explicitly not contiguous 001–020 proof.
+  No SQL replay, role omission, or migration-ledger rewrite was used.
+  `undergrid_app` and `undergrid_worker` are NOLOGIN, NOSUPERUSER,
+  NOBYPASSRLS with no role memberships. This includes the final progress
+  privacy migration 016 (`e7c439471609dbff95f9d5f4bae48e5bda4abf43a0f90d09cc24265c71f1377b`)
+  and owner recovery 017 (`9828ddeae1accf601d67123e23e5a80da6a5c5abcdc77ff6bb37e448df1e199e`).
+  Migration 020 SHA-256 is
+  `2f9c2401d74bb346964267ea81fd337e0180397af086a875dfece05475398b6b`.
+  Financial migration 008 remains byte-identical
+  (`5fe8b8871772fa9d0a99ccd4ae61c4ca2187b5ddf8ab1e2a0acb207695f0cfe4`);
+  no financial migrations were applied to this network fixture.
+- `go test -race ./internal/network ./internal/identity -run
+  'Test(Restricted|GrantRequires|IntentionRevision|ExpiredIntention|Owner)'
+  -count=1 -timeout=10m` passed: network 64.992s, identity 1.022s.
 - These tests cover HTTP owner grant/list/revoke,
   wrong owner and agent-credential denial, browser CSRF denials before any row
   is written, exact field masking, explicit budget selection, raw foreign-row
@@ -59,19 +65,26 @@ Validation on this branch:
   revision invalidation, legacy NULL-row inactivity and explicit regrant, and
   concurrent read/revoke followed by a denied fresh read. Event/inbox/version
   effects are checked against PostgreSQL.
-- The unchanged owner-console/revision lifecycle and durable participation
-  tests passed with `-race`.
-- `go vet ./internal/network ./internal/identity` and `go build ./...` passed.
-  The owner-console Vitest suite (12 tests) and TypeScript/Vite production
-  build passed before the implementation commit.
+- Unchanged owner-console registration/isolation and durable participation
+  passed separately with `-race` (2.895s).
+- `go vet ./internal/network ./internal/identity ./cmd/undergrid` and
+  `go build ./cmd/undergrid` passed. The owner-console Vitest suite passed
+  all 17 tests and the TypeScript/Vite production build passed. An earlier
+  unchanged run timed out starting the App test worker; it executed eight
+  other tests but did not qualify the full suite. The successful unchanged
+  retry is the final evidence.
 - The initial red HTTP test returned 405 for the owner grant path before the
   route existed; after implementation the same test completed the database
   lifecycle. An early invalid test budget was corrected to the published
   `stated_budget` shape before treating the route failure as red evidence.
 
-Migration files 015–019 belong to concurrent branches and are not included in
-this isolated branch. The combined sorted migration gate remains an integration
-check for the root owner. The identity test uses a signed local session fixture;
+The combined sorted migration 018/019 integration gate remains pending for
+root review. Earlier raw 55467 proof covered only 001–014 plus 020 and is
+superseded by the reconciled 55479 proof above. DRY review keeps grant policy
+in its transactional command and the restricted-read SQL projection; UI field
+selection cannot authorize access. SQL and Go allowlists defend separate trust
+boundaries. Read/revoke semantics explicitly use committed PostgreSQL snapshots
+rather than promising to cancel an already executing read. The identity test uses a signed local session fixture;
 it proves the CSRF/owner transaction boundary, not external OIDC-provider
 verification. No provider, source-permission, deployment, legal, financial, or
 full-release qualification is claimed. The branch remains local and unmerged.
