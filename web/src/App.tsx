@@ -24,6 +24,11 @@ const ordinaryScopes = [
   "plans:propose",
   "tasks:progress",
 ];
+function localDateTime(instant: string): string {
+  const date = new Date(instant);
+  const pad = (part: number) => String(part).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
 type Config = { terms: string; templates: ObjectValue[] };
 export function App() {
   const [phase, setPhase] = useState("loading"),
@@ -48,6 +53,9 @@ export function App() {
     [watch, setWatch] = useState(true),
     [detail, setDetail] = useState<ObjectValue | null>(null),
     [results, setResults] = useState<ObjectValue[]>([]);
+  const [editingRevision, setEditingRevision] = useState(false),
+    [revisionObjective, setRevisionObjective] = useState(""),
+    [revisionExpiry, setRevisionExpiry] = useState("");
   const generation = useRef(0);
   const [intentionExpiry, setIntentionExpiry] = useState(() =>
     new Date(Date.now() + 30 * 86400000).toISOString(),
@@ -374,6 +382,11 @@ export function App() {
                             request(path + "/opportunities", csrf),
                           ]);
                           setDetail(record);
+                          setRevisionObjective(text(record.objective));
+                          setRevisionExpiry(
+                            localDateTime(text(record.expires_at)),
+                          );
+                          setEditingRevision(false);
                           setResults(items(matches));
                         })
                       }
@@ -397,6 +410,101 @@ export function App() {
                     results.map((r) => (
                       <pre key={text(r.id)}>{JSON.stringify(r, null, 2)}</pre>
                     ))
+                  )}
+                  {detail.state !== "withdrawn" && (
+                    <>
+                      {!editingRevision ? (
+                        <button
+                          disabled={busy}
+                          onClick={() => setEditingRevision(true)}
+                        >
+                          {detail.state === "expired"
+                            ? "Renew intention"
+                            : "Edit intention"}
+                        </button>
+                      ) : (
+                        <form
+                          onSubmit={(e) =>
+                            submit(e, async () => {
+                              const revision = {
+                                objective: revisionObjective,
+                                output: detail.output,
+                                hard_constraints: detail.hard_constraints,
+                                ...(detail.preferences === undefined
+                                  ? {}
+                                  : { preferences: detail.preferences }),
+                                visibility: detail.visibility,
+                                ...(detail.public_summary === undefined
+                                  ? {}
+                                  : { public_summary: detail.public_summary }),
+                                budget: detail.budget ?? null,
+                                watch: detail.watch,
+                                expires_at: new Date(
+                                  revisionExpiry,
+                                ).toISOString(),
+                              };
+                              const out = await request(
+                                `/v1/owner/intents/${encodeURIComponent(text(detail.id))}`,
+                                csrf,
+                                "PATCH",
+                                { revision },
+                                text(detail.etag),
+                              );
+                              setDetail(out);
+                              setEditingRevision(false);
+                              setRevisionObjective(text(out.objective));
+                              setRevisionExpiry(
+                                localDateTime(text(out.expires_at)),
+                              );
+                              await refresh(csrf);
+                            })
+                          }
+                        >
+                          <h4>New intention revision</h4>
+                          <p>
+                            This keeps the current output, constraints,
+                            visibility, budget, and watch settings. Changes take
+                            effect after you save; expired intentions resume
+                            with a new expiry.
+                          </p>
+                          <label>
+                            Objective
+                            <textarea
+                              required
+                              minLength={3}
+                              maxLength={4000}
+                              value={revisionObjective}
+                              onChange={(e) =>
+                                setRevisionObjective(e.target.value)
+                              }
+                            />
+                          </label>
+                          <label>
+                            Expires at (local time)
+                            <input
+                              type="datetime-local"
+                              required
+                              value={revisionExpiry}
+                              onChange={(e) =>
+                                setRevisionExpiry(e.target.value)
+                              }
+                            />
+                          </label>
+                          <button disabled={busy || !revisionObjective.trim()}>
+                            {detail.state === "expired"
+                              ? "Renew intention"
+                              : "Save new revision"}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => setEditingRevision(false)}
+                          >
+                            Cancel edit
+                          </button>
+                        </form>
+                      )}
+                    </>
                   )}
                   {["active", "paused", "withdrawn"].map((state) => (
                     <button

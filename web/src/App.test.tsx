@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { vi, test, expect } from "vitest";
 import { App } from "./App";
 
-function fixture(registered = true) {
+function fixture(registered = true, intentState = "active") {
   const requests: { path: string; init: RequestInit | undefined }[] = [];
   vi.stubGlobal(
     "fetch",
@@ -46,11 +46,28 @@ function fixture(registered = true) {
             {
               id: "intent",
               objective: "Private catalog",
-              state: "active",
+              state: intentState,
               version: 1,
             },
           ],
         },
+        "/v1/owner/intents/intent": {
+          id: "intent",
+          etag: '"v1"',
+          version: 1,
+          state: intentState,
+          objective: "Private catalog",
+          output: { kind: "json_dataset", schema_family: "source_catalog_v1" },
+          hard_constraints: {
+            required_fields: ["source_id", "source_url"],
+            license_ids: ["CC0-1.0"],
+          },
+          visibility: "private",
+          watch: { enabled: true, channels: ["inbox"] },
+          expires_at: "2030-02-01T00:00:00Z",
+          budget: null,
+        },
+        "/v1/owner/intents/intent/opportunities": { items: [] },
         "/v1/owner/policy": {
           etag: '"v1"',
           policy: {
@@ -62,7 +79,20 @@ function fixture(registered = true) {
           },
         },
       };
-      return new Response(JSON.stringify(values[path] ?? {}), {
+      let result = values[path] ?? {};
+      if (path === "/v1/owner/intents/intent" && init?.method === "PATCH") {
+        const sent = JSON.parse(String(init.body)) as {
+          revision: Record<string, unknown>;
+        };
+        result = {
+          ...(values[path] as Record<string, unknown>),
+          ...sent.revision,
+          etag: '"v2"',
+          version: 2,
+          state: intentState === "expired" ? "active" : intentState,
+        };
+      }
+      return new Response(JSON.stringify(result), {
         status: path === "/v1/owner/me" && !registered ? 403 : 200,
         headers: { "Content-Type": "application/json" },
       });
@@ -120,6 +150,54 @@ test("shows owner records, renders untrusted names as text, logs out with CSRF",
   expect(new Headers(sent.init?.headers).get("X-CSRF-Token")).toBe(
     "session-csrf",
   );
+});
+test("owner can append a revision or renew while preserving typed fields and ETag", async () => {
+  const requests = fixture(true, "expired");
+  render(<App />);
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Review intention" }),
+  );
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Renew intention" }),
+  );
+  const objectives = screen.getAllByLabelText("Objective");
+  await userEvent.clear(objectives[0]);
+  await userEvent.type(objectives[0], "Renewed private catalog");
+  fireEvent.change(screen.getByLabelText("Expires at (local time)"), {
+    target: { value: "2030-03-01T00:00" },
+  });
+  await userEvent.click(
+    screen.getByRole("button", { name: "Renew intention" }),
+  );
+  await waitFor(() =>
+    expect(
+      requests.some(
+        (r) =>
+          r.path === "/v1/owner/intents/intent" && r.init?.method === "PATCH",
+      ),
+    ).toBe(true),
+  );
+  const sent = requests.find(
+    (r) => r.path === "/v1/owner/intents/intent" && r.init?.method === "PATCH",
+  )!;
+  expect(new Headers(sent.init?.headers).get("If-Match")).toBe('"v1"');
+  expect(new Headers(sent.init?.headers).get("X-CSRF-Token")).toBe(
+    "session-csrf",
+  );
+  expect(JSON.parse(sent.init!.body as string)).toEqual({
+    revision: {
+      objective: "Renewed private catalog",
+      output: { kind: "json_dataset", schema_family: "source_catalog_v1" },
+      hard_constraints: {
+        required_fields: ["source_id", "source_url"],
+        license_ids: ["CC0-1.0"],
+      },
+      visibility: "private",
+      budget: null,
+      watch: { enabled: true, channels: ["inbox"] },
+      expires_at: new Date("2030-03-01T00:00").toISOString(),
+    },
+  });
 });
 test("credential issuance is one-time display and never persisted in browser storage", async () => {
   fixture();
