@@ -65,9 +65,9 @@ func TestAuthenticatedReportReceiptIsBoundAndPrivate(t *testing.T) {
 	}
 	s.dsn = runtimeDSN
 	ctx := context.Background()
-	reader := reportAgent(t, s, "report-reader", []string{"reports:read"})
-	writer := reportAgent(t, s, "report-writer", []string{"reports:write", "reports:read"})
-	outsider := reportAgent(t, s, "unrelated-owner", []string{"reports:read"})
+	reader := reportAgent(t, s, "report-reader-"+NewID(), []string{"reports:read"})
+	writer := reportAgent(t, s, "report-writer-"+NewID(), []string{"reports:write", "reports:read"})
+	outsider := reportAgent(t, s, "unrelated-owner-"+NewID(), []string{"reports:read"})
 
 	var writerPrincipal, writerAgent string
 	if code, me := writer.call("GET", "/v1/me", "", nil); code != 200 {
@@ -207,7 +207,7 @@ func TestReportIntakeBoundsAndScopeSeparation(t *testing.T) {
 	if err := s.ConfigureReportTriageWindow(31 * 24 * time.Hour); err == nil {
 		t.Fatal("unbounded internal triage target was accepted")
 	}
-	writer := reportAgent(t, s, "report-bounds", []string{"reports:write"})
+	writer := reportAgent(t, s, "report-bounds-"+NewID(), []string{"reports:write"})
 	valid := map[string]any{"kind": "abuse", "subject": map[string]any{"kind": "message", "id": NewID()}, "statement": "A bounded report."}
 	if code, out := writer.call("GET", "/v1/reports/"+NewID(), "", nil); code != 403 {
 		t.Fatalf("write-only credential read report: %d %v", code, out)
