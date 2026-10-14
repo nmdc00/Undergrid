@@ -114,24 +114,14 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	capabilityUpload := r.Method == http.MethodPut && strings.HasPrefix(r.URL.Path, "/v1/artifacts/") && strings.HasSuffix(r.URL.Path, "/upload")
-	if authorization := r.Header.Get("Authorization"); !capabilityUpload && strings.HasPrefix(authorization, "Bearer ") {
-		token := strings.TrimPrefix(authorization, "Bearer ")
-		if token != "" && !strings.HasPrefix(token, "ug_") {
-			if s.oauth == nil {
-				s.oauthChallenge(w, false)
-				s.writeProblem(w, fail(401, "invalid_credential"))
-				return
-			}
-			verified, err := s.oauth.verify(r.Context(), token)
-			if err != nil {
-				s.oauthChallenge(w, false)
-				s.writeProblem(w, fail(401, "invalid_credential"))
-				return
-			}
-			verified.Resource = s.oauth.resource
-			r = r.WithContext(context.WithValue(r.Context(), oauthResourceContextKey, verified))
-		}
+	var verificationErr error
+	r, verificationErr = s.verifyNetworkRequest(r)
+	if verificationErr != nil {
+		s.oauthChallenge(w, false)
+		s.writeProblem(w, verificationErr)
+		return
 	}
+
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 	r = r.WithContext(ctx)
@@ -236,15 +226,7 @@ func (s *Service) execute(r *http.Request) (int, any, error) {
 	if r.URL.Path == "/v1/principals" || r.URL.Path == "/v1/agents" || strings.HasPrefix(r.URL.Path, "/v1/owner/") {
 		status, result, err = s.ownerCommand(r, tx)
 	} else {
-		var a actor
-		if r.Method == "PUT" && strings.HasSuffix(r.URL.Path, "/upload") && strings.HasPrefix(r.URL.Path, "/v1/artifacts/") {
-			a, err = authenticateArtifactUpload(r, tx)
-		} else {
-			a, err = authenticate(ctx, tx, r.Header.Get("Authorization"), r.Method, r.URL.Path)
-		}
-		if err == nil {
-			status, result, err = s.agentCommand(r, tx, a)
-		}
+		_, status, result, err = s.executeAgentCommandTx(r, tx)
 	}
 	if err != nil {
 		return 0, nil, err
