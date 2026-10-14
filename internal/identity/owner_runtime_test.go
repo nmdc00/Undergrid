@@ -106,6 +106,59 @@ func TestBrowserOwnerDomainCSRFAndIsolation(t *testing.T) {
 		t.Fatal(code, out)
 	}
 	credential := out["credential_id"].(string)
+	code, ownerMe := call(a, "GET", "/v1/owner/me", "", "", nil)
+	if code != 200 {
+		t.Fatal("owner me", code, ownerMe)
+	}
+	code, recipientAgent := call(b, "POST", "/v1/agents", "https://undergrid.test", "fixture-csrf", map[string]any{"name": "Recipient reader", "scopes": []string{"intents:read"}})
+	if code != 201 {
+		t.Fatal("recipient agent", code, recipientAgent)
+	}
+	code, recipientMe := call(b, "GET", "/v1/owner/me", "", "", nil)
+	if code != 200 {
+		t.Fatal("recipient owner me", code, recipientMe)
+	}
+	intentExpiry := time.Now().Add(2 * time.Hour).UTC()
+	code, restricted := call(a, "POST", "/v1/owner/intents", "https://undergrid.test", "fixture-csrf", map[string]any{
+		"agent_id": out["id"],
+		"intent": map[string]any{
+			"objective":        "Browser-controlled restricted request",
+			"output":           map[string]string{"kind": "json_dataset", "schema_family": "source_catalog_v1"},
+			"hard_constraints": map[string]any{"required_fields": []string{"source_id"}, "license_ids": []string{"CC0-1.0"}},
+			"visibility":       "restricted",
+			"budget":           nil,
+			"watch":            map[string]any{"enabled": false, "channels": []string{"inbox"}},
+			"expires_at":       intentExpiry,
+		},
+	})
+	if code != 201 {
+		t.Fatal("restricted intent", code, restricted)
+	}
+	grantPath := "/v1/owner/intents/" + restricted["id"].(string) + "/grants"
+	grantBody := map[string]any{"principal_id": recipientMe["id"], "fields": []string{"objective"}, "expires_at": intentExpiry.Add(-time.Minute)}
+	for _, attack := range [][2]string{{"https://attacker.test", "fixture-csrf"}, {"https://undergrid.test", ""}, {"https://undergrid.test", "wrong"}} {
+		code, _ := call(a, "POST", grantPath, attack[0], attack[1], grantBody)
+		if code != 401 {
+			t.Fatalf("intention grant CSRF bypass: %d", code)
+		}
+	}
+	var deniedGrants int
+	if err = db.QueryRow(context.Background(), "SELECT count(*) FROM undergrid.intent_grants WHERE intent_id=$1", restricted["id"]).Scan(&deniedGrants); err != nil || deniedGrants != 0 {
+		t.Fatalf("CSRF-denied grant persisted: %d %v", deniedGrants, err)
+	}
+	code, grant := call(a, "POST", grantPath, "https://undergrid.test", "fixture-csrf", grantBody)
+	if code != 201 {
+		t.Fatal("CSRF-protected grant", code, grant)
+	}
+	request := httptest.NewRequest("GET", "https://undergrid.test/v1/intents/"+restricted["id"].(string), nil)
+	request.Header.Set("Authorization", "Bearer "+recipientAgent["token"].(string))
+	response := httptest.NewRecorder()
+	service.ServeHTTP(response, request)
+	var shared map[string]any
+	_ = json.Unmarshal(response.Body.Bytes(), &shared)
+	if response.Code != 200 || shared["objective"] != "Browser-controlled restricted request" || shared["budget"] != nil {
+		t.Fatalf("browser grant recipient read %d %#v", response.Code, shared)
+	}
 	rotationPath := "/v1/owner/credentials/" + credential + "/rotate"
 	rotation := map[string]any{"scopes": []string{"intents:read"}}
 	for _, attack := range [][2]string{{"https://attacker.test", "fixture-csrf"}, {"https://undergrid.test", ""}} {
@@ -129,7 +182,7 @@ func TestBrowserOwnerDomainCSRFAndIsolation(t *testing.T) {
 	credential = rotated["credential_id"].(string)
 
 	code, list := call(b, "GET", "/v1/agents", "", "", nil)
-	if code != 200 || len(list["items"].([]any)) != 0 {
+	if code != 200 || len(list["items"].([]any)) != 1 || list["items"].([]any)[0].(map[string]any)["id"] != recipientAgent["id"] {
 		t.Fatal("owner isolation", code, list)
 	}
 	code, _ = call(b, "POST", "/v1/owner/credentials/"+credential+"/revoke", "https://undergrid.test", "fixture-csrf", map[string]any{})
