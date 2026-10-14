@@ -9,6 +9,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 	"time"
@@ -27,6 +28,7 @@ type Service struct {
 	termsVersion       string
 	templates          map[string]ContributionTemplate
 	artifacts          *localArtifactRuntime
+	oauth              *oauthVerifier
 	reportTriageWindow time.Duration
 }
 
@@ -50,6 +52,15 @@ func (s *Service) ConfigureReportTriageWindow(window time.Duration) error {
 		return errors.New("report triage window must be between one hour and thirty days")
 	}
 	s.reportTriageWindow = window
+	return nil
+}
+
+func (s *Service) ConfigureOAuthResource(cfg OAuthResourceConfig) error {
+	verifier, err := newOAuthVerifier(cfg)
+	if err != nil {
+		return err
+	}
+	s.oauth = verifier
 	return nil
 }
 
@@ -88,6 +99,29 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"status":"alive"}`))
 		return
 	}
+	if strings.HasPrefix(r.URL.Path, "/.well-known/oauth-protected-resource") {
+		s.oauthMetadata(w, r)
+		return
+	}
+	capabilityUpload := r.Method == http.MethodPut && strings.HasPrefix(r.URL.Path, "/v1/artifacts/") && strings.HasSuffix(r.URL.Path, "/upload")
+	if authorization := r.Header.Get("Authorization"); !capabilityUpload && strings.HasPrefix(authorization, "Bearer ") {
+		token := strings.TrimPrefix(authorization, "Bearer ")
+		if token != "" && !strings.HasPrefix(token, "ug_") {
+			if s.oauth == nil {
+				s.oauthChallenge(w, false)
+				s.writeProblem(w, fail(401, "invalid_credential"))
+				return
+			}
+			verified, err := s.oauth.verify(r.Context(), token)
+			if err != nil {
+				s.oauthChallenge(w, false)
+				s.writeProblem(w, fail(401, "invalid_credential"))
+				return
+			}
+			verified.Resource = s.oauth.resource
+			r = r.WithContext(context.WithValue(r.Context(), oauthResourceContextKey, verified))
+		}
+	}
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 	r = r.WithContext(ctx)
@@ -96,6 +130,10 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		status, result, err = s.waitInbox(r, status, result)
 	}
 	if err != nil {
+		var p problem
+		if errors.As(err, &p) && !capabilityUpload && (p.Status == 401 || p.Status == 403) {
+			s.oauthChallenge(w, p.Code == "insufficient_scope")
+		}
 		s.writeProblem(w, err)
 		return
 	}
@@ -105,6 +143,37 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = json.NewEncoder(w).Encode(result)
+}
+
+func (s *Service) oauthChallenge(w http.ResponseWriter, insufficientScope bool) {
+	if s.oauth == nil {
+		return
+	}
+	resource, _ := url.Parse(s.oauth.resource)
+	decodedPath, err := url.PathUnescape(s.oauth.metadataPath)
+	if err != nil {
+		return
+	}
+	u := &url.URL{Scheme: "https", Host: resource.Host, Path: decodedPath, RawPath: s.oauth.metadataPath}
+	value := `Bearer resource_metadata="` + u.String() + `"`
+	if insufficientScope {
+		value += `, error="insufficient_scope"`
+	}
+	w.Header().Set("WWW-Authenticate", value)
+}
+
+func (s *Service) oauthMetadata(w http.ResponseWriter, r *http.Request) {
+	if s.oauth == nil || r.Method != http.MethodGet || r.URL.EscapedPath() != s.oauth.metadataPath {
+		http.NotFound(w, r)
+		return
+	}
+	issuers := make([]string, 0, len(s.oauth.issuers))
+	for issuer := range s.oauth.issuers {
+		issuers = append(issuers, issuer)
+	}
+	slices.Sort(issuers)
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"resource": s.oauth.resource, "resource_name": "Undergrid Network API", "authorization_servers": issuers, "scopes_supported": networkOAuthScopes(), "bearer_methods_supported": []string{"header"}})
 }
 
 // One renderer keeps transaction errors and adapter-level authentication
@@ -128,6 +197,7 @@ func (s *Service) writeProblem(w http.ResponseWriter, err error) {
 		"code": p.Code, "message": message, "request_id": requestID,
 		"retryable": p.Status == 429 || p.Status == 500 || p.Status == 502 || p.Status == 503 || p.Status == 504,
 	}})
+
 }
 func (s *Service) execute(r *http.Request) (int, any, error) {
 	ctx := r.Context()
@@ -170,11 +240,20 @@ func (s *Service) execute(r *http.Request) (int, any, error) {
 func authenticate(ctx context.Context, tx pgx.Tx, authorization, method, path string) (actor, error) {
 	var a actor
 	token, ok := strings.CutPrefix(authorization, "Bearer ")
-	if !ok || !strings.HasPrefix(token, "ug_") {
+	if !ok || token == "" {
 		return a, fail(401, "invalid_credential")
 	}
-	h := sha256.Sum256([]byte(token))
-	err := tx.QueryRow(ctx, "SELECT principal_id,agent_id,credential_id FROM identify_token($1)", h[:]).Scan(&a.PrincipalID, &a.AgentID, &a.CredentialID)
+	var err error
+	if strings.HasPrefix(token, "ug_") {
+		h := sha256.Sum256([]byte(token))
+		err = tx.QueryRow(ctx, "SELECT principal_id,agent_id,credential_id FROM identify_token($1)", h[:]).Scan(&a.PrincipalID, &a.AgentID, &a.CredentialID)
+	} else {
+		claims, found := ctx.Value(oauthResourceContextKey).(verifiedOAuth)
+		if !found {
+			return a, fail(401, "invalid_credential")
+		}
+		err = tx.QueryRow(ctx, "SELECT principal_id,agent_id,credential_id FROM identify_oauth($1,$2,$3,$4)", claims.Issuer, claims.Subject, claims.ClientID, claims.Resource).Scan(&a.PrincipalID, &a.AgentID, &a.CredentialID)
+	}
 	if errors.Is(err, pgx.ErrNoRows) {
 		return a, fail(401, "invalid_credential")
 	}
@@ -210,7 +289,14 @@ func authenticate(ctx context.Context, tx pgx.Tx, authorization, method, path st
 			}
 		}
 	}
-	return lockActor(ctx, tx, a)
+	a, err = lockActor(ctx, tx, a)
+	if err != nil {
+		return a, err
+	}
+	if claims, ok := ctx.Value(oauthResourceContextKey).(verifiedOAuth); ok && !strings.HasPrefix(token, "ug_") {
+		a.Scopes = scopeIntersection(a.Scopes, claims.Scopes)
+	}
+	return a, nil
 }
 func lockActor(ctx context.Context, tx pgx.Tx, a actor) (actor, error) {
 	var state string
@@ -232,6 +318,20 @@ func lockActor(ctx context.Context, tx pgx.Tx, a actor) (actor, error) {
 		return a, fail(401, "invalid_credential")
 	}
 	return a, err
+}
+
+func scopeIntersection(current, token []string) []string {
+	out := make([]string, 0, len(current))
+	for _, scope := range current {
+		if slices.Contains(token, scope) {
+			out = append(out, scope)
+		}
+	}
+	return out
+}
+
+func networkOAuthScopes() []string {
+	return []string{"intents:read", "intents:write", "inbox:read", "swarms:read", "swarms:create", "swarms:apply", "members:invite", "members:respond", "members:withdraw", "messages:write", "plans:propose", "plans:approve", "tasks:progress", "tasks:accept", "artifacts:submit", "artifacts:read", "artifacts:accept", "artifacts:reuse", "artifacts:grant", "rights:accept", "publication:approve", "reports:read", "reports:write"}
 }
 func (s *Service) agentCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, error) {
 	if r.URL.Path == "/v1/reports" || strings.HasPrefix(r.URL.Path, "/v1/reports/") {
