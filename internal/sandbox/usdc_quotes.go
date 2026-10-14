@@ -82,7 +82,8 @@ func (s *Store) WithUSDCVerification(publicKeys map[string]ed25519.PublicKey) (*
 
 func validUSDCOffer(q Quote) bool {
 	address, err := normalizeWalletAddress(q.Payee)
-	return err == nil && address == q.Payee && q.Asset == "USDC" && q.Rail == "x402_test"
+	_, grossErr := usdcGross(q)
+	return err == nil && grossErr == nil && address == q.Payee && q.Asset == "USDC" && q.Rail == "x402_test"
 }
 func (s *Store) signUSDCQuote(ctx context.Context, tx pgx.Tx, a identity, id string, q Quote) (*SignedQuote, string, int64, error) {
 	if s.usdcSigning == nil {
