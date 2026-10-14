@@ -17,6 +17,13 @@ retain their behavior. The owner path uses the same domain command; the console
 can revise an objective or expiry while preserving all other current typed
 fields, and offers renewal for expired records.
 
+Read paths already exclude expired timestamps from public demand, opportunities,
+and agent watch context, even before the worker records `state='expired'`. A
+revision submitted while the stored state is still active keeps that state and
+its existing quota slot. The quota admission check applies when renewing a row
+whose stored state is expired, using the existing state-based active-intent
+count.
+
 Revision changes keep the existing visibility value. A request that changes
 visibility fails with `visibility_change_requires_grant`; revision editing does
 not imply disclosure consent. Redacted-public projections retain the existing
@@ -40,6 +47,15 @@ Validation on this branch:
   `TestDurableParticipation` and owner isolation contract.
 - `go vet ./...` and `go build ./...`.
 - Owner-console Vitest suite and TypeScript/Vite production build.
+
+A broader `go test ./...` attempt did not pass. The network package reported a
+failure in `TestCommittedDiscoverySurvivesBlockedRecruitment`: the controlled
+recruitment-lock wait was not reached, and its application-name connection
+variant could not parse the URL-form test DSN. The root fairness fixture is
+being repaired; this branch does not claim that package gate passed. Sandbox
+tests also require separate sandbox admin/runtime database DSNs, which were not
+configured in this network-only run. Those failures are fixture prerequisites,
+not provider or financial-sandbox qualification results.
 
 This is scoped runtime evidence for the revision and renewal behavior, not a
 full release, provider, deployment, or disclosure-grant qualification.

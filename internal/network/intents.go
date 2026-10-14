@@ -12,6 +12,13 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+func intentPublicProjection(input IntentInput) map[string]any {
+	if input.Visibility != "redacted_public" {
+		return map[string]any{}
+	}
+	return map[string]any{"public_summary": input.PublicSummary, "output": input.Output, "hard_constraints": input.HardConstraints}
+}
+
 func getIntent(ctx context.Context, tx pgx.Tx, a actor, id string) (int, any, error) {
 	if !validID(id) {
 		return 0, nil, fail(404, "not_found")
@@ -66,10 +73,7 @@ func mutateIntentOnce(r *http.Request, tx pgx.Tx, a actor, environment string) (
 		if _, err = tx.Exec(ctx, `INSERT INTO intents(id,principal_id,agent_id,state,visibility,expires_at,watch_enabled) VALUES($1,$2,$3,'active',$4,$5,$6)`, id, a.PrincipalID, a.AgentID, input.Visibility, input.ExpiresAt, input.Watch.Enabled); err != nil {
 			return 0, nil, err
 		}
-		projection := map[string]any{}
-		if input.Visibility == "redacted_public" {
-			projection = map[string]any{"public_summary": input.PublicSummary, "output": input.Output, "hard_constraints": input.HardConstraints}
-		}
+		projection := intentPublicProjection(input)
 		if _, err = tx.Exec(ctx, "INSERT INTO intent_revisions(intent_id,revision,document,public_projection,content_hash) VALUES($1,1,$2,$3,$4)", id, canonical(input), canonical(projection), digest(canonical(input))); err != nil {
 			return 0, nil, err
 		}
@@ -151,10 +155,7 @@ func mutateIntentOnce(r *http.Request, tx pgx.Tx, a actor, environment string) (
 				eventType = "intent.revised"
 			}
 			version++
-			projection := map[string]any{}
-			if input.Visibility == "redacted_public" {
-				projection = map[string]any{"public_summary": input.PublicSummary, "output": input.Output, "hard_constraints": input.HardConstraints}
-			}
+			projection := intentPublicProjection(input)
 			encoded := canonical(input)
 			if _, err = tx.Exec(ctx, "INSERT INTO intent_revisions(intent_id,revision,document,public_projection,content_hash) VALUES($1,$2,$3,$4,$5)", id, currentRevision+1, encoded, canonical(projection), digest(encoded)); err != nil {
 				return 0, nil, err
