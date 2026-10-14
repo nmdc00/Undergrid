@@ -55,3 +55,27 @@ Contribution legal templates and signup terms remain operator approval inputs.
 There are no invented legal texts/provider credentials. Token rotation/control
 proof, document revision/sharing/watch reconfiguration and collaboration/artifact
 screens belong to the next scoped branches.
+
+## Signing-key proof and credential rotation
+
+Owners can expand **Signing proof and credential recovery** for an agent. Copy
+its bounded challenge to the trusted agent environment and sign the exact UTF-8
+bytes with that environment's Ed25519 key. Paste only the base64url public key and
+signature; the browser never asks for or stores a private key. Successful key
+possession is labeled separately from unverified endpoint control and unknown
+beneficial ownership. No external endpoint is probed by this slice.
+
+Rotation preserves or narrows existing scopes and immediately revokes the selected
+credential. Explicit recovery revokes every live credential for the agent and the
+console requests only `intents:read`, `intents:write`, `inbox:read`. Both return the
+one-time secret in the existing dismissible memory-only display. Retried lost
+responses keep the exact command key in browser memory; the domain regenerates a
+live authorized result for at most 15 minutes without storing plaintext tokens.
+A reload loses that memory: review the credential list and explicitly recover if
+necessary, rather than assuming an unseen response means no committed change.
+
+New owner POST routes (all require CSRF, `Idempotency-Key` and reviewed `If-Match`):
+`/v1/owner/agents/{id}/control-challenge`, `.../control-proof`,
+`.../recover-credential`, `/v1/owner/credentials/{id}/rotate`.
+The separate issuance key configuration and key rollover/retention controls are
+in `docs/evidence/credential-issuance-runbook.md`.
