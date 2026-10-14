@@ -48,14 +48,37 @@ Validation on this branch:
 - `go vet ./...` and `go build ./...`.
 - Owner-console Vitest suite and TypeScript/Vite production build.
 
-A broader `go test ./...` attempt did not pass. The network package reported a
-failure in `TestCommittedDiscoverySurvivesBlockedRecruitment`: the controlled
-recruitment-lock wait was not reached, and its application-name connection
-variant could not parse the URL-form test DSN. The root fairness fixture is
-being repaired; this branch does not claim that package gate passed. Sandbox
-tests also require separate sandbox admin/runtime database DSNs, which were not
-configured in this network-only run. Those failures are fixture prerequisites,
-not provider or financial-sandbox qualification results.
+A broader `go test ./...` attempt at the time did not pass. The network package
+reported a failure in `TestCommittedDiscoverySurvivesBlockedRecruitment`: the
+controlled recruitment-lock wait was not reached, and its application-name
+connection variant could not parse the URL-form test DSN. The queue-fairness
+fixture and durable-worker scheduling were subsequently corrected through PR
+#26 and follow-up PRs #29 and #30. The latest full network race on integrated
+release 014+015 passed in 583.538 seconds (74.1%); that result does not establish
+the full suite with migrations 016 or 017. Sandbox tests also require separate
+sandbox admin/runtime database DSNs, which were not configured in the earlier
+network-only run. No provider or financial-sandbox qualification is claimed.
+
+## Release reconciliation and current-source proof
+
+This feature branch was reconciled with `origin/release/v0.1` at `67b584e`
+without conflicts. That release includes migration 015; this branch does not
+include progress migration 016 or owner issuance migration 017. The revision
+implementation and its tests were validated at source SHA
+`40fd64613be22cd2caec6e6dfa90db36d3090b6a` on a fresh PostgreSQL 16.11 database
+on port 55476, created with UTF8 and `C.UTF-8` collation/character type. The
+unmodified application migrator created migrations 001–015 in order and River
+readiness; no SQL was manually replayed and no migration ledger was edited.
+`undergrid_app` and `undergrid_worker` are `NOSUPERUSER NOCREATEROLE NOCREATEDB
+NOBYPASSRLS`.
+
+The following actual HTTP/PostgreSQL tests passed under `-race` in 15.001s:
+`TestIntentionRevisionIsImmutableAndOwnerCommandSharesDomainPath`,
+`TestExpiredIntentionCanBeRenewedByAppendingRevision`,
+`TestDurableParticipation`, and
+`TestOwnerConsoleRegistrationAndIntentionIsolation`. On that source tree,
+`go vet ./...`, `go build ./...`, and `git diff --check` also passed. No owner
+issuance or progress-016 integration is claimed by this evidence.
 
 This is scoped runtime evidence for the revision and renewal behavior, not a
 full release, provider, deployment, or disclosure-grant qualification.
