@@ -11,7 +11,11 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"os"
+	"runtime"
+	"strconv"
 	"strings"
+	"syscall"
 	"time"
 	"unicode/utf8"
 )
@@ -23,6 +27,26 @@ const MaxEnvelopeBytes = 15 << 20
 // Spec is the complete versioned supported check contract, not a user-supplied schema.
 const Spec = `source_catalog_v1/json_schema_v1; utf8; depth<=32; tokens<=500000; sources=1..50000; unique nonempty source_id<=256; absolute https source_url<=4096 without userinfo; optional observed_at/updated_at RFC3339; additional data fields inert; manifest<=64KiB; inputs<=50; exact-byte SHA256`
 
+// CloseInheritedDescriptors removes launcher and service descriptors before
+// the verifier reads any job bytes. The sandbox launcher needs temporary fds
+// to mount the sealed executable; none are part of the verifier contract.
+func CloseInheritedDescriptors() error {
+	if runtime.GOOS != "linux" {
+		return nil
+	}
+	entries, err := os.ReadDir("/proc/self/fd")
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		fd, parseErr := strconv.Atoi(entry.Name())
+		if parseErr == nil && fd > 2 {
+			_ = syscall.Close(fd)
+		}
+	}
+	return nil
+}
+
 type Job struct {
 	Data           []byte `json:"data"`
 	Manifest       []byte `json:"manifest"`
@@ -30,15 +54,20 @@ type Job struct {
 	ManifestSHA256 string `json:"manifest_sha256"`
 }
 type Evidence struct {
-	Result         string    `json:"result"`
-	Code           string    `json:"code"`
-	InputSHA256    string    `json:"input_sha256"`
-	ManifestSHA256 string    `json:"manifest_sha256"`
-	SpecSHA256     string    `json:"spec_sha256"`
-	ImageSHA256    string    `json:"image_sha256"`
-	VerifierSHA256 string    `json:"verifier_sha256"`
-	CheckedAt      time.Time `json:"checked_at"`
-	SourceCount    int       `json:"source_count"`
+	Result                 string    `json:"result"`
+	Code                   string    `json:"code"`
+	InputSHA256            string    `json:"input_sha256"`
+	ManifestSHA256         string    `json:"manifest_sha256"`
+	SpecSHA256             string    `json:"spec_sha256"`
+	ImageSHA256            string    `json:"image_sha256"`
+	VerifierSHA256         string    `json:"verifier_sha256"`
+	RuntimeIsolation       string    `json:"runtime_isolation,omitempty"`
+	BubblewrapSHA256       string    `json:"bubblewrap_sha256,omitempty"`
+	PrlimitSHA256          string    `json:"prlimit_sha256,omitempty"`
+	ResourceLimitsEvidence string    `json:"resource_limits_evidence,omitempty"`
+	ImageIdentityEvidence  string    `json:"image_identity_evidence,omitempty"`
+	CheckedAt              time.Time `json:"checked_at"`
+	SourceCount            int       `json:"source_count"`
 }
 type Manifest struct {
 	Title        string `json:"title"`
