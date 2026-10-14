@@ -4,6 +4,7 @@ package sandbox
 
 import (
 	"context"
+	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/sha256"
 	_ "embed"
@@ -49,6 +50,9 @@ var anomalyMigration string
 //go:embed migrations/008_wallet_control.sql
 var walletControlMigration string
 
+//go:embed migrations/009_signed_usdc_quotes.sql
+var signedUSDCMigration string
+
 func Migrate(ctx context.Context, c *pgx.Conn) error {
 	tx, err := c.Begin(ctx)
 	if err != nil {
@@ -71,7 +75,7 @@ func Migrate(ctx context.Context, c *pgx.Conn) error {
 	for _, step := range []struct {
 		version int
 		sql     string
-	}{{1, migration}, {2, refundMigration}, {3, refundRetryMigration}, {4, subscriptionMigration}, {5, stripeMigration}, {6, anomalyMigration}, {7, ownerSubscriptionRetryMigration}, {8, walletControlMigration}} {
+	}{{1, migration}, {2, refundMigration}, {3, refundRetryMigration}, {4, subscriptionMigration}, {5, stripeMigration}, {6, anomalyMigration}, {7, ownerSubscriptionRetryMigration}, {8, walletControlMigration}, {9, signedUSDCMigration}} {
 		var checksum string
 		err = tx.QueryRow(ctx, "SELECT checksum FROM public.undergrid_sandbox_migrations WHERE version=$1", step.version).Scan(&checksum)
 		switch {
@@ -97,6 +101,8 @@ func Migrate(ctx context.Context, c *pgx.Conn) error {
 type Store struct {
 	dsn                string
 	walletChallengeTTL time.Duration
+	usdcSigning        *USDCSigningConfig
+	usdcVerification   map[string]ed25519.PublicKey
 }
 
 func New(dsn string) *Store { return &Store{dsn: dsn} }
@@ -125,14 +131,15 @@ type Quote struct {
 	ExpiresAt time.Time `json:"expires_at"`
 }
 type Payment struct {
-	Anomalies   []string `json:"anomalies,omitempty"`
-	CheckoutURL string   `json:"checkout_url,omitempty"`
-	ID          string   `json:"id"`
-	Hash        string   `json:"quote_hash"`
-	State       string   `json:"state"`
-	Quote       Quote    `json:"quote"`
-	Designation string   `json:"designation"`
-	ProviderKey string   `json:"-"`
+	SignedQuote *SignedQuote `json:"signed_quote,omitempty"`
+	Anomalies   []string     `json:"anomalies,omitempty"`
+	CheckoutURL string       `json:"checkout_url,omitempty"`
+	ID          string       `json:"id"`
+	Hash        string       `json:"quote_hash"`
+	State       string       `json:"state"`
+	Quote       Quote        `json:"quote"`
+	Designation string       `json:"designation"`
+	ProviderKey string       `json:"-"`
 }
 type identity struct {
 	actor, credential string
@@ -265,7 +272,7 @@ func (s *Store) Enroll(ctx context.Context, o Owner) (string, error) {
 	return id, err
 }
 func (s *Store) SetPolicy(ctx context.Context, o Owner, expected int64, p Policy) error {
-	if !positive(p.Cap, true) || p.Asset != "USD" || len(p.Products) < 1 || len(p.Products) > 10 || len(p.Payees) < 1 || len(p.Payees) > 10 || !p.ExpiresAt.After(time.Now()) || p.ExpiresAt.After(time.Now().Add(90*24*time.Hour)) {
+	if !positive(p.Cap, true) || (p.Asset != "USD" && p.Asset != "USDC") || len(p.Products) < 1 || len(p.Products) > 10 || len(p.Payees) < 1 || len(p.Payees) > 10 || !p.ExpiresAt.After(time.Now()) || p.ExpiresAt.After(time.Now().Add(90*24*time.Hour)) {
 		return ErrInvalid
 	}
 	return s.transaction(ctx, "undergrid_sandbox_app", func(tx pgx.Tx) error {
@@ -332,6 +339,10 @@ func loadPayment(ctx context.Context, tx pgx.Tx, id string) (Payment, error) {
 	if err == nil {
 		err = json.Unmarshal(raw, &p.Quote)
 	}
+	if err == nil && p.Quote.Asset == "USDC" {
+		p.SignedQuote = &SignedQuote{}
+		err = tx.QueryRow(ctx, "SELECT signed_quote_key_id,signed_quote_payload,signed_quote_signature FROM sandbox_payments WHERE id=$1", id).Scan(&p.SignedQuote.KeyID, &p.SignedQuote.Payload, &p.SignedQuote.Signature)
+	}
 	return p, err
 }
 func replay(ctx context.Context, tx pgx.Tx, a identity, op, key, digest string) (string, error) {
@@ -363,7 +374,7 @@ func (s *Store) createCatalogQuote(ctx context.Context, token, key string, q Quo
 }
 func (s *Store) createQuote(ctx context.Context, token, key string, q Quote, catalog bool) (Payment, error) {
 	var p Payment
-	if q.Rail != "stripe_test" || q.Asset != "USD" || !positive(q.Amount, false) || !positive(q.Fee, true) || q.Product == "" || q.Payee == "" || q.TermsID == "" || len(q.TermsHash) != 64 || !q.ExpiresAt.After(time.Now()) || q.ExpiresAt.After(time.Now().Add(24*time.Hour)) {
+	if !validQuoteRail(q) || !positive(q.Amount, false) || !positive(q.Fee, true) || q.Product == "" || q.Payee == "" || q.TermsID == "" || len(q.TermsHash) != 64 || !q.ExpiresAt.After(time.Now()) || q.ExpiresAt.After(time.Now().Add(24*time.Hour)) {
 		return p, ErrInvalid
 	}
 	if _, err := hex.DecodeString(q.TermsHash); err != nil {
@@ -396,7 +407,19 @@ func (s *Store) createQuote(ctx context.Context, token, key string, q Quote, cat
 			Quote                    Quote
 			Actor, Credential, Nonce string
 		}{q, a.actor, a.credential, id}))
-		_, err = tx.Exec(ctx, "INSERT INTO sandbox_payments(id,actor_id,credential_id,quote,quote_hash,asset,amount,fee,provider_key) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)", id, a.actor, a.credential, raw, quoteHash, q.Asset, q.Amount, q.Fee, "ugs-"+id)
+		var signed *SignedQuote
+		var binding string
+		var epoch int64
+		if q.Asset == "USDC" {
+			signed, binding, epoch, err = s.signUSDCQuote(ctx, tx, a, id, q)
+			if err != nil {
+				return err
+			}
+			quoteHash = hash(signed.Payload)
+			_, err = tx.Exec(ctx, "INSERT INTO sandbox_payments(id,actor_id,credential_id,quote,quote_hash,asset,amount,fee,provider_key,wallet_binding_id,wallet_binding_epoch,signed_quote_payload,signed_quote_signature,signed_quote_key_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)", id, a.actor, a.credential, raw, quoteHash, q.Asset, q.Amount, q.Fee, "ugs-"+id, binding, epoch, signed.Payload, signed.Signature, signed.KeyID)
+		} else {
+			_, err = tx.Exec(ctx, "INSERT INTO sandbox_payments(id,actor_id,credential_id,quote,quote_hash,asset,amount,fee,provider_key) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)", id, a.actor, a.credential, raw, quoteHash, q.Asset, q.Amount, q.Fee, "ugs-"+id)
+		}
 		if err != nil {
 			return err
 		}
@@ -449,6 +472,9 @@ func (s *Store) Authorize(ctx context.Context, token, id, quoteHash, key string)
 		}
 		if credential != a.credential || p.Hash != quoteHash || p.State != "quoted" || !p.Quote.ExpiresAt.After(time.Now()) {
 			return ErrConflict
+		}
+		if err = s.checkUSDCQuote(ctx, tx, p, true); err != nil {
+			return err
 		}
 		if !permits(a.policy, p.Quote) {
 			return ErrUnauthorized
