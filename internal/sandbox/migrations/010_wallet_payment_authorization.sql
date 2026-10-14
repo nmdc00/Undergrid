@@ -19,9 +19,9 @@ ALTER TABLE undergrid_sandbox.sandbox_payments
  AND COALESCE(jsonb_typeof(payer_authorization#>'{domain,version}')='string' AND length(payer_authorization#>>'{domain,version}') BETWEEN 1 AND 128,false)
  AND COALESCE((payer_authorization#>>'{authorization,from}') ~ '^0x[a-f0-9]{40}$',false)
  AND COALESCE(payer_authorization#>>'{authorization,to}'=quote->>'payee',false)
- AND COALESCE(payer_authorization#>>'{authorization,value}'=(amount+fee)::text,false)
- AND COALESCE(payer_authorization#>>'{authorization,valid_after}'='0',false)
- AND COALESCE((payer_authorization#>>'{authorization,valid_before}') ~ '^[1-9][0-9]{0,19}$',false)
+ AND COALESCE(payer_authorization#>'{authorization,value}'=to_jsonb((amount+fee)::text),false)
+ AND COALESCE(payer_authorization#>'{authorization,valid_after}'='"0"'::jsonb,false)
+ AND COALESCE(jsonb_typeof(payer_authorization#>'{authorization,valid_before}')='string' AND (payer_authorization#>>'{authorization,valid_before}') ~ '^[1-9][0-9]{0,19}$',false)
  AND COALESCE((payer_authorization#>>'{authorization,nonce}') ~ '^0x[a-f0-9]{64}$',false)
  AND state IN('authorized','submitting','pending','unknown','settled','failed','canceled')));
 CREATE FUNCTION undergrid_sandbox.guard_payer_authorization() RETURNS trigger
