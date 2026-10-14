@@ -47,6 +47,9 @@ func (s *Store) WithUSDCSigning(c USDCSigningConfig) (*Store, error) {
 	if c.KeyID == "" || len(c.KeyID) > 128 || len(c.PrivateKey) != ed25519.PrivateKeySize || len(c.PublicKeys) == 0 {
 		return nil, ErrInvalid
 	}
+	if !bytes.Equal(ed25519.NewKeyFromSeed(c.PrivateKey[:ed25519.SeedSize]), c.PrivateKey) {
+		return nil, ErrInvalid
+	}
 	keys := make(map[string]ed25519.PublicKey, len(c.PublicKeys))
 	for id, k := range c.PublicKeys {
 		if id == "" || len(id) > 128 || len(k) != ed25519.PublicKeySize {
@@ -151,5 +154,5 @@ func ParseUSDCSigningConfig(keyID, privateKey, publicKeys string) (USDCSigningCo
 }
 
 func usdcQuotePayload(id, actor, credential, binding string, epoch int64, payer string, q Quote) []byte {
-	return encode(usdcEnvelope{Version: "undergrid-usdc-quote-v1", Designation: "TEST", Payment: id, Actor: actor, Credential: credential, Binding: binding, Epoch: epoch, Payer: payer, Chain: USDCTestChain, Token: USDCTestToken, Nonce: id, Quote: q})
+	return encode(usdcEnvelope{Version: "undergrid-usdc-quote-v1", Designation: "TEST", Payment: id, Actor: actor, Credential: credential, Binding: binding, Epoch: epoch, Payer: payer, Chain: USDCTestChain, Token: USDCTestToken, Nonce: "0x" + hash([]byte("undergrid-usdc-quote-nonce-v1:"+id)), Quote: q})
 }

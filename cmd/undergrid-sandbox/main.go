@@ -87,19 +87,14 @@ func run() error {
 		return errors.New("sandbox OIDC configuration failed")
 	}
 	var catalog map[string]sandbox.Quote
-	if err = json.Unmarshal([]byte(os.Getenv("UNDERGRID_SANDBOX_TEST_CATALOG")), &catalog); err != nil || len(catalog) < 1 || len(catalog) > 10 {
-		return errors.New("one to ten server-selected TEST products required")
+	if err = json.Unmarshal([]byte(os.Getenv("UNDERGRID_SANDBOX_TEST_CATALOG")), &catalog); err != nil {
+		return errors.New("invalid TEST catalog")
+	}
+	usdcConfigured, err := validateSandboxCatalog(catalog)
+	if err != nil {
+		return err
 	}
 	store := sandbox.New(dsn)
-	usdcConfigured := false
-	for id, q := range catalog {
-		if id != q.Product || !(q.Rail == "stripe_test" && q.Asset == "USD" || q.Rail == "x402_test" && q.Asset == "USDC") {
-			return errors.New("invalid TEST catalog")
-		}
-		if q.Asset == "USDC" {
-			usdcConfigured = true
-		}
-	}
 	if usdcConfigured {
 		config, e := sandbox.ParseUSDCSigningConfig(os.Getenv("UNDERGRID_SANDBOX_USDC_SIGNING_KEY_ID"), os.Getenv("UNDERGRID_SANDBOX_USDC_SIGNING_PRIVATE_KEY"), os.Getenv("UNDERGRID_SANDBOX_USDC_SIGNING_PUBLIC_KEYS"))
 		if e != nil {
@@ -141,4 +136,25 @@ func run() error {
 	shutdown, done := context.WithTimeout(context.Background(), 10*time.Second)
 	defer done()
 	return server.Shutdown(shutdown)
+}
+
+func validateSandboxCatalog(catalog map[string]sandbox.Quote) (bool, error) {
+	if len(catalog) < 1 || len(catalog) > 2 {
+		return false, errors.New("one Stripe product and one USDC resource at most required")
+	}
+	usdc := false
+	seen := map[string]bool{}
+	for id, q := range catalog {
+		if id != q.Product || !(q.Rail == "stripe_test" && q.Asset == "USD" || q.Rail == "x402_test" && q.Asset == "USDC") {
+			return false, errors.New("invalid TEST catalog")
+		}
+		if seen[q.Rail] {
+			return false, errors.New("one product per TEST rail required")
+		}
+		seen[q.Rail] = true
+		if q.Asset == "USDC" {
+			usdc = true
+		}
+	}
+	return usdc, nil
 }

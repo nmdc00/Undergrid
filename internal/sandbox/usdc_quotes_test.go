@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"net/http"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -143,8 +144,19 @@ func TestUSDCQuoteSignedSnapshotAndRebinding(t *testing.T) {
 	if err = json.Unmarshal(p.SignedQuote.Payload, &envelope); err != nil {
 		t.Fatal(err)
 	}
+	if nonce, ok := envelope["nonce"].(string); !ok || !regexp.MustCompile(`^0x[0-9a-f]{64}$`).MatchString(nonce) {
+		t.Fatalf("quote nonce is not bytes32: %v", envelope["nonce"])
+	}
 	if envelope["actor_id"] != f.actorID || envelope["wallet_binding_id"] != original.ID || envelope["payer"] != original.Address || envelope["chain_id"] != float64(84532) || envelope["token_address"] != "0x036cbd53842c5426634e7929541ec2318f3dcf7e" || envelope["designation"] != "TEST" {
 		t.Fatalf("wrong signed envelope: %v", envelope)
+	}
+	other := quote("distinct-nonce")
+	var otherEnvelope map[string]any
+	if e := json.Unmarshal(other.SignedQuote.Payload, &otherEnvelope); e != nil {
+		t.Fatal(e)
+	}
+	if otherEnvelope["nonce"] == envelope["nonce"] {
+		t.Fatal("different payments reused a nonce")
 	}
 	if string(quote("first").SignedQuote.Payload) != string(p.SignedQuote.Payload) {
 		t.Fatal("retry changed signed bytes")
@@ -257,5 +269,16 @@ func TestUSDCSigningConfigurationRequiresExplicitMatchingKeys(t *testing.T) {
 		if _, err = ParseUSDCSigningConfig(args[0], args[1], args[2]); err == nil {
 			t.Fatal("unsafe signing configuration accepted")
 		}
+	}
+}
+
+func TestUSDCSigningRejectsMismatchedSeedAndEmbeddedPublicKey(t *testing.T) {
+	seed := make([]byte, 32)
+	seed[0] = 55
+	private := ed25519.NewKeyFromSeed(seed)
+	public := append(ed25519.PublicKey(nil), private.Public().(ed25519.PublicKey)...)
+	private[0] ^= 1
+	if _, err := New("unused").WithUSDCSigning(USDCSigningConfig{KeyID: "bad", PrivateKey: private, PublicKeys: map[string]ed25519.PublicKey{"bad": public}}); err == nil {
+		t.Fatal("malformed seed/public private key accepted")
 	}
 }
