@@ -50,6 +50,16 @@ func (s *Store) BeginDispatch(ctx context.Context, id string) (Payment, error) {
 			return walletErr
 		}
 		walletValid := walletErr == nil
+		if walletValid && p.Quote.Asset == "USDC" && p.walletAuthorization == nil {
+			return ErrUnauthorized
+		}
+		if walletValid {
+			payerErr := s.checkPayerAuthorization(ctx, tx, p)
+			if payerErr != nil && !errors.Is(payerErr, ErrConflict) && !errors.Is(payerErr, ErrUnauthorized) && !errors.Is(payerErr, ErrInvalid) {
+				return payerErr
+			}
+			walletValid = payerErr == nil
+		}
 		if !walletValid || !consentValid || !valid || !permits(policy, p.Quote) || !p.Quote.ExpiresAt.After(time.Now()) {
 			blocked = true
 			p.State = "canceled"

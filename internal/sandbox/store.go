@@ -53,6 +53,9 @@ var walletControlMigration string
 //go:embed migrations/009_signed_usdc_quotes.sql
 var signedUSDCMigration string
 
+//go:embed migrations/010_wallet_payment_authorization.sql
+var walletPaymentMigration string
+
 func Migrate(ctx context.Context, c *pgx.Conn) error {
 	tx, err := c.Begin(ctx)
 	if err != nil {
@@ -75,7 +78,7 @@ func Migrate(ctx context.Context, c *pgx.Conn) error {
 	for _, step := range []struct {
 		version int
 		sql     string
-	}{{1, migration}, {2, refundMigration}, {3, refundRetryMigration}, {4, subscriptionMigration}, {5, stripeMigration}, {6, anomalyMigration}, {7, ownerSubscriptionRetryMigration}, {8, walletControlMigration}, {9, signedUSDCMigration}} {
+	}{{1, migration}, {2, refundMigration}, {3, refundRetryMigration}, {4, subscriptionMigration}, {5, stripeMigration}, {6, anomalyMigration}, {7, ownerSubscriptionRetryMigration}, {8, walletControlMigration}, {9, signedUSDCMigration}, {10, walletPaymentMigration}} {
 		var checksum string
 		err = tx.QueryRow(ctx, "SELECT checksum FROM public.undergrid_sandbox_migrations WHERE version=$1", step.version).Scan(&checksum)
 		switch {
@@ -103,6 +106,7 @@ type Store struct {
 	walletChallengeTTL time.Duration
 	usdcSigning        *USDCSigningConfig
 	usdcVerification   map[string]ed25519.PublicKey
+	usdcTokenDomain    *USDCTokenDomain
 }
 
 func New(dsn string) *Store { return &Store{dsn: dsn} }
@@ -131,15 +135,18 @@ type Quote struct {
 	ExpiresAt time.Time `json:"expires_at"`
 }
 type Payment struct {
-	SignedQuote *SignedQuote `json:"signed_quote,omitempty"`
-	Anomalies   []string     `json:"anomalies,omitempty"`
-	CheckoutURL string       `json:"checkout_url,omitempty"`
-	ID          string       `json:"id"`
-	Hash        string       `json:"quote_hash"`
-	State       string       `json:"state"`
-	Quote       Quote        `json:"quote"`
-	Designation string       `json:"designation"`
-	ProviderKey string       `json:"-"`
+	WalletAuthorizationHash string `json:"wallet_authorization_hash,omitempty"`
+	// Payer signatures are broadcast capabilities, retained only for internal dispatch.
+	walletAuthorization *WalletPaymentAuthorization
+	SignedQuote         *SignedQuote `json:"signed_quote,omitempty"`
+	Anomalies           []string     `json:"anomalies,omitempty"`
+	CheckoutURL         string       `json:"checkout_url,omitempty"`
+	ID                  string       `json:"id"`
+	Hash                string       `json:"quote_hash"`
+	State               string       `json:"state"`
+	Quote               Quote        `json:"quote"`
+	Designation         string       `json:"designation"`
+	ProviderKey         string       `json:"-"`
 }
 type identity struct {
 	actor, credential string
@@ -331,8 +338,8 @@ func (s *Store) RevokeCredentials(ctx context.Context, o Owner) error {
 }
 func loadPayment(ctx context.Context, tx pgx.Tx, id string) (Payment, error) {
 	p := Payment{Designation: "TEST — NOT A LIVE COMMITMENT"}
-	var raw []byte
-	err := tx.QueryRow(ctx, "SELECT id::text,quote_hash,state,quote,provider_key,COALESCE(checkout_url,''),ARRAY(SELECT kind FROM sandbox_anomalies a WHERE a.payment_id=sandbox_payments.id ORDER BY kind) FROM sandbox_payments WHERE id=$1", id).Scan(&p.ID, &p.Hash, &p.State, &raw, &p.ProviderKey, &p.CheckoutURL, &p.Anomalies)
+	var raw, authorization []byte
+	err := tx.QueryRow(ctx, "SELECT id::text,quote_hash,state,quote,provider_key,payer_authorization,COALESCE(payer_authorization_hash,''),COALESCE(checkout_url,''),ARRAY(SELECT kind FROM sandbox_anomalies a WHERE a.payment_id=sandbox_payments.id ORDER BY kind) FROM sandbox_payments WHERE id=$1", id).Scan(&p.ID, &p.Hash, &p.State, &raw, &p.ProviderKey, &authorization, &p.WalletAuthorizationHash, &p.CheckoutURL, &p.Anomalies)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return p, ErrUnauthorized
 	}
@@ -343,6 +350,11 @@ func loadPayment(ctx context.Context, tx pgx.Tx, id string) (Payment, error) {
 		p.SignedQuote = &SignedQuote{}
 		err = tx.QueryRow(ctx, "SELECT signed_quote_key_id,signed_quote_payload,signed_quote_signature FROM sandbox_payments WHERE id=$1", id).Scan(&p.SignedQuote.KeyID, &p.SignedQuote.Payload, &p.SignedQuote.Signature)
 	}
+	if err == nil && authorization != nil {
+		p.walletAuthorization = &WalletPaymentAuthorization{}
+		err = json.Unmarshal(authorization, p.walletAuthorization)
+	}
+
 	return p, err
 }
 func replay(ctx context.Context, tx pgx.Tx, a identity, op, key, digest string) (string, error) {
@@ -376,6 +388,11 @@ func (s *Store) createQuote(ctx context.Context, token, key string, q Quote, cat
 	var p Payment
 	if !validQuoteRail(q) || !positive(q.Amount, false) || !positive(q.Fee, true) || q.Product == "" || q.Payee == "" || q.TermsID == "" || len(q.TermsHash) != 64 || !q.ExpiresAt.After(time.Now()) || q.ExpiresAt.After(time.Now().Add(24*time.Hour)) {
 		return p, ErrInvalid
+	}
+	if q.Asset == "USDC" {
+		if _, err := usdcGross(q); err != nil {
+			return p, err
+		}
 	}
 	if _, err := hex.DecodeString(q.TermsHash); err != nil {
 		return p, ErrInvalid
