@@ -38,4 +38,20 @@ Image/provider identity, S3 storage, production deployment, external ownership/r
 - Race check: the focused worker lifecycle, namespace probe, sealed executable checks, and both fail-closed configuration regressions passed with `go test -race`.
 - Static/build: `go vet ./internal/network ./internal/verification ./cmd/undergrid-verifier`, `go build ./cmd/...`, `gofmt -l` on tracked and added Go files, and `git diff --check` passed.
 
+## Old-to-new database migration proof
+
+On 2026-10-14, a separate fresh UTF-8, network-only PostgreSQL cluster was initialized at port 55456. The clean release worktree at `4df9cfd6b701c6cff7608a460e93220addb89360` ran its unmodified `TestArtifactPublicationLifecycleThroughHTTPAndExecutableWorker` with `go test -race` (16.481 seconds). Its application `Migrate` recorded all 14 migrations present at that release (`001`–`014`), then the real worker/API lifecycle wrote one evaluation at `2026-10-14T11:06:50.550942963Z`. The evaluation row was `c88990da-55b5-4b2e-b0c9-effefcf70cd5`; its raw `evidence::text` MD5 was `9373d7f5798529b8054ec9286739f105` (543 bytes), with no `runtime_isolation` field.
+
+The same untouched database then ran the feature worktree's `TestArtifactPublicationLifecycleThroughHTTPAndExecutableWorker` with `go test -race` (6.739 seconds). The fixture called the application `Migrate`, which applied the unmodified migration 018 after the recorded `001`–`014` migrations. The old row kept the same raw evidence MD5 and length, and the raw field remained absent. Its new columns received `legacy_unqualified_evidence`, `not_recorded_for_legacy_evaluation`, and `legacy_configured_digest_unverified`. The focused test also exercised a new worker evaluation and verified that modern HTTP evidence matched its normalized columns before the test separately exercised legacy projection. Both API and worker login-role assertions passed; the recorded `undergrid_artifact_api_runner` and `undergrid_artifact_worker_runner` roles had `rolsuper=false` and `rolbypassrls=false` before and after the upgrade.
+
+The database recorded 14 migration files after the release run and 15 after the feature run: `001`–`014` plus `018_verifier_isolation_evidence.sql`. Files 015–017 are reserved for sibling features and are absent from these two worktrees. No migration SQL was copied, edited, or omitted in either application migration run. The 55456 fixture remains available for integration review.
+
+Commands used, with both invocations run against `postgres://nmcdc@127.0.0.1:55456/undergrid_test?sslmode=disable`:
+
+```sh
+GOCACHE=/tmp/undergrid-gocache GOMODCACHE=/tmp/undergrid-gomod UNDERGRID_TEST_DATABASE_URL='postgres://nmcdc@127.0.0.1:55456/undergrid_test?sslmode=disable' /tmp/undergrid-toolchain/go/bin/go test -race ./internal/network -run '^TestArtifactPublicationLifecycleThroughHTTPAndExecutableWorker$' -count=1 -timeout=6m
+```
+
+The first invocation ran from the clean release worktree; the second ran from this feature worktree. This proves the old-to-new migration preserved an existing raw evaluation and that the new lifecycle uses non-superuser, non-BYPASSRLS API/worker logins. It does not qualify the bubblewrap cgroup resource gate or production object storage.
+
 Quality review: pinned executable validation and process/cgroup lifecycle now live in `verifier_runner.go`, separate from local artifact storage. Configuration, worker writes, normalized evidence, and the HTTP projection retain concrete contracts. The runner closes sealed files and cgroup descriptors, kills the whole group on cancellation, waits for an empty cgroup before removal, and turns cleanup uncertainty into a failed job. No agent-controlled process attributes enter the launch. The remaining resource-limit uncertainty is an explicit host qualification gate, not a fixture claim.
