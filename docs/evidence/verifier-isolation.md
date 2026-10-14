@@ -80,3 +80,18 @@ UNDERGRID_REQUIRE_VERIFIER_ISOLATION=1 \
 ```
 
 Quality review: pinned executable validation and process/cgroup lifecycle now live in `verifier_runner.go`, separate from local artifact storage. Configuration, worker writes, normalized evidence, and the HTTP projection retain concrete contracts. The runner closes sealed files and cgroup descriptors, kills the whole group on cancellation, waits for an empty cgroup before removal, and turns cleanup uncertainty into a failed job. No agent-controlled process attributes enter the launch. The remaining resource-limit uncertainty is an explicit host qualification gate, not a fixture claim.
+
+## Final release reconciliation proof (2026-10-14)
+
+Implementation/merged source `5ae3269cf4eaa436d6fe68a422f04ed80ced3bfd` includes release `06fc773` and final progress/owner migrations. The existing interrupted-run fixture at `/tmp/undergrid-pg-verifier-55474` was inspected before reuse; its ledger already contained unmodified raw network `001`–`018` with one original migration-transaction timestamp, plus the River marker. This invocation is a preserved-fixture regression, not a newly initialized zero-state proof. No migration replay, omitted statements, ledger edits, or host cgroup changes occurred. The earlier fresh 55464 and authentic old-to-new 55456 records remain separate historical evidence.
+
+The focused actual-worker/HTTP publication lifecycle, modern/legacy normalized evaluation parity, final progress input-grant audience regression, progress review lifecycle, private grant assembly/rights/revocation, owner issuance policy/replay/concurrency, real namespace probe, sealed executable checks, and fail-closed configuration tests passed together with `go test -race` in **102.963 seconds** against database `postgres` at 55474. The database is UTF8 with C collation/ctype. `undergrid_app` and `undergrid_worker` remain NOLOGIN/NOSUPERUSER/NOBYPASSRLS; the distinct artifact API/worker login roles are LOGIN/NOSUPERUSER/NOBYPASSRLS.
+
+Exact migration SHA-256:
+
+- 016: `e7c439471609dbff95f9d5f4bae48e5bda4abf43a0f90d09cc24265c71f1377b`
+- 017: `9828ddeae1accf601d67123e23e5a80da6a5c5abcdc77ff6bb37e448df1e199e`
+- 018: `3c873b2a27a3bfc83669e73deee326992110a619650dfb5320d3003b4be7d537`
+- Unchanged separate financial 008: `5fe8b8871772fa9d0a99ccd4ae61c4ca2187b5ddf8ab1e2a0acb207695f0cfe4`
+
+`go vet ./internal/network ./internal/verification ./cmd/undergrid-verifier`, `go build ./cmd/...`, and `git diff --check` passed. The standalone isolated-worker positive lifecycle explicitly skipped (10.973 seconds) because delegated controllers are unavailable; this is **not** positive isolated-worker evidence. Required-mode `TestBubblewrapVerifierIsolationEnforcesFilesystemNetworkAndLimits` failed in 1.244 seconds with the service-owned delegated-root requirement. Kernel resource isolation therefore remains unqualified. Production storage, image, provider, legal and deployment gates remain open.
