@@ -1,0 +1,27 @@
+# Signed TEST USDC quotes
+
+TDD §§11.2/11.4, financial migration009. Implementation741d8a6; SQL NULL oracle hardening8582ebd. Local feature branch only; remote review/promotion/deployment pending.
+
+The existing POST `/v1/payments` accepts only a catalog product. A configured USDC/x402_test offer creates an immutable signed envelope binding financial actor and credential, payment ID/nonce, original owner-proven EOA wallet binding ID/epoch/payer, configured payee, atomic amount and fee, terms ID/hash, expiry, Base Sepolia84532 and native Circle USDC `0x036cbd53842c5426634e7929541ec2318f3dcf7e`. The designation is TEST. Payment responses expose `signed_quote` with key ID and base64 payload/signature; clients verify the exact decoded payload bytes with Ed25519. `quote_hash` is SHA256 of those bytes.
+
+GET and idempotent retry/restart recover the exact persisted bytes. Authorization verifies the signature, signed payload against persisted identity/quote, current credential/policy and current owner wallet epoch under the existing actor transaction lock. Worker dispatch checks the same domain contract under that lock. Rebinding cancels undispatched authorized authority and blocks authorization of older quotes. A submitting/unknown attempt retains its original envelope, provider key, state and reservation; redispatch is rejected and original command replay cannot create a replacement charge. Existing Stripe dispatch explicitly rejects the USDC rail before any provider call.
+
+Startup USDC catalog configuration requires `UNDERGRID_SANDBOX_USDC_SIGNING_KEY_ID`, `UNDERGRID_SANDBOX_USDC_SIGNING_PRIVATE_KEY` (base64 64-byte Ed25519 private key), and `UNDERGRID_SANDBOX_USDC_SIGNING_PUBLIC_KEYS` (JSON key-ID→base64 32-byte public-key map). The current pair must match; explicitly configured historical public keys verify persisted older quotes. No keys are generated automatically. The TEST catalog admits one to ten fixed products; USDC payees use normalized lowercase Ethereum addresses. Owner spend policy explicitly selects USD or USDC with integer atomic limits; there is no FX conversion.
+
+## Behavioral evidence
+
+`TestUSDCQuoteHTTPRequiresWalletAndTrustedSigner` first failed through the actual HTTP route with400 unsupported rail instead of the required401 fail-closed authority rejection. An earlier fixture attempt failed with missing runtime role membership and is not behavioral red evidence. The initial positive lifecycle exposed missing worker wallet-read privileges; draft009 fixture55478 preserves that failed development state. The final migration adds SELECT-only worker access to immutable bound wallet proofs; it does not grant worker proof writes.
+
+Fresh whole financial cluster55480 (`/tmp/undergrid-pg-usdc-final-55480/data`, socket sibling), PostgreSQL16.11, UTF8/C.UTF-8: actual unmodified Migrate applied001–009 from raw state. No migration replay, ledger modification or omitted role creation. Fixture runtime `usdc_runner` is NOSUPERUSER/NOBYPASSRLS with financial app+worker memberships; that shared test login is not production identity separation qualification. Both financial group roles remain NOLOGIN and nonprivileged. There is no network schema or network credential connection.
+
+`TestUSDCQuoteSignedSnapshotAndRebinding` proves independent public-key verification and field-tamper failures, strict client-field denial, missing binding rejection, concurrent stable-key quote uniqueness, wrong quote hash rejection, foreign actor/network credential denial, restart and historical signing-key recovery, pre-authorization and pre-dispatch wallet rebinding denial, and preservation/replay rejection of an unknown original attempt. Actual app-role INSERT tests reject NULL binding ID, epoch, payload, signature and signing-key ID with SQLSTATE23514.
+
+At implementation741d8a6, full `go test -race ./internal/sandbox ./cmd/undergrid-sandbox -count=1 -timeout=10m` passed39.190s/1.085s on55480. Final test-only NULL oracle additions passed the focused USDC race suite in3.034s. Earlier complete gate passed29.191s/1.086s before the envelope-constructor refactor. Final `go vet` on both financial packages and `go build ./cmd/undergrid-sandbox` passed. `git diff --check` passed.
+
+Migration008 is byte-for-byte preserved, SHA256 `5fe8b8871772fa9d0a99ccd4ae61c4ca2187b5ddf8ab1e2a0acb207695f0cfe4`; final009 checksum `e37203821643d690db42a4c96569e8e217d7d5155ff762c4c2b539b7de2d6836` matches the applied ledger.
+
+## Pragmatic review and remaining scope
+
+Envelope serialization belongs to one financial-domain helper; creation, authorization and dispatch share it while the public-key test verifies independently. Existing actor locks, credentials, idempotency and reservation aggregate remain authoritative. SQL constraints and an immutable quote trigger defend persisted contracts independently of HTTP. Database failures propagate rather than being mistaken for authority denial/cancellation. Trusted key bytes are copied; unknown key IDs fail closed without cryptographic panics. No network repository, generic payment framework, future empty tables or agent execution was introduced.
+
+This proves signed quote/authority fixture behavior, not x402 settlement. Actual chain/token deployment and six-decimal checks, external wallet/facilitator/provider approval, canonical nonce→transaction binding, receipt/finality/reorg evidence, recipient-authorized external refunds and production deployment remain unqualified or unimplemented subsequent slices. No facilitator/RPC call, wallet custody or paid label is added.
