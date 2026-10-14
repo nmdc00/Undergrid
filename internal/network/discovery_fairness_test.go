@@ -262,6 +262,34 @@ func TestLegacyDefaultDiscoveryJobPreservesWatcherAndRecruitment(t *testing.T) {
 }
 
 func TestFailedDiscoveryRefreshDoesNotAbsorbNewCommit(t *testing.T) {
+	assertFailedRefreshLeavesImmediateWakeup(t)
+}
+
+func TestDiscoveryRefreshCoalescesWithAvailableRetries(t *testing.T) {
+	_, db := fixture(t)
+	queue, err := river.NewClient(riverpgxv5.New(nil), &river.Config{Schema: "undergrid_queue"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tx, err := db.Begin(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(context.Background())
+	// Model previously promoted retries without changing or deleting backlog.
+	for range 3 {
+		if _, err = queue.InsertTx(context.Background(), tx, scanArgs{"refresh"}, &river.InsertOpts{Queue: discoveryRepairQueue}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err = tx.Commit(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	assertFailedRefreshLeavesImmediateWakeup(t)
+}
+
+func assertFailedRefreshLeavesImmediateWakeup(t *testing.T) {
+	t.Helper()
 	s, db := fixture(t)
 	a, b := client(t, s), client(t, s)
 	input := intentFixture()
@@ -278,14 +306,31 @@ func TestFailedDiscoveryRefreshDoesNotAbsorbNewCommit(t *testing.T) {
 	if _, err := db.Exec(context.Background(), "UPDATE undergrid_queue.river_job SET state='retryable',attempt=1,scheduled_at=now()+interval '1 hour' WHERE id=$1", oldRefresh); err != nil {
 		t.Fatal(err)
 	}
+	var queuedBefore int
+	if err := db.QueryRow(context.Background(), "SELECT count(*) FROM undergrid_queue.river_job WHERE kind='intention_scan_v1' AND queue=$1 AND args->>'cause_id'='refresh' AND state='available'", discoveryRepairQueue).Scan(&queuedBefore); err != nil {
+		t.Fatal(err)
+	}
 	code, second := b.call("POST", "/v1/intents", "after-failed-refresh", input)
 	if code != 201 {
 		t.Fatal(code, second)
 	}
 	var available int
-	if err := db.QueryRow(context.Background(), "SELECT count(*) FROM undergrid_queue.river_job WHERE queue=$1 AND args->>'cause_id'='refresh' AND state='available'", discoveryRepairQueue).Scan(&available); err != nil || available != 1 {
-		t.Fatalf("failed delayed sweep absorbed the new wakeup: available=%d err=%v", available, err)
+	// Previously retried jobs can already be available in a retained database.
+	// A queued global refresh covers the new commit; otherwise exactly one must
+	// be inserted. Neither path may coalesce into the delayed failed row.
+	expected := max(1, queuedBefore)
+	if err := db.QueryRow(context.Background(), "SELECT count(*) FROM undergrid_queue.river_job WHERE kind='intention_scan_v1' AND queue=$1 AND args->>'cause_id'='refresh' AND state='available'", discoveryRepairQueue).Scan(&available); err != nil || available != expected {
+		t.Fatalf("failed delayed sweep absorbed or duplicated wakeup: before=%d available=%d expected=%d err=%v", queuedBefore, available, expected, err)
 	}
+	var failedUnchanged bool
+	if err := db.QueryRow(context.Background(), "SELECT state='retryable' AND attempt=1 AND scheduled_at>clock_timestamp()+interval '30 minutes' FROM undergrid_queue.river_job WHERE id=$1", oldRefresh).Scan(&failedUnchanged); err != nil || !failedUnchanged {
+		t.Fatalf("new commit changed delayed failure: unchanged=%v err=%v", failedUnchanged, err)
+	}
+	var foreground int
+	if err := db.QueryRow(context.Background(), "SELECT count(*) FROM undergrid_queue.river_job WHERE kind='intention_scan_v1' AND queue=$1 AND args->>'cause_id'=$2 AND state='available'", discoveryQueue, second["id"]).Scan(&foreground); err != nil || foreground != 1 {
+		t.Fatalf("committed intention lost its foreground job: count=%d err=%v", foreground, err)
+	}
+	t.Logf("queued refreshes before=%d after=%d; delayed failure unchanged; one committed foreground job", queuedBefore, available)
 }
 
 func TestCommittedDiscoveryRefreshesExistingWatcher(t *testing.T) {
