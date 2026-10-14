@@ -158,6 +158,7 @@ func run() error {
 	mux.Handle("/v1/", service)
 	mux.Handle("/.well-known/", service)
 	mux.Handle("/health/", service)
+	mux.Handle("/openapi.json", service)
 	mux.Handle("/", http.FileServer(http.Dir("web/dist")))
 	address := os.Getenv("UNDERGRID_LISTEN")
 	if address == "" {
