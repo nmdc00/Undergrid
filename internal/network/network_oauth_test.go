@@ -10,6 +10,7 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -18,6 +19,7 @@ import (
 	"time"
 
 	jose "github.com/go-jose/go-jose/v4"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type testOAuthAS struct {
@@ -151,6 +153,71 @@ func TestOAuthCredentialUsesNormalizedCredentialLifecycle(t *testing.T) {
 	if agent != me["agent_id"] || credential == oauthID {
 		t.Fatalf("API token lookup resolved unexpected actor/credential: %s %s", agent, credential)
 	}
+}
+
+func TestOAuthCredentialIdentityTupleRejectsNullMembersAsAppRole(t *testing.T) {
+	s, db := fixture(t)
+	a := client(t, s)
+	_, me := a.call(http.MethodGet, "/v1/me", "", nil)
+	principal := me["principal_id"].(string)
+	agent := me["agent_id"].(string)
+	tx, err := db.Begin(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(context.Background())
+	if _, err = tx.Exec(context.Background(), "SET LOCAL ROLE undergrid_app; SET LOCAL search_path=undergrid,pg_catalog"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = tx.Exec(context.Background(), `SELECT set_config('undergrid.owner_issuer',$1,true),
+		set_config('undergrid.owner_subject',$2,true),set_config('undergrid.principal_id',$3,true)`, "https://fixture.test", a.owner, principal); err != nil {
+		t.Fatal(err)
+	}
+	var visibleAgent, visibleCredentials int
+	if err = tx.QueryRow(context.Background(), "SELECT count(*) FROM agents WHERE id=$1", agent).Scan(&visibleAgent); err != nil {
+		t.Fatal(err)
+	}
+	if err = tx.QueryRow(context.Background(), "SELECT count(*) FROM credentials WHERE agent_id=$1", agent).Scan(&visibleCredentials); err != nil {
+		t.Fatal(err)
+	}
+	if visibleAgent != 1 || visibleCredentials == 0 {
+		t.Fatalf("app-role fixture lacks owner/agent access: agent=%d credentials=%d", visibleAgent, visibleCredentials)
+	}
+	for _, missing := range []string{"oauth_issuer", "oauth_subject", "oauth_client_id"} {
+		issuer, subject, clientID := "https://as.fixture.test", "subject", "client"
+		switch missing {
+		case "oauth_issuer":
+			issuer = ""
+		case "oauth_subject":
+			subject = ""
+		case "oauth_client_id":
+			clientID = ""
+		}
+		if _, err = tx.Exec(context.Background(), "SAVEPOINT oauth_identity_tuple_check"); err != nil {
+			t.Fatal(err)
+		}
+		_, err = tx.Exec(context.Background(), `INSERT INTO credentials
+			(id,agent_id,kind,digest,oauth_issuer,oauth_subject,oauth_client_id,scopes,audience,expires_at)
+			VALUES($1,$2,'oauth_grant',NULL,$3,$4,$5,ARRAY['intents:read'],'https://network.fixture.test',now()+interval '1 hour')`,
+			NewID(), agent, nullableIdentity(issuer), nullableIdentity(subject), nullableIdentity(clientID))
+		if err == nil {
+			t.Fatalf("app role inserted OAuth grant with NULL %s", missing)
+		}
+		var pgErr *pgconn.PgError
+		if !errors.As(err, &pgErr) || pgErr.Code != "23514" || pgErr.ConstraintName != "credentials_kind_identity_check" {
+			t.Fatalf("NULL %s rejected for unrelated reason: %v", missing, err)
+		}
+		if _, err = tx.Exec(context.Background(), "ROLLBACK TO SAVEPOINT oauth_identity_tuple_check"); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func nullableIdentity(value string) any {
+	if value == "" {
+		return nil
+	}
+	return value
 }
 
 func TestOAuthResourceVerifierRequiresRFC9068AccessToken(t *testing.T) {

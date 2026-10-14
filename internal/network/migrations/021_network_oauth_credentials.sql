@@ -12,7 +12,7 @@ ALTER TABLE credentials DROP CONSTRAINT credentials_audience_check;
 ALTER TABLE credentials ADD CONSTRAINT credentials_audience_check CHECK(length(audience) BETWEEN 1 AND 512);
 ALTER TABLE credentials ADD CONSTRAINT credentials_kind_identity_check CHECK (
  (kind='api_token' AND digest IS NOT NULL AND oauth_issuer IS NULL AND oauth_subject IS NULL AND oauth_client_id IS NULL AND audience='undergrid-network') OR
- (kind='oauth_grant' AND digest IS NULL AND length(oauth_issuer) BETWEEN 1 AND 512 AND length(oauth_subject) BETWEEN 1 AND 512 AND length(oauth_client_id) BETWEEN 1 AND 255)
+ (kind='oauth_grant' AND digest IS NULL AND oauth_issuer IS NOT NULL AND length(oauth_issuer) BETWEEN 1 AND 512 AND oauth_subject IS NOT NULL AND length(oauth_subject) BETWEEN 1 AND 512 AND oauth_client_id IS NOT NULL AND length(oauth_client_id) BETWEEN 1 AND 255)
 );
 CREATE UNIQUE INDEX credentials_oauth_identity ON credentials(oauth_issuer,oauth_subject,oauth_client_id) WHERE kind='oauth_grant';
 
