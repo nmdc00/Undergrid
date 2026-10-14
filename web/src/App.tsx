@@ -1,3 +1,4 @@
+import type { components } from "./network.generated";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { AgentAuthority } from "./AgentAuthority";
 import { OwnerPolicy } from "./OwnerPolicy";
@@ -720,7 +721,7 @@ export function App() {
                         watch: { enabled: watch, channels: ["inbox"] },
                         expires_at: intentionExpiry,
                       },
-                    });
+                    } satisfies components["schemas"]["OwnerIntentInput"]);
                     setObjective("");
                     setIntentVisibility("private");
                     setIntentionExpiry(

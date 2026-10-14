@@ -1,0 +1,45 @@
+import fs from 'node:fs';
+import Ajv2020 from 'ajv/dist/2020.js';
+import addFormats from 'ajv-formats';
+const document = JSON.parse(fs.readFileSync(new URL('../../internal/network/api/openapi.json', import.meta.url)));
+const ajv = new Ajv2020({ allErrors: true, strict: false });
+addFormats(ajv);
+const root = 'urn:undergrid:network-contract';
+ajv.addSchema({ $id: root, components: document.components });
+const validateSchema = schema => ajv.compile(JSON.parse(JSON.stringify(schema).replaceAll('"#/components/', '"'+root+'#/components/')));
+for (const [name, schema] of Object.entries(document.components.schemas)) {
+ if (!ajv.validateSchema(schema)) throw Error(name+': '+ajv.errorsText());
+ validateSchema(schema);
+}
+if (process.argv.includes('--schemas')) {
+ console.log(`Compiled ${Object.keys(document.components.schemas).length} JSON Schema 2020-12 components`);
+ process.exit(0);
+}
+const cases = JSON.parse(fs.readFileSync(0,'utf8'));
+for (const c of cases) {
+ const path = new URL(c.path,'https://contract.test').pathname;
+ const candidates = Object.entries(document.paths).filter(([template]) => new RegExp('^'+template.replace(/\{[^}]+\}/g,'[^/]+')+'$').test(path));
+ const entry = candidates.find(([,item]) => item[c.method.toLowerCase()]);
+ if (!entry) throw Error(`Unadvertised actual operation ${c.method} ${path}`);
+ const op = entry[1][c.method.toLowerCase()];
+ if (c.status < 400 && !op.responses[c.status]) throw Error(`Undocumented success ${c.status}: ${c.method} ${path}`);
+ const response = op.responses[c.status] ?? op.responses.default;
+ const schema = response.content?.['application/json']?.schema;
+ if (schema) {
+  const validate = validateSchema(schema);
+  if (!validate(c.response)) throw Error(`${c.method} ${path} ${c.status} response: ${ajv.errorsText(validate.errors)}\n${JSON.stringify(c.response)}`);
+ }
+ if (c.status < 400 && c.request !== null && op.requestBody?.content?.['application/json']) {
+  const validate=validateSchema(op.requestBody.content['application/json'].schema);
+  if (!validate(c.request)) throw Error(`${c.method} ${path} request: ${ajv.errorsText(validate.errors)}\n${JSON.stringify(c.request)}`);
+ }
+ if (c.status >= 400 && c.response.error.request_id !== c.request_id) throw Error('Error request ID differs from header');
+}
+// Independent negative oracles prove validators reject types and forbidden data,
+// instead of merely accepting whatever the current server returned.
+const publicIntent=validateSchema({$ref:'#/components/schemas/PublicIntent'});
+const baseline={id:'a8391ea6-5003-401e-85e1-47c116fe3da0',version:1,etag:'"1"',state:'active',public_summary:'Public summary',output:{kind:'json_dataset',schema_family:'source_catalog_v1'},hard_constraints:{required_fields:[],license_ids:['CC0-1.0']}};
+if (!publicIntent(baseline)) throw Error('Independent public fixture invalid');
+if (publicIntent({...baseline,budget:{amount_minor:100,currency:'EUR',kind:'stated_budget'}})) throw Error('Public budget leak permitted');
+if (publicIntent({...baseline,version:'1'})) throw Error('String version permitted');
+console.log(`Validated ${cases.length} real HTTP request/response cases and privacy/type negative oracles`);

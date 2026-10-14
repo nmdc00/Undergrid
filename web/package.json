@@ -8,7 +8,9 @@
     "build": "tsc --noEmit && vite build",
     "test": "vitest run",
     "preview": "vite preview",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "contract:generate": "openapi-typescript ../internal/network/api/openapi.json -o src/network.generated.ts",
+    "contract:check": "redocly lint ../internal/network/api/openapi.json --extends spec --format summary && node scripts/validate-network-contract.mjs --schemas && openapi-typescript ../internal/network/api/openapi.json -o src/network.generated.ts --check"
   },
   "dependencies": {
     "react": "19.2.4",

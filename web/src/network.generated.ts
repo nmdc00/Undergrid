@@ -433,7 +433,7 @@ export interface paths {
         };
         /**
          * GET /v1/opportunities
-         * @description Required credential scope: swarms:read. Authorization is rechecked in domain transactions.
+         * @description Required credential scope: intents:read. Authorization is rechecked in domain transactions.
          */
         get: operations["get__v1_opportunities"];
         put?: never;
@@ -453,7 +453,7 @@ export interface paths {
         };
         /**
          * GET /v1/opportunities/{id}
-         * @description Required credential scope: swarms:read. Authorization is rechecked in domain transactions.
+         * @description Required credential scope: intents:read. Authorization is rechecked in domain transactions.
          */
         get: operations["get__v1_opportunities_id"];
         put?: never;
@@ -1144,6 +1144,90 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * POST /v1/reports
+         * @description Required network scope: reports:write. Domain authority and row visibility remain mandatory.
+         */
+        post: operations["post__v1_reports"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/reports/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * GET /v1/reports/{id}
+         * @description Required network scope: reports:read. Domain authority and row visibility remain mandatory.
+         */
+        get: operations["get__v1_reports_id"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/intents/{id}/grants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * GET /v1/owner/intents/{id}/grants
+         * @description Verified owner with mutation CSRF. Domain authority and row visibility remain mandatory.
+         */
+        get: operations["get__v1_owner_intents_id_grants"];
+        put?: never;
+        /**
+         * POST /v1/owner/intents/{id}/grants
+         * @description Verified owner with mutation CSRF. Domain authority and row visibility remain mandatory.
+         */
+        post: operations["post__v1_owner_intents_id_grants"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/intents/{id}/grants/{principal_id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * POST /v1/owner/intents/{id}/grants/{principal_id}/revoke
+         * @description Verified owner with mutation CSRF. Domain authority and row visibility remain mandatory.
+         */
+        post: operations["post__v1_owner_intents_id_grants_principal_id_revoke"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1169,15 +1253,15 @@ export interface components {
             };
         };
         AgentProfile: {
-            public: boolean;
-            accept_invitations: boolean;
-            recruitment: boolean;
-            capabilities: string[] | null;
+            public?: boolean;
+            accept_invitations?: boolean;
+            recruitment?: boolean;
+            capabilities?: string[] | null;
         };
         CreateAgent: {
             name: string;
             scopes: string[];
-            profile: components["schemas"]["AgentProfile"];
+            profile?: components["schemas"]["AgentProfile"];
         };
         CredentialIssued: {
             /** Format: uuid */
@@ -1331,21 +1415,9 @@ export interface components {
             expires_at: string;
         };
         OwnerIntentInput: {
-            objective: string;
-            output: components["schemas"]["Output"];
-            hard_constraints: components["schemas"]["Constraints"];
-            preferences?: {
-                [key: string]: string;
-            };
-            /** @enum {string} */
-            visibility: "private" | "restricted" | "redacted_public";
-            public_summary?: string;
-            budget?: components["schemas"]["Budget"] | null;
-            watch: components["schemas"]["Watch"];
-            /** Format: date-time */
-            expires_at: string;
             /** Format: uuid */
             agent_id: string;
+            intent: components["schemas"]["IntentInput"];
         };
         IntentMutation: {
             /** @enum {string} */
@@ -2020,6 +2092,74 @@ export interface components {
         Health: {
             /** @constant */
             status: "alive";
+        };
+        ReportReference: {
+            /** @enum {string} */
+            kind: "principal" | "agent" | "intent" | "swarm" | "membership" | "message" | "plan" | "task" | "artifact" | "evaluation" | "opportunity";
+            /** Format: uuid */
+            id: string;
+        };
+        ReportInput: {
+            /** @enum {string} */
+            kind: "abuse" | "bug" | "privacy" | "rights";
+            subject: components["schemas"]["ReportReference"];
+            evidence_ref?: components["schemas"]["ReportReference"] | null;
+            statement: string;
+        };
+        ReportReceipt: {
+            /** Format: uuid */
+            id: string;
+            kind: string;
+            /** @constant */
+            state: "pending";
+            /** Format: date-time */
+            created_at: string;
+        };
+        Report: {
+            /** @enum {string} */
+            kind: "abuse" | "bug" | "privacy" | "rights";
+            subject: components["schemas"]["ReportReference"];
+            evidence_ref: components["schemas"]["ReportReference"] | null;
+            statement: string;
+            /** Format: uuid */
+            id: string;
+            state: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        IntentGrantInput: {
+            /** Format: uuid */
+            principal_id: string;
+            fields: ("objective" | "output" | "hard_constraints" | "preferences" | "public_summary" | "budget")[];
+            /** Format: date-time */
+            expires_at: string;
+        };
+        IntentGrantResult: {
+            /** Format: uuid */
+            principal_id: string;
+            fields: ("objective" | "output" | "hard_constraints" | "preferences" | "public_summary" | "budget")[];
+            /** Format: date-time */
+            expires_at: string;
+            /** Format: uuid */
+            intent_id: string;
+            revision: number | null;
+            version: number;
+            etag: string;
+        };
+        IntentGrantSummary: {
+            /** Format: uuid */
+            principal_id: string;
+            fields: ("objective" | "output" | "hard_constraints" | "preferences" | "public_summary" | "budget")[];
+            /** Format: date-time */
+            expires_at: string;
+            revision: number | null;
+            /** @enum {string} */
+            status: "current" | "expired_or_revoked" | "legacy_unbound" | "stale_revision" | "inactive_source";
+        };
+        IntentGrants: {
+            items: components["schemas"]["IntentGrantSummary"][];
+            version: number;
+            etag: string;
         };
     };
     responses: never;
@@ -2967,7 +3107,10 @@ export interface operations {
     };
     get__v1_opportunities: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Omit for shared-demand opportunities. */
+                kind?: "builder_recruitment";
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -3323,7 +3466,10 @@ export interface operations {
     };
     get__v1_swarms_id_context: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description At most100messages; use next_sequence to continue. */
+                after_seq?: number;
+            };
             header?: never;
             path: {
                 id: string;
@@ -3781,7 +3927,12 @@ export interface operations {
     };
     get__v1_artifacts_id: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Required together with task_id for private scoped input reads by a nonmember. */
+                purpose?: "assembly" | "evaluation";
+                /** @description Current grant target task for private scoped input reads. */
+                task_id?: string;
+            };
             header?: never;
             path: {
                 id: string;
@@ -3816,7 +3967,12 @@ export interface operations {
     };
     get__v1_artifacts_id_evaluations: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Required together with task_id for private scoped input reads by a nonmember. */
+                purpose?: "assembly" | "evaluation";
+                /** @description Current grant target task for private scoped input reads. */
+                task_id?: string;
+            };
             header?: never;
             path: {
                 id: string;
@@ -3851,7 +4007,12 @@ export interface operations {
     };
     get__v1_artifacts_id_content: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Required together with task_id for private scoped input reads by a nonmember. */
+                purpose?: "assembly" | "evaluation";
+                /** @description Current grant target task for private scoped input reads. */
+                task_id?: string;
+            };
             header?: never;
             path: {
                 id: string;
@@ -4247,7 +4408,12 @@ export interface operations {
     };
     get__v1_inbox: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Authenticated opaque agent-specific cursor. */
+                cursor?: string;
+                limit?: number;
+                wait_seconds?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -4337,6 +4503,201 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AgentContext"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post__v1_reports: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportInput"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportReceipt"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get__v1_reports_id: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Report"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get__v1_owner_intents_id_grants: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntentGrants"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post__v1_owner_intents_id_grants: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+                "X-CSRF-Token": string;
+                "If-Match": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IntentGrantInput"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntentGrantResult"];
+                };
+            };
+            /** @description Success */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntentGrantResult"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post__v1_owner_intents_id_grants_principal_id_revoke: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+                "X-CSRF-Token": string;
+                "If-Match": string;
+            };
+            path: {
+                id: string;
+                principal_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Empty"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntentGrantResult"];
                 };
             };
             /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
