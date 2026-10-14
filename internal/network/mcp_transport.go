@@ -70,7 +70,7 @@ func (s *Service) ConfigureMCP(origin string) error {
 	if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
 		return errors.New("MCP requires canonical HTTPS origin")
 	}
-	server := mcp.NewServer(&mcp.Implementation{Name: "Undergrid Network", Version: "0.1"}, nil)
+	server := mcp.NewServer(&mcp.Implementation{Name: "Undergrid Network", Version: "0.1"}, &mcp.ServerOptions{Capabilities: &mcp.ServerCapabilities{Tools: &mcp.ToolCapabilities{}}})
 	for _, op := range networkOperations {
 		op := op
 		schema, err := networkOperationInputSchema(op)

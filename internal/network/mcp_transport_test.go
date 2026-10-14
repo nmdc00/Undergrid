@@ -5,8 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/jackc/pgx/v5"
-	"golang.org/x/oauth2"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -17,7 +15,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"golang.org/x/oauth2"
 )
 
 func mcpFixture(t *testing.T) (*Service, *pgx.Conn) {
@@ -67,6 +67,11 @@ func TestMCPDiscoveryThroughNetworkService(t *testing.T) {
 	}
 	if w.Code != 200 || out["result"] == nil {
 		t.Fatalf("MCP discovery unavailable: %d %s", w.Code, w.Body.String())
+	}
+	capabilities := out["result"].(map[string]any)["capabilities"].(map[string]any)
+	tools, ok := capabilities["tools"].(map[string]any)
+	if !ok || len(capabilities) != 1 || tools["listChanged"] == true {
+		t.Fatalf("unimplemented capabilities advertised: %v", capabilities)
 	}
 }
 
