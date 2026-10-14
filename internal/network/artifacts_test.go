@@ -167,13 +167,17 @@ func (x artifactScenario) upload(t *testing.T, data []byte, key string, purpose 
 }
 func (x artifactScenario) uploadForAudience(t *testing.T, data []byte, key, purpose string, audience []string) map[string]any {
 	t.Helper()
+	return x.uploadForAudienceWithReviewer(t, data, key, purpose, audience, x.principals[0])
+}
+func (x artifactScenario) uploadForAudienceWithReviewer(t *testing.T, data []byte, key, purpose string, audience []string, reviewer string) map[string]any {
+	t.Helper()
 	body := map[string]any{"swarm_id": x.room["id"], "plan_id": x.plan["id"], "task_id": x.task["id"], "claim_epoch": x.task["claim_epoch"], "media_type": "application/json", "size_bytes": len(data)}
 	if purpose != "" {
 		body["purpose"] = purpose
 	}
 	if purpose == "progress" {
 		body["audience_principal_ids"] = audience
-		body["reviewer_principal_id"] = x.principals[0]
+		body["reviewer_principal_id"] = reviewer
 	}
 	code, out := x.actors[2].call("POST", "/v1/artifacts/uploads", key, body)
 	if code != 201 {

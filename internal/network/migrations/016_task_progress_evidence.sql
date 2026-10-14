@@ -103,3 +103,30 @@ BEGIN
  RETURN NEW;
 END $$;
 CREATE TRIGGER immutable_task_progress_evidence BEFORE UPDATE ON task_progress_evidence FOR EACH ROW EXECUTE FUNCTION protect_task_progress_evidence();
+
+-- Input grants are an additional rights gate; they never add a recipient to a
+-- progress artifact's immutable audience. The current caller check keeps the
+-- helper from becoming an audience-membership oracle for ordinary API users.
+CREATE FUNCTION input_grant_progress_audience_allowed(source uuid,recipient_agent uuid,recipient_principal uuid) RETURNS boolean
+ LANGUAGE sql STABLE SECURITY DEFINER SET search_path=undergrid,pg_catalog AS $$
+ SELECT EXISTS(SELECT 1 FROM artifacts a WHERE a.id=source AND (
+  a.purpose<>'progress' OR (
+   recipient_principal=ANY(a.audience_principal_ids)
+   AND EXISTS(SELECT 1 FROM memberships m WHERE m.swarm_id=a.swarm_id AND m.agent_id=recipient_agent AND m.principal_id=recipient_principal AND m.state='accepted')
+   AND (actor_principal() IS NULL OR (actor_principal()=ANY(a.audience_principal_ids) AND swarm_member(a.swarm_id)))
+  )
+ ))
+$$;
+REVOKE ALL ON FUNCTION input_grant_progress_audience_allowed(uuid,uuid,uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION input_grant_progress_audience_allowed(uuid,uuid,uuid) TO undergrid_app,undergrid_worker;
+
+CREATE OR REPLACE FUNCTION has_scoped_input_read(source uuid) RETURNS boolean
+ LANGUAGE sql STABLE SECURITY DEFINER SET search_path=undergrid,pg_catalog AS $$
+ SELECT EXISTS(SELECT 1 FROM artifacts a JOIN approvals g ON g.artifact_id=a.id
+  WHERE a.id=source AND g.grant_recipient_agent_id=actor_agent()
+  AND g.purpose IN ('assembly_grant','evaluation_grant')
+  AND input_grant_progress_audience_allowed(a.id,g.grant_recipient_agent_id,g.grant_recipient_principal_id)
+  AND effective_input_grant_count(a.id,g.grant_target_task_id,split_part(g.purpose,'_',1))=cardinality(a.required_rights))
+$$;
+REVOKE ALL ON FUNCTION has_scoped_input_read(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION has_scoped_input_read(uuid) TO undergrid_app;

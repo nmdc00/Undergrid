@@ -130,16 +130,53 @@ pass. The owner Playwright rerun passes all 3 cases when Chromium is launched
 with `LD_LIBRARY_PATH=/tmp/undergrid-browser-libs/root/usr/lib/x86_64-linux-gnu`;
 no system libraries were installed.
 
-The full network package ran on a fresh UTF8 cluster but did not pass in that
-run: `TestCommittedIntentionRunsThroughDurableWorker` failed to produce its
+An earlier full network package run on a fresh UTF8 cluster did not pass:
+`TestCommittedIntentionRunsThroughDurableWorker` failed to produce its
 opportunity before the test deadline (322 seconds for the package run, with
 worker queue shutdown/transaction-delay logs). A separate initial fixture
 expectation assumed missing issuance configuration after the common test fixture
-began configuring its required explicit test key; that assertion is now set up
-with an absent key and its rollback case passes. The durable-worker failure is
-tracked separately as a queue liveness/fairness issue and is not hidden by a
-copied schema, shorter assertion or weakened test.
+began configuring its required explicit test key; that assertion was reset to
+an absent key and its rollback case passed. The durable-worker timeout was
+subsequently corrected through discovery-fairness PR #26 and follow-up recovery
+changes in PRs #29 and #30. The latest full network race on integrated release
+014+015 passed in 583.538 seconds (74.1%). That run does not prove the full
+network suite with progress migration 016 or owner-issuance migration 017.
 
 No external provider verification, public deployment, remote PR, merge or live
 call is part of this branch task. Root owns final integration review and any
 release-level regression rerun.
+
+## Progress/grants reconciliation and exact-source validation
+
+The final progress branch, including the progress-artifact input-grant audience
+correction, was merged locally into this owner retry branch at source SHA
+`fff38655ab8a76c1203554e5f5e56d6e24b89fbe`. No merge conflicts occurred. The
+progress-artifact rule remains intact: input-grant recipients must already be
+inside the immutable artifact audience and be current accepted source-swarm
+members; separate source-rights approval does not widen the audience. The
+owner's idempotency result remains protected from agent RLS reads, and retries
+still require a matching request fingerprint, owner, issuance-key ID and replay
+window.
+
+The combined owner/progress/grant race-enabled selection passed against a new
+raw-migration PostgreSQL fixture on port 55472 in 77.106 seconds:
+
+```sh
+UNDERGRID_TEST_DATABASE_URL='postgres://nmcdc@127.0.0.1:55472/undergrid_owner_progress_grants?sslmode=disable' \
+GOCACHE=/tmp/undergrid-gocache GOMODCACHE=/tmp/undergrid-gomod \
+/tmp/undergrid-toolchain/go/bin/go test -race ./internal/network \
+-run '^(TestOwnerAgentIssuanceRequiresPolicyForProtectedArtifactGrantScope|TestOwnerAgentCreationResponseLossReplay|TestOwnerAgentCreationWithoutIssuanceKeyRollsBack|TestOwnerAgentCreationReplayWindowAndKeyIDFailClosed|TestOwnerAgentCreationConcurrentSameKey|TestOwnerCanReviewAndRevokeOnlyOwnCredentials|TestProgressArtifactInputGrantsRespectImmutableAudience|TestTaskProgressEvidenceReviewLifecycle|TestPrivateArtifactNamedGrantsExposeOnlyInputAndPermitAssembly|TestPrivateArtifactGrantRevocationSerializesWithReadAndSeal|TestArtifactPublicationLifecycleThroughHTTPAndExecutableWorker|TestArtifactPublicationSerializesWithRightsPolicyRevocation)$' -count=1
+```
+
+The application migrator created the database from source migrations 001–017
+in order, then recorded River readiness; no SQL was manually replayed and no
+ledger was edited. PostgreSQL reports version 16.11, UTF8, and `C.UTF-8` database
+collation/character type. `undergrid_app` and `undergrid_worker` are
+`NOSUPERUSER NOCREATEROLE NOCREATEDB NOBYPASSRLS`. Migration 016 has SHA-256
+`e7c439471609dbff95f9d5f4bae48e5bda4abf43a0f90d09cc24265c71f1377b`; migration
+017 has SHA-256
+`9828ddeae1accf601d67123e23e5a80da6a5c5abcdc77ff6bb37e448df1e199e`.
+`go vet ./internal/network`, `go build ./...`, and `git diff --check` passed on
+the same source tree. This focused result is not a full network race or combined
+release gate, and does not establish cgroup, provider, beneficial-owner, or
+production qualification.

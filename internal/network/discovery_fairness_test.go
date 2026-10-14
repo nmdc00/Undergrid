@@ -12,24 +12,111 @@ import (
 
 func TestCommittedDiscoverySurvivesBlockedRecruitment(t *testing.T) {
 	s, db := fixture(t)
-	organizer, builder := collaborationClient(t, s), collaborationClient(t, s)
+	organizer := collaborationClient(t, s)
+	collaborationClient(t, s)
 	code, room := organizer.call("POST", "/v1/swarms", "blocked-recruit-room", map[string]any{"objective": "Recruit a catalog builder", "visibility": "restricted", "recruitment_roles": []any{map[string]any{"key": "builder", "schema_family": "source_catalog_v1", "description": "Build catalog"}}})
 	if code != 201 {
 		t.Fatal(code, room)
 	}
-	_, target := builder.call("GET", "/v1/me", "", nil)
+	code, organizerIdentity := organizer.call("GET", "/v1/me", "", nil)
+	if code != 200 {
+		t.Fatalf("organizer identity: %d %v", code, organizerIdentity)
+	}
 	a, b := client(t, s), client(t, s)
+	code, firstOwner := a.call("GET", "/v1/me", "", nil)
+	if code != 200 {
+		t.Fatalf("first owner identity: %d %v", code, firstOwner)
+	}
+	code, secondOwner := b.call("GET", "/v1/me", "", nil)
+	if code != 200 {
+		t.Fatalf("second owner identity: %d %v", code, secondOwner)
+	}
 	input := intentFixture()
 	input.Visibility = "redacted_public"
 	input.PublicSummary = "Fair discovery " + NewID()
 	ctx := context.Background()
+	var targetAgent, targetPrincipal string
+	if err := db.QueryRow(ctx, `SELECT a.id::text,a.principal_id::text
+		FROM undergrid.agents a JOIN undergrid.principals p ON p.id=a.principal_id
+		WHERE a.id<>$1 AND a.principal_id<>$2 AND a.principal_id<>$3
+		AND a.status='active' AND p.status='active'
+		AND a.profile->>'public'='true' AND a.profile->>'recruitment'='true'
+		AND a.profile->'capabilities' @> '["source_catalog_v1"]'::jsonb
+		ORDER BY a.id LIMIT 1`, organizerIdentity["agent_id"], firstOwner["principal_id"], secondOwner["principal_id"]).Scan(&targetAgent, &targetPrincipal); err != nil {
+		t.Fatalf("select first eligible non-coordinator recruitment principal: %v", err)
+	}
+	if targetAgent == organizerIdentity["agent_id"] {
+		t.Fatal("selected coordinator as the recruitment target")
+	}
+	// Explicitly queue two jobs for only this room. River fetches jobs by
+	// priority, scheduled_at, then ID; its startup scheduler can promote due
+	// retryable/scheduled jobs after this query. Place these test-owned jobs
+	// just ahead of every due priority-1 default-queue row, across all states,
+	// without changing existing job state or priority. This keeps the lock
+	// precondition causal under either scheduler ordering.
+	queueDB, err := pgx.Connect(ctx, s.dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer queueDB.Close(ctx)
+	var earliestDefault time.Time
+	if err = queueDB.QueryRow(ctx, `SELECT COALESCE(min(scheduled_at),clock_timestamp())
+		FROM undergrid_queue.river_job WHERE queue=$1 AND priority=1
+		AND scheduled_at<=clock_timestamp()`, river.QueueDefault).Scan(&earliestDefault); err != nil {
+		t.Fatal(err)
+	}
+	queue, err := river.NewClient(riverpgxv5.New(nil), &river.Config{Schema: "undergrid_queue"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	jobTx, err := queueDB.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	jobIDs := make([]int64, 0, 2)
+	for range 2 {
+		inserted, insertErr := queue.InsertTx(ctx, jobTx, recruitArgs{SwarmID: room["id"].(string)}, &river.InsertOpts{
+			Queue: river.QueueDefault, Priority: 1, MaxAttempts: 10,
+		})
+		if insertErr != nil {
+			_ = jobTx.Rollback(ctx)
+			t.Fatal(insertErr)
+		}
+		if inserted.Job.State != "available" {
+			_ = jobTx.Rollback(ctx)
+			t.Fatalf("controlled recruitment insert was not immediately available: state=%s job_id=%d", inserted.Job.State, inserted.Job.ID)
+		}
+		jobIDs = append(jobIDs, inserted.Job.ID)
+	}
+	// River marks any insert with a nonzero ScheduledAt as scheduled, even if
+	// the requested time is in the past. Keep these two controlled jobs in the
+	// available state, then adjust only their schedule values in this same
+	// fixture transaction so a startup scheduler cannot delay them behind the
+	// existing ready backlog. The all-state minimum also fences rows River may
+	// promote from retryable/scheduled while the worker starts.
+	updated, err := jobTx.Exec(ctx, `UPDATE undergrid_queue.river_job SET scheduled_at=$1
+		WHERE id=ANY($2::bigint[]) AND queue=$3 AND priority=1 AND state='available'`, earliestDefault.Add(-time.Second), jobIDs, river.QueueDefault)
+	if err != nil {
+		_ = jobTx.Rollback(ctx)
+		t.Fatal(err)
+	}
+	if updated.RowsAffected() != 2 {
+		_ = jobTx.Rollback(ctx)
+		t.Fatalf("only controlled fixture jobs should be rescheduled while available: updated=%d", updated.RowsAffected())
+	}
+	if err = jobTx.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	// This lock must use the fixture connection, not queueDB: the queued rows
+	// have already committed independently, and the principal lock remains held
+	// until the worker test's defer rolls it back.
 	lock, err := db.Begin(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer lock.Rollback(ctx)
 	var lockerPID int
-	if err = lock.QueryRow(ctx, "SELECT pg_backend_pid() FROM undergrid.principals WHERE id=$1 FOR UPDATE", target["principal_id"]).Scan(&lockerPID); err != nil {
+	if err = lock.QueryRow(ctx, "SELECT pg_backend_pid() FROM undergrid.principals WHERE id=$1 FOR UPDATE", targetPrincipal).Scan(&lockerPID); err != nil {
 		t.Fatal(err)
 	}
 	observer, err := pgx.Connect(ctx, s.dsn)
@@ -40,7 +127,8 @@ func TestCommittedDiscoverySurvivesBlockedRecruitment(t *testing.T) {
 	workerCtx, cancel := context.WithCancel(ctx)
 	done := make(chan error, 1)
 	tag := "fairness_" + NewID()
-	go func() { done <- RunWorker(workerCtx, s.dsn+" application_name="+tag, "development") }()
+	workerDSN := testWorkerDSN(t, s.dsn, tag)
+	go func() { done <- RunWorker(workerCtx, workerDSN, "development") }()
 	defer func() {
 		cancel()
 		select {
@@ -53,6 +141,7 @@ func TestCommittedDiscoverySurvivesBlockedRecruitment(t *testing.T) {
 		}
 	}()
 	deadline := time.Now().Add(10 * time.Second)
+	lastBlocked, lastRunning := 0, 0
 	for {
 		var blocked int
 		if err = observer.QueryRow(ctx, `WITH RECURSIVE blocked AS (
@@ -61,33 +150,39 @@ func TestCommittedDiscoverySurvivesBlockedRecruitment(t *testing.T) {
 ) SELECT count(*) FROM pg_stat_activity a JOIN blocked b ON b.pid=a.pid WHERE a.application_name=$1`, tag, lockerPID).Scan(&blocked); err != nil {
 			t.Fatal(err)
 		}
-		if blocked >= 2 {
-			var recruiting int
-			if err = observer.QueryRow(ctx, "SELECT count(*) FROM undergrid_queue.river_job WHERE kind='builder_recruitment_v1' AND state='running'").Scan(&recruiting); err != nil {
-				t.Fatal(err)
-			}
-			if recruiting >= 2 {
-				break
-			}
+		var running int
+		if err = observer.QueryRow(ctx, `SELECT count(*) FROM undergrid_queue.river_job
+			WHERE id=ANY($1::bigint[]) AND kind='builder_recruitment_v1' AND state='running'`, jobIDs).Scan(&running); err != nil {
+			t.Fatal(err)
+		}
+		lastBlocked, lastRunning = blocked, running
+		if running == len(jobIDs) && blocked >= len(jobIDs) {
+			break
 		}
 		if time.Now().After(deadline) {
-			t.Fatal("two recruitment jobs did not reach the controlled principal lock")
+			var tagged int
+			if err = observer.QueryRow(ctx, "SELECT count(*) FROM pg_stat_activity WHERE application_name=$1", tag).Scan(&tagged); err != nil {
+				t.Fatal(err)
+			}
+			t.Fatalf("two controlled recruitment jobs did not block: jobs=%d/%d job_ids=%v controlled_swarm=%s tagged_connections=%d blocked_connections=%d locker_pid=%d target_agent=%s", lastRunning, len(jobIDs), jobIDs, room["id"], tagged, lastBlocked, lockerPID, targetAgent)
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
 	// Commit only after both default slots are demonstrably blocked, so an
-	// earlier repair cannot accidentally produce the test's opportunities.
-	code, first := a.call("POST", "/v1/intents", "fair-first", input)
+	// earlier repair cannot accidentally produce the test's opportunities. The
+	// candidate is committed first and the source second: its cause-specific
+	// scan can run immediately, so the source must see an already committed peer.
+	code, candidate := a.call("POST", "/v1/intents", "fair-candidate", input)
 	if code != 201 {
-		t.Fatal(code, first)
+		t.Fatal(code, candidate)
 	}
-	code, second := b.call("POST", "/v1/intents", "fair-second", input)
+	code, source := b.call("POST", "/v1/intents", "fair-source", input)
 	if code != 201 {
-		t.Fatal(code, second)
+		t.Fatal(code, source)
 	}
 	deadline = time.Now().Add(5 * time.Second)
 	for {
-		code, page := a.call("GET", "/v1/intents/"+first["id"].(string)+"/opportunities", "", nil)
+		code, page := b.call("GET", "/v1/intents/"+source["id"].(string)+"/opportunities", "", nil)
 		if code != 200 {
 			t.Fatal(code, page)
 		}

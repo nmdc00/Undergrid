@@ -46,6 +46,9 @@ var ownerSubscriptionRetryMigration string
 //go:embed migrations/006_provider_anomalies.sql
 var anomalyMigration string
 
+//go:embed migrations/008_wallet_control.sql
+var walletControlMigration string
+
 func Migrate(ctx context.Context, c *pgx.Conn) error {
 	tx, err := c.Begin(ctx)
 	if err != nil {
@@ -68,7 +71,7 @@ func Migrate(ctx context.Context, c *pgx.Conn) error {
 	for _, step := range []struct {
 		version int
 		sql     string
-	}{{1, migration}, {2, refundMigration}, {3, refundRetryMigration}, {4, subscriptionMigration}, {5, stripeMigration}, {6, anomalyMigration}, {7, ownerSubscriptionRetryMigration}} {
+	}{{1, migration}, {2, refundMigration}, {3, refundRetryMigration}, {4, subscriptionMigration}, {5, stripeMigration}, {6, anomalyMigration}, {7, ownerSubscriptionRetryMigration}, {8, walletControlMigration}} {
 		var checksum string
 		err = tx.QueryRow(ctx, "SELECT checksum FROM public.undergrid_sandbox_migrations WHERE version=$1", step.version).Scan(&checksum)
 		switch {
@@ -91,7 +94,10 @@ func Migrate(ctx context.Context, c *pgx.Conn) error {
 	return tx.Commit(ctx)
 }
 
-type Store struct{ dsn string }
+type Store struct {
+	dsn                string
+	walletChallengeTTL time.Duration
+}
 
 func New(dsn string) *Store { return &Store{dsn: dsn} }
 
