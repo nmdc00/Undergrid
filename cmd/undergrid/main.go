@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -117,6 +118,22 @@ func run() error {
 	if err = service.ConfigureCredentialIssuance(os.Getenv("UNDERGRID_CREDENTIAL_ISSUANCE_KEY_ID"), issuanceKey); err != nil {
 		return err
 	}
+	oauthResource := os.Getenv("UNDERGRID_NETWORK_OAUTH_RESOURCE")
+	oauthIssuers := strings.TrimSpace(os.Getenv("UNDERGRID_NETWORK_OAUTH_ISSUERS"))
+	if oauthResource != "" || oauthIssuers != "" {
+		if oauthResource == "" || oauthIssuers == "" {
+			return errors.New("network OAuth resource and trusted issuer configuration must be set together")
+		}
+		issuers := []string{}
+		for _, issuer := range strings.Split(oauthIssuers, ",") {
+			if issuer = strings.TrimSpace(issuer); issuer != "" {
+				issuers = append(issuers, issuer)
+			}
+		}
+		if err = service.ConfigureOAuthResource(network.OAuthResourceConfig{Resource: oauthResource, Issuers: issuers}); err != nil {
+			return errors.New("network OAuth resource discovery/configuration failed")
+		}
+	}
 	if err = service.ConfigureArtifactsFromEnvironment(); err != nil {
 		return err
 	}
@@ -139,6 +156,7 @@ func run() error {
 	mux.HandleFunc("/auth/session", sessions.Session)
 	mux.HandleFunc("/auth/logout", sessions.Logout)
 	mux.Handle("/v1/", service)
+	mux.Handle("/.well-known/", service)
 	mux.Handle("/health/", service)
 	mux.Handle("/", http.FileServer(http.Dir("web/dist")))
 	address := os.Getenv("UNDERGRID_LISTEN")

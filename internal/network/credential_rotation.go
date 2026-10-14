@@ -42,7 +42,7 @@ func (s *Service) issueRecoverableCredential(ctx context.Context, tx pgx.Tx, pri
 	expires := s.credentialNow().Add(30 * 24 * time.Hour).Truncate(time.Microsecond)
 	replayUntil := s.credentialNow().Add(15 * time.Minute)
 	var generation int64
-	if err := tx.QueryRow(ctx, "SELECT COALESCE(max(generation),0)+1 FROM credentials WHERE agent_id=$1", agent).Scan(&generation); err != nil {
+	if err := tx.QueryRow(ctx, "SELECT COALESCE(max(generation),0)+1 FROM credentials WHERE agent_id=$1 AND kind='api_token'", agent).Scan(&generation); err != nil {
 		return nil, err
 	}
 	token := s.credentialToken(principal, agent, id, generation, scopes, expires, nonce)
@@ -75,7 +75,7 @@ func (s *Service) regenerateCredential(ctx context.Context, tx pgx.Tx, principal
 	var expires, replay time.Time
 	var generation int64
 	var keyID string
-	err := tx.QueryRow(ctx, `SELECT c.issuance_nonce,c.digest,c.scopes,c.expires_at,c.generation,c.issuance_key_id,c.issuance_replay_until FROM credentials c JOIN agents a ON a.id=c.agent_id WHERE c.id=$1 AND c.agent_id=$2 AND a.principal_id=$3 AND a.status='active' AND c.revoked_at IS NULL AND c.expires_at>now()`, id, agent, principal).Scan(&nonce, &stored, &scopes, &expires, &generation, &keyID, &replay)
+	err := tx.QueryRow(ctx, `SELECT c.issuance_nonce,c.digest,c.scopes,c.expires_at,c.generation,c.issuance_key_id,c.issuance_replay_until FROM credentials c JOIN agents a ON a.id=c.agent_id WHERE c.id=$1 AND c.agent_id=$2 AND c.kind='api_token' AND a.principal_id=$3 AND a.status='active' AND c.revoked_at IS NULL AND c.expires_at>now()`, id, agent, principal).Scan(&nonce, &stored, &scopes, &expires, &generation, &keyID, &replay)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fail(409, "credential_replay_unavailable")
 	}
@@ -109,7 +109,7 @@ func (s *Service) ownerRotation(r *http.Request, tx pgx.Tx, principal, id string
 	var oldScopes []string
 	var revoked *time.Time
 	var expires time.Time
-	err := tx.QueryRow(r.Context(), "SELECT a.id,c.generation,c.scopes,c.revoked_at,c.expires_at FROM agents a JOIN credentials c ON c.agent_id=a.id WHERE c.id=$1 AND a.principal_id=$2", id, principal).Scan(&agent, &generation, &oldScopes, &revoked, &expires)
+	err := tx.QueryRow(r.Context(), "SELECT a.id,c.generation,c.scopes,c.revoked_at,c.expires_at FROM agents a JOIN credentials c ON c.agent_id=a.id WHERE c.id=$1 AND c.kind='api_token' AND a.principal_id=$2", id, principal).Scan(&agent, &generation, &oldScopes, &revoked, &expires)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return 0, nil, fail(404, "not_found")
 	}
@@ -194,7 +194,7 @@ func (s *Service) ownerRecovery(r *http.Request, tx pgx.Tx, principal, agent str
 	return status, result, err
 }
 func (s *Service) revokeCredentialSet(ctx context.Context, tx pgx.Tx, principal, agent, id string) error {
-	rows, err := tx.Query(ctx, "UPDATE credentials SET revoked_at=now() WHERE agent_id=$1 AND revoked_at IS NULL AND ($2='' OR id::text=$2) RETURNING id", agent, id)
+	rows, err := tx.Query(ctx, "UPDATE credentials SET revoked_at=now() WHERE agent_id=$1 AND kind='api_token' AND revoked_at IS NULL AND ($2='' OR id::text=$2) RETURNING id", agent, id)
 	if err != nil {
 		return err
 	}

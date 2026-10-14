@@ -28,7 +28,7 @@ func TestNetworkHTTPErrorContract(t *testing.T) {
 			for range 2 {
 				r := httptest.NewRequest(http.MethodGet, "/v1/me", nil)
 				r.Header.Set("X-Request-ID", "client-controlled-id")
-				r.Header.Set("Authorization", "Bearer secret-network-fixture")
+				r.Header.Set("Authorization", "Bearer ug_secret-network-fixture")
 				w := httptest.NewRecorder()
 				New(tc.dsn, "development", nil).ServeHTTP(w, r)
 				var body struct {
