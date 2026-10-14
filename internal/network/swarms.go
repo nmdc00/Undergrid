@@ -409,12 +409,20 @@ func swarmContext(r *http.Request, tx pgx.Tx, a actor, id string) (int, any, err
 	return 200, map[string]any{"swarm": map[string]any{"id": id, "objective": objective, "visibility": visibility, "version": version, "etag": etag(version), "history_policy": "full"}, "messages": messages, "next_sequence": after, "head_sequence": sequence, "has_more": after < sequence}, nil
 }
 func (s *Service) roomEvent(ctx context.Context, tx pgx.Tx, a actor, aggregate string, version int64, kind, swarm, path string) error {
+	return s.roomEventAudience(ctx, tx, a, aggregate, version, kind, swarm, path, nil)
+}
+
+func (s *Service) roomEventAudience(ctx context.Context, tx pgx.Tx, a actor, aggregate string, version int64, kind, swarm, path string, audience []string) error {
 	id := NewID()
 	origin := "registered"
 	if s.environment != "production" {
 		origin = "release_test"
 	}
-	_, err := tx.Exec(ctx, "INSERT INTO events(id,aggregate_kind,aggregate_id,version,principal_id,agent_id,type,facts,origin) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)", id, strings.Split(kind, ".")[0], aggregate, version, a.PrincipalID, a.AgentID, kind, canonical(map[string]string{"swarm_id": swarm, "resource_path": path}), origin)
+	facts := map[string]any{"swarm_id": swarm, "resource_path": path}
+	if len(audience) > 0 {
+		facts["audience_principal_ids"] = audience
+	}
+	_, err := tx.Exec(ctx, "INSERT INTO events(id,aggregate_kind,aggregate_id,version,principal_id,agent_id,type,facts,origin) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)", id, strings.Split(kind, ".")[0], aggregate, version, a.PrincipalID, a.AgentID, kind, canonical(facts), origin)
 	if err != nil {
 		return err
 	}

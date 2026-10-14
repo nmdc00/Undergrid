@@ -138,6 +138,8 @@ func (s *Service) inboxCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, e
 	rows, err := tx.Query(ctx, `SELECT i.sequence,i.event_id,e.type,i.resource_path,
 CASE WHEN e.facts->>'swarm_id' IS NULL THEN true
 WHEN e.type='membership.offered' THEN EXISTS(SELECT 1 FROM memberships m WHERE m.id=e.aggregate_id AND m.agent_id=$1 AND m.state='offered' AND m.respond_by>now())
+WHEN e.facts ? 'audience_principal_ids' THEN swarm_member((e.facts->>'swarm_id')::uuid)
+ AND actor_principal()::text IN (SELECT jsonb_array_elements_text(e.facts->'audience_principal_ids'))
 ELSE swarm_member((e.facts->>'swarm_id')::uuid) END
 FROM inbox i JOIN events e ON e.id=i.event_id WHERE i.agent_id=$1 AND i.sequence>$2 ORDER BY i.sequence LIMIT $3`, a.AgentID, sequence, limit)
 	if err != nil {

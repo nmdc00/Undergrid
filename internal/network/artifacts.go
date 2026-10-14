@@ -26,16 +26,19 @@ type storedArtifact struct {
 	size, epoch, version                                                       int64
 	manifest                                                                   []byte
 	rights                                                                     []string
+	audience                                                                   []string
+	reviewer                                                                   string
 }
 
 func loadArtifact(ctx context.Context, tx pgx.Tx, id string, lock bool) (storedArtifact, error) {
 	var a storedArtifact
 	q := `SELECT id,swarm_id,plan_id,task_id,principal_id,agent_id,generation,state,purpose,media_type,size_bytes,claim_epoch,version,
- COALESCE(sha256,''),COALESCE(manifest_hash,''),COALESCE(plan_hash,''),COALESCE(agreement_hash,''),COALESCE(license_id,''),manifest_bytes,required_rights FROM artifacts WHERE id=$1`
+	 COALESCE(sha256,''),COALESCE(manifest_hash,''),COALESCE(plan_hash,''),COALESCE(agreement_hash,''),COALESCE(license_id,''),manifest_bytes,required_rights,
+	 audience_principal_ids::text[],COALESCE(progress_reviewer_principal_id::text,'') FROM artifacts WHERE id=$1`
 	if lock {
 		q += " FOR UPDATE"
 	}
-	err := tx.QueryRow(ctx, q, id).Scan(&a.id, &a.swarm, &a.plan, &a.task, &a.principal, &a.agent, &a.generation, &a.state, &a.purpose, &a.media, &a.size, &a.epoch, &a.version, &a.sha, &a.manifestHash, &a.planHash, &a.agreement, &a.license, &a.manifest, &a.rights)
+	err := tx.QueryRow(ctx, q, id).Scan(&a.id, &a.swarm, &a.plan, &a.task, &a.principal, &a.agent, &a.generation, &a.state, &a.purpose, &a.media, &a.size, &a.epoch, &a.version, &a.sha, &a.manifestHash, &a.planHash, &a.agreement, &a.license, &a.manifest, &a.rights, &a.audience, &a.reviewer)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return a, fail(404, "not_found")
 	}
@@ -52,6 +55,10 @@ func artifactProjection(a storedArtifact) any {
 		out["plan_id"] = a.plan
 		out["task_id"] = a.task
 		out["purpose"] = a.purpose
+		if a.purpose == "progress" {
+			out["audience_principal_ids"] = a.audience
+			out["reviewer_principal_id"] = a.reviewer
+		}
 		out["claim_epoch"] = a.epoch
 		out["agreement_hash"] = a.agreement
 		out["submission_attestation"] = "authenticated_platform_submission_not_agent_signature_or_legal_ownership_proof"
@@ -243,13 +250,15 @@ func (s *Service) currentArtifactAuthority(ctx context.Context, tx pgx.Tx, a act
 }
 
 type artifactUploadInput struct {
-	Swarm   string `json:"swarm_id"`
-	Plan    string `json:"plan_id"`
-	Task    string `json:"task_id"`
-	Epoch   int64  `json:"claim_epoch"`
-	Purpose string `json:"purpose,omitempty"`
-	Media   string `json:"media_type"`
-	Size    int64  `json:"size_bytes"`
+	Swarm    string   `json:"swarm_id"`
+	Plan     string   `json:"plan_id"`
+	Task     string   `json:"task_id"`
+	Epoch    int64    `json:"claim_epoch"`
+	Purpose  string   `json:"purpose,omitempty"`
+	Audience []string `json:"audience_principal_ids,omitempty"`
+	Reviewer string   `json:"reviewer_principal_id,omitempty"`
+	Media    string   `json:"media_type"`
+	Size     int64    `json:"size_bytes"`
 }
 
 func (s *Service) createArtifactUpload(r *http.Request, tx pgx.Tx, a actor) (int, any, error) {
@@ -280,6 +289,14 @@ func (s *Service) createArtifactUpload(r *http.Request, tx pgx.Tx, a actor) (int
 	if p.swarm != in.Swarm || !slices.Contains([]string{"accepted", "in_progress", "changes_requested", "at_risk"}, t.state) {
 		return 0, nil, fail(409, "artifact_assignment_not_current")
 	}
+	if in.Purpose == "progress" {
+		in.Audience, err = validateProgressAudience(r.Context(), tx, p, a.PrincipalID, in.Audience, in.Reviewer)
+		if err != nil {
+			return 0, nil, err
+		}
+	} else if len(in.Audience) != 0 || in.Reviewer != "" {
+		return 0, nil, fail(422, "output_artifact_cannot_set_progress_audience")
+	}
 	art := storedArtifact{plan: in.Plan, task: in.Task, swarm: in.Swarm, agent: a.AgentID, principal: a.PrincipalID, epoch: in.Epoch, state: "quarantine"}
 	if err = s.currentArtifactAuthority(r.Context(), tx, a, p, t, art, true); err != nil {
 		return 0, nil, err
@@ -299,10 +316,23 @@ func (s *Service) createArtifactUpload(r *http.Request, tx pgx.Tx, a actor) (int
 	token := hex.EncodeToString(capability)
 	hash := sha256.Sum256([]byte(token))
 	expires := time.Now().UTC().Add(60 * time.Second)
-	if _, err = tx.Exec(r.Context(), `INSERT INTO artifacts(id,swarm_id,plan_id,task_id,principal_id,agent_id,claim_epoch,generation,purpose,size_bytes,media_type,upload_digest,upload_credential_id,upload_expires_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`, id, in.Swarm, in.Plan, in.Task, a.PrincipalID, a.AgentID, in.Epoch, generation, in.Purpose, in.Size, in.Media, hash[:], a.CredentialID, expires); err != nil {
+	audience := in.Audience
+	if audience == nil {
+		audience = []string{}
+	}
+	var reviewer any
+	if in.Reviewer != "" {
+		reviewer = in.Reviewer
+	}
+	if _, err = tx.Exec(r.Context(), `INSERT INTO artifacts(id,swarm_id,plan_id,task_id,principal_id,agent_id,claim_epoch,generation,purpose,audience_principal_ids,progress_reviewer_principal_id,size_bytes,media_type,upload_digest,upload_credential_id,upload_expires_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::uuid[],$11,$12,$13,$14,$15,$16)`, id, in.Swarm, in.Plan, in.Task, a.PrincipalID, a.AgentID, in.Epoch, generation, in.Purpose, audience, reviewer, in.Size, in.Media, hash[:], a.CredentialID, expires); err != nil {
 		return 0, nil, err
 	}
-	return 201, map[string]any{"id": id, "state": "quarantine", "purpose": in.Purpose, "generation": generation, "upload_url": s.artifacts.config.Origin + "/v1/artifacts/" + id + "/upload?token=" + token, "expires_at": expires, "size_bytes": in.Size, "media_type": in.Media}, nil
+	result := map[string]any{"id": id, "state": "quarantine", "purpose": in.Purpose, "generation": generation, "upload_url": s.artifacts.config.Origin + "/v1/artifacts/" + id + "/upload?token=" + token, "expires_at": expires, "size_bytes": in.Size, "media_type": in.Media}
+	if in.Purpose == "progress" {
+		result["audience_principal_ids"] = audience
+		result["reviewer_principal_id"] = in.Reviewer
+	}
+	return 201, result, nil
 }
 func (s *Service) artifactBytes(a storedArtifact) ([]byte, error) {
 	b, err := s.artifacts.read(a.generation, a.size)
@@ -404,7 +434,12 @@ func (s *Service) finalizeArtifact(r *http.Request, tx pgx.Tx, a actor, p stored
 	if err = enqueueArtifactEvaluation(r.Context(), tx, art.id, art.generation, manifestHash); err != nil {
 		return 0, nil, err
 	}
-	if err = s.roomEvent(r.Context(), tx, a, art.id, 2, "artifact.sealed", art.swarm, "/v1/artifacts/"+art.id); err != nil {
+	if art.purpose == "progress" {
+		err = s.roomEventAudience(r.Context(), tx, a, art.id, 2, "artifact.sealed", art.swarm, "/v1/artifacts/"+art.id, art.audience)
+	} else {
+		err = s.roomEvent(r.Context(), tx, a, art.id, 2, "artifact.sealed", art.swarm, "/v1/artifacts/"+art.id)
+	}
+	if err != nil {
 		return 0, nil, err
 	}
 	art, err = loadArtifact(r.Context(), tx, art.id, false)

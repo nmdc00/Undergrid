@@ -1,9 +1,22 @@
 SET search_path=undergrid,pg_catalog;
 
 ALTER TABLE artifacts ADD COLUMN purpose text NOT NULL DEFAULT 'output' CHECK(purpose IN ('output','progress'));
+ALTER TABLE artifacts ADD COLUMN audience_principal_ids uuid[] NOT NULL DEFAULT '{}'::uuid[];
+ALTER TABLE artifacts ADD COLUMN progress_reviewer_principal_id uuid REFERENCES principals;
+ALTER TABLE artifacts ADD CONSTRAINT artifact_progress_audience_contract CHECK(
+ (purpose='output' AND cardinality(audience_principal_ids)=0 AND progress_reviewer_principal_id IS NULL)
+ OR (purpose='progress' AND cardinality(audience_principal_ids) BETWEEN 1 AND 50 AND progress_reviewer_principal_id IS NOT NULL AND progress_reviewer_principal_id=ANY(audience_principal_ids))
+);
+DROP POLICY artifact_read ON artifacts;
+CREATE POLICY artifact_read ON artifacts FOR SELECT TO undergrid_app
+ USING(state='published' OR (swarm_member(swarm_id) AND (purpose='output' OR actor_principal()=ANY(audience_principal_ids))));
+-- Keep this invariant restrictive so the later private-input-grant policy (015)
+-- cannot grant a recipient access to progress evidence outside its audience.
+CREATE POLICY artifact_progress_audience_guard ON artifacts AS RESTRICTIVE FOR SELECT TO undergrid_app
+ USING(purpose<>'progress' OR (swarm_member(swarm_id) AND actor_principal()=ANY(audience_principal_ids)));
 CREATE OR REPLACE FUNCTION protect_sealed_artifact() RETURNS trigger LANGUAGE plpgsql SET search_path=undergrid,pg_catalog AS $$
 BEGIN
- IF OLD.state<>'quarantine' AND (NEW.swarm_id,NEW.plan_id,NEW.task_id,NEW.principal_id,NEW.agent_id,NEW.generation,NEW.purpose,NEW.claim_epoch,NEW.size_bytes,NEW.media_type,NEW.sha256,NEW.manifest_bytes,NEW.manifest_hash,NEW.plan_hash,NEW.agreement_hash,NEW.license_id,NEW.required_rights,NEW.sealed_at,NEW.manifest) IS DISTINCT FROM (OLD.swarm_id,OLD.plan_id,OLD.task_id,OLD.principal_id,OLD.agent_id,OLD.generation,OLD.purpose,OLD.claim_epoch,OLD.size_bytes,OLD.media_type,OLD.sha256,OLD.manifest_bytes,OLD.manifest_hash,OLD.plan_hash,OLD.agreement_hash,OLD.license_id,OLD.required_rights,OLD.sealed_at,OLD.manifest) THEN RAISE EXCEPTION 'sealed artifact is immutable'; END IF;
+ IF OLD.state<>'quarantine' AND (NEW.swarm_id,NEW.plan_id,NEW.task_id,NEW.principal_id,NEW.agent_id,NEW.generation,NEW.purpose,NEW.audience_principal_ids,NEW.progress_reviewer_principal_id,NEW.claim_epoch,NEW.size_bytes,NEW.media_type,NEW.sha256,NEW.manifest_bytes,NEW.manifest_hash,NEW.plan_hash,NEW.agreement_hash,NEW.license_id,NEW.required_rights,NEW.sealed_at,NEW.manifest) IS DISTINCT FROM (OLD.swarm_id,OLD.plan_id,OLD.task_id,OLD.principal_id,OLD.agent_id,OLD.generation,OLD.purpose,OLD.audience_principal_ids,OLD.progress_reviewer_principal_id,OLD.claim_epoch,OLD.size_bytes,OLD.media_type,OLD.sha256,OLD.manifest_bytes,OLD.manifest_hash,OLD.plan_hash,OLD.agreement_hash,OLD.license_id,OLD.required_rights,OLD.sealed_at,OLD.manifest) THEN RAISE EXCEPTION 'sealed artifact is immutable'; END IF;
  IF OLD.state<>'quarantine' AND NEW.state='quarantine' THEN RAISE EXCEPTION 'sealed generation cannot be reopened'; END IF;
  RETURN NEW;
 END $$;

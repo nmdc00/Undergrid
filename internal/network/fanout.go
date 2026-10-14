@@ -46,13 +46,16 @@ func (w *fanoutWorker) Work(ctx context.Context, job *river.Job[fanoutArgs]) err
 		return err
 	}
 	var event struct {
-		SwarmID string `json:"swarm_id"`
-		Path    string `json:"resource_path"`
+		SwarmID  string   `json:"swarm_id"`
+		Path     string   `json:"resource_path"`
+		Audience []string `json:"audience_principal_ids"`
 	}
 	if err = json.Unmarshal(facts, &event); err != nil {
 		return err
 	}
-	rows, err := db.Query(ctx, "SELECT agent_id,principal_id FROM memberships WHERE swarm_id=$1 AND CASE WHEN $2='membership.offered' THEN id=$3 AND state='offered' WHEN $2='membership.expired' THEN state='accepted' OR id=$3 ELSE state='accepted' END ORDER BY principal_id,agent_id", event.SwarmID, kind, aggregate)
+	rows, err := db.Query(ctx, `SELECT agent_id,principal_id FROM memberships WHERE swarm_id=$1
+		AND CASE WHEN $2='membership.offered' THEN id=$3 AND state='offered' WHEN $2='membership.expired' THEN state='accepted' OR id=$3 ELSE state='accepted' END
+		AND (COALESCE(cardinality($4::uuid[]),0)=0 OR principal_id=ANY($4::uuid[])) ORDER BY principal_id,agent_id`, event.SwarmID, kind, aggregate, event.Audience)
 	if err != nil {
 		return err
 	}

@@ -1,6 +1,7 @@
 package network
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"slices"
@@ -18,6 +19,32 @@ type taskProgressEvidenceInput struct {
 	Report         string   `json:"report"`
 	Audience       []string `json:"audience_principal_ids"`
 	Reviewer       string   `json:"reviewer_principal_id"`
+}
+
+func validateProgressAudience(ctx context.Context, tx pgx.Tx, p storedPlan, submitter string, audience []string, reviewer string) ([]string, error) {
+	if len(audience) == 0 || len(audience) > 50 || !validID(reviewer) || !slices.Contains(p.sealed.Plan.AcceptancePrincipals, reviewer) {
+		return nil, fail(422, "invalid_progress_audience")
+	}
+	seen := make(map[string]bool, len(audience))
+	normalized := append([]string(nil), audience...)
+	for _, principal := range normalized {
+		if !validID(principal) || seen[principal] || !slices.Contains(p.sealed.Plan.RequiredPrincipals, principal) {
+			return nil, fail(422, "invalid_progress_audience")
+		}
+		seen[principal] = true
+	}
+	if !seen[reviewer] || !seen[submitter] {
+		return nil, fail(422, "progress_audience_must_include_reporter_and_reviewer")
+	}
+	var eligible int
+	if err := tx.QueryRow(ctx, `SELECT count(*) FROM memberships WHERE swarm_id=$1 AND state='accepted' AND role<>'observer' AND principal_id=ANY($2::uuid[])`, p.swarm, normalized).Scan(&eligible); err != nil {
+		return nil, err
+	}
+	if eligible != len(normalized) {
+		return nil, fail(422, "progress_audience_not_current_member")
+	}
+	slices.Sort(normalized)
+	return normalized, nil
 }
 
 type storedTaskProgressEvidence struct {
@@ -85,18 +112,12 @@ func (s *Service) taskProgressEvidenceCommand(r *http.Request, tx pgx.Tx, a acto
 	if err = s.validateTaskProgress(r, tx, a, p, t, in.Epoch); err != nil {
 		return 0, nil, err
 	}
-	if !validID(in.ArtifactID) || !validID(in.EvaluationID) || !validID(in.Reviewer) || len(in.Audience) == 0 || len(in.Audience) > 50 || len(in.Report) == 0 || len(in.Report) > 4000 || strings.TrimSpace(in.Report) == "" || len(in.ArtifactSHA256) != 64 || !slices.Contains(p.sealed.Plan.AcceptancePrincipals, in.Reviewer) {
+	if !validID(in.ArtifactID) || !validID(in.EvaluationID) || len(in.Report) == 0 || len(in.Report) > 4000 || strings.TrimSpace(in.Report) == "" || len(in.ArtifactSHA256) != 64 {
 		return 0, nil, fail(422, "invalid_progress_evidence")
 	}
-	seen := map[string]bool{}
-	for _, principal := range in.Audience {
-		if !validID(principal) || seen[principal] || !slices.Contains(p.sealed.Plan.RequiredPrincipals, principal) {
-			return 0, nil, fail(422, "invalid_progress_audience")
-		}
-		seen[principal] = true
-	}
-	if !seen[in.Reviewer] || !seen[a.PrincipalID] {
-		return 0, nil, fail(422, "progress_audience_must_include_reporter_and_reviewer")
+	in.Audience, err = validateProgressAudience(r.Context(), tx, p, a.PrincipalID, in.Audience, in.Reviewer)
+	if err != nil {
+		return 0, nil, err
 	}
 	template, enabled := s.templates[p.sealed.Plan.Rights.TemplateID]
 	if !enabled || template.SHA256 != p.sealed.TemplateHash {
@@ -109,13 +130,6 @@ func (s *Service) taskProgressEvidenceCommand(r *http.Request, tx pgx.Tx, a acto
 	if currentHead == nil || *currentHead != p.id || p.state != "accepted" {
 		return 0, nil, fail(409, "task_not_current")
 	}
-	var eligibleAudience int
-	if err = tx.QueryRow(r.Context(), `SELECT count(*) FROM memberships WHERE swarm_id=$1 AND state='accepted' AND role<>'observer' AND principal_id=ANY($2::uuid[])`, p.swarm, in.Audience).Scan(&eligibleAudience); err != nil {
-		return 0, nil, err
-	}
-	if eligibleAudience != len(in.Audience) {
-		return 0, nil, fail(422, "progress_audience_not_current_member")
-	}
 	art, err := loadArtifact(r.Context(), tx, in.ArtifactID, true)
 	if err != nil {
 		return 0, nil, err
@@ -123,7 +137,7 @@ func (s *Service) taskProgressEvidenceCommand(r *http.Request, tx pgx.Tx, a acto
 	if err = s.currentArtifactAuthority(r.Context(), tx, a, p, t, art, true); err != nil {
 		return 0, nil, err
 	}
-	if art.purpose != "progress" || art.state != "verified" || art.sha != in.ArtifactSHA256 || art.id == "" || art.swarm != p.swarm || art.plan != p.id || art.task != t.id || art.epoch != t.epoch {
+	if art.purpose != "progress" || art.state != "verified" || art.sha != in.ArtifactSHA256 || art.id == "" || art.swarm != p.swarm || art.plan != p.id || art.task != t.id || art.epoch != t.epoch || art.reviewer != in.Reviewer || !slices.Equal(art.audience, in.Audience) {
 		return 0, nil, fail(409, "progress_artifact_not_current")
 	}
 	var passed bool
@@ -150,7 +164,7 @@ func (s *Service) taskProgressEvidenceCommand(r *http.Request, tx pgx.Tx, a acto
 		t.epoch, p.hash, art.sha, in.Report, reportHash, in.Audience, in.Reviewer, a.PrincipalID, a.AgentID); err != nil {
 		return 0, nil, err
 	}
-	if err = s.roomEvent(r.Context(), tx, a, id, 1, "task.progress_evidence_submitted", p.swarm, "/v1/tasks/"+t.id); err != nil {
+	if err = s.roomEventAudience(r.Context(), tx, a, id, 1, "task.progress_evidence_submitted", p.swarm, "/v1/tasks/"+t.id, in.Audience); err != nil {
 		return 0, nil, err
 	}
 	return 201, map[string]any{"id": id, "task_id": t.id, "plan_id": p.id, "claim_epoch": t.epoch, "artifact_id": art.id, "artifact_sha256": art.sha,
@@ -235,10 +249,10 @@ func (s *Service) reviewTaskProgressEvidence(r *http.Request, tx pgx.Tx, a actor
 			progress_deadline=clock_timestamp()+(specification->>'progress_interval_seconds')::int*interval '1 second',cure_deadline=NULL,credited_progress_evidence_id=$2 WHERE id=$1`, t.id, e.id); err != nil {
 			return 0, nil, err
 		}
-		if err = s.roomEvent(r.Context(), tx, a, t.id, t.version+1, "task.progress_evidence_accepted", p.swarm, "/v1/tasks/"+t.id); err != nil {
+		if err = s.roomEventAudience(r.Context(), tx, a, t.id, t.version+1, "task.progress_evidence_accepted", p.swarm, "/v1/tasks/"+t.id, e.audience); err != nil {
 			return 0, nil, err
 		}
-	} else if err = s.roomEvent(r.Context(), tx, a, e.id, 2, "task.progress_evidence_rejected", p.swarm, "/v1/tasks/"+t.id); err != nil {
+	} else if err = s.roomEventAudience(r.Context(), tx, a, e.id, 2, "task.progress_evidence_rejected", p.swarm, "/v1/tasks/"+t.id, e.audience); err != nil {
 		return 0, nil, err
 	}
 	return taskResult(r.Context(), tx, t.id, a.PrincipalID)

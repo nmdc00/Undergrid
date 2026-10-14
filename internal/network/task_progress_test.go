@@ -2,8 +2,12 @@ package network
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/riverqueue/river"
 )
 
 // A state/epoch heartbeat remains wire compatible, but does not prove useful
@@ -48,9 +52,25 @@ func TestTaskProgressEvidenceReviewLifecycle(t *testing.T) {
 		t.Fatal(code, joined)
 	}
 	data := []byte(`{"sources":[{"source_id":"progress-fixture","source_url":"https://example.org/"}]}`)
-	upload := x.upload(t, data, "progress-upload", "progress")
+	upload := x.uploadForAudience(t, data, "progress-upload", "progress", x.principals[:3])
 	artifactID := upload["id"].(string)
 	artifactPath := "/v1/artifacts/" + artifactID
+	var storedAudience []string
+	var storedReviewer string
+	if err := x.db.QueryRow(context.Background(), `SELECT audience_principal_ids::text[],progress_reviewer_principal_id::text
+		FROM undergrid.artifacts WHERE id=$1`, artifactID).Scan(&storedAudience, &storedReviewer); err != nil {
+		t.Fatal(err)
+	}
+	expectedAudience := slices.Clone(x.principals[:3])
+	slices.Sort(expectedAudience)
+	if !slices.Equal(storedAudience, expectedAudience) || storedReviewer != x.principals[0] {
+		t.Fatalf("progress artifact did not persist exact normalized audience/reviewer: %v %s", storedAudience, storedReviewer)
+	}
+	for _, suffix := range []string{"", "/evaluations", "/content"} {
+		if code, _ := x.actors[3].call("GET", artifactPath+suffix, "", nil); code != 404 {
+			t.Errorf("non-audience member read pending progress artifact %s: %d", suffix, code)
+		}
+	}
 	code, artifact := x.actors[2].call("POST", artifactPath+"/finalize", "progress-seal", x.finalBody(data))
 	if code != 200 {
 		t.Fatal(code, artifact)
@@ -59,6 +79,24 @@ func TestTaskProgressEvidenceReviewLifecycle(t *testing.T) {
 	evaluation := x.waitEvaluation(t, artifactID)
 	if evaluation["result"] != "passed" {
 		t.Fatal("fixed verifier did not pass fixture", evaluation)
+	}
+	// Wait until ordinary recipients have the worker's durable event before
+	// asserting that a current room member outside the named audience has none.
+	uploaderAgent := testAgentID(t, x.actors[2])
+	outsiderAgent := testAgentID(t, x.actors[3])
+	for _, eventType := range []string{"artifact.sealed", "artifact.evaluated"} {
+		deliverFanoutEvent(t, x, eventType, artifactID)
+		if countInboxResourceEvent(t, x.db, uploaderAgent, eventType, artifactPath) == 0 {
+			t.Fatalf("event %s for %s was not delivered to named audience", eventType, artifactPath)
+		}
+		if countInboxResourceEvent(t, x.db, outsiderAgent, eventType, artifactPath) != 0 {
+			t.Errorf("non-audience member received private progress artifact event %s", eventType)
+		}
+	}
+	for _, suffix := range []string{"", "/evaluations", "/content"} {
+		if code, _ := x.actors[3].call("GET", artifactPath+suffix, "", nil); code != 404 {
+			t.Errorf("non-audience member read sealed progress artifact %s: %d", suffix, code)
+		}
 	}
 	taskPath := "/v1/tasks/" + x.task["id"].(string)
 	if _, err := x.db.Exec(context.Background(), `UPDATE undergrid.tasks SET state='at_risk',version=version+1,
@@ -84,6 +122,14 @@ func TestTaskProgressEvidenceReviewLifecycle(t *testing.T) {
 	code, evidence := x.actors[2].versioned("POST", taskPath+"/progress-evidence", "progress-report", current["etag"].(string), body)
 	if code != 201 {
 		t.Fatalf("submit progress evidence: %d %v", code, evidence)
+	}
+	reviewerAgent := testAgentID(t, x.actors[0])
+	deliverFanoutEvent(t, x, "task.progress_evidence_submitted", evidence["id"].(string))
+	if countInboxAggregateEvent(t, x.db, reviewerAgent, "task.progress_evidence_submitted", evidence["id"].(string)) == 0 {
+		t.Fatal("progress submission event was not delivered to named reviewer")
+	}
+	if countInboxAggregateEvent(t, x.db, outsiderAgent, "task.progress_evidence_submitted", evidence["id"].(string)) != 0 {
+		t.Error("non-audience member received progress report submission event")
 	}
 	if evidence["artifact_id"] != artifactID || evidence["evaluation_id"] != evaluation["id"] || evidence["report_sha256"] != digest([]byte(body["report"].(string))) {
 		t.Fatalf("evidence lost exact bindings: %v", evidence)
@@ -184,6 +230,13 @@ func TestTaskProgressEvidenceReviewLifecycle(t *testing.T) {
 	if acceptedReviews != 1 || deniedReviews != 1 || reviewed["state"] != "in_progress" || reviewed["credited_progress_evidence_id"] != evidence["id"] {
 		t.Fatalf("named reviewer race did not credit once: accepted=%d denied=%d result=%v", acceptedReviews, deniedReviews, reviewed)
 	}
+	deliverFanoutEvent(t, x, "task.progress_evidence_accepted", x.task["id"].(string))
+	if countInboxAggregateEvent(t, x.db, reviewerAgent, "task.progress_evidence_accepted", x.task["id"].(string)) == 0 {
+		t.Fatal("progress acceptance event was not delivered to named reviewer")
+	}
+	if countInboxAggregateEvent(t, x.db, outsiderAgent, "task.progress_evidence_accepted", x.task["id"].(string)) != 0 {
+		t.Error("non-audience member received progress report acceptance event")
+	}
 	_, credited := x.actors[2].call("GET", taskPath, "", nil)
 	if credited["progress_deadline"] == current["progress_deadline"] || credited["cure_deadline"] != nil {
 		t.Fatalf("accepted evidence did not renew only the progress clock: before=%v after=%v", current, credited)
@@ -200,6 +253,13 @@ func TestTaskProgressEvidenceReviewLifecycle(t *testing.T) {
 	})
 	if code != 200 || rejected["state"] != "in_progress" || rejected["credited_progress_evidence_id"] != evidence["id"] || rejected["progress_deadline"] != deadlineBeforeRejection {
 		t.Fatalf("rejected evidence changed credited progress: %d before=%v after=%v", code, credited, rejected)
+	}
+	deliverFanoutEvent(t, x, "task.progress_evidence_rejected", rejectedEvidence["id"].(string))
+	if countInboxAggregateEvent(t, x.db, reviewerAgent, "task.progress_evidence_rejected", rejectedEvidence["id"].(string)) == 0 {
+		t.Fatal("progress rejection event was not delivered to named reviewer")
+	}
+	if countInboxAggregateEvent(t, x.db, outsiderAgent, "task.progress_evidence_rejected", rejectedEvidence["id"].(string)) != 0 {
+		t.Error("non-audience member received progress report rejection event")
 	}
 	// Progress review is not final-output acceptance or publication.
 	if credited["submitted_artifact_id"] != nil || credited["state"] != "in_progress" {
@@ -267,4 +327,51 @@ func cloneObject(in map[string]any) map[string]any {
 		out[key] = value
 	}
 	return out
+}
+
+func testAgentID(t *testing.T, actor testClient) string {
+	t.Helper()
+	code, me := actor.call("GET", "/v1/me", "", nil)
+	if code != 200 {
+		t.Fatalf("read test agent identity: %d %v", code, me)
+	}
+	return me["agent_id"].(string)
+}
+
+func countInboxResourceEvent(t *testing.T, db interface {
+	QueryRow(context.Context, string, ...any) pgx.Row
+}, agent, eventType, resourcePath string) int {
+	t.Helper()
+	var count int
+	err := db.QueryRow(context.Background(), `SELECT count(*) FROM undergrid.inbox i JOIN undergrid.events e ON e.id=i.event_id
+		WHERE i.agent_id=$1 AND e.type=$2 AND e.facts->>'resource_path'=$3`, agent, eventType, resourcePath).Scan(&count)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return count
+}
+
+func deliverFanoutEvent(t *testing.T, x artifactScenario, eventType, aggregate string) {
+	t.Helper()
+	var eventID string
+	if err := x.db.QueryRow(context.Background(), "SELECT id FROM undergrid.events WHERE type=$1 AND aggregate_id=$2 ORDER BY created_at DESC LIMIT 1", eventType, aggregate).Scan(&eventID); err != nil {
+		t.Fatalf("load durable event %s/%s: %v", eventType, aggregate, err)
+	}
+	worker := fanoutWorker{dsn: x.workerDSN}
+	if err := worker.Work(context.Background(), &river.Job[fanoutArgs]{Args: fanoutArgs{EventID: eventID}}); err != nil {
+		t.Fatalf("run durable event fanout %s/%s: %v", eventType, aggregate, err)
+	}
+}
+
+func countInboxAggregateEvent(t *testing.T, db interface {
+	QueryRow(context.Context, string, ...any) pgx.Row
+}, agent, eventType, aggregate string) int {
+	t.Helper()
+	var count int
+	err := db.QueryRow(context.Background(), `SELECT count(*) FROM undergrid.inbox i JOIN undergrid.events e ON e.id=i.event_id
+		WHERE i.agent_id=$1 AND e.type=$2 AND e.aggregate_id=$3`, agent, eventType, aggregate).Scan(&count)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return count
 }
