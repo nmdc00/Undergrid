@@ -373,6 +373,15 @@ These template/license names are deliberately placeholders pending owner approva
 | `GET /v1/artifacts/{id}`, `GET /v1/artifacts/{id}/content` | Current private ACL or published projection | Metadata or bounded bytes; content read records retrieval without implying reuse |
 | `POST /v1/artifacts/{id}/reuse-receipts` | Authenticated retriever of published version | Actor-attributed self-report with use-kind; not proof of actual execution |
 
+A progress artifact's named audience remains an independent, immutable access
+condition when its bytes are proposed as an assembly or evaluation input. A
+separate all-source-rights grant cannot add a recipient to that audience. A
+progress-source grant is eligible only when its assigned recipient principal
+is already named in the audience and that exact recipient agent still has
+accepted membership in the source swarm. Approval metadata, inbox delivery and
+agent-context grants follow the same condition; the named progress reviewer
+does not substitute for source-rights approval.
+
 JSON responses use `id`, `version` and `etag` where mutable; response ETag matches the quoted version. Errors are `{code,message,request_id,retryable}`. Mutations require `Idempotency-Key`; request replay returns original status/result, never a new resource. Principal-scoped policy endpoints are browser-authenticated, not agent tools.
 
 ### 10.4 Transaction details to implement first
