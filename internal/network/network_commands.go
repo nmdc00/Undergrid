@@ -112,11 +112,11 @@ func networkOperationInputSchema(op networkOperation) (any, error) {
 	paths := doc["paths"].(map[string]any)
 	route, ok := paths[op.path].(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("missing MCP canonical path %s", op.path)
+		return nil, fmt.Errorf("missing network command canonical path %s", op.path)
 	}
 	operation, ok := route[strings.ToLower(op.method)].(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("missing MCP canonical method %s", op.name)
+		return nil, fmt.Errorf("missing network command canonical method %s", op.name)
 	}
 	components := doc["components"].(map[string]any)
 	properties := map[string]any{}
@@ -173,7 +173,7 @@ func networkOperationInputSchema(op networkOperation) (any, error) {
 		}
 	}
 	schema := map[string]any{"type": "object", "properties": properties, "additionalProperties": false, "required": required, "$defs": components["schemas"]}
-	schema["$defs"] = reachableMCPSchemas(properties, components["schemas"].(map[string]any))
+	schema["$defs"] = reachableNetworkSchemas(properties, components["schemas"].(map[string]any))
 	b, err := json.Marshal(schema)
 	if err != nil {
 		return nil, err
@@ -184,7 +184,7 @@ func networkOperationInputSchema(op networkOperation) (any, error) {
 	return result, err
 }
 
-func reachableMCPSchemas(value any, all map[string]any) map[string]any {
+func reachableNetworkSchemas(value any, all map[string]any) map[string]any {
 	used := map[string]any{}
 	var scan func(any)
 	scan = func(v any) {
@@ -239,10 +239,10 @@ func networkOperationOutputSchema(op networkOperation) (any, error) {
 		}
 	}
 	if len(statuses) == 0 || len(dataSchemas) == 0 {
-		return nil, fmt.Errorf("missing success schema for %s", op.name)
+		return nil, fmt.Errorf("missing network command success schema for %s", op.name)
 	}
 	props := map[string]any{"status": map[string]any{"type": "integer", "enum": statuses}, "data": map[string]any{"anyOf": dataSchemas}}
-	defs := reachableMCPSchemas(props, doc["components"].(map[string]any)["schemas"].(map[string]any))
+	defs := reachableNetworkSchemas(props, doc["components"].(map[string]any)["schemas"].(map[string]any))
 	schema := map[string]any{"type": "object", "properties": props, "required": []string{"status", "data"}, "additionalProperties": false, "$defs": defs}
 	b, err := json.Marshal(schema)
 	if err != nil {
