@@ -91,7 +91,11 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	if r.URL.Path == "/openapi.json" && r.Method == "GET" {
+	if r.URL.Path == "/openapi.json" {
+		if r.Method != "GET" {
+			s.writeProblem(w, fail(405, "method_not_allowed"))
+			return
+		}
 		_, _ = w.Write(networkOpenAPI)
 		return
 	}

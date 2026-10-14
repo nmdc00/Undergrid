@@ -155,10 +155,7 @@ func run() error {
 	mux.HandleFunc("/auth/callback", login.Callback)
 	mux.HandleFunc("/auth/session", sessions.Session)
 	mux.HandleFunc("/auth/logout", sessions.Logout)
-	mux.Handle("/v1/", service)
-	mux.Handle("/.well-known/", service)
-	mux.Handle("/health/", service)
-	mux.Handle("/openapi.json", service)
+	registerNetworkRoutes(mux, service)
 	mux.Handle("/", http.FileServer(http.Dir("web/dist")))
 	address := os.Getenv("UNDERGRID_LISTEN")
 	if address == "" {
@@ -178,4 +175,13 @@ func run() error {
 	shutdown, done := context.WithTimeout(context.Background(), 10*time.Second)
 	defer done()
 	return server.Shutdown(shutdown)
+}
+
+// Keep network route wiring together so public documentation reaches the same
+// handler as the domain API, instead of falling through to the static console.
+func registerNetworkRoutes(mux *http.ServeMux, service *network.Service) {
+	mux.Handle("/v1/", service)
+	mux.Handle("/.well-known/", service)
+	mux.Handle("/health/", service)
+	mux.Handle("/openapi.json", service)
 }

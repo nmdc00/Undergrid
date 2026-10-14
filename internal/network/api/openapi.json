@@ -64,7 +64,7 @@
       "post": {
         "operationId": "post__v1_principals",
         "summary": "POST /v1/principals",
-        "description": "Verified owner session; CSRF on mutations. Authorization is rechecked in domain transactions. Same command key and canonical body returns retained result after current authorization; changed body conflicts.",
+        "description": "Verified owner identity; CSRF for mutations. Current ownership and version preconditions are checked in the domain transaction. This operation does not currently retain command-result references; clients must reconcile uncertain responses by reading state.",
         "responses": {
           "201": {
             "description": "Success",
@@ -308,6 +308,13 @@
                   "type": "string",
                   "format": "uuid"
                 }
+              },
+              "ETag": {
+                "description": "Matches the exact top-level body etag, including retained idempotent replay version.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^\"[0-9]+\"$"
+                }
               }
             }
           },
@@ -390,6 +397,13 @@
                   "type": "string",
                   "format": "uuid"
                 }
+              },
+              "ETag": {
+                "description": "Matches the exact top-level body etag, including retained idempotent replay version.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^\"[0-9]+\"$"
+                }
               }
             }
           },
@@ -422,7 +436,7 @@
       "post": {
         "operationId": "post__v1_owner_policy",
         "summary": "POST /v1/owner/policy",
-        "description": "Verified owner session; CSRF on mutations. Authorization is rechecked in domain transactions. Same command key and canonical body returns retained result after current authorization; changed body conflicts.",
+        "description": "Verified owner identity; CSRF for mutations. Current ownership and version preconditions are checked in the domain transaction. This operation does not currently retain command-result references; clients must reconcile uncertain responses by reading state.",
         "responses": {
           "200": {
             "description": "Success",
@@ -439,6 +453,13 @@
                 "schema": {
                   "type": "string",
                   "format": "uuid"
+                }
+              },
+              "ETag": {
+                "description": "Matches the exact top-level body etag, including retained idempotent replay version.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^\"[0-9]+\"$"
                 }
               }
             }
@@ -469,16 +490,6 @@
           }
         ],
         "parameters": [
-          {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 128
-            }
-          },
           {
             "name": "X-CSRF-Token",
             "in": "header",
@@ -530,6 +541,13 @@
                 "schema": {
                   "type": "string",
                   "format": "uuid"
+                }
+              },
+              "ETag": {
+                "description": "Matches the exact top-level body etag, including retained idempotent replay version.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^\"[0-9]+\"$"
                 }
               }
             }
@@ -631,6 +649,13 @@
                   "type": "string",
                   "format": "uuid"
                 }
+              },
+              "ETag": {
+                "description": "Matches the exact top-level body etag, including retained idempotent replay version.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^\"[0-9]+\"$"
+                }
               }
             }
           },
@@ -730,6 +755,13 @@
                 "schema": {
                   "type": "string",
                   "format": "uuid"
+                }
+              },
+              "ETag": {
+                "description": "Matches the exact top-level body etag, including retained idempotent replay version.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^\"[0-9]+\"$"
                 }
               }
             }
@@ -831,6 +863,13 @@
                   "type": "string",
                   "format": "uuid"
                 }
+              },
+              "ETag": {
+                "description": "Matches the exact top-level body etag, including retained idempotent replay version.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^\"[0-9]+\"$"
+                }
               }
             }
           },
@@ -913,7 +952,7 @@
       "post": {
         "operationId": "post__v1_owner_credentials_id_revoke",
         "summary": "POST /v1/owner/credentials/{id}/revoke",
-        "description": "Verified owner session; CSRF on mutations. Authorization is rechecked in domain transactions. Same command key and canonical body returns retained result after current authorization; changed body conflicts.",
+        "description": "Verified owner identity; CSRF for mutations. Current ownership and version preconditions are checked in the domain transaction. This operation does not currently retain command-result references; clients must reconcile uncertain responses by reading state.",
         "responses": {
           "200": {
             "description": "Success",
@@ -967,16 +1006,6 @@
             "schema": {
               "type": "string",
               "format": "uuid"
-            }
-          },
-          {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 128
             }
           },
           {
@@ -1178,6 +1207,13 @@
                   "type": "string",
                   "format": "uuid"
                 }
+              },
+              "ETag": {
+                "description": "Matches the exact top-level body etag, including retained idempotent replay version.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^\"[0-9]+\"$"
+                }
               }
             }
           },
@@ -1252,6 +1288,13 @@
                   "type": "string",
                   "format": "uuid"
                 }
+              },
+              "ETag": {
+                "description": "Matches the exact top-level body etag, including retained idempotent replay version.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^\"[0-9]+\"$"
+                }
               }
             }
           },
@@ -1312,6 +1355,13 @@
                 "schema": {
                   "type": "string",
                   "format": "uuid"
+                }
+              },
+              "ETag": {
+                "description": "Matches the exact top-level body etag, including retained idempotent replay version.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^\"[0-9]+\"$"
                 }
               }
             }
@@ -1468,6 +1518,13 @@
                   "type": "string",
                   "format": "uuid"
                 }
+              },
+              "ETag": {
+                "description": "Matches the exact top-level body etag, including retained idempotent replay version.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^\"[0-9]+\"$"
+                }
               }
             }
           },
@@ -1600,6 +1657,13 @@
                   "type": "string",
                   "format": "uuid"
                 }
+              },
+              "ETag": {
+                "description": "Matches the exact top-level body etag, including retained idempotent replay version.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^\"[0-9]+\"$"
+                }
               }
             }
           },
@@ -1660,6 +1724,13 @@
                 "schema": {
                   "type": "string",
                   "format": "uuid"
+                }
+              },
+              "ETag": {
+                "description": "Matches the exact top-level body etag, including retained idempotent replay version.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^\"[0-9]+\"$"
                 }
               }
             }
@@ -1952,6 +2023,13 @@
                   "type": "string",
                   "format": "uuid"
                 }
+              },
+              "ETag": {
+                "description": "Matches the exact top-level body etag, including retained idempotent replay version.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^\"[0-9]+\"$"
+                }
               }
             }
           },
@@ -2026,6 +2104,13 @@
                   "type": "string",
                   "format": "uuid"
                 }
+              },
+              "ETag": {
+                "description": "Matches the exact top-level body etag, including retained idempotent replay version.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^\"[0-9]+\"$"
+                }
               }
             }
           },
@@ -2073,15 +2158,6 @@
               "minLength": 1,
               "maxLength": 128
             }
-          },
-          {
-            "name": "If-Match",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "pattern": "^\"[0-9]+\"$"
-            }
           }
         ],
         "requestBody": {
@@ -2117,6 +2193,13 @@
                 "schema": {
                   "type": "string",
                   "format": "uuid"
+                }
+              },
+              "ETag": {
+                "description": "Matches the exact top-level body etag, including retained idempotent replay version.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^\"[0-9]+\"$"
                 }
               }
             }
@@ -2200,6 +2283,13 @@
                 "schema": {
                   "type": "string",
                   "format": "uuid"
+                }
+              },
+              "ETag": {
+                "description": "Matches the exact top-level body etag, including retained idempotent replay version.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^\"[0-9]+\"$"
                 }
               }
             }
@@ -2624,6 +2714,13 @@
                   "type": "string",
                   "format": "uuid"
                 }
+              },
+              "ETag": {
+                "description": "Matches the exact top-level body etag, including retained idempotent replay version.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^\"[0-9]+\"$"
+                }
               }
             }
           },
@@ -2797,15 +2894,6 @@
               "minLength": 1,
               "maxLength": 128
             }
-          },
-          {
-            "name": "If-Match",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "pattern": "^\"[0-9]+\"$"
-            }
           }
         ],
         "requestBody": {
@@ -2841,6 +2929,13 @@
                 "schema": {
                   "type": "string",
                   "format": "uuid"
+                }
+              },
+              "ETag": {
+                "description": "Matches the exact top-level body etag, including retained idempotent replay version.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^\"[0-9]+\"$"
                 }
               }
             }
@@ -2904,6 +2999,13 @@
                 "schema": {
                   "type": "string",
                   "format": "uuid"
+                }
+              },
+              "ETag": {
+                "description": "Matches the exact top-level body etag, including retained idempotent replay version.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^\"[0-9]+\"$"
                 }
               }
             }
@@ -2996,6 +3098,13 @@
                 "schema": {
                   "type": "string",
                   "format": "uuid"
+                }
+              },
+              "ETag": {
+                "description": "Matches the exact top-level body etag, including retained idempotent replay version.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^\"[0-9]+\"$"
                 }
               }
             }
@@ -3227,15 +3336,6 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 128
-            }
-          },
-          {
-            "name": "If-Match",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "pattern": "^\"[0-9]+\"$"
             }
           }
         ],
@@ -4780,6 +4880,15 @@
                   "$ref": "#/components/schemas/IntentGrants"
                 }
               }
+            },
+            "headers": {
+              "ETag": {
+                "description": "Matches the exact top-level body etag, including retained idempotent replay version.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^\"[0-9]+\"$"
+                }
+              }
             }
           },
           "default": {
@@ -4832,6 +4941,15 @@
                   "$ref": "#/components/schemas/IntentGrantResult"
                 }
               }
+            },
+            "headers": {
+              "ETag": {
+                "description": "Matches the exact top-level body etag, including retained idempotent replay version.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^\"[0-9]+\"$"
+                }
+              }
             }
           },
           "default": {
@@ -4859,6 +4977,15 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/IntentGrantResult"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "description": "Matches the exact top-level body etag, including retained idempotent replay version.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^\"[0-9]+\"$"
                 }
               }
             }
@@ -4931,6 +5058,15 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/IntentGrantResult"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "description": "Matches the exact top-level body etag, including retained idempotent replay version.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^\"[0-9]+\"$"
                 }
               }
             }
@@ -5017,6 +5153,457 @@
             }
           }
         }
+      }
+    },
+    "/v1/owner/agents/{id}/oauth-bindings": {
+      "get": {
+        "operationId": "get__v1_owner_agents_id_oauth_bindings",
+        "summary": "GET /v1/owner/agents/{id}/oauth-bindings",
+        "description": "Verified owner session and domain ownership required. ",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthBindings"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; status depends on authentication, visibility, validation, quotas and runtime availability.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OwnerSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      },
+      "post": {
+        "operationId": "post__v1_owner_agents_id_oauth_bindings",
+        "summary": "POST /v1/owner/agents/{id}/oauth-bindings",
+        "description": "Verified owner session and domain ownership required. Binding derives issuer/subject/client_id exclusively from independently validated network-audience access token, never client fields. Rotation requires a distinct new client_id; revoked identity tuples cannot be rebound.",
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthBinding"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "description": "Matches the exact top-level body etag, including retained idempotent replay version.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^\"[0-9]+\"$"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; status depends on authentication, visibility, validation, quotas and runtime availability.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OwnerSession": [],
+            "NetworkBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OAuthBindingInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/owner/oauth-bindings/{id}/rotate": {
+      "post": {
+        "operationId": "post__v1_owner_oauth_bindings_id_rotate",
+        "summary": "POST /v1/owner/oauth-bindings/{id}/rotate",
+        "description": "Verified owner session and domain ownership required. Binding derives issuer/subject/client_id exclusively from independently validated network-audience access token, never client fields. Rotation requires a distinct new client_id; revoked identity tuples cannot be rebound.",
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthBinding"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "description": "Matches the exact top-level body etag, including retained idempotent replay version.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^\"[0-9]+\"$"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; status depends on authentication, visibility, validation, quotas and runtime availability.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OwnerSession": [],
+            "NetworkBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^\"[0-9]+\"$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OAuthBindingInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/owner/oauth-bindings/{id}/revoke": {
+      "post": {
+        "operationId": "post__v1_owner_oauth_bindings_id_revoke",
+        "summary": "POST /v1/owner/oauth-bindings/{id}/revoke",
+        "description": "Verified owner session and domain ownership required. ",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthRevoked"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "description": "Matches the exact top-level body etag, including retained idempotent replay version.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^\"[0-9]+\"$"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; status depends on authentication, visibility, validation, quotas and runtime availability.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OwnerSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^\"[0-9]+\"$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Empty"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/.well-known/oauth-protected-resource/{resource_path}": {
+      "get": {
+        "operationId": "get_oauth_protected_resource_metadata",
+        "summary": "Configured RFC9728 protected resource metadata",
+        "description": "Only available when OAuth resource is configured. The canonical endpoint is /.well-known/oauth-protected-resource plus the configured escaped resource pathname. This template represents each resource-path segment; root resources use the endpoint without a suffix. Other paths return404.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthResourceMetadata"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; status depends on authentication, visibility, validation, quotas and runtime availability.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "parameters": [
+          {
+            "name": "resource_path",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/.well-known/oauth-protected-resource": {
+      "get": {
+        "operationId": "get_oauth_protected_resource_root",
+        "summary": "Configured RFC9728 protected resource metadata",
+        "description": "Only available when OAuth resource is configured. The canonical endpoint is /.well-known/oauth-protected-resource plus the configured escaped resource pathname. This template represents each resource-path segment; root resources use the endpoint without a suffix. Other paths return404.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthResourceMetadata"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; status depends on authentication, visibility, validation, quotas and runtime availability.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "security": []
       }
     }
   },
@@ -7664,94 +8251,28 @@
         "additionalProperties": false
       },
       "Artifact": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/PublicArtifact"
           },
-          "state": {
-            "type": "string"
-          },
-          "sha256": {
-            "type": "string"
-          },
-          "manifest_hash": {
-            "type": "string"
-          },
-          "size_bytes": {
-            "type": "integer"
-          },
-          "media_type": {
-            "type": "string"
-          },
-          "license_id": {
-            "type": "string"
-          },
-          "limitations": {
-            "type": "string"
-          },
-          "content_trust": {
-            "type": "string",
-            "enum": [
-              "untrusted"
-            ]
-          },
-          "manifest": {
-            "$ref": "#/components/schemas/Manifest"
-          },
-          "swarm_id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "plan_id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "task_id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "purpose": {
-            "type": "string",
-            "enum": [
-              "output",
-              "progress"
-            ]
-          },
-          "audience_principal_ids": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "format": "uuid"
+          {
+            "$ref": "#/components/schemas/PrivateArtifact"
+          }
+        ],
+        "if": {
+          "type": "object",
+          "properties": {
+            "state": {
+              "const": "published"
             }
           },
-          "reviewer_principal_id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "claim_epoch": {
-            "type": "integer"
-          },
-          "agreement_hash": {
-            "type": "string"
-          },
-          "submission_attestation": {
-            "type": "string"
-          }
+          "required": [
+            "state"
+          ]
         },
-        "required": [
-          "id",
-          "state",
-          "sha256",
-          "manifest_hash",
-          "size_bytes",
-          "media_type",
-          "license_id",
-          "limitations",
-          "content_trust"
-        ],
-        "additionalProperties": false
+        "then": {
+          "$ref": "#/components/schemas/PublicArtifact"
+        }
       },
       "Artifacts": {
         "type": "object",
@@ -7759,7 +8280,7 @@
           "items": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/Artifact"
+              "$ref": "#/components/schemas/PublicArtifact"
             }
           }
         },
@@ -8168,14 +8689,8 @@
       },
       "RevokeInputGrant": {
         "type": "object",
-        "properties": {
-          "reason": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "reason"
-        ],
+        "properties": {},
+        "required": [],
         "additionalProperties": false
       },
       "InputGrantRevoked": {
@@ -8820,6 +9335,368 @@
           "items",
           "version",
           "etag"
+        ],
+        "additionalProperties": false
+      },
+      "OAuthBindingInput": {
+        "type": "object",
+        "properties": {
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "scopes"
+        ],
+        "additionalProperties": false
+      },
+      "OAuthBinding": {
+        "type": "object",
+        "properties": {
+          "credential_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "const": "oauth_grant"
+          },
+          "issuer": {
+            "type": "string"
+          },
+          "client_id": {
+            "type": "string"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "generation": {
+            "type": "integer"
+          },
+          "etag": {
+            "type": "string",
+            "pattern": "^\"[0-9]+\"$"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "principal_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "rotated_from": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "credential_id",
+          "kind",
+          "issuer",
+          "client_id",
+          "scopes",
+          "generation",
+          "etag",
+          "expires_at",
+          "id",
+          "principal_id"
+        ],
+        "additionalProperties": false
+      },
+      "OAuthBindingSummary": {
+        "type": "object",
+        "properties": {
+          "credential_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "const": "oauth_grant"
+          },
+          "issuer": {
+            "type": "string"
+          },
+          "client_id": {
+            "type": "string"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "generation": {
+            "type": "integer"
+          },
+          "etag": {
+            "type": "string",
+            "pattern": "^\"[0-9]+\"$"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "revoked_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "credential_id",
+          "kind",
+          "issuer",
+          "client_id",
+          "scopes",
+          "generation",
+          "etag",
+          "expires_at",
+          "revoked_at"
+        ],
+        "additionalProperties": false
+      },
+      "OAuthBindings": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OAuthBindingSummary"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "additionalProperties": false
+      },
+      "OAuthRevoked": {
+        "type": "object",
+        "properties": {
+          "credential_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revoked": {
+            "type": "boolean"
+          },
+          "generation": {
+            "type": "integer"
+          },
+          "etag": {
+            "type": "string",
+            "pattern": "^\"[0-9]+\"$"
+          }
+        },
+        "required": [
+          "credential_id",
+          "revoked",
+          "generation",
+          "etag"
+        ],
+        "additionalProperties": false
+      },
+      "OAuthResourceMetadata": {
+        "type": "object",
+        "properties": {
+          "resource": {
+            "type": "string"
+          },
+          "resource_name": {
+            "type": "string"
+          },
+          "authorization_servers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "scopes_supported": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "bearer_methods_supported": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "const": "header"
+            }
+          }
+        },
+        "required": [
+          "resource",
+          "resource_name",
+          "authorization_servers",
+          "scopes_supported",
+          "bearer_methods_supported"
+        ],
+        "additionalProperties": false
+      },
+      "PublicArtifact": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "manifest_hash": {
+            "type": "string"
+          },
+          "size_bytes": {
+            "type": "integer"
+          },
+          "media_type": {
+            "type": "string"
+          },
+          "license_id": {
+            "type": "string"
+          },
+          "limitations": {
+            "type": "string"
+          },
+          "content_trust": {
+            "type": "string",
+            "enum": [
+              "untrusted"
+            ]
+          },
+          "manifest": {
+            "$ref": "#/components/schemas/Manifest"
+          }
+        },
+        "required": [
+          "id",
+          "state",
+          "sha256",
+          "manifest_hash",
+          "size_bytes",
+          "media_type",
+          "license_id",
+          "limitations",
+          "content_trust"
+        ],
+        "additionalProperties": false
+      },
+      "PrivateArtifact": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "manifest_hash": {
+            "type": "string"
+          },
+          "size_bytes": {
+            "type": "integer"
+          },
+          "media_type": {
+            "type": "string"
+          },
+          "license_id": {
+            "type": "string"
+          },
+          "limitations": {
+            "type": "string"
+          },
+          "content_trust": {
+            "type": "string",
+            "enum": [
+              "untrusted"
+            ]
+          },
+          "manifest": {
+            "$ref": "#/components/schemas/Manifest"
+          },
+          "swarm_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "plan_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "task_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "output",
+              "progress"
+            ]
+          },
+          "audience_principal_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "reviewer_principal_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "claim_epoch": {
+            "type": "integer"
+          },
+          "agreement_hash": {
+            "type": "string"
+          },
+          "submission_attestation": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "state",
+          "sha256",
+          "manifest_hash",
+          "size_bytes",
+          "media_type",
+          "license_id",
+          "limitations",
+          "content_trust",
+          "swarm_id",
+          "plan_id",
+          "task_id",
+          "purpose",
+          "claim_epoch",
+          "agreement_hash",
+          "submission_attestation"
         ],
         "additionalProperties": false
       }

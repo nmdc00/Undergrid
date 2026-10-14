@@ -35,7 +35,7 @@ export interface paths {
         put?: never;
         /**
          * POST /v1/principals
-         * @description Verified owner session; CSRF on mutations. Authorization is rechecked in domain transactions. Same command key and canonical body returns retained result after current authorization; changed body conflicts.
+         * @description Verified owner identity; CSRF for mutations. Current ownership and version preconditions are checked in the domain transaction. This operation does not currently retain command-result references; clients must reconcile uncertain responses by reading state.
          */
         post: operations["post__v1_principals"];
         delete?: never;
@@ -123,7 +123,7 @@ export interface paths {
         put?: never;
         /**
          * POST /v1/owner/policy
-         * @description Verified owner session; CSRF on mutations. Authorization is rechecked in domain transactions. Same command key and canonical body returns retained result after current authorization; changed body conflicts.
+         * @description Verified owner identity; CSRF for mutations. Current ownership and version preconditions are checked in the domain transaction. This operation does not currently retain command-result references; clients must reconcile uncertain responses by reading state.
          */
         post: operations["post__v1_owner_policy"];
         delete?: never;
@@ -223,7 +223,7 @@ export interface paths {
         put?: never;
         /**
          * POST /v1/owner/credentials/{id}/revoke
-         * @description Verified owner session; CSRF on mutations. Authorization is rechecked in domain transactions. Same command key and canonical body returns retained result after current authorization; changed body conflicts.
+         * @description Verified owner identity; CSRF for mutations. Current ownership and version preconditions are checked in the domain transaction. This operation does not currently retain command-result references; clients must reconcile uncertain responses by reading state.
          */
         post: operations["post__v1_owner_credentials_id_revoke"];
         delete?: never;
@@ -1228,6 +1228,110 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/owner/agents/{id}/oauth-bindings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * GET /v1/owner/agents/{id}/oauth-bindings
+         * @description Verified owner session and domain ownership required.
+         */
+        get: operations["get__v1_owner_agents_id_oauth_bindings"];
+        put?: never;
+        /**
+         * POST /v1/owner/agents/{id}/oauth-bindings
+         * @description Verified owner session and domain ownership required. Binding derives issuer/subject/client_id exclusively from independently validated network-audience access token, never client fields. Rotation requires a distinct new client_id; revoked identity tuples cannot be rebound.
+         */
+        post: operations["post__v1_owner_agents_id_oauth_bindings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/oauth-bindings/{id}/rotate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * POST /v1/owner/oauth-bindings/{id}/rotate
+         * @description Verified owner session and domain ownership required. Binding derives issuer/subject/client_id exclusively from independently validated network-audience access token, never client fields. Rotation requires a distinct new client_id; revoked identity tuples cannot be rebound.
+         */
+        post: operations["post__v1_owner_oauth_bindings_id_rotate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/oauth-bindings/{id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * POST /v1/owner/oauth-bindings/{id}/revoke
+         * @description Verified owner session and domain ownership required.
+         */
+        post: operations["post__v1_owner_oauth_bindings_id_revoke"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/.well-known/oauth-protected-resource/{resource_path}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Configured RFC9728 protected resource metadata
+         * @description Only available when OAuth resource is configured. The canonical endpoint is /.well-known/oauth-protected-resource plus the configured escaped resource pathname. This template represents each resource-path segment; root resources use the endpoint without a suffix. Other paths return404.
+         */
+        get: operations["get_oauth_protected_resource_metadata"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/.well-known/oauth-protected-resource": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Configured RFC9728 protected resource metadata
+         * @description Only available when OAuth resource is configured. The canonical endpoint is /.well-known/oauth-protected-resource plus the configured escaped resource pathname. This template represents each resource-path segment; root resources use the endpoint without a suffix. Other paths return404.
+         */
+        get: operations["get_oauth_protected_resource_root"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1872,36 +1976,9 @@ export interface components {
             claim_epoch: number;
             manifest: components["schemas"]["Manifest"];
         };
-        Artifact: {
-            /** Format: uuid */
-            id: string;
-            state: string;
-            sha256: string;
-            manifest_hash: string;
-            size_bytes: number;
-            media_type: string;
-            license_id: string;
-            limitations: string;
-            /** @enum {string} */
-            content_trust: "untrusted";
-            manifest?: components["schemas"]["Manifest"];
-            /** Format: uuid */
-            swarm_id?: string;
-            /** Format: uuid */
-            plan_id?: string;
-            /** Format: uuid */
-            task_id?: string;
-            /** @enum {string} */
-            purpose?: "output" | "progress";
-            audience_principal_ids?: string[];
-            /** Format: uuid */
-            reviewer_principal_id?: string;
-            claim_epoch?: number;
-            agreement_hash?: string;
-            submission_attestation?: string;
-        };
+        Artifact: components["schemas"]["PublicArtifact"] | components["schemas"]["PrivateArtifact"];
         Artifacts: {
-            items: components["schemas"]["Artifact"][];
+            items: components["schemas"]["PublicArtifact"][];
         };
         ArtifactAcceptanceInput: {
             /** Format: uuid */
@@ -2008,9 +2085,7 @@ export interface components {
             state: string;
             evidence_level?: string;
         };
-        RevokeInputGrant: {
-            reason: string;
-        };
+        RevokeInputGrant: Record<string, never>;
         InputGrantRevoked: {
             /** Format: uuid */
             id: string;
@@ -2160,6 +2235,104 @@ export interface components {
             items: components["schemas"]["IntentGrantSummary"][];
             version: number;
             etag: string;
+        };
+        OAuthBindingInput: {
+            scopes: string[];
+            /** Format: date-time */
+            expires_at?: string;
+        };
+        OAuthBinding: {
+            /** Format: uuid */
+            credential_id: string;
+            /** @constant */
+            kind: "oauth_grant";
+            issuer: string;
+            client_id: string;
+            scopes: string[];
+            generation: number;
+            etag: string;
+            /** Format: date-time */
+            expires_at: string;
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            principal_id: string;
+            /** Format: uuid */
+            rotated_from?: string;
+        };
+        OAuthBindingSummary: {
+            /** Format: uuid */
+            credential_id: string;
+            /** @constant */
+            kind: "oauth_grant";
+            issuer: string;
+            client_id: string;
+            scopes: string[];
+            generation: number;
+            etag: string;
+            /** Format: date-time */
+            expires_at: string;
+            /** Format: date-time */
+            revoked_at: string | null;
+        };
+        OAuthBindings: {
+            items: components["schemas"]["OAuthBindingSummary"][];
+        };
+        OAuthRevoked: {
+            /** Format: uuid */
+            credential_id: string;
+            revoked: boolean;
+            generation: number;
+            etag: string;
+        };
+        OAuthResourceMetadata: {
+            resource: string;
+            resource_name: string;
+            authorization_servers: string[];
+            scopes_supported: string[];
+            bearer_methods_supported: "header"[];
+        };
+        PublicArtifact: {
+            /** Format: uuid */
+            id: string;
+            state: string;
+            sha256: string;
+            manifest_hash: string;
+            size_bytes: number;
+            media_type: string;
+            license_id: string;
+            limitations: string;
+            /** @enum {string} */
+            content_trust: "untrusted";
+            manifest?: components["schemas"]["Manifest"];
+        };
+        PrivateArtifact: {
+            /** Format: uuid */
+            id: string;
+            state: string;
+            sha256: string;
+            manifest_hash: string;
+            size_bytes: number;
+            media_type: string;
+            license_id: string;
+            limitations: string;
+            /** @enum {string} */
+            content_trust: "untrusted";
+            manifest?: components["schemas"]["Manifest"];
+            /** Format: uuid */
+            swarm_id: string;
+            /** Format: uuid */
+            plan_id: string;
+            /** Format: uuid */
+            task_id: string;
+            /** @enum {string} */
+            purpose: "output" | "progress";
+            audience_principal_ids?: string[];
+            /** Format: uuid */
+            reviewer_principal_id?: string;
+            claim_epoch: number;
+            agreement_hash: string;
+            submission_attestation: string;
         };
     };
     responses: never;
@@ -2362,6 +2535,8 @@ export interface operations {
                 headers: {
                     /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
                     "X-Request-ID"?: string;
+                    /** @description Matches the exact top-level body etag, including retained idempotent replay version. */
+                    ETag?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -2395,6 +2570,8 @@ export interface operations {
                 headers: {
                     /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
                     "X-Request-ID"?: string;
+                    /** @description Matches the exact top-level body etag, including retained idempotent replay version. */
+                    ETag?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -2418,7 +2595,6 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
-                "Idempotency-Key": string;
                 "X-CSRF-Token": string;
                 "If-Match": string;
             };
@@ -2436,6 +2612,8 @@ export interface operations {
                 headers: {
                     /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
                     "X-Request-ID"?: string;
+                    /** @description Matches the exact top-level body etag, including retained idempotent replay version. */
+                    ETag?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -2479,6 +2657,8 @@ export interface operations {
                 headers: {
                     /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
                     "X-Request-ID"?: string;
+                    /** @description Matches the exact top-level body etag, including retained idempotent replay version. */
+                    ETag?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -2522,6 +2702,8 @@ export interface operations {
                 headers: {
                     /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
                     "X-Request-ID"?: string;
+                    /** @description Matches the exact top-level body etag, including retained idempotent replay version. */
+                    ETag?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -2565,6 +2747,8 @@ export interface operations {
                 headers: {
                     /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
                     "X-Request-ID"?: string;
+                    /** @description Matches the exact top-level body etag, including retained idempotent replay version. */
+                    ETag?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -2608,6 +2792,8 @@ export interface operations {
                 headers: {
                     /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
                     "X-Request-ID"?: string;
+                    /** @description Matches the exact top-level body etag, including retained idempotent replay version. */
+                    ETag?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -2631,7 +2817,6 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
-                "Idempotency-Key": string;
                 "X-CSRF-Token": string;
             };
             path: {
@@ -2788,6 +2973,8 @@ export interface operations {
                 headers: {
                     /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
                     "X-Request-ID"?: string;
+                    /** @description Matches the exact top-level body etag, including retained idempotent replay version. */
+                    ETag?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -2823,6 +3010,8 @@ export interface operations {
                 headers: {
                     /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
                     "X-Request-ID"?: string;
+                    /** @description Matches the exact top-level body etag, including retained idempotent replay version. */
+                    ETag?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -2865,6 +3054,8 @@ export interface operations {
                 headers: {
                     /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
                     "X-Request-ID"?: string;
+                    /** @description Matches the exact top-level body etag, including retained idempotent replay version. */
+                    ETag?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -2973,6 +3164,8 @@ export interface operations {
                 headers: {
                     /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
                     "X-Request-ID"?: string;
+                    /** @description Matches the exact top-level body etag, including retained idempotent replay version. */
+                    ETag?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -3008,6 +3201,8 @@ export interface operations {
                 headers: {
                     /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
                     "X-Request-ID"?: string;
+                    /** @description Matches the exact top-level body etag, including retained idempotent replay version. */
+                    ETag?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -3051,6 +3246,8 @@ export interface operations {
                 headers: {
                     /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
                     "X-Request-ID"?: string;
+                    /** @description Matches the exact top-level body etag, including retained idempotent replay version. */
+                    ETag?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -3196,6 +3393,8 @@ export interface operations {
                 headers: {
                     /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
                     "X-Request-ID"?: string;
+                    /** @description Matches the exact top-level body etag, including retained idempotent replay version. */
+                    ETag?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -3220,7 +3419,6 @@ export interface operations {
             query?: never;
             header: {
                 "Idempotency-Key": string;
-                "If-Match": string;
             };
             path: {
                 id: string;
@@ -3238,6 +3436,8 @@ export interface operations {
                 headers: {
                     /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
                     "X-Request-ID"?: string;
+                    /** @description Matches the exact top-level body etag, including retained idempotent replay version. */
+                    ETag?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -3279,6 +3479,8 @@ export interface operations {
                 headers: {
                     /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
                     "X-Request-ID"?: string;
+                    /** @description Matches the exact top-level body etag, including retained idempotent replay version. */
+                    ETag?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -3321,6 +3523,8 @@ export interface operations {
                 headers: {
                     /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
                     "X-Request-ID"?: string;
+                    /** @description Matches the exact top-level body etag, including retained idempotent replay version. */
+                    ETag?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -3518,6 +3722,8 @@ export interface operations {
                 headers: {
                     /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
                     "X-Request-ID"?: string;
+                    /** @description Matches the exact top-level body etag, including retained idempotent replay version. */
+                    ETag?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -3577,7 +3783,6 @@ export interface operations {
             query?: never;
             header: {
                 "Idempotency-Key": string;
-                "If-Match": string;
             };
             path: {
                 id: string;
@@ -3630,6 +3835,8 @@ export interface operations {
                 headers: {
                     /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
                     "X-Request-ID"?: string;
+                    /** @description Matches the exact top-level body etag, including retained idempotent replay version. */
+                    ETag?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -3672,6 +3879,8 @@ export interface operations {
                 headers: {
                     /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
                     "X-Request-ID"?: string;
+                    /** @description Matches the exact top-level body etag, including retained idempotent replay version. */
+                    ETag?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -3714,6 +3923,8 @@ export interface operations {
                 headers: {
                     /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
                     "X-Request-ID"?: string;
+                    /** @description Matches the exact top-level body etag, including retained idempotent replay version. */
+                    ETag?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -3780,7 +3991,6 @@ export interface operations {
             query?: never;
             header: {
                 "Idempotency-Key": string;
-                "If-Match": string;
             };
             path: {
                 id: string;
@@ -4602,6 +4812,8 @@ export interface operations {
             /** @description Success */
             200: {
                 headers: {
+                    /** @description Matches the exact top-level body etag, including retained idempotent replay version. */
+                    ETag?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -4643,6 +4855,8 @@ export interface operations {
             /** @description Success */
             200: {
                 headers: {
+                    /** @description Matches the exact top-level body etag, including retained idempotent replay version. */
+                    ETag?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -4652,6 +4866,8 @@ export interface operations {
             /** @description Success */
             201: {
                 headers: {
+                    /** @description Matches the exact top-level body etag, including retained idempotent replay version. */
+                    ETag?: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -4694,10 +4910,241 @@ export interface operations {
             /** @description Success */
             200: {
                 headers: {
+                    /** @description Matches the exact top-level body etag, including retained idempotent replay version. */
+                    ETag?: string;
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["IntentGrantResult"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get__v1_owner_agents_id_oauth_bindings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthBindings"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post__v1_owner_agents_id_oauth_bindings: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OAuthBindingInput"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            201: {
+                headers: {
+                    /** @description Matches the exact top-level body etag, including retained idempotent replay version. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthBinding"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post__v1_owner_oauth_bindings_id_rotate: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": string;
+                "Idempotency-Key": string;
+                "If-Match": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OAuthBindingInput"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            201: {
+                headers: {
+                    /** @description Matches the exact top-level body etag, including retained idempotent replay version. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthBinding"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post__v1_owner_oauth_bindings_id_revoke: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": string;
+                "Idempotency-Key": string;
+                "If-Match": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Empty"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Matches the exact top-level body etag, including retained idempotent replay version. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthRevoked"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get_oauth_protected_resource_metadata: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                resource_path: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthResourceMetadata"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get_oauth_protected_resource_root: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthResourceMetadata"];
                 };
             };
             /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */

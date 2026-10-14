@@ -7,3 +7,9 @@ import _ "embed"
 //
 //go:embed api/openapi.json
 var networkOpenAPI []byte
+
+// NetworkOpenAPI returns a copy of the canonical public document for protocol
+// adapters which need the same wire schema. Schema access grants no authority.
+func NetworkOpenAPI() []byte {
+	return append([]byte(nil), networkOpenAPI...)
+}

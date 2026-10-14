@@ -33,6 +33,7 @@ for (const c of cases) {
   const validate=validateSchema(op.requestBody.content['application/json'].schema);
   if (!validate(c.request)) throw Error(`${c.method} ${path} request: ${ajv.errorsText(validate.errors)}\n${JSON.stringify(c.request)}`);
  }
+ if (c.status < 400 && c.response?.etag && c.etag !== c.response.etag) throw Error("Response ETag differs from body");
  if (c.status >= 400 && c.response.error.request_id !== c.request_id) throw Error('Error request ID differs from header');
 }
 // Independent negative oracles prove validators reject types and forbidden data,
@@ -42,4 +43,8 @@ const baseline={id:'a8391ea6-5003-401e-85e1-47c116fe3da0',version:1,etag:'"1"',s
 if (!publicIntent(baseline)) throw Error('Independent public fixture invalid');
 if (publicIntent({...baseline,budget:{amount_minor:100,currency:'EUR',kind:'stated_budget'}})) throw Error('Public budget leak permitted');
 if (publicIntent({...baseline,version:'1'})) throw Error('String version permitted');
+const published=cases.find(c=>c.path.startsWith('/v1/artifacts/')&&c.method==='GET'&&c.response?.state==='published');
+if (!published) throw Error('Missing real public artifact projection case');
+const artifact=validateSchema({$ref:'#/components/schemas/Artifact'});
+if (artifact({...published.response,swarm_id:baseline.id})) throw Error('Published room metadata leak permitted');
 console.log(`Validated ${cases.length} real HTTP request/response cases and privacy/type negative oracles`);
