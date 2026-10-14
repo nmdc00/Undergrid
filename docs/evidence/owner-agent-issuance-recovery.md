@@ -103,9 +103,9 @@ agents, credentials, issue events or idempotency results.
 
 `go build ./...`, `go vet ./...`, and `git diff --check` passed. Frontend Vitest
 passed 11 tests and the strict TypeScript/Vite build passed. Chromium passed all 3
-production-bundle browser tests before the follow-up correction; the owner
-creation flow deliberately aborts the first POST after submission, then retries
-the unchanged form and asserts the same CSRF-protected `Idempotency-Key`.
+production-bundle browser tests, including the owner creation flow that aborts
+the first POST after submission, then retries the unchanged form and asserts the
+same CSRF-protected `Idempotency-Key`.
 
 Follow-up correction validation: the new frontend red test initially showed that
 a `201` whose response body stream failed was converted to `{}` and resolved.
@@ -115,10 +115,9 @@ now passes 11 tests and `npm run build` passes. The focused real-PostgreSQL
 `TestOwnerAgentCreation` tests pass normally and under `-race` on a fresh UTF-8
 PostgreSQL 16 cluster at port 55457, including replay-window and issuance-key-ID
 denials with no additional persisted effects. `go vet ./...` and `go build ./...`
-pass. An owner Playwright rerun was attempted but Chromium failed before test
-execution because this runtime lacks `libnspr4.so`; the earlier browser evidence
-above predates this correction, so the owner browser scenario should be rerun
-once that system library is available.
+pass. The owner Playwright rerun passes all 3 cases when Chromium is launched
+with `LD_LIBRARY_PATH=/tmp/undergrid-browser-libs/root/usr/lib/x86_64-linux-gnu`;
+no system libraries were installed.
 
 The full network package ran on a fresh UTF8 cluster but did not pass in that
 run: `TestCommittedIntentionRunsThroughDurableWorker` failed to produce its
