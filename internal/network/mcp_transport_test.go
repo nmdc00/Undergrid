@@ -4,18 +4,22 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func TestMCPDiscoveryThroughNetworkService(t *testing.T) {
 	s, _ := fixture(t)
+	if err := s.ConfigureMCP("https://network.fixture.test"); err != nil {
+		t.Fatal(err)
+	}
 	a := client(t, s)
-	r := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewBufferString(`{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{}}`))
+	r := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader(mcpWireBody("server/discover", "2026-07-28", nil)))
 	r.Header.Set("Authorization", "Bearer "+a.token)
 	r.Header.Set("Content-Type", "application/json")
 	r.Header.Set("Accept", "application/json, text/event-stream")
@@ -201,5 +205,43 @@ func TestMCPHTTPProtocolAndOriginGuards(t *testing.T) {
 				t.Fatalf("guard: %d %s", w.Code, w.Body.String())
 			}
 		})
+	}
+}
+
+func mcpWireBody(method, version string, params map[string]any) []byte {
+	if params == nil {
+		params = map[string]any{}
+	}
+	params["_meta"] = map[string]any{mcp.MetaKeyProtocolVersion: version, mcp.MetaKeyClientInfo: map[string]any{"name": "raw-independent-client", "version": "1"}, mcp.MetaKeyClientCapabilities: map[string]any{}}
+	return canonical(map[string]any{"jsonrpc": "2.0", "id": 1, "method": method, "params": params})
+}
+func TestMCPInsufficientScopeReturnsHTTPChallenge(t *testing.T) {
+	s, _ := fixture(t)
+	a := client(t, s)
+	as := newTestOAuthAS(t)
+	as.configure(t, s)
+	_, me := a.call("GET", "/v1/me", "", nil)
+	agent := me["agent_id"].(string)
+	full := as.token(t, "mcp-challenge-subject", "mcp-challenge-client", "intents:read intents:write", time.Now().Add(time.Hour), "at+jwt", as.resource)
+	code, _, _ := oauthCall(t, s, a.owner, full, "POST", "/v1/owner/agents/"+agent+"/oauth-bindings", "bind-scope-challenge", "", map[string]any{"scopes": []string{"intents:read", "intents:write"}})
+	if code != 201 {
+		t.Fatal(code)
+	}
+	if err := s.ConfigureMCP("https://undergrid.fixture.test"); err != nil {
+		t.Fatal(err)
+	}
+	narrow := as.token(t, "mcp-challenge-subject", "mcp-challenge-client", "intents:read", time.Now().Add(time.Hour), "at+jwt", as.resource)
+	r := httptest.NewRequest("POST", "/mcp", bytes.NewReader(mcpWireBody("tools/call", "2026-07-28", map[string]any{"name": "intention_create", "arguments": map[string]any{"body": intentFixture(), "idempotency_key": "scope-challenge"}})))
+	r.Header.Set("Authorization", "Bearer "+narrow)
+	r.Header.Set("Content-Type", "application/json")
+	r.Header.Set("Accept", "application/json, text/event-stream")
+	r.Header.Set("Mcp-Method", "tools/call")
+	r.Header.Set("Mcp-Name", "intention_create")
+	r.Header.Set("Mcp-Protocol-Version", "2026-07-28")
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, r)
+	challenge := w.Header().Get("WWW-Authenticate")
+	if w.Code != 403 || !strings.Contains(challenge, `error="insufficient_scope"`) || !strings.Contains(challenge, `scope="intents:write"`) || !strings.Contains(challenge, "resource_metadata=") {
+		t.Fatalf("scope challenge: %d %v %s", w.Code, w.Header(), w.Body.String())
 	}
 }
