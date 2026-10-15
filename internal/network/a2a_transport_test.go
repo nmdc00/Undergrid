@@ -34,13 +34,8 @@ func a2aFixture(t *testing.T) (*Service, *pgx.Conn, testClient) {
 	if _, err := db.Exec(context.Background(), `DO $$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='undergrid_a2a_api_runner') THEN CREATE ROLE undergrid_a2a_api_runner LOGIN NOSUPERUSER NOBYPASSRLS;END IF;END $$;GRANT undergrid_app TO undergrid_a2a_api_runner`); err != nil {
 		t.Fatal(err)
 	}
-	cfg, err := pgx.ParseConfig(s.dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cfg.User = "undergrid_a2a_api_runner"
-	s.dsn = cfg.ConnString()
-	if err = s.ConfigureA2ATransport("https://undergrid.test"); err != nil {
+	s.dsn = networkFixtureRoleDSN(t, db, "undergrid_a2a_api_runner")
+	if err := s.ConfigureA2ATransport("https://undergrid.test"); err != nil {
 		t.Fatal(err)
 	}
 	return s, db, client(t, s)
