@@ -421,3 +421,34 @@ func TestA2AReceiptPaginationIsBoundToActorAndFilters(t *testing.T) {
 		}
 	}
 }
+
+func TestA2AOutputModesBeforeCommandEffects(t *testing.T) {
+	_, db, a := a2aFixture(t)
+	_, me := a.call("GET", "/v1/me", "", nil)
+	key := NewID()
+	body := a2aCommandBody(NewID(), "intention_create", key, intentFixture())
+	body["configuration"] = map[string]any{"acceptedOutputModes": []string{"text/plain"}}
+	code, out, _ := a2aCall(a, "POST", "/a2a/message:send", body)
+	if code != 415 || !strings.Contains(string(canonical(out)), "CONTENT_TYPE_NOT_SUPPORTED") {
+		t.Fatalf("incompatible output: %d %#v", code, out)
+	}
+	var effects int
+	if err := db.QueryRow(context.Background(), "SELECT (SELECT count(*) FROM undergrid.idempotency WHERE key=$1)+(SELECT count(*) FROM undergrid.a2a_command_receipts WHERE command_key=$1)+(SELECT count(*) FROM undergrid.intents WHERE agent_id=$2)+(SELECT count(*) FROM undergrid.events WHERE agent_id=$2 AND type='intent.created')", key, me["agent_id"]).Scan(&effects); err != nil {
+		t.Fatal(err)
+	}
+	if effects != 0 {
+		t.Fatalf("incompatible output committed %d effects", effects)
+	}
+	body["configuration"] = map[string]any{"acceptedOutputModes": []string{"image/png", "application/json"}}
+	if code, out, _ := a2aCall(a, "POST", "/a2a/message:send", body); code != 200 || out["task"] == nil {
+		t.Fatal(code, out)
+	}
+	text := map[string]any{"message": map[string]any{"messageId": NewID(), "role": "ROLE_USER", "parts": []any{map[string]any{"text": "nonexecuting"}}}, "configuration": map[string]any{"acceptedOutputModes": []string{"application/json"}}}
+	if code, out, _ := a2aCall(a, "POST", "/a2a/message:send", text); code != 415 {
+		t.Fatal(code, out)
+	}
+	text["configuration"] = map[string]any{"acceptedOutputModes": []string{"text/plain"}}
+	if code, out, _ := a2aCall(a, "POST", "/a2a/message:send", text); code != 200 || out["message"] == nil {
+		t.Fatal(code, out)
+	}
+}

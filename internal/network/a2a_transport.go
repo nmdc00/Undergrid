@@ -150,6 +150,17 @@ func (n *networkA2A) serve(w http.ResponseWriter, r *http.Request) {
 			writeA2AProtocolError(w, a2a.ErrInvalidRequest)
 			return
 		}
+		// SDK v2.6 maps incompatible output to 400. Negotiate at the adapter
+		// boundary so the public HTTP binding keeps A2A1.0's required 415 mapping.
+		if r.URL.Path == "/a2a/message:send" {
+			var input a2a.SendMessageRequest
+			if json.Unmarshal(raw, &input) == nil {
+				if err := validateA2AOutputMode(&input); err != nil {
+					writeA2AProtocolError(w, err)
+					return
+				}
+			}
+		}
 		r.Body = io.NopCloser(bytes.NewReader(raw))
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
@@ -166,6 +177,9 @@ func writeA2AProtocolError(w http.ResponseWriter, err error) {
 	status, state := 400, "FAILED_PRECONDITION"
 	if errors.Is(err, a2a.ErrInvalidRequest) || errors.Is(err, a2a.ErrUnsupportedContentType) {
 		state = "INVALID_ARGUMENT"
+	}
+	if errors.Is(err, a2a.ErrUnsupportedContentType) {
+		status, state = http.StatusUnsupportedMediaType, "INVALID_ARGUMENT"
 	}
 	if errors.Is(err, a2a.ErrUnauthenticated) {
 		status, state = 401, "UNAUTHENTICATED"

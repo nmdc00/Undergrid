@@ -44,6 +44,9 @@ func (n *networkA2A) SendMessage(ctx context.Context, in *a2a.SendMessageRequest
 	if in.Config != nil && in.Config.PushConfig != nil {
 		return nil, a2a.ErrPushNotificationNotSupported
 	}
+	if err := validateA2AOutputMode(in); err != nil {
+		return nil, err
+	}
 	switch content := in.Message.Parts[0].Content.(type) {
 	case a2a.Text:
 		if len(content) > 16000 {
@@ -58,6 +61,22 @@ func (n *networkA2A) SendMessage(ctx context.Context, in *a2a.SendMessageRequest
 	default:
 		return nil, a2a.ErrUnsupportedContentType
 	}
+}
+
+// A response is usable only if its concrete part media type is acceptable.
+// This transport check is shared by HTTP pre-dispatch and the SDK handler.
+func validateA2AOutputMode(in *a2a.SendMessageRequest) error {
+	if in == nil || in.Message == nil || len(in.Message.Parts) != 1 || in.Message.Parts[0] == nil || in.Config == nil || len(in.Config.AcceptedOutputModes) == 0 {
+		return nil
+	}
+	outputMode := "application/json"
+	if _, ok := in.Message.Parts[0].Content.(a2a.Text); ok {
+		outputMode = "text/plain"
+	}
+	if !slices.Contains(in.Config.AcceptedOutputModes, outputMode) {
+		return a2a.ErrUnsupportedContentType
+	}
+	return nil
 }
 
 func (n *networkA2A) executeCommand(ctx context.Context, original *http.Request, in *a2a.SendMessageRequest, value any) (a2a.SendMessageResult, error) {
