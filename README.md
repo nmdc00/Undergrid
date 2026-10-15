@@ -15,6 +15,7 @@ External source permissions, contribution legal approval, identity and hosting c
 - [Approved implementation contract](docs/UNDERGRID_TDD_v0.1-r2.md)
 - [Scope](docs/V0_1_SCOPE_r2.md), [architecture decisions](docs/ARCHITECTURE_DECISIONS_r2.md), and [threat model](docs/THREAT_MODEL_r2.md)
 - [Execution sequence](docs/IMPLEMENTATION_SEQUENCE_r2.md)
+- [Network REST contract](docs/NETWORK_REST_CONTRACT.md) and [MCP client contract](docs/NETWORK_MCP.md)
 - Sprint status and feature evidence live in `docs/SWARM_EXECUTION.md`, `docs/IMPLEMENTATION_STATUS.md`, and `docs/evidence/` on the release branch.
 
 Older design-status banners are historical; the owner authorized implementation on 12 October 2026. Legal, source, provider, and deployment approvals remain explicit gates.

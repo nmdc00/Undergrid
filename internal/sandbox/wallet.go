@@ -143,6 +143,10 @@ func parseWalletSignature(signature string) ([]byte, error) {
 }
 
 func recoverWalletAddress(message string, signature []byte) (string, error) {
+	preimage := []byte(fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(message), message))
+	return recoverEOADigest(walletKeccak256(preimage), signature)
+}
+func recoverEOADigest(digest, signature []byte) (string, error) {
 	if len(signature) != 65 {
 		return "", ErrInvalid
 	}
@@ -159,8 +163,6 @@ func recoverWalletAddress(message string, signature []byte) (string, error) {
 	if r.Sign() <= 0 || r.Cmp(n) >= 0 || s.Sign() <= 0 || s.Cmp(new(big.Int).Rsh(new(big.Int).Set(n), 1)) > 0 {
 		return "", ErrInvalid
 	}
-	preimage := []byte(fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(message), message))
-	digest := walletKeccak256(preimage)
 	compact := make([]byte, 65)
 	compact[0] = 27 + v
 	copy(compact[1:], signature[:64])

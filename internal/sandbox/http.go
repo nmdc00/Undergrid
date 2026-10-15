@@ -335,6 +335,19 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				respond(200, p)
 				return
 			}
+			if r.Method == "POST" && len(parts) == 4 && parts[3] == "wallet-authorization" {
+				var cmd WalletPaymentCommand
+				if !decode(&cmd) {
+					return
+				}
+				p, err := h.store.AuthorizeWalletPayment(r.Context(), token, parts[2], r.Header.Get("Idempotency-Key"), cmd)
+				if err != nil {
+					fail(err)
+					return
+				}
+				respond(200, p)
+				return
+			}
 			if r.Method == "POST" && len(parts) == 4 && parts[3] == "authorize" {
 				var cmd struct {
 					Hash string `json:"quote_hash"`

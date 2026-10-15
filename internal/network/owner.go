@@ -152,11 +152,18 @@ func (s *Service) ownerCommand(r *http.Request, tx pgx.Tx) (int, any, error) {
 		return listOwnerAgents(ctx, tx, principal)
 	}
 	if r.URL.Path == "/v1/owner/policy" {
+		if r.Method == http.MethodPost {
+			return idempotentOwner(r, tx, principal, func() (int, any, error) {
+				return s.ownerPolicy(r, tx, principal)
+			})
+		}
 		return s.ownerPolicy(r, tx, principal)
 	}
 	if r.Method == "POST" && strings.HasPrefix(r.URL.Path, "/v1/owner/credentials/") && strings.HasSuffix(r.URL.Path, "/revoke") {
 		id := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/v1/owner/credentials/"), "/revoke")
-		return revokeOwnerCredential(r, tx, principal, id, s.environment)
+		return idempotentOwner(r, tx, principal, func() (int, any, error) {
+			return revokeOwnerCredential(r, tx, principal, id, s.environment)
+		})
 	}
 	if r.Method != "POST" || r.URL.Path != "/v1/agents" {
 		return 0, nil, fail(404, "not_found")

@@ -28,7 +28,7 @@ type SwarmInput struct {
 func (s *Service) swarmCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, error) {
 	if r.Method == "GET" {
 		if !slices.Contains(a.Scopes, "swarms:read") {
-			return 0, nil, fail(403, "insufficient_scope")
+			return 0, nil, insufficientScope(a, "swarms:read")
 		}
 		parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/v1/swarms/"), "/")
 		if len(parts) == 2 && validID(parts[0]) && parts[1] == "context" {
@@ -48,7 +48,7 @@ func (s *Service) swarmCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, e
 		}
 	}
 	if !slices.Contains(a.Scopes, scope) {
-		return 0, nil, fail(403, "insufficient_scope")
+		return 0, nil, insufficientScope(a, scope)
 	}
 	if r.URL.Path != "/v1/swarms" {
 		parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/v1/swarms/"), "/")

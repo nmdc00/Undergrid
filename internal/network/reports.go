@@ -34,7 +34,7 @@ func (s *Service) reportCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, 
 			return 0, nil, fail(405, "method_not_allowed")
 		}
 		if !slices.Contains(a.Scopes, "reports:write") {
-			return 0, nil, fail(403, "insufficient_scope")
+			return 0, nil, insufficientScope(a, "reports:write")
 		}
 		return idempotent(r, tx, a, func() (int, any, error) {
 			var in reportInput
@@ -96,7 +96,7 @@ func (s *Service) reportCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, 
 		return 0, nil, fail(405, "method_not_allowed")
 	}
 	if !slices.Contains(a.Scopes, "reports:read") {
-		return 0, nil, fail(403, "insufficient_scope")
+		return 0, nil, insufficientScope(a, "reports:read")
 	}
 	var kind, subjectKind, subjectID, statement, state string
 	var evidenceKind, evidenceID *string
