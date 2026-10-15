@@ -470,7 +470,7 @@ func TestArtifactFinalizeRejectsStaleAuthorityAndUnboundBytes(t *testing.T) {
 				expected = 403
 			case "revoked_policy":
 				_, policy := who.call("GET", "/v1/owner/policy", "", nil)
-				code, out := who.versioned("POST", "/v1/owner/policy", "", policy["etag"].(string), map[string]any{"template_ids": []string{}, "license_ids": []string{}, "task_categories": []string{}, "max_active_tasks": 0, "expires_at": time.Now().Add(time.Hour)})
+				code, out := who.versioned("POST", "/v1/owner/policy", NewID(), policy["etag"].(string), map[string]any{"template_ids": []string{}, "license_ids": []string{}, "task_categories": []string{}, "max_active_tasks": 0, "expires_at": time.Now().Add(time.Hour)})
 				if code != 200 {
 					t.Fatal(code, out)
 				}
@@ -553,7 +553,7 @@ func TestArtifactPublicationRechecksRightsAndStorage(t *testing.T) {
 			case "changed_policy":
 				who := x.actors[1]
 				_, policy := who.call("GET", "/v1/owner/policy", "", nil)
-				code, out := who.versioned("POST", "/v1/owner/policy", "", policy["etag"].(string), map[string]any{"template_ids": []string{}, "license_ids": []string{}, "task_categories": []string{}, "max_active_tasks": 0, "expires_at": time.Now().Add(time.Hour)})
+				code, out := who.versioned("POST", "/v1/owner/policy", NewID(), policy["etag"].(string), map[string]any{"template_ids": []string{}, "license_ids": []string{}, "task_categories": []string{}, "max_active_tasks": 0, "expires_at": time.Now().Add(time.Hour)})
 				if code != 200 {
 					t.Fatal(code, out)
 				}

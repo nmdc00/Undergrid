@@ -461,7 +461,7 @@ func TestPrivateArtifactGrantExpiryAndConfigurationChangesFailClosed(t *testing.
 			case "owner_policy":
 				actor := x.source.actors[0]
 				_, policy := actor.call("GET", "/v1/owner/policy", "", nil)
-				code, out := actor.versioned("POST", "/v1/owner/policy", "", policy["etag"].(string), map[string]any{"template_ids": []string{}, "license_ids": []string{}, "task_categories": []string{}, "max_active_tasks": 0, "expires_at": time.Now().Add(time.Hour)})
+				code, out := actor.versioned("POST", "/v1/owner/policy", NewID(), policy["etag"].(string), map[string]any{"template_ids": []string{}, "license_ids": []string{}, "task_categories": []string{}, "max_active_tasks": 0, "expires_at": time.Now().Add(time.Hour)})
 				if code != 200 {
 					t.Fatal(code, out)
 				}
@@ -659,7 +659,7 @@ func TestPrivateArtifactGrantOwnerExpiryIsRecheckedAfterAuthorityWait(t *testing
 	holder := x.source.actors[0]
 	_, current := holder.call("GET", "/v1/owner/policy", "", nil)
 	expiry := time.Now().Add(2 * time.Second)
-	code, out := holder.versioned("POST", "/v1/owner/policy", "", current["etag"].(string), map[string]any{"template_ids": []string{x.scope.TemplateID}, "license_ids": []string{"CC0-1.0"}, "task_categories": []string{"json_dataset"}, "max_active_tasks": 5, "expires_at": expiry})
+	code, out := holder.versioned("POST", "/v1/owner/policy", NewID(), current["etag"].(string), map[string]any{"template_ids": []string{x.scope.TemplateID}, "license_ids": []string{"CC0-1.0"}, "task_categories": []string{"json_dataset"}, "max_active_tasks": 5, "expires_at": expiry})
 	if code != 200 {
 		t.Fatal(code, out)
 	}

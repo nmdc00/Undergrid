@@ -436,7 +436,7 @@
       "post": {
         "operationId": "post__v1_owner_policy",
         "summary": "POST /v1/owner/policy",
-        "description": "Verified owner identity; CSRF for mutations. Current ownership and version preconditions are checked in the domain transaction. This operation does not currently retain command-result references; clients must reconcile uncertain responses by reading state.",
+        "description": "Verified owner identity and CSRF. The domain transaction retains one principal-scoped command result atomically with effects. Retry the same Idempotency-Key, body and supplied If-Match after an uncertain response; changed command content conflicts. Current verified owner authority remains required before replay.",
         "responses": {
           "200": {
             "description": "Success",
@@ -505,6 +505,16 @@
             "schema": {
               "type": "string",
               "pattern": "^\"[0-9]+\"$"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
             }
           }
         ],
@@ -952,7 +962,7 @@
       "post": {
         "operationId": "post__v1_owner_credentials_id_revoke",
         "summary": "POST /v1/owner/credentials/{id}/revoke",
-        "description": "Verified owner identity; CSRF for mutations. Current ownership and version preconditions are checked in the domain transaction. This operation does not currently retain command-result references; clients must reconcile uncertain responses by reading state.",
+        "description": "Verified owner identity and CSRF. The domain transaction retains one principal-scoped command result atomically with effects. Retry the same Idempotency-Key, body and supplied If-Match after an uncertain response; changed command content conflicts. Current verified owner authority remains required before replay.",
         "responses": {
           "200": {
             "description": "Success",
@@ -1014,6 +1024,16 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
             }
           }
         ],

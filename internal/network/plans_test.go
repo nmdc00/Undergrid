@@ -14,7 +14,7 @@ func planningClient(t *testing.T, s *Service) testClient {
 	if code != 200 {
 		t.Fatal(code, current)
 	}
-	code, out := c.versioned("POST", "/v1/owner/policy", "", current["etag"].(string), map[string]any{"template_ids": []string{"test-contribution-v1"}, "license_ids": []string{"CC0-1.0"}, "task_categories": []string{"json_dataset"}, "max_active_tasks": 5, "expires_at": time.Now().Add(time.Hour)})
+	code, out := c.versioned("POST", "/v1/owner/policy", NewID(), current["etag"].(string), map[string]any{"template_ids": []string{"test-contribution-v1"}, "license_ids": []string{"CC0-1.0"}, "task_categories": []string{"json_dataset"}, "max_active_tasks": 5, "expires_at": time.Now().Add(time.Hour)})
 	if code != 200 {
 		t.Fatal(code, out)
 	}
@@ -147,7 +147,7 @@ func TestExactPlanApprovalAndIndependentAssignmentAcceptance(t *testing.T) {
 		t.Fatalf("denied template change mutated work: before=%v after=%v", restartedTask, afterDenied)
 	}
 	_, policy := b.call("GET", "/v1/owner/policy", "", nil)
-	code, out = b.versioned("POST", "/v1/owner/policy", "", policy["etag"].(string), map[string]any{"template_ids": []string{}, "license_ids": []string{}, "task_categories": []string{}, "max_active_tasks": 0, "expires_at": time.Now().Add(time.Hour)})
+	code, out = b.versioned("POST", "/v1/owner/policy", NewID(), policy["etag"].(string), map[string]any{"template_ids": []string{}, "license_ids": []string{}, "task_categories": []string{}, "max_active_tasks": 0, "expires_at": time.Now().Add(time.Hour)})
 	if code != 200 {
 		t.Fatal(code, out)
 	}
