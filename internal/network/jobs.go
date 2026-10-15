@@ -82,7 +82,24 @@ func enqueueScan(ctx context.Context, tx pgx.Tx, cause string) error {
 	_, err = client.InsertTx(ctx, tx, scanArgs{"refresh"}, &river.InsertOpts{MaxAttempts: 10, Queue: discoveryRepairQueue, Priority: 4})
 	return err
 }
+
+type sourceRefreshArgs struct{}
+
+func (sourceRefreshArgs) Kind() string { return "permissioned_source_refresh_v1" }
+
+type sourceRefreshWorker struct {
+	river.WorkerDefaults[sourceRefreshArgs]
+	refresher *SourceRefresher
+}
+
+func (w *sourceRefreshWorker) Work(ctx context.Context, job *river.Job[sourceRefreshArgs]) error {
+	return w.refresher.RefreshDue(ctx)
+}
 func RunWorker(ctx context.Context, dsn, environment string) error {
+	sources, err := sourceConfiguration(dsn)
+	if err != nil {
+		return err
+	}
 	config, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
 		return err
@@ -100,6 +117,7 @@ func RunWorker(ctx context.Context, dsn, environment string) error {
 	}
 	defer pool.Close()
 	workers := river.NewWorkers()
+	river.AddWorker(workers, &sourceRefreshWorker{refresher: sources})
 	service := New(dsn, environment, nil)
 	if err = service.ConfigureArtifactsFromEnvironment(); err != nil {
 		return err
@@ -111,6 +129,8 @@ func RunWorker(ctx context.Context, dsn, environment string) error {
 	river.AddWorker(workers, &fanoutWorker{dsn: dsn})
 	river.AddWorker(workers, &recruitWorker{service: New(dsn, environment, nil)})
 	client, err := river.NewClient(riverpgxv5.New(pool), &river.Config{Schema: "undergrid_queue", SoftStopTimeout: 5 * time.Second, Workers: workers, Queues: map[string]river.QueueConfig{river.QueueDefault: {MaxWorkers: 2}, "artifact_verification": {MaxWorkers: 2}, "coordination": {MaxWorkers: 2}, "coordination_deadlines": {MaxWorkers: 2}, discoveryQueue: {MaxWorkers: 2}, discoveryRepairQueue: {MaxWorkers: 1}}, PeriodicJobs: []*river.PeriodicJob{river.NewPeriodicJob(river.PeriodicInterval(time.Minute), func() (river.JobArgs, *river.InsertOpts) {
+		return sourceRefreshArgs{}, &river.InsertOpts{MaxAttempts: 5}
+	}, &river.PeriodicJobOpts{RunOnStart: true}), river.NewPeriodicJob(river.PeriodicInterval(time.Minute), func() (river.JobArgs, *river.InsertOpts) {
 		return deadlineArgs{}, &river.InsertOpts{MaxAttempts: 10, Queue: "coordination_deadlines", Priority: 1}
 	}, &river.PeriodicJobOpts{RunOnStart: true}), river.NewPeriodicJob(river.PeriodicInterval(15*time.Minute), func() (river.JobArgs, *river.InsertOpts) {
 		return scanArgs{"repair"}, &river.InsertOpts{Queue: discoveryRepairQueue, Priority: 4}
