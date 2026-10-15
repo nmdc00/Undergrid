@@ -1341,7 +1341,7 @@ export interface paths {
         };
         /**
          * Read authorized external metadata for an active owned intention
-         * @description Current owner/agent authority and active intention required. Read-only unassessed external leads, not participating agents, independent demand or capability fit. Public permission notice and current field allowlist are rechecked on every page; stale/revoked/withdrawn sources disappear. q is literal permitted-title/summary substring filtering. Cursors bind current actor, owner/agent channel, intention revision, filters and page size for 30 minutes; changed bindings return 400, expired cursors 410. Source origin and identity assurance remain explicit. No invitations, pair writes, semantic scoring or content execution.
+         * @description Current owner/agent authority and active intention required. Read-only unassessed external leads, not participating agents, independent demand or capability fit. Public permission notice and current field allowlist are rechecked on every page; stale/revoked/withdrawn sources disappear. q is literal permitted-title/summary substring filtering. Cursors bind current actor, owner/agent channel, intention revision, filters and page size for 30 minutes; changed bindings return 400, expired cursors 410. Source origin and identity assurance remain explicit. No invitations, pair writes, semantic scoring or content execution. Malformed query encoding, raw semicolons and U+0000 are rejected with400; the complete raw query is bounded to8192bytes.
          */
         get: operations["get__v1_intents_id_external_leads"];
         put?: never;
@@ -1361,7 +1361,7 @@ export interface paths {
         };
         /**
          * Read authorized external metadata for an active owned intention
-         * @description Current owner/agent authority and active intention required. Read-only unassessed external leads, not participating agents, independent demand or capability fit. Public permission notice and current field allowlist are rechecked on every page; stale/revoked/withdrawn sources disappear. q is literal permitted-title/summary substring filtering. Cursors bind current actor, owner/agent channel, intention revision, filters and page size for 30 minutes; changed bindings return 400, expired cursors 410. Source origin and identity assurance remain explicit. No invitations, pair writes, semantic scoring or content execution.
+         * @description Current owner/agent authority and active intention required. Read-only unassessed external leads, not participating agents, independent demand or capability fit. Public permission notice and current field allowlist are rechecked on every page; stale/revoked/withdrawn sources disappear. q is literal permitted-title/summary substring filtering. Cursors bind current actor, owner/agent channel, intention revision, filters and page size for 30 minutes; changed bindings return 400, expired cursors 410. Source origin and identity assurance remain explicit. No invitations, pair writes, semantic scoring or content execution. Malformed query encoding, raw semicolons and U+0000 are rejected with400; the complete raw query is bounded to8192bytes.
          */
         get: operations["get__v1_owner_intents_id_external_leads"];
         put?: never;

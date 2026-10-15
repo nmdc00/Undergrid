@@ -311,3 +311,21 @@ func TestExternalLeadSharedMCPAndA2ARead(t *testing.T) {
 		t.Fatalf("A2A external projection %v", data)
 	}
 }
+
+func TestExternalLeadRejectsUnrepresentableAndOversizeRawQuery(t *testing.T) {
+	_, _, owner, intent := externalLeadFixture(t)
+	path := "/v1/intents/" + intent + "/external-leads?"
+	for _, test := range []struct{ name, query string }{
+		{"postgres_text_nul", "q=" + url.QueryEscape("\x00")},
+		{"raw_length_before_normalization", "q=" + url.QueryEscape(" "+strings.Repeat("a", 200))},
+		{"invalid_query_encoding", "q=%ZZ"},
+		{"raw_semicolon", "q=restricted;kind=external_capability"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			code, result := owner.call("GET", path+test.query, "", nil)
+			if code != 400 {
+				t.Fatalf("invalid raw query accepted as%d: %v", code, result)
+			}
+		})
+	}
+}

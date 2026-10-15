@@ -86,3 +86,5 @@ Primary tooling specifications:
 [Redocly lint](https://redocly.com/docs/cli/commands/lint).
 
 The owner/agent intention-scoped `/external-leads` reads provide current permitted external metadata, literal kind/text filtering and signed actor/revision/filter-bound cursors. They expose unknown identity/hard constraints and unassessed fit. Internal source approval files stay worker-only; see [scope and evidence](evidence/external-lead-read.md).
+
+External lead filters reject malformed percent encoding, raw semicolons, U+0000 and raw q values exceeding200Unicode codepoints before normalization. The complete raw query limit is8192bytes. Invalid filters return400 rather than silently becoming an unfiltered read.

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -68,7 +69,13 @@ func (s *Service) listExternalLeads(r *http.Request, tx pgx.Tx, a actor, intent,
 	if len(s.cursorKey) != 32 {
 		return 0, nil, fail(503, "cursor_signing_unconfigured")
 	}
-	values := r.URL.Query()
+	if len(r.URL.RawQuery) > 8192 {
+		return 0, nil, fail(400, "invalid_lead_query")
+	}
+	values, err := url.ParseQuery(r.URL.RawQuery)
+	if err != nil {
+		return 0, nil, fail(400, "invalid_lead_query")
+	}
 	for key, v := range values {
 		if len(v) != 1 || (key != "kind" && key != "q" && key != "limit" && key != "cursor") {
 			return 0, nil, fail(400, "invalid_lead_query")
@@ -78,10 +85,11 @@ func (s *Service) listExternalLeads(r *http.Request, tx pgx.Tx, a actor, intent,
 	if kind != "" && kind != "external_request" && kind != "external_capability" {
 		return 0, nil, fail(400, "invalid_lead_kind")
 	}
-	query := strings.ToLower(strings.TrimSpace(values.Get("q")))
-	if !utf8.ValidString(query) || utf8.RuneCountInString(query) > 200 {
+	rawQuery := values.Get("q")
+	if !utf8.ValidString(rawQuery) || utf8.RuneCountInString(rawQuery) > 200 || strings.ContainsRune(rawQuery, '\x00') {
 		return 0, nil, fail(400, "invalid_lead_query")
 	}
+	query := strings.ToLower(strings.TrimSpace(rawQuery))
 	limit := 20
 	if text := values.Get("limit"); text != "" {
 		limit, err = strconv.Atoi(text)
