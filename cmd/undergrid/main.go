@@ -95,6 +95,10 @@ func run() error {
 		o, err := sessions.Authenticate(r)
 		return network.Owner{Issuer: o.Issuer, Subject: o.Subject, Verified: err == nil}, err
 	})
+	if err = service.ConfigureA2ATransport(origin); err != nil {
+		return err
+	}
+
 	cursorKey, err := base64.StdEncoding.DecodeString(os.Getenv("UNDERGRID_CURSOR_KEY"))
 	if err != nil {
 		return errors.New("invalid cursor key")
@@ -184,4 +188,5 @@ func registerNetworkRoutes(mux *http.ServeMux, service *network.Service) {
 	mux.Handle("/.well-known/", service)
 	mux.Handle("/health/", service)
 	mux.Handle("/openapi.json", service)
+	mux.Handle("/a2a/", service)
 }

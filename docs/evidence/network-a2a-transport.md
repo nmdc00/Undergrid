@@ -1,0 +1,21 @@
+# A2A network transport evidence
+
+Scope: TDD §9 / ID-04 public protocol interoperability. This branch implements A2A1.0 HTTP+JSON with pinned GoSDK v2.6.0 and the explicit typed coordination v1 extension. See [wire contract](../protocols/a2a-coordination-v1.md). Task completion means command commit, never assignment or deliverable completion.
+
+Real tests ran on preserved PostgreSQL16 fixture `/tmp/undergrid-pg-a2a-55487`, port55487. Its ledger contains actual ordered network001–022 and River0.49.0. SQL022 SHA256 is `a1fe7d08419efcf749ad5f0fc460e60457b86b7ef42126a5079008bf9ffee973`. No migration statement was omitted, reset or replayed. Runtime connects using actual login `undergrid_a2a_api_runner`, NOSUPERUSER/NOBYPASSRLS, with `undergrid_app` membership; administrative connections create fixtures and inspect normalized outcomes only.
+
+Behavioral results:
+
+- Initial missing public-card route failed; implementation provides database-independent canonical-origin card/schema.
+- Durable command lifecycle, exact replay/restart, foreign/domain ID404, completed cancellation rejection, unchanged domain state, mutated-envelope conflict and revoked-agent recovery denial pass.
+- Negotiation, unactivated extension, unsupported versions, text/content/media/financial/unlisted operations produce no command effects. Actual streaming request initially returned200/SSE despite capabilityfalse; a pre-stream guard now returns unsupported400.
+- Injected receiptINSERT failure after actual domain execution rolls back intention, event, domain idempotency and receipt. Eight concurrent exact requests produce one receipt and one event.
+- Two conflicting message/key receipt identities originally produced500; they now produce typed noncommitting idempotency rejection.
+- Private room context's initial authorized live response includes room content; storage contains no private result bytes. After membership withdrawal, GETreceipt has no artifact and exact command replay cannot resurrect the content. An initial new test used an invalid fixture message field and failed400; correcting the fixture body/kind yielded the actual privacy proof, not a runtime red/green claim.
+- Separate Python `a2a-sdk==1.2.2` official protobuf REST transport encodes/decodes public card, send, replay, get and list through a real local HTTP server; same receipt is checked directly in PostgreSQL. This uses no external service.
+
+Final combined command on2026-10-15: `UNDERGRID_A2A_PYTHON=/tmp/undergrid-a2a-client-venv/bin/python go test -race ./internal/network -run '^TestA2A' -count=1 -timeout=5m` with the network fixture DSN: **PASS48.892s**. `go vet ./internal/network ./cmd/undergrid`, `go build ./cmd/undergrid` and `git diff --check` pass. Earlier five-scenario rerun passed27.664s; separate independent Python proof passed10.273s.
+
+Quality review: finite command names/schema/request construction are shared neutral network code, rather than coupling A2A to MCP. Domain mutation and receipt have one transaction owner. Durable receipt storage deliberately omits response histories; recovery uses current authorized reads. Transport status and domain assignment status are explicitly distinct. Unsupported asynchronous capabilities remain honest. No financial database, authority, provider or deployment identity enters this adapter.
+
+Limitations: these are protocol/database fixture results, not public deployment, real OAuth issuer qualification, legal approval, provider verification or independent beneficial ownership. Streaming/push are deliberately unsupported; full TDD implementation, integrated release checks and production approval remain pending. Owner retry changes and other newer release behavior require integration and revalidation before promotion.
