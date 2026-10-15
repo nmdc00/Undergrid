@@ -214,7 +214,8 @@ func TestLegacyDefaultDiscoveryJobPreservesWatcherAndRecruitment(t *testing.T) {
 	if code != 201 {
 		t.Fatal(code, second)
 	}
-	organizer, builder := collaborationClient(t, s), collaborationClient(t, s)
+	organizer := collaborationClient(t, s)
+	collaborationClient(t, s)
 	code, room := organizer.call("POST", "/v1/swarms", "legacy-role", map[string]any{"objective": "Legacy recruitment", "visibility": "restricted", "recruitment_roles": []any{map[string]any{"key": "builder", "schema_family": "source_catalog_v1", "description": "Build catalog"}}})
 	if code != 201 {
 		t.Fatal(code, room)
@@ -246,18 +247,21 @@ func TestLegacyDefaultDiscoveryJobPreservesWatcherAndRecruitment(t *testing.T) {
 	if code != 200 || len(page["items"].([]any)) != 1 {
 		t.Fatalf("legacy job lost existing watch: %d %v", code, page)
 	}
-	code, page = builder.call("GET", "/v1/opportunities?kind=builder_recruitment", "", nil)
-	if code != 200 {
-		t.Fatal(code, page)
+	// A bounded repair must emit five offers, not promise a particular random
+	// recipient is among them. The chosen-recipient read/admission lifecycle
+	// is proved separately through its explicitly seeded checked offer.
+	var offers, events, inbox int
+	if err := db.QueryRow(ctx, `SELECT count(*) FROM undergrid.opportunities WHERE source_swarm_id=$1 AND kind='builder_recruitment'`, room["id"]).Scan(&offers); err != nil {
+		t.Fatal(err)
 	}
-	found := false
-	for _, raw := range page["items"].([]any) {
-		if raw.(map[string]any)["swarm_id"] == room["id"] {
-			found = true
-		}
+	if err := db.QueryRow(ctx, `SELECT count(*) FROM undergrid.events e JOIN undergrid.opportunities o ON o.id=e.aggregate_id WHERE o.source_swarm_id=$1 AND e.type='opportunity.available'`, room["id"]).Scan(&events); err != nil {
+		t.Fatal(err)
 	}
-	if !found {
-		t.Fatal("legacy job lost recruitment repair", page)
+	if err := db.QueryRow(ctx, `SELECT count(*) FROM undergrid.inbox i JOIN undergrid.events e ON e.id=i.event_id JOIN undergrid.opportunities o ON o.id=e.aggregate_id WHERE o.source_swarm_id=$1 AND e.type='opportunity.available'`, room["id"]).Scan(&inbox); err != nil {
+		t.Fatal(err)
+	}
+	if offers != 5 || events != 5 || inbox != 5 {
+		t.Fatalf("legacy job lost bounded recruitment repair: offers=%d events=%d inbox=%d", offers, events, inbox)
 	}
 }
 
