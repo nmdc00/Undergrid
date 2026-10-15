@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"os/exec"
 	"strings"
@@ -384,5 +385,39 @@ func TestA2APrivateResourceReceiptDoesNotResurrectWithdrawnRoom(t *testing.T) {
 	code, replay, _ := a2aCall(b, "POST", "/a2a/message:send", input)
 	if code != 200 || replay["task"] != nil || strings.Contains(string(canonical(replay)), secret) {
 		t.Fatal(code, replay)
+	}
+}
+
+func TestA2AReceiptPaginationIsBoundToActorAndFilters(t *testing.T) {
+	s, _, a := a2aFixture(t)
+	b := client(t, s)
+	for i := 0; i < 3; i++ {
+		code, out, _ := a2aCall(a, "POST", "/a2a/message:send", a2aCommandBody(NewID(), "network_me", "", nil))
+		if code != 200 || out["task"] == nil {
+			t.Fatal(code, out)
+		}
+	}
+	code, page, _ := a2aCall(a, "GET", "/a2a/tasks?pageSize=1", nil)
+	if code != 200 || len(page["tasks"].([]any)) != 1 || page["totalSize"] != float64(3) {
+		t.Fatal(code, page)
+	}
+	cursor := page["nextPageToken"].(string)
+	code, next, _ := a2aCall(a, "GET", "/a2a/tasks?pageSize=1&pageToken="+url.QueryEscape(cursor), nil)
+	if code != 200 || next["tasks"].([]any)[0].(map[string]any)["id"] == page["tasks"].([]any)[0].(map[string]any)["id"] {
+		t.Fatal(code, next)
+	}
+	for _, check := range []struct {
+		client testClient
+		path   string
+	}{
+		{b, "/a2a/tasks?pageSize=1&pageToken=" + url.QueryEscape(cursor)},
+		{a, "/a2a/tasks?pageSize=101"},
+		{a, "/a2a/tasks?pageSize=1&pageToken=" + url.QueryEscape(cursor+"a")},
+		{a, "/a2a/tasks?pageSize=1&contextId=" + NewID() + "&pageToken=" + url.QueryEscape(cursor)},
+	} {
+		code, denied, _ := a2aCall(check.client, "GET", check.path, nil)
+		if code != 400 {
+			t.Fatal(code, denied)
+		}
 	}
 }
