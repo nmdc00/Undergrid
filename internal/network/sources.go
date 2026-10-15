@@ -46,6 +46,9 @@ func publicSourceIP(ip net.IP) bool {
 	return a.IsGlobalUnicast() && !a.IsPrivate() && !a.IsLoopback() && !a.IsLinkLocalUnicast() && !a.IsUnspecified() && !netip.MustParsePrefix("100.64.0.0/10").Contains(a)
 }
 func NewSourceRefresher(dsn string, configs []SourceConfig) (*SourceRefresher, error) {
+	if len(configs) > 32 {
+		return nil, errors.New("too many sources")
+	}
 	seen := map[string]bool{}
 	for _, c := range configs {
 		u, e := url.Parse(c.Endpoint)
@@ -107,14 +110,21 @@ func sourceConfiguration(dsn string) (*SourceRefresher, error) {
 		return nil, e
 	}
 	defer f.Close()
+	raw, e := io.ReadAll(io.LimitReader(f, 128*1024+1))
+	if e != nil {
+		return nil, e
+	}
+	if len(raw) > 128*1024 {
+		return nil, errors.New("source configuration exceeds budget")
+	}
 	var configs []SourceConfig
-	d := json.NewDecoder(io.LimitReader(f, 128*1024))
+	d := json.NewDecoder(strings.NewReader(string(raw)))
 	d.DisallowUnknownFields()
 	if e = d.Decode(&configs); e != nil {
 		return nil, e
 	}
-	if len(configs) > 32 {
-		return nil, errors.New("too many sources")
+	if e = d.Decode(new(any)); e != io.EOF {
+		return nil, errors.New("trailing source configuration")
 	}
 	return NewSourceRefresher(dsn, configs)
 }
@@ -127,31 +137,13 @@ func (r *SourceRefresher) RefreshDue(ctx context.Context) error {
 	if _, e = db.Exec(ctx, "SET ROLE undergrid_worker"); e != nil {
 		return e
 	}
-	// The worker file is the complete approved source set. Removing a source
-	// disables discovery immediately, rather than extending its old approval.
-	ids := make([]string, 0, len(r.configs))
-	for _, c := range r.configs {
-		ids = append(ids, c.ID)
-	}
 	tx, err := db.Begin(ctx)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback(ctx)
-	if _, err = tx.Exec(ctx, `UPDATE undergrid.external_sources SET config=config||'{"_retired":true}'::jsonb,last_success=NULL,next_refresh=now(),validators='{}' WHERE NOT(id=ANY($1::uuid[]))`, ids); err != nil {
+	if err = r.syncApprovals(ctx, tx); err != nil {
 		return err
-	}
-	if _, err = tx.Exec(ctx, `UPDATE undergrid.external_observations SET status='taken_down',metadata='{}' WHERE NOT(source_id=ANY($1::uuid[]))`, ids); err != nil {
-		return err
-	}
-	for _, c := range r.configs {
-		raw, _ := json.Marshal(c)
-		if _, err = tx.Exec(ctx, `UPDATE undergrid.external_observations SET status='taken_down',metadata='{}' WHERE source_id=$1 AND EXISTS(SELECT 1 FROM undergrid.external_sources WHERE id=$1 AND config<>$2::jsonb)`, c.ID, raw); err != nil {
-			return err
-		}
-		if _, err = tx.Exec(ctx, `INSERT INTO undergrid.external_sources(id,config) VALUES($1,$2) ON CONFLICT(id) DO UPDATE SET config=excluded.config,validators=CASE WHEN external_sources.config<>excluded.config THEN '{}'::jsonb ELSE external_sources.validators END,last_success=CASE WHEN external_sources.config<>excluded.config THEN NULL ELSE external_sources.last_success END,next_refresh=CASE WHEN external_sources.config<>excluded.config THEN now() ELSE external_sources.next_refresh END`, c.ID, raw); err != nil {
-			return err
-		}
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return err
@@ -163,6 +155,53 @@ func (r *SourceRefresher) RefreshDue(ctx context.Context) error {
 		}
 	}
 	return first
+}
+
+// syncApprovals owns the complete configuration set. Callers commit it with
+// source job insertion so revocation and durable wakeups stay atomic.
+func (r *SourceRefresher) syncApprovals(ctx context.Context, tx pgx.Tx) error {
+	// The worker file is the complete approved source set. Removing a source
+	// disables discovery immediately, rather than extending its old approval.
+	ids := make([]string, 0, len(r.configs))
+	for _, c := range r.configs {
+		ids = append(ids, c.ID)
+	}
+	if _, err := tx.Exec(ctx, `UPDATE undergrid.external_sources SET config=config||'{"_retired":true}'::jsonb,last_success=NULL,next_refresh=now(),validators='{}' WHERE NOT(id=ANY($1::uuid[]))`, ids); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `UPDATE undergrid.external_observations SET status='taken_down',metadata='{}' WHERE NOT(source_id=ANY($1::uuid[]))`, ids); err != nil {
+		return err
+	}
+	for _, c := range r.configs {
+		raw, _ := json.Marshal(c)
+		if _, err := tx.Exec(ctx, `UPDATE undergrid.external_observations SET status='taken_down',metadata='{}' WHERE source_id=$1 AND EXISTS(SELECT 1 FROM undergrid.external_sources WHERE id=$1 AND config<>$2::jsonb)`, c.ID, raw); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO undergrid.external_sources(id,config) VALUES($1,$2) ON CONFLICT(id) DO UPDATE SET config=excluded.config,validators=CASE WHEN external_sources.config<>excluded.config THEN '{}'::jsonb ELSE external_sources.validators END,last_success=CASE WHEN external_sources.config<>excluded.config THEN NULL ELSE external_sources.last_success END,next_refresh=CASE WHEN external_sources.config<>excluded.config THEN now() ELSE external_sources.next_refresh END`, c.ID, raw); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// RefreshSource executes one bounded source fetch. It never reconciles a partial
+// configuration set, and stale/removed jobs cannot restore an old approval.
+func (r *SourceRefresher) RefreshSource(ctx context.Context, id string) error {
+	for _, c := range r.configs {
+		if c.ID != id {
+			continue
+		}
+		db, err := pgx.Connect(ctx, r.dsn)
+		if err != nil {
+			return err
+		}
+		defer db.Close(ctx)
+		if _, err = db.Exec(ctx, "SET ROLE undergrid_worker"); err != nil {
+			return err
+		}
+		return r.refresh(ctx, db, c)
+	}
+	return nil
 }
 
 type sourceItem struct {
@@ -218,9 +257,6 @@ func (r *SourceRefresher) refresh(ctx context.Context, db *pgx.Conn, c SourceCon
 		var rate *sourceHTTPError
 		if errors.As(e, &rate) && rate.retry > delay {
 			delay = rate.retry
-		}
-		if delay > 24*time.Hour {
-			delay = 24 * time.Hour
 		}
 		_, scheduleErr := db.Exec(ctx, `UPDATE undergrid.external_sources SET next_refresh=now()+($2::bigint*interval '1 second'),last_error='refresh_failed' WHERE id=$1 AND config=$3::jsonb AND next_refresh=$4`, c.ID, int64(delay/time.Second), rawConfig, expectedRefresh)
 		return errors.Join(e, scheduleErr)
@@ -317,9 +353,14 @@ func (r *SourceRefresher) fetchSnapshot(ctx context.Context, c SourceConfig, val
 			nextValidators = validators
 			break
 		}
+		// An explicit Gone response withdraws the whole configured feed.
+		// Discard any preceding pages and erase under current approval on apply.
+		if resp.StatusCode == http.StatusGone {
+			return sourceSnapshot{validators: map[string]string{}}, nil
+		}
 		if resp.StatusCode != 200 {
 			delay := time.Minute
-			if seconds, err := strconv.ParseInt(resp.Header.Get("Retry-After"), 10, 64); err == nil && seconds > 0 && seconds <= 86400 {
+			if seconds, err := strconv.ParseInt(resp.Header.Get("Retry-After"), 10, 64); err == nil && seconds > 0 && seconds <= int64((1<<63-1)/int64(time.Second)) {
 				delay = time.Duration(seconds) * time.Second
 			} else if when, err := http.ParseTime(resp.Header.Get("Retry-After")); err == nil && time.Until(when) > delay {
 				delay = time.Until(when)

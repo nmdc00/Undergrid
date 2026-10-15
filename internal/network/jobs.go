@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
+	"github.com/riverqueue/river/rivertype"
 )
 
 const discoveryQueue = "intention_discovery"
@@ -89,7 +90,11 @@ func enqueueScan(ctx context.Context, tx pgx.Tx, cause string) error {
 	return err
 }
 
-type sourceRefreshArgs struct{}
+const sourceRefreshQueue = "permissioned_sources"
+
+type sourceRefreshArgs struct {
+	SourceID string `json:"source_id,omitempty"`
+}
 
 func (sourceRefreshArgs) Kind() string { return "permissioned_source_refresh_v1" }
 
@@ -99,7 +104,37 @@ type sourceRefreshWorker struct {
 }
 
 func (w *sourceRefreshWorker) Work(ctx context.Context, job *river.Job[sourceRefreshArgs]) error {
-	return w.refresher.RefreshDue(ctx)
+	if job != nil && job.Args.SourceID != "" {
+		return w.refresher.RefreshSource(ctx, job.Args.SourceID)
+	}
+	db, err := pgx.Connect(ctx, w.refresher.dsn)
+	if err != nil {
+		return err
+	}
+	defer db.Close(ctx)
+	if _, err = db.Exec(ctx, "SET ROLE undergrid_worker"); err != nil {
+		return err
+	}
+	tx, err := db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	if err = w.refresher.syncApprovals(ctx, tx); err != nil {
+		return err
+	}
+	client, err := river.NewClient(riverpgxv5.New(nil), &river.Config{Schema: "undergrid_queue"})
+	if err != nil {
+		return err
+	}
+	// Only an immediate/running wakeup absorbs another coordinator tick.
+	// Completed history and delayed failures cannot suppress fresh work.
+	for _, config := range w.refresher.configs {
+		if _, err = client.InsertTx(ctx, tx, sourceRefreshArgs{SourceID: config.ID}, &river.InsertOpts{Queue: sourceRefreshQueue, MaxAttempts: 5, UniqueOpts: river.UniqueOpts{ByArgs: true, ByState: []rivertype.JobState{rivertype.JobStateAvailable, rivertype.JobStatePending, rivertype.JobStateRunning, rivertype.JobStateScheduled}}}); err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
 }
 func RunWorker(ctx context.Context, dsn, environment string) error {
 	sources, err := sourceConfiguration(dsn)
@@ -110,7 +145,7 @@ func RunWorker(ctx context.Context, dsn, environment string) error {
 	if err != nil {
 		return err
 	}
-	// Eight queue fetchers, completion and periodic/leader maintenance must
+	// Nine queue fetchers, completion and periodic/leader maintenance must
 	// retain pool capacity even while another queue has a backlog.
 	config.MaxConns = 16
 	config.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
@@ -137,6 +172,7 @@ func RunWorker(ctx context.Context, dsn, environment string) error {
 	river.AddWorker(workers, &recruitWorker{service: New(dsn, environment, nil)})
 	client, err := river.NewClient(riverpgxv5.New(pool), &river.Config{Schema: "undergrid_queue", SoftStopTimeout: 5 * time.Second, Workers: workers, Queues: map[string]river.QueueConfig{
 		river.QueueDefault:       {MaxWorkers: 2},
+		sourceRefreshQueue:       {MaxWorkers: 2},
 		"artifact_verification":  {MaxWorkers: 2},
 		"coordination":           {MaxWorkers: 2},
 		"coordination_deadlines": {MaxWorkers: 2},

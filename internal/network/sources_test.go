@@ -62,7 +62,7 @@ func TestSourceRefreshPermittedLifecycle(t *testing.T) {
 			return
 		}
 		if phase.Load() == 2 {
-			io.WriteString(w, `{"items":[],"next_page":0}`)
+			w.WriteHeader(http.StatusGone)
 			return
 		}
 		w.Header().Set("ETag", "\"v1\"")
@@ -250,8 +250,7 @@ func TestSourceGitHubRefreshTakedownAndApprovalRemoval(t *testing.T) {
 	}
 	transport.TLSClientConfig.InsecureSkipVerify = true
 	refresher.client = &http.Client{Transport: transport}
-	worker := sourceRefreshWorker{refresher: refresher}
-	if err = worker.Work(context.Background(), nil); err != nil {
+	if err = refresher.RefreshDue(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	var count int
@@ -260,7 +259,7 @@ func TestSourceGitHubRefreshTakedownAndApprovalRemoval(t *testing.T) {
 	}
 	cfg.Takedowns = []string{"101"}
 	refresher.configs = []SourceConfig{cfg}
-	if err = worker.Work(context.Background(), nil); err != nil {
+	if err = refresher.RefreshDue(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	var state, metadata string
@@ -268,7 +267,7 @@ func TestSourceGitHubRefreshTakedownAndApprovalRemoval(t *testing.T) {
 		t.Fatalf("takedown retained data %s %s %v", state, metadata, err)
 	}
 	refresher.configs = nil
-	if err = worker.Work(context.Background(), nil); err != nil {
+	if err = refresher.RefreshDue(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	if err = db.QueryRow(context.Background(), `SELECT count(*) FROM undergrid.eligible_external_observations WHERE source_id=$1`, cfg.ID).Scan(&count); err != nil || count != 0 {
@@ -331,7 +330,7 @@ func TestSourceRateLimitAndRedirectFailClosed(t *testing.T) {
 	publisher := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requests.Add(1)
 		if phase.Load() == 0 {
-			w.Header().Set("Retry-After", "3600")
+			w.Header().Set("Retry-After", "172800")
 			w.WriteHeader(429)
 			return
 		}
@@ -355,7 +354,7 @@ func TestSourceRateLimitAndRedirectFailClosed(t *testing.T) {
 	}
 	var deferred bool
 	var success bool
-	if err = db.QueryRow(context.Background(), `SELECT next_refresh>now()+interval '59 minutes',last_success IS NOT NULL FROM undergrid.external_sources WHERE id=$1`, cfg.ID).Scan(&deferred, &success); err != nil || !deferred || success {
+	if err = db.QueryRow(context.Background(), `SELECT next_refresh>now()+interval '47 hours 59 minutes',last_success IS NOT NULL FROM undergrid.external_sources WHERE id=$1`, cfg.ID).Scan(&deferred, &success); err != nil || !deferred || success {
 		t.Fatalf("rate-limit schedule %v success %v %v", deferred, success, err)
 	}
 	phase.Store(1)
@@ -444,7 +443,7 @@ func TestSourceRefreshUsesRestrictedWorkerLogin(t *testing.T) {
 	}))
 	defer publisher.Close()
 	cfg := SourceConfig{ID: NewID(), Kind: "capability_manifest", Endpoint: "https://publisher.example/feed", Publisher: "fixture", AccessBasis: "fixture access", RepublicationBasis: "fixture metadata", TombstoneBasis: "fixture retention", Fields: []string{"title"}}
-	refresher, err := NewSourceRefresher(runtimeConfig.ConnString(), []SourceConfig{cfg})
+	refresher, err := NewSourceRefresher(networkFixtureRoleDSN(t, db, role), []SourceConfig{cfg})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -465,7 +464,7 @@ func TestSourceRefreshUsesRestrictedWorkerLogin(t *testing.T) {
 	}
 	transport.TLSClientConfig.InsecureSkipVerify = true
 	refresher.client.Transport = transport
-	if err = (&sourceRefreshWorker{refresher: refresher}).Work(ctx, nil); err != nil {
+	if err = refresher.RefreshDue(ctx); err != nil {
 		t.Fatal(err)
 	}
 	var count int
@@ -605,5 +604,18 @@ func TestSourceFetchDoesNotBlockRevocationOrDuplicateConcurrentRequests(t *testi
 	}
 	if rows != 0 || eligible != 0 {
 		t.Fatalf("in-flight fetch resurrected revoked approval: rows=%d eligible=%d", rows, eligible)
+	}
+}
+
+func TestSourceConfigurationRejectsTrailingOrOversizedInput(t *testing.T) {
+	for _, input := range []string{"[] {}", "[]" + strings.Repeat(" ", 128*1024)} {
+		path := filepath.Join(t.TempDir(), "sources.json")
+		if err := os.WriteFile(path, []byte(input), 0600); err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv("UNDERGRID_SOURCES_FILE", path)
+		if _, err := sourceConfiguration("unused"); err == nil {
+			t.Fatal("accepted malformed or oversized source configuration")
+		}
 	}
 }
