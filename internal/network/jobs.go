@@ -67,7 +67,7 @@ func enqueueScan(ctx context.Context, tx pgx.Tx, cause string) error {
 	if _, err = client.InsertTx(ctx, tx, scanArgs{cause}, &river.InsertOpts{MaxAttempts: 10, Queue: discoveryQueue, Priority: 1}); err != nil {
 		return err
 	}
-	if _, err = client.InsertTx(ctx, tx, watchRefreshArgs{CandidateID: cause}, &river.InsertOpts{Queue: watchRefreshQueue, Priority: 2, MaxAttempts: 10}); err != nil {
+	if _, err = client.InsertTx(ctx, tx, watchRefreshArgs{CandidateID: cause}, &river.InsertOpts{Queue: watchFanoutQueue, Priority: 2, MaxAttempts: 10}); err != nil {
 		return err
 	}
 	// At most one queued refresh follows a running sweep. Lock the queued row
@@ -93,7 +93,7 @@ func RunWorker(ctx context.Context, dsn, environment string) error {
 	if err != nil {
 		return err
 	}
-	// Seven queue fetchers, completion and periodic/leader maintenance must
+	// Eight queue fetchers, completion and periodic/leader maintenance must
 	// retain pool capacity even while another queue has a backlog.
 	config.MaxConns = 16
 	config.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
@@ -117,7 +117,18 @@ func RunWorker(ctx context.Context, dsn, environment string) error {
 	river.AddWorker(workers, &watchRefreshWorker{service: service})
 	river.AddWorker(workers, &fanoutWorker{dsn: dsn})
 	river.AddWorker(workers, &recruitWorker{service: New(dsn, environment, nil)})
-	client, err := river.NewClient(riverpgxv5.New(pool), &river.Config{Schema: "undergrid_queue", SoftStopTimeout: 5 * time.Second, Workers: workers, Queues: map[string]river.QueueConfig{river.QueueDefault: {MaxWorkers: 2}, "artifact_verification": {MaxWorkers: 2}, "coordination": {MaxWorkers: 2}, "coordination_deadlines": {MaxWorkers: 2}, discoveryQueue: {MaxWorkers: 2}, discoveryRepairQueue: {MaxWorkers: 1}, watchRefreshQueue: {MaxWorkers: 2}}, PeriodicJobs: []*river.PeriodicJob{river.NewPeriodicJob(river.PeriodicInterval(time.Minute), func() (river.JobArgs, *river.InsertOpts) {
+	client, err := river.NewClient(riverpgxv5.New(pool), &river.Config{Schema: "undergrid_queue", SoftStopTimeout: 5 * time.Second, Workers: workers, Queues: map[string]river.QueueConfig{
+		river.QueueDefault:       {MaxWorkers: 2},
+		"artifact_verification":  {MaxWorkers: 2},
+		"coordination":           {MaxWorkers: 2},
+		"coordination_deadlines": {MaxWorkers: 2},
+		discoveryQueue:           {MaxWorkers: 2},
+		discoveryRepairQueue:     {MaxWorkers: 1},
+		// Fanout continuations cannot wait behind their own pair jobs. Both
+		// queues bound wakeup latency even when LISTEN/NOTIFY is coalesced.
+		watchRefreshQueue: {MaxWorkers: 2, FetchCooldown: 100 * time.Millisecond, FetchPollInterval: 100 * time.Millisecond},
+		watchFanoutQueue:  {MaxWorkers: 1, FetchCooldown: 100 * time.Millisecond, FetchPollInterval: 100 * time.Millisecond},
+	}, PeriodicJobs: []*river.PeriodicJob{river.NewPeriodicJob(river.PeriodicInterval(time.Minute), func() (river.JobArgs, *river.InsertOpts) {
 		return deadlineArgs{}, &river.InsertOpts{MaxAttempts: 10, Queue: "coordination_deadlines", Priority: 1}
 	}, &river.PeriodicJobOpts{RunOnStart: true}), river.NewPeriodicJob(river.PeriodicInterval(15*time.Minute), func() (river.JobArgs, *river.InsertOpts) {
 		return scanArgs{"repair"}, &river.InsertOpts{Queue: discoveryRepairQueue, Priority: 4}

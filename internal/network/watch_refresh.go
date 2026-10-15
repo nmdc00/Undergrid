@@ -13,6 +13,7 @@ import (
 )
 
 const watchRefreshQueue = "intention_watch_refresh"
+const watchFanoutQueue = "intention_watch_fanout"
 const watcherRefreshPageSize = 100
 
 type watchRefreshArgs struct {
@@ -122,7 +123,7 @@ func (s *Service) enqueueCompatibleWatchers(ctx context.Context, args watchRefre
 		}
 	}
 	if count == watcherRefreshPageSize {
-		if _, err = queue.InsertTx(ctx, tx, watchRefreshArgs{CandidateID: args.CandidateID, AfterID: last}, &river.InsertOpts{Queue: watchRefreshQueue, Priority: 2, MaxAttempts: 10}); err != nil {
+		if _, err = queue.InsertTx(ctx, tx, watchRefreshArgs{CandidateID: args.CandidateID, AfterID: last}, &river.InsertOpts{Queue: watchFanoutQueue, Priority: 2, MaxAttempts: 10}); err != nil {
 			return err
 		}
 	}
