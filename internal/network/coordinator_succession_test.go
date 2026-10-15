@@ -23,7 +23,7 @@ func TestCoordinatorSuccessionRequiresCurrentUnanimityAndSuccessorAcceptance(t *
 	for _, entry := range []struct {
 		name, role string
 		actor      testClient
-	}{{"successor", "contributor", successor}, {"buyer", "observer", buyer}} {
+	}{{"successor", "contributor", successor}, {"buyer", "contributor", buyer}} {
 		code, identity := entry.actor.call("GET", "/v1/me", "", nil)
 		if code != 200 {
 			t.Fatal(code, identity)
