@@ -24,6 +24,6 @@ Retained NETWORK55463 watcher/durable-worker/shutdown/obsolete-pair gate passed 
 
 PR/release integration remains root-owned. No new migration, altered applied SQL, financial change, statement-coverage percentage, provider qualification, promotion or deployment is claimed here.
 
-Explicit follow-up: a verified OAuth JWT's own `Expires` is checked before database entry, but the current shared domain code does not recheck a later, shorter JWT's deadline after authority waits when its normalized local grant lives longer. That is a separate temporal boundary to reproduce with an actual signed short-lived JWT and decide against the intended arrival/authorization contract; this bounded fix neither implements nor claims that stronger guarantee.
+At this fix's checkpoint, a verified OAuth JWT's own `Expires` was checked before database entry but not after authority waits when its normalized local grant lived longer. That separate boundary was subsequently reproduced and corrected through the shared transaction path; see [OAuth access-token expiry evidence](oauth-access-token-expiry.md). The local-grant red/green evidence above remains scoped to normalized credential expiry.
 
 Quality assessment: one existing transaction owner retains lock order and current scopes, with a materialization barrier explaining the otherwise subtle time/lock ordering. Behavioral tests observe real PostgreSQL waits and committed effects rather than reproducing an expiry formula. Normal valid authority remains usable; no adapter-level preflight or duplicated domain policy was added.
