@@ -51,7 +51,8 @@ export function App() {
     ]);
   const [selectedAgent, setSelectedAgent] = useState(""),
     [objective, setObjective] = useState(""),
-    [intentVisibility, setIntentVisibility] = useState<components["schemas"]["IntentInput"]["visibility"]>("private"),
+    [intentVisibility, setIntentVisibility] =
+      useState<components["schemas"]["IntentInput"]["visibility"]>("private"),
     [watch, setWatch] = useState(true),
     [detail, setDetail] = useState<ObjectValue | null>(null),
     [results, setResults] = useState<ObjectValue[]>([]),
@@ -146,6 +147,8 @@ export function App() {
     event.preventDefault();
     void action(work);
   }
+  const terminalIntention =
+    detail?.state === "withdrawn" || detail?.state === "satisfied";
   return (
     <>
       <header>
@@ -425,7 +428,7 @@ export function App() {
                       <pre key={text(r.id)}>{JSON.stringify(r, null, 2)}</pre>
                     ))
                   )}
-                  {detail.state !== "withdrawn" && detail.state !== "satisfied" && (
+                  {!terminalIntention && (
                     <>
                       {!editingRevision ? (
                         <button
@@ -528,39 +531,40 @@ export function App() {
                       )}
                     </>
                   )}
-                  {["active", "paused", "satisfied", "withdrawn"].map((state) => (
-                    <button
-                      key={state}
-                      disabled={
-                        busy ||
-                        detail.state === "withdrawn" ||
-                        detail.state === "satisfied" ||
-                        detail.state === "expired" ||
-                        detail.state === state
-                      }
-                      onClick={() =>
-                        void action(async () => {
-                          const out = await request(
-                            `/v1/owner/intents/${encodeURIComponent(text(detail.id))}`,
-                            csrf,
-                            "PATCH",
-                            { state },
-                            text(detail.etag),
-                          );
-                          setDetail(out);
-                          await refresh(csrf);
-                        })
-                      }
-                    >
-                      {state === "active"
-                        ? "Resume"
-                        : state === "paused"
-                          ? "Pause"
-                          : state === "satisfied"
-                            ? "Mark satisfied"
-                            : "Withdraw"}
-                    </button>
-                  ))}
+                  {["active", "paused", "satisfied", "withdrawn"].map(
+                    (state) => (
+                      <button
+                        key={state}
+                        disabled={
+                          busy ||
+                          terminalIntention ||
+                          detail.state === "expired" ||
+                          detail.state === state
+                        }
+                        onClick={() =>
+                          void action(async () => {
+                            const out = await request(
+                              `/v1/owner/intents/${encodeURIComponent(text(detail.id))}`,
+                              csrf,
+                              "PATCH",
+                              { state },
+                              text(detail.etag),
+                            );
+                            setDetail(out);
+                            await refresh(csrf);
+                          })
+                        }
+                      >
+                        {state === "active"
+                          ? "Resume"
+                          : state === "paused"
+                            ? "Pause"
+                            : state === "satisfied"
+                              ? "Mark satisfied"
+                              : "Withdraw"}
+                      </button>
+                    ),
+                  )}
                   <button onClick={() => setDetail(null)}>
                     Close intention
                   </button>
@@ -746,7 +750,8 @@ export function App() {
                     value={intentVisibility}
                     onChange={(e) => {
                       const value = e.target.value;
-                      if (value === "private" || value === "restricted") setIntentVisibility(value);
+                      if (value === "private" || value === "restricted")
+                        setIntentVisibility(value);
                     }}
                   >
                     <option value="private">Private</option>

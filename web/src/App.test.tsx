@@ -130,7 +130,8 @@ function fixture(
           ...sent.revision,
           etag: '"v2"',
           version: 2,
-          state: sent.state ?? (intentState === "expired" ? "active" : intentState),
+          state:
+            sent.state ?? (intentState === "expired" ? "active" : intentState),
         };
       }
       return new Response(JSON.stringify(result), {
@@ -389,19 +390,29 @@ test("owner revokes a current restricted grant through the versioned CSRF comman
 test("satisfied intention cannot be edited or resumed", async () => {
   fixture(true, "satisfied");
   render(<App />);
-  await userEvent.click(await screen.findByRole("button", { name: "Review intention" }));
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Review intention" }),
+  );
   expect(screen.queryByRole("button", { name: "Edit intention" })).toBeNull();
   for (const name of ["Resume", "Pause", "Withdraw"]) {
-    expect((screen.getByRole("button", { name }) as HTMLButtonElement).disabled).toBe(true);
+    expect(
+      (screen.getByRole("button", { name }) as HTMLButtonElement).disabled,
+    ).toBe(true);
   }
 });
 
 test("owner explicitly marks an intention satisfied using its reviewed version", async () => {
   const requests = fixture();
   render(<App />);
-  await userEvent.click(await screen.findByRole("button", { name: "Review intention" }));
-  await userEvent.click(await screen.findByRole("button", { name: "Mark satisfied" }));
-  const sent = requests.find(r => r.path === "/v1/owner/intents/intent" && r.init?.method === "PATCH")!;
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Review intention" }),
+  );
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Mark satisfied" }),
+  );
+  const sent = requests.find(
+    (r) => r.path === "/v1/owner/intents/intent" && r.init?.method === "PATCH",
+  )!;
   expect(JSON.parse(sent.init!.body as string)).toEqual({ state: "satisfied" });
   expect(new Headers(sent.init?.headers).get("If-Match")).toBe('"v1"');
 });
