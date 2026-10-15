@@ -65,6 +65,9 @@ func TestUSDCWorkerModeSubprocess(t *testing.T) {
 	child, stop := context.WithTimeout(context.Background(), 5*time.Second)
 	defer stop()
 	command := exec.CommandContext(child, os.Args[0], "-test.run=^TestUSDCWorkerModeSubprocess$")
+	// The worker subprocess receives its own financial login only: no parent
+	// migration/network/provider credentials from the test orchestrator.
+	command.Env = []string{"PATH=" + os.Getenv("PATH"), "HOME=" + os.Getenv("HOME"), "UNDERGRID_SANDBOX_DATABASE_URL=" + workerURL.String(), "UNDERGRID_USDC_MODE_FIXTURE_HELPER=1"}
 	output, err := command.CombinedOutput()
 	if err != nil {
 		t.Fatalf("USDC mode subprocess: %v %s", err, output)

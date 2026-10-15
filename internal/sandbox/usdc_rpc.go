@@ -115,6 +115,9 @@ func (s *USDCService) VerifyConfiguration(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	if len(raw) != 66 || !strings.HasPrefix(raw, "0x") || !validLowerHex(strings.ToLower(raw[2:])) {
+		return ErrConflict
+	}
 	decimals, ok := new(big.Int).SetString(strings.TrimPrefix(raw, "0x"), 16)
 	if !ok || decimals.Cmp(big.NewInt(6)) != 0 {
 		return ErrConflict
@@ -203,6 +206,9 @@ func (s *USDCService) verifyReceipt(ctx context.Context, p Payment, transaction 
 	}
 	if receipt == nil {
 		return nil, nil
+	}
+	if len(receipt.Logs) > 2048 {
+		return nil, ErrInvalid
 	}
 	number, err := chainQuantity(receipt.Block)
 	if err != nil || receipt.Transaction != transaction || !chainHash(receipt.BlockHash) || receipt.Status != "0x1" || (start != nil && number.Cmp(start) <= 0) {

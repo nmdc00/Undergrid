@@ -2,7 +2,6 @@ package sandbox
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"math/big"
 	"time"
@@ -126,6 +125,17 @@ func (s *Store) recordUSDC(ctx context.Context, id string, proof usdcObservation
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			return err
 		}
+		if oldFinality != "" && oldFinality != "candidate" && oldFinality != "orphaned" && proof.Finality != "orphaned" {
+			if oldTransaction != proof.Transaction || oldBlock != proof.BlockHash {
+				return ErrConflict
+			}
+			if oldFinality == "finalized" && proof.Finality != "finalized" {
+				return ErrConflict
+			}
+			if oldFinality == "safe" && proof.Finality == "provisional" {
+				return ErrConflict
+			}
+		}
 		if oldTransaction == proof.Transaction && oldBlock == proof.BlockHash && oldFinality == proof.Finality {
 			return nil
 		}
@@ -203,6 +213,3 @@ func loadUSDCStatus(ctx context.Context, tx pgx.Tx, p *Payment) error {
 	}
 	return err
 }
-
-// Keep json imports local to normalized provider evidence, never its credentials.
-var _ json.RawMessage

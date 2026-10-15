@@ -32,12 +32,47 @@ type usdcChainFixture struct {
 	providerInTransaction atomic.Bool
 }
 
+func usdcFixtureRoleDSN(t *testing.T, db *pgx.Conn, group string) string {
+	t.Helper()
+	role := "usdc_chain_" + strings.ReplaceAll(randomID(), "-", "")
+	identifier := pgx.Identifier{role}.Sanitize()
+	if _, err := db.Exec(context.Background(), "CREATE ROLE "+identifier+" LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOREPLICATION;GRANT "+pgx.Identifier{group}.Sanitize()+" TO "+identifier); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Exec(context.Background(), "DROP ROLE "+identifier) })
+	config := db.Config()
+	dsn := fmt.Sprintf("host=%s port=%d user=%s dbname=%s sslmode=disable", config.Host, config.Port, role, config.Database)
+	actual, err := pgx.Connect(context.Background(), dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var user string
+	var super, bypass, app, worker bool
+	err = actual.QueryRow(context.Background(), `SELECT current_user,rolsuper,rolbypassrls,pg_has_role(current_user,'undergrid_sandbox_app','MEMBER'),pg_has_role(current_user,'undergrid_sandbox_worker','MEMBER') FROM pg_roles WHERE rolname=current_user`).Scan(&user, &super, &bypass, &app, &worker)
+	actual.Close(context.Background())
+	if err != nil || user != role || super || bypass || app != (group == "undergrid_sandbox_app") || worker != (group == "undergrid_sandbox_worker") {
+		t.Fatalf("not isolated %s login %s super=%v bypass=%v app=%v worker=%v err=%v", group, user, super, bypass, app, worker, err)
+	}
+	return dsn
+}
+
 func newUSDCChainFixture(t *testing.T) *usdcChainFixture {
 	t.Helper()
 	f, key, original := newPayerFixture(t)
+	api, err := New(usdcFixtureRoleDSN(t, f.db, "undergrid_sandbox_app")).WithUSDCSigning(*f.store.usdcSigning)
+	if err != nil {
+		t.Fatal(err)
+	}
+	api, err = api.WithUSDCTokenDomain(*f.store.usdcTokenDomain)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.store = api
+	f.handler = mustWalletHandler(t, api, nil, map[string]Quote{original.Quote.Product: original.Quote})
+
 	quote := original.Quote
 	quote.Product = "usdc-chain-" + randomID()
-	if err := f.store.SetPolicy(context.Background(), f.owner, 3, Policy{Asset: "USDC", Cap: "9999999", Products: []string{quote.Product}, Payees: []string{quote.Payee}, ExpiresAt: time.Now().Add(time.Hour), AllowRefunds: true}); err != nil {
+	if err := f.store.SetPolicy(context.Background(), f.owner, 3, Policy{Asset: "USDC", Cap: "9999999999999999", Products: []string{quote.Product}, Payees: []string{quote.Payee}, ExpiresAt: time.Now().Add(time.Hour), AllowRefunds: true}); err != nil {
 		t.Fatal(err)
 	}
 	p, err := f.store.CreateQuote(context.Background(), f.token, "chain-quote", quote)
@@ -56,27 +91,7 @@ func newUSDCChainFixture(t *testing.T) *usdcChainFixture {
 	fixture.fault.Store("")
 	fixture.server = httptest.NewTLSServer(http.HandlerFunc(fixture.serve))
 	t.Cleanup(fixture.server.Close)
-	role := "usdc_chain_" + strings.ReplaceAll(randomID(), "-", "")
-	identifier := pgx.Identifier{role}.Sanitize()
-	if _, err := f.db.Exec(context.Background(), "CREATE ROLE "+identifier+" LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOREPLICATION;GRANT undergrid_sandbox_worker TO "+identifier); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { f.db.Exec(context.Background(), "DROP ROLE "+identifier) })
-	config := f.db.Config()
-	// An explicit connection string is required: changing ConnConfig.User then
-	// calling ConnString would silently preserve the administrative source login.
-	workerDSN := fmt.Sprintf("host=%s port=%d user=%s dbname=%s sslmode=disable", config.Host, config.Port, role, config.Database)
-	actual, err := pgx.Connect(context.Background(), workerDSN)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var user string
-	var super, bypass, app bool
-	err = actual.QueryRow(context.Background(), `SELECT current_user,rolsuper,rolbypassrls,pg_has_role(current_user,'undergrid_sandbox_app','MEMBER') FROM pg_roles WHERE rolname=current_user`).Scan(&user, &super, &bypass, &app)
-	actual.Close(context.Background())
-	if err != nil || user != role || super || bypass || app {
-		t.Fatalf("not isolated worker login %s %v %v %v %v", user, super, bypass, app, err)
-	}
+	workerDSN := usdcFixtureRoleDSN(t, f.db, "undergrid_sandbox_worker")
 	worker, err := New(workerDSN).WithUSDCVerification(f.store.usdcVerification)
 	if err != nil {
 		t.Fatal(err)
@@ -171,6 +186,9 @@ func (f *usdcChainFixture) serve(w http.ResponseWriter, r *http.Request) {
 		result = "0x60006000"
 	case "eth_blockNumber":
 		result = "0x63"
+		if f.submits.Load() > 0 {
+			result = "0x64"
+		}
 	case "eth_call":
 		var call map[string]any
 		json.Unmarshal(request.Params[0], &call)
@@ -183,7 +201,16 @@ func (f *usdcChainFixture) serve(w http.ResponseWriter, r *http.Request) {
 		case "0x313ce567":
 			result = "0x" + chainWord("6")
 		default:
-			result = "0x" + chainWord("999999999999")
+			if strings.HasPrefix(data, "0x"+hex.EncodeToString(keccak256([]byte("authorizationState(address,bytes32)"))[:4])) {
+				used := "0"
+				if f.submits.Load() > 0 && phase != 2 {
+					used = "1"
+				}
+				result = "0x" + chainWord(used)
+			} else {
+				result = "0x" + chainWord("999999999999")
+			}
+
 		}
 	case "eth_getBlockByNumber":
 		number := "0x64"
@@ -283,6 +310,14 @@ func TestUSDCCanonicalSettlementRequiresFinalityAndReorgCorrectsFacts(t *testing
 	if err = f.owner.db.QueryRow(ctx, "SELECT count(*) FROM undergrid_sandbox.sandbox_effects WHERE payment_id=$1", p.ID).Scan(&effects); err != nil || effects != 2 {
 		t.Fatalf("replay repeated economic effects %d %v", effects, err)
 	}
+	f.phase.Store(0)
+	if err = f.service.ReconcilePayment(ctx, p.ID); err == nil {
+		t.Fatal("stale RPC finality regression accepted")
+	}
+	still, err := f.owner.store.GetPayment(ctx, f.owner.token, p.ID)
+	if err != nil || still.State != "settled" {
+		t.Fatalf("stale RPC erased finalized truth %s %v", still.State, err)
+	}
 	f.phase.Store(2)
 	if err = f.service.ReconcilePayment(ctx, p.ID); err != nil {
 		t.Fatal(err)
@@ -296,14 +331,37 @@ func TestUSDCCanonicalSettlementRequiresFinalityAndReorgCorrectsFacts(t *testing
 		t.Fatalf("append-only gross correction %d %v", correction, err)
 	}
 	var refundable bool
-	if err = f.owner.store.transaction(ctx, "undergrid_sandbox_app", func(tx pgx.Tx) error {
-		_, err := agentContext(ctx, tx, f.owner.token, "payments:read")
-		if err != nil {
+	capacity := func() bool {
+		t.Helper()
+		err := f.owner.store.transaction(ctx, "undergrid_sandbox_app", func(tx pgx.Tx) error {
+			if _, err := agentContext(ctx, tx, f.owner.token, "payments:read"); err != nil {
+				return err
+			}
+			var err error
+			refundable, err = refundCapacity(ctx, tx, p.ID, p.Quote.Amount, "")
 			return err
+		})
+		if err != nil {
+			t.Fatal(err)
 		}
-		return tx.QueryRow(ctx, `SELECT COALESCE(sum(CASE e.kind WHEN 'charge' THEN e.amount WHEN 'refund' THEN -e.amount ELSE 0 END),0)>0 FROM sandbox_effects e WHERE e.payment_id=$1 AND NOT EXISTS(SELECT 1 FROM sandbox_effects correction WHERE correction.kind='reorg' AND correction.reverses_fact_id=e.fact_id AND correction.provider=e.provider AND correction.account=e.account AND correction.environment=e.environment)`, p.ID).Scan(&refundable)
-	}); err != nil || refundable {
-		t.Fatalf("orphaned transfer remained refundable %v %v", refundable, err)
+		return refundable
+	}
+	if capacity() {
+		t.Fatal("orphaned transfer remained refundable")
+	}
+	f.phase.Store(1)
+	if err = f.service.ReconcilePayment(ctx, p.ID); err != nil {
+		t.Fatal(err)
+	}
+	p, err = f.owner.store.GetPayment(ctx, f.owner.token, p.ID)
+	if err != nil || p.State != "settled" {
+		t.Fatalf("same transaction re-finalization failed %s %v", p.State, err)
+	}
+	if err = f.owner.db.QueryRow(ctx, "SELECT count(*) FROM undergrid_sandbox.sandbox_effects WHERE payment_id=$1 AND kind IN('charge','fee')", p.ID).Scan(&effects); err != nil || effects != 2 {
+		t.Fatalf("re-finalization invented a transfer %d %v", effects, err)
+	}
+	if !capacity() {
+		t.Fatal("re-finalized original transfer lost refundable capacity")
 	}
 	if f.submits.Load() != 1 || f.providerInTransaction.Load() {
 		t.Fatalf("provider effects violated submits=%d open_transaction=%v", f.submits.Load(), f.providerInTransaction.Load())

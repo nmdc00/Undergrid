@@ -16,6 +16,9 @@ CREATE TABLE sandbox_usdc_observations (
  evidence jsonb NOT NULL CHECK(jsonb_typeof(evidence)='object'), checked_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX sandbox_usdc_payment_observations ON sandbox_usdc_observations(payment_id,sequence DESC);
+ALTER TABLE sandbox_payments ADD COLUMN usdc_next_check timestamptz NOT NULL DEFAULT now();
+ALTER TABLE sandbox_payments ADD COLUMN usdc_last_error text CHECK(usdc_last_error IS NULL OR usdc_last_error='reconciliation_failed');
+GRANT UPDATE(usdc_next_check,usdc_last_error) ON sandbox_payments TO undergrid_sandbox_worker;
 ALTER TABLE sandbox_effects ADD COLUMN reverses_fact_id text;
 ALTER TABLE sandbox_effects ADD CHECK(reverses_fact_id IS NULL OR kind='reorg');
 ALTER TABLE sandbox_effects ADD FOREIGN KEY(provider,account,environment,reverses_fact_id) REFERENCES sandbox_effects(provider,account,environment,fact_id);

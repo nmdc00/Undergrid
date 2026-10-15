@@ -359,6 +359,9 @@ func loadPayment(ctx context.Context, tx pgx.Tx, id string) (Payment, error) {
 		err = json.Unmarshal(authorization, p.walletAuthorization)
 	}
 
+	if err == nil {
+		err = loadUSDCStatus(ctx, tx, &p)
+	}
 	return p, err
 }
 func replay(ctx context.Context, tx pgx.Tx, a identity, op, key, digest string) (string, error) {
