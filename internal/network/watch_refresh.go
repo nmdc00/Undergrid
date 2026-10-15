@@ -45,6 +45,19 @@ func (w *watchRefreshWorker) Work(ctx context.Context, job *river.Job[watchRefre
 	if _, err = db.Exec(ctx, "SET ROLE undergrid_worker; SET search_path=undergrid,pg_catalog"); err != nil {
 		return err
 	}
+	// A denial-only read avoids taking owner locks for obsolete durable pairs.
+	// It grants no authority: every eligible result still enters the original
+	// transaction and rechecks current ownership, state and projection.
+	var eligible bool
+	err = db.QueryRow(ctx, `SELECT EXISTS(
+	 SELECT 1 FROM intents i JOIN principals p ON p.id=i.principal_id JOIN agents a ON a.id=i.agent_id
+	 WHERE i.id=$1 AND i.state='active' AND i.watch_enabled AND i.expires_at>clock_timestamp()
+	 AND p.status='active' AND a.status='active'
+	 AND EXISTS(SELECT 1 FROM public_intents() candidate WHERE candidate.id=$2)
+	)`, args.WatcherID, args.CandidateID).Scan(&eligible)
+	if err != nil || !eligible {
+		return err
+	}
 	err = w.service.scanIntentCandidate(ctx, db, args.WatcherID, args.CandidateID, true)
 	var locked *pgconn.PgError
 	if errors.As(err, &locked) && locked.Code == "55P03" {
