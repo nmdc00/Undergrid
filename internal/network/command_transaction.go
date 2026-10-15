@@ -50,3 +50,21 @@ func authenticateAgentRequest(r *http.Request, tx pgx.Tx) (actor, error) {
 	}
 	return authenticate(r.Context(), tx, r.Header.Get("Authorization"), r.Method, r.URL.Path)
 }
+
+func (s *Service) beginNetworkTransaction(ctx context.Context) (*pgx.Conn, pgx.Tx, error) {
+	db, err := pgx.Connect(ctx, s.dsn)
+	if err != nil {
+		return nil, nil, err
+	}
+	tx, err := db.Begin(ctx)
+	if err != nil {
+		db.Close(ctx)
+		return nil, nil, err
+	}
+	if _, err = tx.Exec(ctx, "SET LOCAL ROLE undergrid_app; SET LOCAL search_path=undergrid,pg_catalog; SET LOCAL statement_timeout='5s'"); err != nil {
+		tx.Rollback(ctx)
+		db.Close(ctx)
+		return nil, nil, err
+	}
+	return db, tx, nil
+}

@@ -28,10 +28,10 @@ func (s *Service) scanIntentions(ctx context.Context, cause string) error {
 	if _, err = db.Exec(ctx, "SET ROLE undergrid_worker; SET search_path=undergrid,pg_catalog"); err != nil {
 		return err
 	}
-	if cause != "" {
+	if cause != "" && cause != "refresh" {
 		return s.scanIntent(ctx, db, cause)
 	}
-	rows, err := db.Query(ctx, "SELECT id FROM intents WHERE state='active' AND watch_enabled AND next_scan<=now() ORDER BY next_scan,id LIMIT 1000")
+	rows, err := db.Query(ctx, "SELECT id FROM intents WHERE state='active' AND watch_enabled AND ($1 OR next_scan<=now()) ORDER BY next_scan,id LIMIT 1000", cause == "refresh")
 	if err != nil {
 		return err
 	}
@@ -57,6 +57,9 @@ func (s *Service) scanIntentions(ctx context.Context, cause string) error {
 	return nil
 }
 func (s *Service) scanIntent(ctx context.Context, db *pgx.Conn, id string) error {
+	return s.scanIntentCandidate(ctx, db, id, "", false)
+}
+func (s *Service) scanIntentCandidate(ctx context.Context, db *pgx.Conn, id, candidateID string, urgent bool) error {
 	tx, err := db.Begin(ctx)
 	if err != nil {
 		return err
@@ -67,14 +70,23 @@ func (s *Service) scanIntent(ctx context.Context, db *pgx.Conn, id string) error
 	if err != nil {
 		return err
 	}
+	lock := " FOR UPDATE"
+	intentLock := " FOR UPDATE OF i"
+	if urgent {
+		// Wait briefly behind ordinary reads so polling cannot starve delivery,
+		// while a long owner transaction cannot occupy an urgent worker slot.
+		if _, err = tx.Exec(ctx, "SET LOCAL lock_timeout='100ms'"); err != nil {
+			return err
+		}
+	}
 	var active string
-	if err = tx.QueryRow(ctx, "SELECT status FROM principals WHERE id=$1 FOR UPDATE", principal).Scan(&active); err != nil {
+	if err = tx.QueryRow(ctx, "SELECT status FROM principals WHERE id=$1"+lock, principal).Scan(&active); err != nil {
 		return err
 	}
 	if active != "active" {
 		return nil
 	}
-	if err = tx.QueryRow(ctx, "SELECT status FROM agents WHERE id=$1 FOR UPDATE", agent).Scan(&active); err != nil {
+	if err = tx.QueryRow(ctx, "SELECT status FROM agents WHERE id=$1"+lock, agent).Scan(&active); err != nil {
 		return err
 	}
 	if active != "active" {
@@ -85,7 +97,7 @@ func (s *Service) scanIntent(ctx context.Context, db *pgx.Conn, id string) error
 	var expires time.Time
 	var watching bool
 	var version int64
-	err = tx.QueryRow(ctx, `SELECT r.document,r.content_hash,i.state,i.expires_at,i.watch_enabled,i.version FROM intents i JOIN intent_revisions r ON r.intent_id=i.id AND r.revision=i.current_revision WHERE i.id=$1 FOR UPDATE OF i`, id).Scan(&raw, &inputHash, &state, &expires, &watching, &version)
+	err = tx.QueryRow(ctx, `SELECT r.document,r.content_hash,i.state,i.expires_at,i.watch_enabled,i.version FROM intents i JOIN intent_revisions r ON r.intent_id=i.id AND r.revision=i.current_revision WHERE i.id=$1`+intentLock, id).Scan(&raw, &inputHash, &state, &expires, &watching, &version)
 	if err != nil {
 		return err
 	}
@@ -105,7 +117,7 @@ func (s *Service) scanIntent(ctx context.Context, db *pgx.Conn, id string) error
 	if err = json.Unmarshal(raw, &input); err != nil {
 		return err
 	}
-	rows, err := tx.Query(ctx, "SELECT id,projection,content_hash FROM public_intents() WHERE principal_id<>$1 ORDER BY id", principal)
+	rows, err := tx.Query(ctx, "SELECT id,projection,content_hash FROM public_intents() WHERE principal_id<>$1 AND ($2='' OR id::text=$2) ORDER BY id", principal, candidateID)
 	if err != nil {
 		return err
 	}
@@ -149,8 +161,10 @@ func (s *Service) scanIntent(ctx context.Context, db *pgx.Conn, id string) error
 			}
 		}
 	}
-	if _, err = tx.Exec(ctx, "UPDATE intents SET last_scan=now(),next_scan=now()+interval '15 minutes' WHERE id=$1", id); err != nil {
-		return err
+	if candidateID == "" {
+		if _, err = tx.Exec(ctx, "UPDATE intents SET last_scan=now(),next_scan=now()+interval '15 minutes' WHERE id=$1", id); err != nil {
+			return err
+		}
 	}
 	return tx.Commit(ctx)
 }
