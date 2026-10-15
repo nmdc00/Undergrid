@@ -23,3 +23,18 @@ func TestExecutableRoutesPublicDocumentWithoutDatabase(t *testing.T) {
 		t.Fatal(denied.Code)
 	}
 }
+
+func TestExecutableRoutesMCPWithoutStaticFallback(t *testing.T) {
+	service := network.New("unavailable database", "development", nil)
+	if err := service.ConfigureMCP("https://network.fixture.test"); err != nil {
+		t.Fatal(err)
+	}
+	mux := http.NewServeMux()
+	registerNetworkRoutes(mux, service)
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { http.Error(w, "static fallback", 404) })
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, httptest.NewRequest("POST", "/mcp", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{}}`)))
+	if w.Code != 401 || !strings.Contains(w.Body.String(), "invalid_credential") {
+		t.Fatalf("MCP command mux fell through: %d %s", w.Code, w.Body.String())
+	}
+}

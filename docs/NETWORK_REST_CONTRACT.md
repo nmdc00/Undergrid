@@ -17,7 +17,7 @@ is exposed only at the exact configured resource-derived path; the schema's
 path template represents that configuration, not an arbitrary wildcard endpoint.
 The separate identity login/callback/session bootstrap is documented by the
 identity implementation, rather than represented as domain commands here.
-Financial sandbox operations and unimplemented MCP/A2A transports are excluded.
+Financial sandbox operations and RPC transport envelopes are excluded. The implemented MCP surface has its own [client contract](NETWORK_MCP.md); A2A remains separate implementation work.
 
 Owner mutation authentication requires a verified owner session and current
 same-origin CSRF proof. Agent operations require a current network credential,

@@ -19,6 +19,8 @@ import (
 
 type OwnerAuthenticator func(*http.Request) (Owner, error)
 type Service struct {
+	mcpHandler         http.Handler
+	mcpOrigin          string
 	dsn, environment   string
 	ownerAuth          OwnerAuthenticator
 	cursorKey          []byte
@@ -91,6 +93,10 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
+	if r.URL.Path == "/mcp" {
+		s.serveMCP(w, r)
+		return
+	}
 	if r.URL.Path == "/openapi.json" {
 		if r.Method != "GET" {
 			s.writeProblem(w, fail(405, "method_not_allowed"))
@@ -108,24 +114,14 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	capabilityUpload := r.Method == http.MethodPut && strings.HasPrefix(r.URL.Path, "/v1/artifacts/") && strings.HasSuffix(r.URL.Path, "/upload")
-	if authorization := r.Header.Get("Authorization"); !capabilityUpload && strings.HasPrefix(authorization, "Bearer ") {
-		token := strings.TrimPrefix(authorization, "Bearer ")
-		if token != "" && !strings.HasPrefix(token, "ug_") {
-			if s.oauth == nil {
-				s.oauthChallenge(w, false)
-				s.writeProblem(w, fail(401, "invalid_credential"))
-				return
-			}
-			verified, err := s.oauth.verify(r.Context(), token)
-			if err != nil {
-				s.oauthChallenge(w, false)
-				s.writeProblem(w, fail(401, "invalid_credential"))
-				return
-			}
-			verified.Resource = s.oauth.resource
-			r = r.WithContext(context.WithValue(r.Context(), oauthResourceContextKey, verified))
-		}
+	var verificationErr error
+	r, verificationErr = s.verifyNetworkRequest(r)
+	if verificationErr != nil {
+		s.oauthChallenge(w, false)
+		s.writeProblem(w, verificationErr)
+		return
 	}
+
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 	r = r.WithContext(ctx)
@@ -230,15 +226,7 @@ func (s *Service) execute(r *http.Request) (int, any, error) {
 	if r.URL.Path == "/v1/principals" || r.URL.Path == "/v1/agents" || strings.HasPrefix(r.URL.Path, "/v1/owner/") {
 		status, result, err = s.ownerCommand(r, tx)
 	} else {
-		var a actor
-		if r.Method == "PUT" && strings.HasSuffix(r.URL.Path, "/upload") && strings.HasPrefix(r.URL.Path, "/v1/artifacts/") {
-			a, err = authenticateArtifactUpload(r, tx)
-		} else {
-			a, err = authenticate(ctx, tx, r.Header.Get("Authorization"), r.Method, r.URL.Path)
-		}
-		if err == nil {
-			status, result, err = s.agentCommand(r, tx, a)
-		}
+		_, status, result, err = s.executeAgentCommandTx(r, tx)
 	}
 	if err != nil {
 		return 0, nil, err
@@ -305,6 +293,7 @@ func authenticate(ctx context.Context, tx pgx.Tx, authorization, method, path st
 		return a, err
 	}
 	if claims, ok := ctx.Value(oauthResourceContextKey).(verifiedOAuth); ok && !strings.HasPrefix(token, "ug_") {
+		a.grantedScopes = append([]string(nil), a.Scopes...)
 		a.Scopes = scopeIntersection(a.Scopes, claims.Scopes)
 	}
 	return a, nil
@@ -362,7 +351,7 @@ func (s *Service) agentCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, e
 	}
 	if r.Method == "GET" && strings.HasPrefix(r.URL.Path, "/v1/invitations/") {
 		if !slices.Contains(a.Scopes, "swarms:read") {
-			return 0, nil, fail(403, "insufficient_scope")
+			return 0, nil, insufficientScope(a, "swarms:read")
 		}
 		return invitationPacket(r, tx, a)
 	}
@@ -371,13 +360,13 @@ func (s *Service) agentCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, e
 	}
 	if r.Method == "GET" && (r.URL.Path == "/v1/opportunities" || strings.HasPrefix(r.URL.Path, "/v1/opportunities/") || (strings.HasPrefix(r.URL.Path, "/v1/intents/") && strings.HasSuffix(r.URL.Path, "/opportunities"))) {
 		if !slices.Contains(a.Scopes, "intents:read") {
-			return 0, nil, fail(403, "insufficient_scope")
+			return 0, nil, insufficientScope(a, "intents:read")
 		}
 		return listOpportunities(r, tx, a)
 	}
 	if r.URL.Path == "/v1/inbox" || r.URL.Path == "/v1/agent-context" || strings.HasPrefix(r.URL.Path, "/v1/inbox/") {
 		if !slices.Contains(a.Scopes, "inbox:read") {
-			return 0, nil, fail(403, "insufficient_scope")
+			return 0, nil, insufficientScope(a, "inbox:read")
 		}
 		return s.inboxCommand(r, tx, a)
 	}
@@ -393,13 +382,13 @@ func (s *Service) agentCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, e
 	}
 	if r.Method == "GET" && strings.HasPrefix(r.URL.Path, "/v1/intents/") {
 		if !slices.Contains(a.Scopes, "intents:read") {
-			return 0, nil, fail(403, "insufficient_scope")
+			return 0, nil, insufficientScope(a, "intents:read")
 		}
 		return getIntent(r.Context(), tx, a, strings.TrimPrefix(r.URL.Path, "/v1/intents/"))
 	}
 	if (r.Method == "POST" && r.URL.Path == "/v1/intents") || (r.Method == "PATCH" && strings.HasPrefix(r.URL.Path, "/v1/intents/")) {
 		if !slices.Contains(a.Scopes, "intents:write") {
-			return 0, nil, fail(403, "insufficient_scope")
+			return 0, nil, insufficientScope(a, "intents:write")
 		}
 		return mutateIntent(r, tx, a, s.environment)
 	}
