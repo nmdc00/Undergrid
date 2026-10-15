@@ -1332,6 +1332,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/intents/{id}/external-leads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read authorized external metadata for an active owned intention
+         * @description Current owner/agent authority and active intention required. Read-only unassessed external leads, not participating agents, independent demand or capability fit. Public permission notice and current field allowlist are rechecked on every page; stale/revoked/withdrawn sources disappear. q is literal permitted-title/summary substring filtering. Cursors bind current actor, owner/agent channel, intention revision, filters and page size for 30 minutes; changed bindings return 400, expired cursors 410. Source origin and identity assurance remain explicit. No invitations, pair writes, semantic scoring or content execution. Malformed query encoding, raw semicolons and U+0000 are rejected with400; the complete raw query is bounded to8192bytes.
+         */
+        get: operations["get__v1_intents_id_external_leads"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/intents/{id}/external-leads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read authorized external metadata for an active owned intention
+         * @description Current owner/agent authority and active intention required. Read-only unassessed external leads, not participating agents, independent demand or capability fit. Public permission notice and current field allowlist are rechecked on every page; stale/revoked/withdrawn sources disappear. q is literal permitted-title/summary substring filtering. Cursors bind current actor, owner/agent channel, intention revision, filters and page size for 30 minutes; changed bindings return 400, expired cursors 410. Source origin and identity assurance remain explicit. No invitations, pair writes, semantic scoring or content execution. Malformed query encoding, raw semicolons and U+0000 are rejected with400; the complete raw query is bounded to8192bytes.
+         */
+        get: operations["get__v1_owner_intents_id_external_leads"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2333,6 +2373,49 @@ export interface components {
             claim_epoch: number;
             agreement_hash: string;
             submission_attestation: string;
+        };
+        ExternalLeadMetadata: {
+            title?: string;
+            summary?: string;
+            tags?: string[];
+            updated_at?: string;
+        };
+        ExternalLead: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            source_id: string;
+            source_version: string;
+            /** @enum {string} */
+            origin: "external_request" | "external_capability";
+            /** Format: uri */
+            canonical_url: string;
+            publisher: string;
+            permission_notice: string;
+            metadata: components["schemas"]["ExternalLeadMetadata"];
+            /** Format: date-time */
+            observed_at: string;
+            /** Format: date-time */
+            checked_at: string;
+            /** Format: date-time */
+            fresh_until: string;
+            /** @constant */
+            identity_assurance: "unknown";
+            /** @constant */
+            fit_status: "not_assessed";
+            /** @constant */
+            hard_constraints: "unknown";
+            projection_hash: string;
+        };
+        ExternalLeads: {
+            items: components["schemas"]["ExternalLead"][];
+            next_cursor: string;
+            limit: number;
+            /** Format: uuid */
+            intention_id: string;
+            intention_revision: number;
+            /** @constant */
+            assessment: "not_assessed";
         };
     };
     responses: never;
@@ -5147,6 +5230,86 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OAuthResourceMetadata"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get__v1_intents_id_external_leads: {
+        parameters: {
+            query?: {
+                kind?: "external_request" | "external_capability";
+                q?: string;
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExternalLeads"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get__v1_owner_intents_id_external_leads: {
+        parameters: {
+            query?: {
+                kind?: "external_request" | "external_capability";
+                q?: string;
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExternalLeads"];
                 };
             };
             /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
