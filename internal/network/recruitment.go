@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/riverqueue/river"
@@ -40,7 +41,7 @@ const recruitmentDailyLimit = 5
 const recruitmentScanPageSize = 256
 
 // The day boundary is database UTC, independent of a worker's local timezone.
-const recruitmentDayStartSQL = "date_trunc('day',transaction_timestamp() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'"
+const recruitmentDayStartSQL = "date_trunc('day',emission.at AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'"
 
 type recruitmentRoom struct {
 	id, coordinator string
@@ -102,13 +103,14 @@ func (s *Service) ScanRecruitment(ctx context.Context, swarmID string) error {
 }
 func recruitmentRemaining(ctx context.Context, db interface {
 	QueryRow(context.Context, string, ...any) pgx.Row
-}, swarm, role string) (int, error) {
+}, swarm, role string) (int, time.Time, error) {
 	var count int
-	err := db.QueryRow(ctx, "SELECT count(*) FROM opportunities WHERE kind='builder_recruitment' AND source_swarm_id=$1 AND role_key=$2 AND created_at>="+recruitmentDayStartSQL, swarm, role).Scan(&count)
-	return max(0, recruitmentDailyLimit-count), err
+	var at time.Time
+	err := db.QueryRow(ctx, "WITH emission AS MATERIALIZED (SELECT clock_timestamp() AS at) SELECT (SELECT count(*) FROM opportunities WHERE kind='builder_recruitment' AND source_swarm_id=$1 AND role_key=$2 AND created_at>="+recruitmentDayStartSQL+"),emission.at FROM emission", swarm, role).Scan(&count, &at)
+	return max(0, recruitmentDailyLimit-count), at, err
 }
 func (s *Service) scanRecruitmentRole(ctx context.Context, db *pgx.Conn, room recruitmentRoom, role RecruitmentRole) error {
-	remaining, err := recruitmentRemaining(ctx, db, room.id, role.Key)
+	remaining, _, err := recruitmentRemaining(ctx, db, room.id, role.Key)
 	if err != nil || remaining == 0 {
 		return err
 	}
@@ -193,10 +195,6 @@ func (s *Service) recruitOne(ctx context.Context, db *pgx.Conn, swarm string, ro
 	// guard, never a substitute for current domain authority below.
 	if _, err = tx.Exec(ctx, "SELECT pg_advisory_xact_lock(hashtextextended($1, 702836))", swarm+"/"+role.Key); err != nil {
 		return false, err
-	}
-	remaining, err := recruitmentRemaining(ctx, tx, swarm, role.Key)
-	if err != nil || remaining == 0 {
-		return remaining == 0, err
 	}
 	var coordinator, owner string
 	err = tx.QueryRow(ctx, "SELECT s.coordinator_agent_id::text,a.principal_id::text FROM swarms s JOIN agents a ON a.id=s.coordinator_agent_id WHERE s.id=$1", swarm).Scan(&coordinator, &owner)
@@ -286,10 +284,17 @@ func (s *Service) recruitOne(ctx context.Context, db *pgx.Conn, swarm string, ro
 	if !slices.Contains(roles, role) {
 		return true, nil
 	}
+	// Capture the database clock after all authority waits. Explicitly store
+	// this instant so a transaction crossing midnight consumes its emission
+	// day's budget, rather than its earlier transaction-start day.
+	remaining, emittedAt, err := recruitmentRemaining(ctx, tx, swarm, role.Key)
+	if err != nil || remaining == 0 {
+		return remaining == 0, err
+	}
 	id := NewID()
 	hash := recruitmentInputHash(swarm, role, agent, profile)
 	evidence := map[string]any{"algorithm": "declared-capability-v1", "reason": "declared_schema_capability", "assurance": "self_declared"}
-	tag, err := tx.Exec(ctx, "INSERT INTO opportunities(id,recipient_agent_id,source_swarm_id,role_key,candidate_agent_id,kind,input_hash,evidence) VALUES($1,$2,$3,$4,$2,'builder_recruitment',$5,$6) ON CONFLICT DO NOTHING", id, agent, swarm, role.Key, hash, canonical(evidence))
+	tag, err := tx.Exec(ctx, "INSERT INTO opportunities(id,recipient_agent_id,source_swarm_id,role_key,candidate_agent_id,kind,input_hash,evidence,created_at) VALUES($1,$2,$3,$4,$2,'builder_recruitment',$5,$6,$7) ON CONFLICT DO NOTHING", id, agent, swarm, role.Key, hash, canonical(evidence), emittedAt)
 	if err != nil {
 		return false, err
 	}

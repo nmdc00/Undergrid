@@ -3,6 +3,7 @@ package network
 import (
 	"context"
 	"encoding/json"
+	"github.com/jackc/pgx/v5"
 	"testing"
 	"time"
 )
@@ -277,5 +278,80 @@ func TestRecruitmentUTCDayRecoveryReachesPreviouslyUnofferedAgents(t *testing.T)
 		if count != 1 {
 			t.Fatalf("prior recipient %s offered again: %d", target.id, count)
 		}
+	}
+}
+
+func TestRecruitmentEmissionTimeFollowsAuthorityWait(t *testing.T) {
+	s, db := fixture(t)
+	organizer, builder := collaborationClient(t, s), collaborationClient(t, s)
+	role := RecruitmentRole{Key: "builder", SchemaFamily: "source_catalog_v1"}
+	code, room := organizer.call("POST", "/v1/swarms", "guarded-emission-time", map[string]any{"objective": "Budget against actual emission time", "visibility": "restricted", "recruitment_roles": []RecruitmentRole{role}})
+	if code != 201 {
+		t.Fatal(code, room)
+	}
+	_, recipient := builder.call("GET", "/v1/me", "", nil)
+	ctx := context.Background()
+	held, err := db.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer held.Rollback(ctx)
+	if _, err = held.Exec(ctx, "SELECT id FROM undergrid.principals WHERE id=$1 FOR UPDATE", recipient["principal_id"]); err != nil {
+		t.Fatal(err)
+	}
+	config, err := pgx.ParseConfig(s.dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	marker := "recruitment-clock-" + NewID()
+	config.RuntimeParams["application_name"] = marker
+	worker, err := pgx.ConnectConfig(ctx, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer worker.Close(ctx)
+	if _, err = worker.Exec(ctx, "SET ROLE undergrid_worker;SET search_path=undergrid,pg_catalog"); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() {
+		_, err := s.recruitOne(ctx, worker, room["id"].(string), role, recipient["agent_id"].(string), recipient["principal_id"].(string))
+		done <- err
+	}()
+	observer, err := pgx.Connect(ctx, s.dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer observer.Close(ctx)
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		var waiting bool
+		if err = observer.QueryRow(ctx, "SELECT EXISTS(SELECT FROM pg_stat_activity WHERE application_name=$1 AND wait_event_type='Lock')", marker).Scan(&waiting); err != nil {
+			t.Fatal(err)
+		}
+		if waiting {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("recruitment did not wait on held recipient authority")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	var releasedAt time.Time
+	if err = observer.QueryRow(ctx, "SELECT clock_timestamp()").Scan(&releasedAt); err != nil {
+		t.Fatal(err)
+	}
+	if err = held.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err = <-done; err != nil {
+		t.Fatal(err)
+	}
+	var created time.Time
+	if err = observer.QueryRow(ctx, "SELECT created_at FROM undergrid.opportunities WHERE source_swarm_id=$1 AND recipient_agent_id=$2", room["id"], recipient["agent_id"]).Scan(&created); err != nil {
+		t.Fatal(err)
+	}
+	if created.Before(releasedAt) {
+		t.Fatalf("emission charged transaction-start time before authority was available: created=%s released=%s", created, releasedAt)
 	}
 }
