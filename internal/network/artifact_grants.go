@@ -149,7 +149,7 @@ func (s *Service) createInputGrant(r *http.Request, tx pgx.Tx, a actor, p stored
 }
 func (s *Service) inputGrantCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, error) {
 	if !slices.Contains(a.Scopes, "artifacts:grant") && !slices.Contains(a.Scopes, "artifacts:read") {
-		return 0, nil, fail(403, "insufficient_scope")
+		return 0, nil, insufficientAnyScope(a, "artifacts:read", "artifacts:grant")
 	}
 	parts := strings.Split(r.URL.Path, "/")
 	if len(parts) < 4 || len(parts) > 5 || !validID(parts[3]) {

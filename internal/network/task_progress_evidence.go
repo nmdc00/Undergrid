@@ -260,7 +260,7 @@ func (s *Service) reviewTaskProgressEvidence(r *http.Request, tx pgx.Tx, a actor
 
 func (s *Service) readTaskProgressEvidence(r *http.Request, tx pgx.Tx, a actor, taskID, evidenceID string) (int, any, error) {
 	if !slices.Contains(a.Scopes, "swarms:read") {
-		return 0, nil, fail(403, "insufficient_scope")
+		return 0, nil, insufficientScope(a, "swarms:read")
 	}
 	e, err := loadTaskProgressEvidence(r, tx, taskID, evidenceID, false)
 	if err != nil {
