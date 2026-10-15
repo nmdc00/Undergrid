@@ -5964,6 +5964,216 @@
           }
         }
       }
+    },
+    "/v1/intents/{id}/external-leads": {
+      "get": {
+        "operationId": "get__v1_intents_id_external_leads",
+        "summary": "Read authorized external metadata for an active owned intention",
+        "description": "Current owner/agent authority and active intention required. Read-only unassessed external leads, not participating agents, independent demand or capability fit. Public permission notice and current field allowlist are rechecked on every page; stale/revoked/withdrawn sources disappear. q is literal permitted-title/summary substring filtering. Cursors bind current actor, owner/agent channel, intention revision, filters and page size for 30 minutes; changed bindings return 400, expired cursors 410. Source origin and identity assurance remain explicit. No invitations, pair writes, semantic scoring or content execution. Malformed query encoding, raw semicolons and U+0000 are rejected with400; the complete raw query is bounded to8192bytes.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalLeads"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; status depends on authentication, visibility, validation, quotas and runtime availability.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "NetworkBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "external_request",
+                "external_capability"
+              ]
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "pattern": "^[^\u0000]*$"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 4096
+            }
+          }
+        ]
+      }
+    },
+    "/v1/owner/intents/{id}/external-leads": {
+      "get": {
+        "operationId": "get__v1_owner_intents_id_external_leads",
+        "summary": "Read authorized external metadata for an active owned intention",
+        "description": "Current owner/agent authority and active intention required. Read-only unassessed external leads, not participating agents, independent demand or capability fit. Public permission notice and current field allowlist are rechecked on every page; stale/revoked/withdrawn sources disappear. q is literal permitted-title/summary substring filtering. Cursors bind current actor, owner/agent channel, intention revision, filters and page size for 30 minutes; changed bindings return 400, expired cursors 410. Source origin and identity assurance remain explicit. No invitations, pair writes, semantic scoring or content execution. Malformed query encoding, raw semicolons and U+0000 are rejected with400; the complete raw query is bounded to8192bytes.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalLeads"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; status depends on authentication, visibility, validation, quotas and runtime availability.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OwnerSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "external_request",
+                "external_capability"
+              ]
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "pattern": "^[^\u0000]*$"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 4096
+            }
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -10217,6 +10427,159 @@
           "successor_accepted",
           "current",
           "votes"
+        ],
+        "additionalProperties": false
+      },
+      "ExternalLeadMetadata": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "tags": {
+            "type": "array",
+            "maxItems": 30,
+            "items": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          "updated_at": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        }
+      },
+      "ExternalLead": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "source_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "source_version": {
+            "type": "string"
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "external_request",
+              "external_capability"
+            ]
+          },
+          "canonical_url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "publisher": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "permission_notice": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/ExternalLeadMetadata"
+          },
+          "observed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "checked_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "fresh_until": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "identity_assurance": {
+            "type": "string",
+            "const": "unknown"
+          },
+          "fit_status": {
+            "type": "string",
+            "const": "not_assessed"
+          },
+          "hard_constraints": {
+            "type": "string",
+            "const": "unknown"
+          },
+          "projection_hash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "id",
+          "source_id",
+          "source_version",
+          "origin",
+          "canonical_url",
+          "publisher",
+          "permission_notice",
+          "metadata",
+          "observed_at",
+          "checked_at",
+          "fresh_until",
+          "identity_assurance",
+          "fit_status",
+          "hard_constraints",
+          "projection_hash"
+        ],
+        "additionalProperties": false
+      },
+      "ExternalLeads": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/ExternalLead"
+            }
+          },
+          "next_cursor": {
+            "type": "string",
+            "maxLength": 4096
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50
+          },
+          "intention_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "intention_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "assessment": {
+            "type": "string",
+            "const": "not_assessed"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor",
+          "limit",
+          "intention_id",
+          "intention_revision",
+          "assessment"
         ],
         "additionalProperties": false
       }
