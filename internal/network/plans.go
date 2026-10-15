@@ -186,7 +186,7 @@ func (s *Service) planCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, er
 	}
 	if r.Method == "GET" && len(parts) == 4 {
 		if !slices.Contains(a.Scopes, "swarms:read") {
-			return 0, nil, fail(403, "insufficient_scope")
+			return 0, nil, insufficientScope(a, "swarms:read")
 		}
 		if parts[2] == "tasks" {
 			return taskResult(r.Context(), tx, id, a.PrincipalID)
@@ -212,7 +212,7 @@ func (s *Service) planCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, er
 		return 0, nil, fail(404, "not_found")
 	}
 	if !slices.Contains(a.Scopes, scope) {
-		return 0, nil, fail(403, "insufficient_scope")
+		return 0, nil, insufficientScope(a, scope)
 	}
 	planID := id
 	if parts[2] == "tasks" {
