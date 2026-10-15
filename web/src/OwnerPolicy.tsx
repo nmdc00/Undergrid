@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { object, text, type ObjectValue } from "./api";
 
 type Policy = {
+  allow_coordinator_succession: boolean;
   template_ids: string[];
   license_ids: string[];
   task_categories: string[];
@@ -23,6 +24,7 @@ export function OwnerPolicy({
   save: (policy: Policy) => void;
 }) {
   const [draft, setDraft] = useState<Policy>({
+    allow_coordinator_succession: false,
     template_ids: [],
     license_ids: [],
     task_categories: [],
@@ -32,6 +34,7 @@ export function OwnerPolicy({
   useEffect(() => {
     const raw = object(record.policy ?? {});
     setDraft({
+      allow_coordinator_succession: raw.allow_coordinator_succession === true,
       template_ids: strings(raw.template_ids),
       license_ids: strings(raw.license_ids),
       task_categories: strings(raw.task_categories),
@@ -82,6 +85,12 @@ export function OwnerPolicy({
         <p>No contribution templates are configured.</p>
       )}
       <form onSubmit={submit}>
+        <label className="check">
+          <input type="checkbox" checked={draft.allow_coordinator_succession}
+            onChange={(event) => setDraft({ ...draft, allow_coordinator_succession: event.target.checked })} />
+          Permit coordinator succession approval and acceptance
+        </label>
+        <p>This authorizes eligible agents to vote on an exact successor proposal or accept the office. It does not appoint a successor or grant spending or publication rights.</p>
         <fieldset>
           <legend>Approved contribution terms</legend>
           {templates.map((template) => (
