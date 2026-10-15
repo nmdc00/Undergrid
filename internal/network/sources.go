@@ -138,7 +138,7 @@ func (r *SourceRefresher) RefreshDue(ctx context.Context) error {
 		return err
 	}
 	defer tx.Rollback(ctx)
-	if _, err = tx.Exec(ctx, `UPDATE undergrid.external_sources SET last_success=NULL,next_refresh=now(),validators='{}' WHERE NOT(id=ANY($1::uuid[]))`, ids); err != nil {
+	if _, err = tx.Exec(ctx, `UPDATE undergrid.external_sources SET config=config||'{"_retired":true}'::jsonb,last_success=NULL,next_refresh=now(),validators='{}' WHERE NOT(id=ANY($1::uuid[]))`, ids); err != nil {
 		return err
 	}
 	if _, err = tx.Exec(ctx, `UPDATE undergrid.external_observations SET status='taken_down',metadata='{}' WHERE NOT(source_id=ANY($1::uuid[]))`, ids); err != nil {
@@ -158,21 +158,8 @@ func (r *SourceRefresher) RefreshDue(ctx context.Context) error {
 	}
 	var first error
 	for _, c := range r.configs {
-		if e = r.refresh(ctx, db, c); e != nil {
-			delay := time.Minute
-			var rate *sourceHTTPError
-			if errors.As(e, &rate) && rate.retry > delay {
-				delay = rate.retry
-			}
-			if delay > 24*time.Hour {
-				delay = 24 * time.Hour
-			}
-			if _, scheduleErr := db.Exec(ctx, `UPDATE undergrid.external_sources SET next_refresh=now()+($2::bigint*interval '1 second'),last_error='refresh_failed' WHERE id=$1`, c.ID, int64(delay/time.Second)); scheduleErr != nil && first == nil {
-				first = scheduleErr
-			}
-			if first == nil {
-				first = e
-			}
+		if e = r.refresh(ctx, db, c); e != nil && first == nil {
+			first = e
 		}
 	}
 	return first
@@ -183,102 +170,84 @@ type sourceItem struct {
 	metadata                        map[string]any
 }
 
+type sourceSnapshot struct {
+	items      []sourceItem
+	validators map[string]string
+	unchanged  bool
+}
+
 func (r *SourceRefresher) refresh(ctx context.Context, db *pgx.Conn, c SourceConfig) error {
 	ctx, cancel := context.WithTimeout(ctx, 45*time.Second)
 	defer cancel()
+	// This worker-only session guard deduplicates fetches without an open DB
+	// transaction. Approval edits/removal remain free to commit during I/O.
+	guard := "undergrid-source-refresh:" + c.ID
+	var acquired bool
+	if err := db.QueryRow(ctx, "SELECT pg_try_advisory_lock(hashtextextended($1,0))", guard).Scan(&acquired); err != nil {
+		return err
+	}
+	if !acquired {
+		return nil
+	}
+	defer func() {
+		cleanup, done := context.WithTimeout(context.Background(), 5*time.Second)
+		defer done()
+		db.Exec(cleanup, "SELECT pg_advisory_unlock(hashtextextended($1,0))", guard)
+	}()
+	rawConfig, _ := json.Marshal(c)
+	var due bool
+	var validatorsRaw []byte
+	var expectedRefresh time.Time
+	e := db.QueryRow(ctx, `SELECT next_refresh<=now(),validators,next_refresh FROM undergrid.external_sources WHERE id=$1 AND config=$2::jsonb`, c.ID, rawConfig).Scan(&due, &validatorsRaw, &expectedRefresh)
+	if errors.Is(e, pgx.ErrNoRows) {
+		return nil
+	}
+	if e != nil {
+		return e
+	}
+	if !due {
+		return nil
+	}
+	validators := map[string]string{}
+	if e = json.Unmarshal(validatorsRaw, &validators); e != nil {
+		return e
+	}
+	snapshot, e := r.fetchSnapshot(ctx, c, validators)
+	if e != nil {
+		delay := time.Minute
+		var rate *sourceHTTPError
+		if errors.As(e, &rate) && rate.retry > delay {
+			delay = rate.retry
+		}
+		if delay > 24*time.Hour {
+			delay = 24 * time.Hour
+		}
+		_, scheduleErr := db.Exec(ctx, `UPDATE undergrid.external_sources SET next_refresh=now()+($2::bigint*interval '1 second'),last_error='refresh_failed' WHERE id=$1 AND config=$3::jsonb AND next_refresh=$4`, c.ID, int64(delay/time.Second), rawConfig, expectedRefresh)
+		return errors.Join(e, scheduleErr)
+	}
+	// Only applying a fully fetched snapshot opens a transaction. Reauthorize
+	// against the still-current approval and schedule; stale responses are discarded.
 	tx, e := db.Begin(ctx)
 	if e != nil {
 		return e
 	}
 	defer tx.Rollback(ctx)
-	var due bool
-	var validatorsRaw []byte
-	if e = tx.QueryRow(ctx, `SELECT next_refresh<=now(),validators FROM undergrid.external_sources WHERE id=$1 FOR UPDATE`, c.ID).Scan(&due, &validatorsRaw); e != nil {
+	var current bool
+	e = tx.QueryRow(ctx, `SELECT config=$2::jsonb AND next_refresh=$3 AND next_refresh<=now() FROM undergrid.external_sources WHERE id=$1 FOR UPDATE`, c.ID, rawConfig, expectedRefresh).Scan(&current)
+	if errors.Is(e, pgx.ErrNoRows) {
+		return nil
+	}
+	if e != nil {
 		return e
 	}
-	if !due {
-		return tx.Commit(ctx)
+	if !current {
+		return nil
 	}
-	// Per-source row lock serializes processes. Bounded I/O prevents unbounded locks;
-	// failed pages roll back the whole snapshot, retaining the previous good check.
-	validators := map[string]string{}
-	json.Unmarshal(validatorsRaw, &validators)
-	nextValidators := map[string]string{}
-	items := []sourceItem{}
-	unchanged := false
-	for page := 1; page <= 10; page++ {
-		u, _ := url.Parse(c.Endpoint)
-		q := u.Query()
-		if c.Kind == "github_requests" {
-			q.Set("state", "all")
-			q.Set("labels", strings.Join(c.Labels, ","))
-			q.Set("per_page", "100")
-			q.Set("page", strconv.Itoa(page))
-		} else if page > 1 {
-			q.Set("page", strconv.Itoa(page))
-		}
-		u.RawQuery = q.Encode()
-		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
-		req.Header.Set("Accept", "application/json")
-		req.Header.Set("User-Agent", "Undergrid-permissioned-source/0.1")
-		req.Header.Set("If-None-Match", validators[strconv.Itoa(page)])
-		resp, err := r.client.Do(req)
-		if err != nil {
-			return err
-		}
-		body, err := io.ReadAll(io.LimitReader(resp.Body, 1024*1024+1))
-		resp.Body.Close()
-		if err != nil {
-			return err
-		}
-		if len(body) > 1024*1024 {
-			return errors.New("source page exceeds budget")
-		}
-		if resp.StatusCode == 304 && page == 1 && validators["1"] != "" {
-			unchanged = true
-			nextValidators = validators
-			break
-		}
-		if resp.StatusCode != 200 {
-			delay := time.Minute
-			if seconds, err := strconv.ParseInt(resp.Header.Get("Retry-After"), 10, 64); err == nil && seconds > 0 && seconds <= 86400 {
-				delay = time.Duration(seconds) * time.Second
-			} else if when, err := http.ParseTime(resp.Header.Get("Retry-After")); err == nil && time.Until(when) > delay {
-				delay = time.Until(when)
-			}
-			if reset, err := strconv.ParseInt(resp.Header.Get("X-RateLimit-Reset"), 10, 64); err == nil && resp.Header.Get("X-RateLimit-Remaining") == "0" && time.Until(time.Unix(reset, 0)) > delay {
-				delay = time.Until(time.Unix(reset, 0))
-			}
-			return &sourceHTTPError{status: resp.StatusCode, retry: delay}
-		}
-		nextValidators[strconv.Itoa(page)] = resp.Header.Get("ETag")
-		parsed, more, err := parseSourcePage(c, body, page)
-		if err != nil {
-			return err
-		}
-		for _, newItem := range parsed {
-			for _, oldItem := range items {
-				if oldItem.key == newItem.key {
-					return errors.New("duplicate source key across pages")
-				}
-			}
-		}
-		items = append(items, parsed...)
-		if len(items) > 1000 {
-			return errors.New("source item budget exceeded")
-		}
-		if !more {
-			break
-		}
-		if page == 10 {
-			return errors.New("source pagination budget exhausted")
-		}
-	}
-	if unchanged {
+	if snapshot.unchanged {
 		_, e = tx.Exec(ctx, `UPDATE undergrid.external_observations SET checked_at=now() WHERE source_id=$1 AND status IN ('active','closed')`, c.ID)
 	} else {
 		_, e = tx.Exec(ctx, `UPDATE undergrid.external_observations SET status='deleted',metadata='{}' WHERE source_id=$1`, c.ID)
-		for _, item := range items {
+		for _, item := range snapshot.items {
 			if e != nil {
 				return e
 			}
@@ -301,15 +270,91 @@ func (r *SourceRefresher) refresh(ctx context.Context, db *pgx.Conn, c SourceCon
 	}
 	// A first-page validator cannot prove later pages unchanged. Only retain
 	// conditional validators for single-page snapshots.
-	if len(nextValidators) > 1 {
-		nextValidators = map[string]string{}
+	if len(snapshot.validators) > 1 {
+		snapshot.validators = map[string]string{}
 	}
-	v, _ := json.Marshal(nextValidators)
+	v, _ := json.Marshal(snapshot.validators)
 	if _, e = tx.Exec(ctx, `UPDATE undergrid.external_sources SET validators=$2,last_success=now(),next_refresh=now()+interval '6 hours',last_error=NULL WHERE id=$1`, c.ID, v); e != nil {
 		return e
 	}
 	return tx.Commit(ctx)
 }
+
+func (r *SourceRefresher) fetchSnapshot(ctx context.Context, c SourceConfig, validators map[string]string) (sourceSnapshot, error) {
+	nextValidators := map[string]string{}
+	items := []sourceItem{}
+	unchanged := false
+	for page := 1; page <= 10; page++ {
+		u, _ := url.Parse(c.Endpoint)
+		q := u.Query()
+		if c.Kind == "github_requests" {
+			q.Set("state", "all")
+			q.Set("labels", strings.Join(c.Labels, ","))
+			q.Set("per_page", "100")
+			q.Set("page", strconv.Itoa(page))
+		} else if page > 1 {
+			q.Set("page", strconv.Itoa(page))
+		}
+		u.RawQuery = q.Encode()
+		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+		req.Header.Set("Accept", "application/json")
+		req.Header.Set("User-Agent", "Undergrid-permissioned-source/0.1")
+		req.Header.Set("If-None-Match", validators[strconv.Itoa(page)])
+		resp, err := r.client.Do(req)
+		if err != nil {
+			return sourceSnapshot{}, err
+		}
+		body, err := io.ReadAll(io.LimitReader(resp.Body, 1024*1024+1))
+		resp.Body.Close()
+		if err != nil {
+			return sourceSnapshot{}, err
+		}
+		if len(body) > 1024*1024 {
+			return sourceSnapshot{}, errors.New("source page exceeds budget")
+		}
+		if resp.StatusCode == 304 && page == 1 && validators["1"] != "" {
+			unchanged = true
+			nextValidators = validators
+			break
+		}
+		if resp.StatusCode != 200 {
+			delay := time.Minute
+			if seconds, err := strconv.ParseInt(resp.Header.Get("Retry-After"), 10, 64); err == nil && seconds > 0 && seconds <= 86400 {
+				delay = time.Duration(seconds) * time.Second
+			} else if when, err := http.ParseTime(resp.Header.Get("Retry-After")); err == nil && time.Until(when) > delay {
+				delay = time.Until(when)
+			}
+			if reset, err := strconv.ParseInt(resp.Header.Get("X-RateLimit-Reset"), 10, 64); err == nil && resp.Header.Get("X-RateLimit-Remaining") == "0" && time.Until(time.Unix(reset, 0)) > delay {
+				delay = time.Until(time.Unix(reset, 0))
+			}
+			return sourceSnapshot{}, &sourceHTTPError{status: resp.StatusCode, retry: delay}
+		}
+		nextValidators[strconv.Itoa(page)] = resp.Header.Get("ETag")
+		parsed, more, err := parseSourcePage(c, body, page)
+		if err != nil {
+			return sourceSnapshot{}, err
+		}
+		for _, newItem := range parsed {
+			for _, oldItem := range items {
+				if oldItem.key == newItem.key {
+					return sourceSnapshot{}, errors.New("duplicate source key across pages")
+				}
+			}
+		}
+		items = append(items, parsed...)
+		if len(items) > 1000 {
+			return sourceSnapshot{}, errors.New("source item budget exceeded")
+		}
+		if !more {
+			break
+		}
+		if page == 10 {
+			return sourceSnapshot{}, errors.New("source pagination budget exhausted")
+		}
+	}
+	return sourceSnapshot{items: items, validators: nextValidators, unchanged: unchanged}, nil
+}
+
 func parseSourcePage(c SourceConfig, body []byte, page int) ([]sourceItem, bool, error) {
 	var raw []map[string]json.RawMessage
 	more := false
@@ -343,6 +388,7 @@ func parseSourcePage(c SourceConfig, body []byte, page int) ([]sourceItem, bool,
 	for _, m := range raw {
 		str := func(key string) string { var s string; json.Unmarshal(m[key], &s); return s }
 		key, canonical, version, status := str("id"), str("url"), str("version"), str("status")
+		var issueTags []string
 		if c.Kind == "github_requests" {
 			if _, pr := m["pull_request"]; pr {
 				continue
@@ -362,6 +408,7 @@ func parseSourcePage(c SourceConfig, body []byte, page int) ([]sourceItem, bool,
 			}
 			ok := false
 			for _, l := range labels {
+				issueTags = append(issueTags, l.Name)
 				for _, wanted := range c.Labels {
 					if l.Name == wanted {
 						ok = true
@@ -398,23 +445,26 @@ func parseSourcePage(c SourceConfig, body []byte, page int) ([]sourceItem, bool,
 					continue
 				}
 				if field == "tags" {
-					var tags []string
-					if c.Kind == "github_requests" {
-						continue
-					}
-					if len(m[field]) > 0 {
-						if e = json.Unmarshal(m[field], &tags); e != nil || len(tags) > 30 {
+					tags := issueTags
+					if c.Kind != "github_requests" && len(m[field]) > 0 {
+						if e = json.Unmarshal(m[field], &tags); e != nil {
 							return nil, false, errors.New("invalid source tags")
 						}
-						for _, tag := range tags {
-							if len(tag) > 100 {
-								return nil, false, errors.New("source tag exceeds budget")
-							}
+					}
+					if len(tags) > 30 {
+						return nil, false, errors.New("invalid source tag count")
+					}
+					for _, tag := range tags {
+						if len(tag) > 100 {
+							return nil, false, errors.New("source tag exceeds budget")
 						}
+					}
+					if tags != nil {
 						metadata[field] = tags
 					}
 					continue
 				}
+
 				value := str(field)
 				if len(value) > 2000 {
 					return nil, false, errors.New("source field exceeds budget")

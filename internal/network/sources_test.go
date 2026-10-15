@@ -37,9 +37,18 @@ func TestSourceWorkerRejectsUnreviewedConfiguration(t *testing.T) {
 func TestSourceRefreshPermittedLifecycle(t *testing.T) {
 	_, db := fixture(t)
 	var requests atomic.Int64
+	var fetchWithOpenTransaction atomic.Bool
 	var phase atomic.Int64
 	publisher := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requests.Add(1)
+		var transactions int
+		err := db.QueryRow(r.Context(), `SELECT count(DISTINCT a.pid) FROM pg_stat_activity a JOIN pg_locks l ON l.pid=a.pid JOIN pg_class c ON c.oid=l.relation JOIN pg_namespace n ON n.oid=c.relnamespace WHERE a.datname=current_database() AND a.state='idle in transaction' AND l.granted AND n.nspname='undergrid' AND c.relname='external_sources'`).Scan(&transactions)
+		if err != nil {
+			t.Error("inspect source transaction during publisher request", err)
+		}
+		if transactions > 0 {
+			fetchWithOpenTransaction.Store(true)
+		}
 		if r.URL.Path != "/capabilities" {
 			t.Errorf("fetched unapproved path %s", r.URL)
 			http.Error(w, "no", 404)
@@ -74,6 +83,9 @@ func TestSourceRefreshPermittedLifecycle(t *testing.T) {
 	r.client = &http.Client{Transport: transport, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	if err = r.RefreshDue(context.Background()); err != nil {
 		t.Fatal(err)
+	}
+	if fetchWithOpenTransaction.Load() {
+		t.Fatal("source fetch held a database transaction during external HTTP")
 	}
 	var metadata string
 	var status string
@@ -115,11 +127,15 @@ func forceSourceDue(t *testing.T, db *pgx.Conn, id string) {
 }
 
 func TestSourceGitHubRequestFilteringAndFieldAllowlist(t *testing.T) {
-	cfg := SourceConfig{Endpoint: "https://api.github.com/repos/example/project/issues", Kind: "github_requests", Labels: []string{"request"}, Fields: []string{"canonical_url", "title", "updated_at"}}
+	cfg := SourceConfig{Endpoint: "https://api.github.com/repos/example/project/issues", Kind: "github_requests", Labels: []string{"request"}, Fields: []string{"canonical_url", "title", "updated_at", "tags"}}
 	page := []byte(`[{"id":101,"html_url":"https://github.com/example/project/issues/1","title":"Wanted JSON export","updated_at":"2026-10-15T10:00:00Z","state":"open","labels":[{"name":"request"}],"body":"do not copy","user":{"email":"private@example.com"}},{"id":102,"html_url":"https://github.com/example/project/pull/2","title":"A pull request","updated_at":"2026-10-15T10:00:00Z","state":"open","labels":[{"name":"request"}],"pull_request":{}},{"id":103,"html_url":"https://github.com/example/project/issues/3","title":"Wrong label","updated_at":"2026-10-15T10:00:00Z","state":"open","labels":[{"name":"bug"}]}]`)
 	items, more, err := parseSourcePage(cfg, page, 1)
 	if err != nil || more || len(items) != 1 || items[0].key != "101" {
 		t.Fatalf("filtered GitHub result %v %v %v", items, more, err)
+	}
+	tags, ok := items[0].metadata["tags"].([]string)
+	if !ok || len(tags) != 1 || tags[0] != "request" {
+		t.Fatal("approved structural issue labels missing")
 	}
 	raw, _ := json.Marshal(items[0].metadata)
 	if strings.Contains(string(raw), "copy") || strings.Contains(string(raw), "email") {
@@ -309,9 +325,11 @@ func TestSourceRateLimitAndRedirectFailClosed(t *testing.T) {
 	_, db := fixture(t)
 	var phase atomic.Int64
 	var redirected atomic.Int64
+	var requests atomic.Int64
 	target := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { redirected.Add(1) }))
 	defer target.Close()
 	publisher := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
 		if phase.Load() == 0 {
 			w.Header().Set("Retry-After", "3600")
 			w.WriteHeader(429)
@@ -344,6 +362,9 @@ func TestSourceRateLimitAndRedirectFailClosed(t *testing.T) {
 	forceSourceDue(t, db, cfg.ID)
 	if err = refresher.RefreshDue(context.Background()); err == nil {
 		t.Fatal("redirect treated as successful check")
+	}
+	if requests.Load() != 2 {
+		t.Fatalf("followed source redirect through transport: %d requests", requests.Load())
 	}
 	if redirected.Load() != 0 {
 		t.Fatal("followed source redirect")
@@ -427,6 +448,16 @@ func TestSourceRefreshUsesRestrictedWorkerLogin(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	actualConnection, err := pgx.Connect(ctx, refresher.dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var actualLogin string
+	err = actualConnection.QueryRow(ctx, "SELECT session_user").Scan(&actualLogin)
+	actualConnection.Close(ctx)
+	if err != nil || actualLogin != role {
+		t.Fatalf("refresher does not use restricted login: got=%s expected=%s err=%v", actualLogin, role, err)
+	}
 	transport := publisher.Client().Transport.(*http.Transport).Clone()
 	address := strings.TrimPrefix(publisher.URL, "https://")
 	transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
@@ -487,4 +518,92 @@ func TestSourceWorkerLoadsConfiguredApprovalFile(t *testing.T) {
 	}
 	// .invalid is deliberately unresolvable: this proves startup/job wiring,
 	// not a successful publisher/provider qualification.
+}
+
+func TestSourceFetchDoesNotBlockRevocationOrDuplicateConcurrentRequests(t *testing.T) {
+	_, db := fixture(t)
+	cfg := SourceConfig{ID: NewID(), Kind: "capability_manifest", Endpoint: "https://publisher.example/feed", Publisher: "fixture", AccessBasis: "fixture access", RepublicationBasis: "fixture metadata", TombstoneBasis: "fixture provenance", Fields: []string{"title"}}
+	entered, release := make(chan struct{}), make(chan struct{})
+	var requests atomic.Int64
+	var released atomic.Bool
+	unblock := func() {
+		if released.CompareAndSwap(false, true) {
+			close(release)
+		}
+	}
+	defer unblock()
+	publisher := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if requests.Add(1) == 1 {
+			close(entered)
+		}
+		select {
+		case <-release:
+		case <-r.Context().Done():
+			return
+		}
+		io.WriteString(w, `{"items":[{"id":"pending","version":"1","url":"https://publisher.example/tool","title":"Obsolete response","status":"active"}],"next_page":0}`)
+	}))
+	defer publisher.Close()
+	refresher, err := NewSourceRefresher(db.Config().ConnString(), []SourceConfig{cfg})
+	if err != nil {
+		t.Fatal(err)
+	}
+	transport := publisher.Client().Transport.(*http.Transport).Clone()
+	address := strings.TrimPrefix(publisher.URL, "https://")
+	transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, network, address)
+	}
+	transport.TLSClientConfig.InsecureSkipVerify = true
+	refresher.client.Transport = transport
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- refresher.RefreshDue(ctx) }()
+	select {
+	case <-entered:
+	case <-ctx.Done():
+		t.Fatal("publisher fetch never started")
+	}
+	// A concurrent worker may register unchanged approval, but must not fetch twice.
+	contender, err := NewSourceRefresher(db.Config().ConnString(), []SourceConfig{cfg})
+	if err != nil {
+		t.Fatal(err)
+	}
+	contender.client = refresher.client
+	short, stop := context.WithTimeout(ctx, 2*time.Second)
+	err = contender.RefreshDue(short)
+	stop()
+	if err != nil {
+		t.Fatal("concurrent same-source fetch did not skip promptly", err)
+	}
+	if requests.Load() != 1 {
+		t.Fatal("concurrent workers duplicated publisher requests")
+	}
+	// Revocation must commit while the original HTTP response is still pending.
+	revoker, err := NewSourceRefresher(db.Config().ConnString(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	short, stop = context.WithTimeout(ctx, 2*time.Second)
+	err = revoker.RefreshDue(short)
+	stop()
+	if err != nil {
+		t.Fatal("external HTTP blocked approval revocation", err)
+	}
+	unblock()
+	select {
+	case err = <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-ctx.Done():
+		t.Fatal("obsolete fetch did not finish")
+	}
+	var rows, eligible int
+	if err = db.QueryRow(ctx, `SELECT (SELECT count(*) FROM undergrid.external_observations WHERE source_id=$1),(SELECT count(*) FROM undergrid.eligible_external_observations WHERE source_id=$1)`, cfg.ID).Scan(&rows, &eligible); err != nil {
+		t.Fatal(err)
+	}
+	if rows != 0 || eligible != 0 {
+		t.Fatalf("in-flight fetch resurrected revoked approval: rows=%d eligible=%d", rows, eligible)
+	}
 }
