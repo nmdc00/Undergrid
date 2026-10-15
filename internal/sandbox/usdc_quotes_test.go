@@ -40,6 +40,10 @@ func TestUSDCQuoteSignedSnapshotAndRebinding(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	configured, err = configured.WithUSDCTokenDomain(USDCTokenDomain{Name: "USDC", Version: "2"})
+	if err != nil {
+		t.Fatal(err)
+	}
 	f.store = configured
 	q := Quote{Product: "usdc", Asset: "USDC", Rail: "x402_test", Amount: "1000000", Fee: "100", Payee: "0x0000000000000000000000000000000000000001", TermsID: "test", TermsHash: hash([]byte("test"))}
 	f.handler = mustWalletHandler(t, configured, func(r *http.Request) (Owner, error) {
@@ -173,7 +177,17 @@ func TestUSDCQuoteSignedSnapshotAndRebinding(t *testing.T) {
 	if _, err = f.store.Authorize(context.Background(), f.token, p.ID, p.Hash, "auth-first"); err != nil {
 		t.Fatal(err)
 	}
+	payerKey, _ := walletTestKey(t, 7)
+	command := payerCommandFor(t, p, payerKey)
+	receipt := f.call(t, "", http.MethodPost, "/v1/payments/"+p.ID+"/wallet-authorization", "payer-proof", command, f.token)
+	if receipt.Code != 200 {
+		t.Fatalf("payerproof %d %s", receipt.Code, receipt.Body.String())
+	}
 	worker, err := New(f.store.dsn).WithUSDCVerification(map[string]ed25519.PublicKey{"fixture-1": pub})
+	if err != nil {
+		t.Fatal(err)
+	}
+	worker, err = worker.WithUSDCTokenDomain(USDCTokenDomain{Name: "USDC", Version: "2"})
 	if err != nil {
 		t.Fatal(err)
 	}

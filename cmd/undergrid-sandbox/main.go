@@ -100,6 +100,10 @@ func run() error {
 		if e != nil {
 			return errors.New("explicit trusted USDC signing configuration required")
 		}
+		store, e = store.WithUSDCTokenDomain(sandbox.USDCTokenDomain{Name: os.Getenv("UNDERGRID_SANDBOX_USDC_TOKEN_NAME"), Version: os.Getenv("UNDERGRID_SANDBOX_USDC_TOKEN_VERSION")})
+		if e != nil {
+			return errors.New("explicit trusted USDC token domain required")
+		}
 		store, e = store.WithUSDCSigning(config)
 		if e != nil {
 			return e
