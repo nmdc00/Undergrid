@@ -29,6 +29,8 @@ Source `fb936c7` passed the combined MCP, executable route, OAuth, owner issuanc
 
 Final reconciliation source `907e656581dc2ef47e7968e6f244af6732837213` includes the reviewed financial payer authorization release, preserving separate financial008 SHA256 `5fe8b8871772fa9d0a99ccd4ae61c4ca2187b5ddf8ab1e2a0acb207695f0cfe4`. Its financial010 checksum is `d69263db35b188aa92bd749da473c315ae13ad65931a7fcad34b2cfcc45902a4`; no financial database or payment execution was used by MCP. Final focused reconciliation passed on that exact source: network65.574s and command7.041s, including the real namespace boundary, sealed executable checks and fail-closed verifier configuration. Vet and all-command build also passed on that source.
 
+Owner-command recovery PR48 was subsequently reconciled at `f1c95c5`. The retained55483 cluster was stopped after a host interruption; an initial verification correctly failed to connect, and is not behavioral red/green evidence. Starting the same original PGDATA completed PostgreSQL crash recovery without editing SQL, replaying a migration or resetting the ledger. Current role inspection confirmed `undergrid_mcp_api_runner` remains NOSUPERUSER/NOBYPASSRLS and owns zero tables. The integrated MCP/OAuth/owner-command-recovery/executable/dependency race selector passed on that exact source: network107.361s, command8.613s. Vet, command build and diff checks also passed on the reconciled source.
+
 ## Database and checks
 
 A whole fresh PostgreSQL16 cluster was initialized at `/tmp/undergrid-pg-mcp-55483`, port55483, database `postgres`, UTF8/C/C. Unmodified application Migrate applied raw network001–021 and River readiness:22 ledger rows. No SQL migration was changed, skipped, replayed or ledger-edited. Subsequent runs preserved that fixture. The distinct `undergrid_mcp_api_runner` login is verified NOSUPERUSER/NOBYPASSRLS and owns no network tables; all final MCP HTTP/SDK scenarios actually use it. Underlying app/worker roles remain NOLOGIN/NOSUPERUSER/NOBYPASSRLS. Migration/admin identity is separate from runtime identity in the fixture. This is network-only proof, not production identity/deployment or independent beneficial-owner evidence.
@@ -41,7 +43,7 @@ Final selector:
 GOCACHE=/tmp/undergrid-gocache GOMODCACHE=/tmp/undergrid-gomod \
 UNDERGRID_TEST_DATABASE_URL='host=/tmp/undergrid-pg-mcp-55483 port=55483 user=nmcdc dbname=postgres' \
 /tmp/undergrid-toolchain/go/bin/go test -race ./internal/network ./cmd/undergrid \
--run '^TestMCP|^TestExecutableRoutes|^TestBubblewrapProcessBoundaryWithoutQualification$|^TestVerifierAndLauncherBytesAreSealedBeforeExecution$|^TestSealedVerifierExecutesAndReportsItsCopiedBinaryHash$|^TestIsolatedVerifierConfigurationFailsClosedWithoutDelegatedCgroups$' \
+-run '^TestMCP|^TestOAuth|^TestOwnerPolicyCommand|^TestOwnerRevocationPersists|^TestOwnerPolicyConcurrent|^TestExecutableRoutes|^TestBubblewrapProcessBoundaryWithoutQualification$|^TestVerifierAndLauncherBytesAreSealedBeforeExecution$|^TestSealedVerifierExecutesAndReportsItsCopiedBinaryHash$|^TestIsolatedVerifierConfigurationFailsClosedWithoutDelegatedCgroups$' \
 -count=1 -timeout=10m
 ```
 
