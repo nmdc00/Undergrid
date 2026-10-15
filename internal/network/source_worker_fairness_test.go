@@ -67,8 +67,13 @@ func TestSourceWorkerSlowSourceDoesNotBlockHealthySource(t *testing.T) {
 	defer pool.Close()
 	workers := river.NewWorkers()
 	river.AddWorker(workers, &sourceRefreshWorker{refresher: refresher})
-	queue, err := river.NewClient(riverpgxv5.New(pool), &river.Config{Schema: "undergrid_queue", Workers: workers, Queues: map[string]river.QueueConfig{river.QueueDefault: {MaxWorkers: 2}, sourceRefreshQueue: {MaxWorkers: 2, FetchCooldown: 10 * time.Millisecond, FetchPollInterval: 10 * time.Millisecond}}, SoftStopTimeout: time.Second})
+	queue, err := river.NewClient(riverpgxv5.New(pool), &river.Config{Schema: "undergrid_queue", Workers: workers, Queues: map[string]river.QueueConfig{sourceRefreshQueue: {MaxWorkers: 2, FetchCooldown: 10 * time.Millisecond, FetchPollInterval: 10 * time.Millisecond}}, SoftStopTimeout: time.Second})
 	if err != nil {
+		t.Fatal(err)
+	}
+	// A partial-registry fixture must never consume unrelated retained jobs.
+	var sentinelID int64
+	if err = db.QueryRow(context.Background(), `INSERT INTO undergrid_queue.river_job(kind,args,queue,priority,max_attempts,state,scheduled_at) VALUES($1,'{}','default',1,5,'available',now()) RETURNING id`, (deadlineArgs{}).Kind()).Scan(&sentinelID); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -84,7 +89,7 @@ func TestSourceWorkerSlowSourceDoesNotBlockHealthySource(t *testing.T) {
 			t.Error(err)
 		}
 	}()
-	if _, err = queue.Insert(ctx, sourceRefreshArgs{}, nil); err != nil {
+	if _, err = queue.Insert(ctx, sourceRefreshArgs{}, &river.InsertOpts{Queue: sourceRefreshQueue, Priority: 1}); err != nil {
 		t.Fatal(err)
 	}
 	select {
@@ -99,6 +104,14 @@ func TestSourceWorkerSlowSourceDoesNotBlockHealthySource(t *testing.T) {
 			t.Fatal(err)
 		}
 		if count == 1 {
+			var state string
+			var attempts int
+			if err = db.QueryRow(ctx, `SELECT state,attempt FROM undergrid_queue.river_job WHERE id=$1`, sentinelID).Scan(&state, &attempts); err != nil {
+				t.Fatal(err)
+			}
+			if state != "available" || attempts != 0 {
+				t.Fatalf("source-only fixture consumed unrelated default job: state=%s attempts=%d", state, attempts)
+			}
 			return
 		}
 		time.Sleep(20 * time.Millisecond)
