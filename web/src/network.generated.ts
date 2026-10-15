@@ -1525,7 +1525,7 @@ export interface components {
         };
         IntentMutation: {
             /** @enum {string} */
-            state?: "paused" | "active" | "withdrawn";
+            state?: "paused" | "active" | "withdrawn" | "satisfied";
             revision?: components["schemas"]["IntentInput"];
         } & (unknown | unknown);
         IntentMutationResult: {

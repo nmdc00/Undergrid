@@ -112,7 +112,7 @@ func mutateIntentOnce(r *http.Request, tx pgx.Tx, a actor, environment string) (
 			if err = decodeIntentJSON(mutation.State, &state); err != nil {
 				return 0, nil, err
 			}
-			if state != "paused" && state != "active" && state != "withdrawn" {
+			if state != "paused" && state != "active" && state != "withdrawn" && state != "satisfied" {
 				return 0, nil, fail(422, "invalid_state")
 			}
 		}
@@ -131,7 +131,7 @@ func mutateIntentOnce(r *http.Request, tx pgx.Tx, a actor, environment string) (
 		if r.Header.Get("If-Match") != etag(version) {
 			return 0, nil, fail(409, "version_conflict")
 		}
-		if previous == "withdrawn" {
+		if previous == "withdrawn" || previous == "satisfied" {
 			return 0, nil, fail(409, "terminal_intent")
 		}
 		if hasState {

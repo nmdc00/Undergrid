@@ -8,8 +8,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
-	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -27,23 +25,7 @@ func mcpFixture(t *testing.T) (*Service, *pgx.Conn) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg, err := pgx.ParseConfig(s.dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	u := url.URL{Scheme: "postgres", User: url.User("undergrid_mcp_api_runner"), Path: "/" + cfg.Database, RawQuery: url.Values{"host": {cfg.Host}, "port": {strconv.Itoa(int(cfg.Port))}, "sslmode": {"disable"}}.Encode()}
-	s.dsn = u.String()
-	check, err := pgx.Connect(context.Background(), s.dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer check.Close(context.Background())
-	var unsafe bool
-	var name string
-	err = check.QueryRow(context.Background(), `SELECT session_user,rolsuper OR rolbypassrls OR EXISTS(SELECT 1 FROM pg_tables WHERE schemaname='undergrid' AND tableowner=session_user) FROM pg_roles WHERE rolname=session_user`).Scan(&name, &unsafe)
-	if err != nil || unsafe || name != "undergrid_mcp_api_runner" {
-		t.Fatalf("unsafe MCP runtime login %s %v %v", name, unsafe, err)
-	}
+	s.dsn = networkFixtureRoleDSN(t, db, "undergrid_mcp_api_runner")
 	return s, db
 }
 

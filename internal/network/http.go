@@ -19,6 +19,7 @@ import (
 
 type OwnerAuthenticator func(*http.Request) (Owner, error)
 type Service struct {
+	a2a                *networkA2A
 	mcpHandler         http.Handler
 	mcpOrigin          string
 	dsn, environment   string
@@ -93,6 +94,14 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
+	if r.URL.Path == "/.well-known/agent-card.json" || r.URL.Path == "/a2a" || strings.HasPrefix(r.URL.Path, "/a2a/") {
+		if s.a2a == nil {
+			writeA2AProtocolError(w, a2aUnavailable())
+			return
+		}
+		s.a2a.serve(w, r)
+		return
+	}
 	if r.URL.Path == "/mcp" {
 		s.serveMCP(w, r)
 		return
@@ -208,19 +217,13 @@ func (s *Service) writeProblem(w http.ResponseWriter, err error) {
 }
 func (s *Service) execute(r *http.Request) (int, any, error) {
 	ctx := r.Context()
-	db, err := pgx.Connect(ctx, s.dsn)
+	db, tx, err := s.beginNetworkTransaction(ctx)
 	if err != nil {
 		return 0, nil, err
 	}
 	defer db.Close(ctx)
-	tx, err := db.Begin(ctx)
-	if err != nil {
-		return 0, nil, err
-	}
 	defer tx.Rollback(ctx)
-	if _, err = tx.Exec(ctx, "SET LOCAL ROLE undergrid_app; SET LOCAL search_path=undergrid,pg_catalog; SET LOCAL statement_timeout='5s'"); err != nil {
-		return 0, nil, err
-	}
+
 	var status int
 	var result any
 	if r.URL.Path == "/v1/principals" || r.URL.Path == "/v1/agents" || strings.HasPrefix(r.URL.Path, "/v1/owner/") {
