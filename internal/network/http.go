@@ -316,7 +316,13 @@ func lockActor(ctx context.Context, tx pgx.Tx, a actor) (actor, error) {
 	if state != "active" {
 		return a, fail(401, "inactive_agent")
 	}
-	err = tx.QueryRow(ctx, "SELECT scopes FROM credentials WHERE id=$1 AND revoked_at IS NULL AND expires_at>now() FOR UPDATE", a.CredentialID).Scan(&a.Scopes)
+	// Lock first, then evaluate real server time. now() is fixed at transaction
+	// start; even clock_timestamp() in the locking WHERE may run before a row
+	// lock wait. MATERIALIZED prevents the expiry predicate moving ahead of it.
+	err = tx.QueryRow(ctx, `WITH locked_credential AS MATERIALIZED (
+ SELECT scopes,revoked_at,expires_at FROM credentials WHERE id=$1 FOR UPDATE
+ ) SELECT scopes FROM locked_credential
+ WHERE revoked_at IS NULL AND expires_at>clock_timestamp()`, a.CredentialID).Scan(&a.Scopes)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return a, fail(401, "invalid_credential")
 	}
