@@ -488,3 +488,79 @@ WatcherMatched:
 	}
 
 }
+
+// Exercise a full durable continuation independently of whichever UUIDs a
+// retained fixture happened to allocate. Synthetic rows are test-only watches,
+// not independent owners or provider observations.
+func TestWatcherFanoutContinuesBeyondBoundedPage(t *testing.T) {
+	s, db := fixture(t)
+	a, b := client(t, s), client(t, s)
+	input := intentFixture()
+	input.Visibility = "redacted_public"
+	input.PublicSummary = "Fanout boundary " + NewID()
+	code, source := a.call("POST", "/v1/intents", "fanout-source", input)
+	if code != 201 {
+		t.Fatal(code, source)
+	}
+	code, candidate := b.call("POST", "/v1/intents", "fanout-candidate", input)
+	if code != 201 {
+		t.Fatal(code, candidate)
+	}
+	ids := make([]string, 0, 258)
+	for range 257 {
+		ids = append(ids, "ffffffff-ffff-4fff-8fff-"+NewID()[24:])
+	}
+	target := "ffffffff-ffff-4fff-bfff-" + NewID()[24:]
+	ids = append(ids, target)
+	ctx := context.Background()
+	tx, err := db.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx)
+	_, err = tx.Exec(ctx, `INSERT INTO undergrid.intents(id,principal_id,agent_id,state,visibility,expires_at,watch_enabled)
+	 SELECT u.id,i.principal_id,i.agent_id,i.state,i.visibility,i.expires_at,i.watch_enabled FROM undergrid.intents i CROSS JOIN unnest($1::uuid[]) u(id) WHERE i.id=$2`, ids, source["id"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = tx.Exec(ctx, `INSERT INTO undergrid.intent_revisions(intent_id,revision,document,public_projection,content_hash)
+	 SELECT u.id,1,r.document,r.public_projection,r.content_hash FROM undergrid.intent_revisions r CROSS JOIN unnest($1::uuid[]) u(id) WHERE r.intent_id=$2 AND r.revision=1`, ids, source["id"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = tx.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		// Retain fixture history while making these synthetic watches inactive.
+		if _, err := db.Exec(ctx, "UPDATE undergrid.intents SET state='withdrawn' WHERE id=ANY($1::uuid[])", ids); err != nil {
+			t.Error(err)
+		}
+	}()
+	args := watchRefreshArgs{CandidateID: candidate["id"].(string), AfterID: "ffffffff-ffff-4fff-8000-000000000000"}
+	if err = s.enqueueCompatibleWatchers(ctx, args); err != nil {
+		t.Fatal(err)
+	}
+	var targetJobs int
+	countTarget := func() int {
+		t.Helper()
+		if err := db.QueryRow(ctx, "SELECT count(*) FROM undergrid_queue.river_job WHERE kind='intention_watch_refresh_v1' AND args->>'candidate_id'=$1 AND args->>'watcher_id'=$2", args.CandidateID, target).Scan(&targetJobs); err != nil {
+			t.Fatal(err)
+		}
+		return targetJobs
+	}
+	if countTarget() != 0 {
+		t.Fatal("last watcher incorrectly appeared in the bounded first page")
+	}
+	var after string
+	if err = db.QueryRow(ctx, "SELECT args->>'after_id' FROM undergrid_queue.river_job WHERE kind='intention_watch_refresh_v1' AND queue=$1 AND args->>'candidate_id'=$2 AND args->>'after_id'>$3 ORDER BY id DESC LIMIT 1", watchFanoutQueue, args.CandidateID, args.AfterID).Scan(&after); err != nil {
+		t.Fatal("missing durable continuation", err)
+	}
+	args.AfterID = after
+	if err = s.enqueueCompatibleWatchers(ctx, args); err != nil {
+		t.Fatal(err)
+	}
+	if countTarget() != 1 {
+		t.Fatalf("continuation lost/duplicated final compatible watcher: %d", targetJobs)
+	}
+}

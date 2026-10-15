@@ -14,7 +14,7 @@ import (
 
 const watchRefreshQueue = "intention_watch_refresh"
 const watchFanoutQueue = "intention_watch_fanout"
-const watcherRefreshPageSize = 100
+const watcherRefreshPageSize = 256
 
 type watchRefreshArgs struct {
 	CandidateID string `json:"candidate_id"`

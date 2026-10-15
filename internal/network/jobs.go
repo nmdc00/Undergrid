@@ -127,7 +127,7 @@ func RunWorker(ctx context.Context, dsn, environment string) error {
 		// Fanout continuations cannot wait behind their own pair jobs. Both
 		// queues bound wakeup latency even when LISTEN/NOTIFY is coalesced.
 		watchRefreshQueue: {MaxWorkers: 2, FetchCooldown: 100 * time.Millisecond, FetchPollInterval: 100 * time.Millisecond},
-		watchFanoutQueue:  {MaxWorkers: 1, FetchCooldown: 100 * time.Millisecond, FetchPollInterval: 100 * time.Millisecond},
+		watchFanoutQueue:  {MaxWorkers: 2, FetchCooldown: 100 * time.Millisecond, FetchPollInterval: 100 * time.Millisecond},
 	}, PeriodicJobs: []*river.PeriodicJob{river.NewPeriodicJob(river.PeriodicInterval(time.Minute), func() (river.JobArgs, *river.InsertOpts) {
 		return deadlineArgs{}, &river.InsertOpts{MaxAttempts: 10, Queue: "coordination_deadlines", Priority: 1}
 	}, &river.PeriodicJobOpts{RunOnStart: true}), river.NewPeriodicJob(river.PeriodicInterval(15*time.Minute), func() (river.JobArgs, *river.InsertOpts) {
