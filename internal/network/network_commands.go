@@ -38,6 +38,7 @@ var networkOperations = []networkOperation{
 	{"intention_read", "GET", "/v1/intents/{id}"},
 	{"intention_revise", "PATCH", "/v1/intents/{id}"},
 	{"intention_opportunities", "GET", "/v1/intents/{id}/opportunities"},
+	{"intention_external_leads", "GET", "/v1/intents/{id}/external-leads"},
 	{"inbox_read", "GET", "/v1/inbox"},
 	{"swarm_create", "POST", "/v1/swarms"},
 	{"swarm_context", "GET", "/v1/swarms/{id}/context"},

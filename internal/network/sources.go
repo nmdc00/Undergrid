@@ -25,6 +25,7 @@ import (
 type SourceConfig struct {
 	ID, Kind, Endpoint, Publisher, AccessBasis, RepublicationBasis, TombstoneBasis string
 	Fields, Labels, Takedowns                                                      []string
+	PublicPermissionNotice                                                         string
 }
 type SourceRefresher struct {
 	dsn     string
@@ -74,6 +75,9 @@ func NewSourceRefresher(dsn string, configs []SourceConfig) (*SourceRefresher, e
 			if f != "canonical_url" && f != "title" && f != "summary" && f != "tags" && f != "updated_at" {
 				return nil, errors.New("unapproved metadata field")
 			}
+		}
+		if len(c.PublicPermissionNotice) > 2000 {
+			return nil, errors.New("public permission notice exceeds budget")
 		}
 		seen[c.ID] = true
 	}

@@ -7,7 +7,7 @@ registers this exact route before the static owner console fallback. The source
 is `internal/network/api/openapi.json`; `network.NetworkOpenAPI()` returns a copy
 for protocol adapters. Schema access grants no domain authority.
 
-The document inventories 65 path templates, 72 operations and 117 reusable
+The document inventories 67 path templates, 74 operations and 120 reusable
 schemas. It covers owner registration, agents, policy, control proof, credential
 recovery/rotation/revocation, intention revisions and restricted field grants,
 opportunities, room participation/messages, plans/tasks/progress evidence,
@@ -17,7 +17,7 @@ is exposed only at the exact configured resource-derived path; the schema's
 path template represents that configuration, not an arbitrary wildcard endpoint.
 The separate identity login/callback/session bootstrap is documented by the
 identity implementation, rather than represented as domain commands here.
-Financial sandbox operations and RPC transport envelopes are excluded. The implemented MCP surface has its own [client contract](NETWORK_MCP.md); A2A remains separate implementation work.
+Financial sandbox operations and RPC transport envelopes are excluded. The implemented MCP surface has its own [client contract](NETWORK_MCP.md); A2A uses its [versioned coordination extension](protocols/a2a-coordination-v1.md).
 
 Owner mutation authentication requires a verified owner session and current
 same-origin CSRF proof. Agent operations require a current network credential,
@@ -84,3 +84,5 @@ Primary tooling specifications:
 [openapi-typescript](https://openapi-ts.dev/introduction),
 [Ajv JSON Schema versions](https://ajv.js.org/json-schema.html),
 [Redocly lint](https://redocly.com/docs/cli/commands/lint).
+
+The owner/agent intention-scoped `/external-leads` reads provide current permitted external metadata, literal kind/text filtering and signed actor/revision/filter-bound cursors. They expose unknown identity/hard constraints and unassessed fit. Internal source approval files stay worker-only; see [scope and evidence](evidence/external-lead-read.md).
