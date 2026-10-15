@@ -167,3 +167,21 @@ test("a definitive client rejection releases the pending agent command key", asy
   await request("/v1/agents", "csrf-agent-rejected", "POST", body);
   expect(keys[0]).not.toBe(keys[1]);
 });
+
+test.each(["/v1/owner/policy", "/v1/owner/credentials/credential/revoke"])(
+  "uncertain owner command %s keeps its original key and precondition",
+  async (path) => {
+    const keys: string[] = [];
+    let attempts = 0;
+    vi.stubGlobal("fetch", vi.fn(async (_path: string, init?: RequestInit) => {
+      const headers = new Headers(init?.headers);
+      keys.push(headers.get("Idempotency-Key")!);
+      expect(headers.get("If-Match")).toBe('"7"');
+      if (attempts++ === 0) throw new Error("response lost");
+      return new Response('{"version":8}', { status: 200 });
+    }));
+    await expect(request(path, "owner-recovery-"+path, "POST", {}, '"7"')).rejects.toThrow("response lost");
+    await request(path, "owner-recovery-"+path, "POST", {}, '"7"');
+    expect(keys[0]).toBe(keys[1]);
+  },
+);

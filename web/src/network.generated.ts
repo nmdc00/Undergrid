@@ -123,7 +123,7 @@ export interface paths {
         put?: never;
         /**
          * POST /v1/owner/policy
-         * @description Verified owner identity; CSRF for mutations. Current ownership and version preconditions are checked in the domain transaction. This operation does not currently retain command-result references; clients must reconcile uncertain responses by reading state.
+         * @description Verified owner identity and CSRF. The domain transaction retains one principal-scoped command result atomically with effects. Retry the same Idempotency-Key, body and supplied If-Match after an uncertain response; changed command content conflicts. Current verified owner authority remains required before replay.
          */
         post: operations["post__v1_owner_policy"];
         delete?: never;
@@ -223,7 +223,7 @@ export interface paths {
         put?: never;
         /**
          * POST /v1/owner/credentials/{id}/revoke
-         * @description Verified owner identity; CSRF for mutations. Current ownership and version preconditions are checked in the domain transaction. This operation does not currently retain command-result references; clients must reconcile uncertain responses by reading state.
+         * @description Verified owner identity and CSRF. The domain transaction retains one principal-scoped command result atomically with effects. Retry the same Idempotency-Key, body and supplied If-Match after an uncertain response; changed command content conflicts. Current verified owner authority remains required before replay.
          */
         post: operations["post__v1_owner_credentials_id_revoke"];
         delete?: never;
@@ -2597,6 +2597,7 @@ export interface operations {
             header: {
                 "X-CSRF-Token": string;
                 "If-Match": string;
+                "Idempotency-Key": string;
             };
             path?: never;
             cookie?: never;
@@ -2818,6 +2819,7 @@ export interface operations {
             query?: never;
             header: {
                 "X-CSRF-Token": string;
+                "Idempotency-Key": string;
             };
             path: {
                 id: string;
