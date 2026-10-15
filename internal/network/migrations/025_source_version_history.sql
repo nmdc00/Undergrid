@@ -1,0 +1,4 @@
+SET search_path=undergrid,pg_catalog;
+ALTER TABLE external_observations DROP CONSTRAINT external_observations_source_id_source_key_key;
+ALTER TABLE external_observations ADD CONSTRAINT external_observation_source_version UNIQUE(source_id,source_key,source_version);
+CREATE UNIQUE INDEX external_observation_one_active_version ON external_observations(source_id,source_key) WHERE status='active';
