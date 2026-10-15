@@ -171,6 +171,8 @@ Approval of sources is a launch configuration activity, not manual intervention 
 
 Refresh every six hours initially using conditional requests/pagination and a per-source budget. Mark stale after 24 hours without a successful check; revalidate before suggesting a time-sensitive lead. Deleted/closed/withdrawn items leave active matching immediately after detection; retain only permitted provenance/tombstone metadata. Fetch only approved feed endpoints, not arbitrary URLs embedded in their data. No recursive crawler or outbound tool invocation.
 
+Implementation checkpoint: the network worker implements both finite wire adapters, trusted approval/field configuration, bounded per-source refresh jobs, conditional/paginated snapshots, query-time freshness and metadata erasure on detected withdrawal or configuration removal. See `evidence/permissioned-source-refresh.md` for actual restricted-login PostgreSQL/River proof and limitations. External lead fit/ranking/API/UI and real approved-source qualification remain pending.
+
 ### 5.3 Evidence classes and first-user result
 
 API/UI expose an explicit origin enum: `registered_intent`, `registered_capability`, `external_request`, `external_capability`, `release_test`, `sandbox_financial`. Display source URL, publisher claim, observed/checked times, freshness, permission provenance, identity assurance and limitations. “Three similar public requests found” must never become “three Undergrid buyers.” An external author who later joins creates a new intent with an optional verified source link; original observations are not retroactively converted into funded demand.
