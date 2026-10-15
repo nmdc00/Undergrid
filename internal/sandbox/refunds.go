@@ -40,7 +40,7 @@ func refundCapacity(ctx context.Context, tx pgx.Tx, payment, amount, exclude str
 	}
 	var allowed bool
 	err := tx.QueryRow(ctx, `SELECT
- COALESCE((SELECT sum(CASE kind WHEN 'charge' THEN amount WHEN 'refund' THEN -amount ELSE 0 END) FROM sandbox_effects WHERE payment_id=$1),0)
+ COALESCE((SELECT sum(CASE kind WHEN 'charge' THEN amount WHEN 'refund' THEN -amount ELSE 0 END) FROM sandbox_refundable_effects WHERE payment_id=$1),0)
  - COALESCE((SELECT sum(amount) FROM sandbox_refunds WHERE payment_id=$1 AND ($3::uuid IS NULL OR id<>$3) AND state IN('authorized','pending','unknown')),0) >= $2::numeric`, payment, amount, excluded).Scan(&allowed)
 	return allowed, err
 }

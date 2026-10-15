@@ -56,6 +56,9 @@ var signedUSDCMigration string
 //go:embed migrations/010_wallet_payment_authorization.sql
 var walletPaymentMigration string
 
+//go:embed migrations/011_usdc_canonical_settlement.sql
+var usdcSettlementMigration string
+
 func Migrate(ctx context.Context, c *pgx.Conn) error {
 	tx, err := c.Begin(ctx)
 	if err != nil {
@@ -78,7 +81,7 @@ func Migrate(ctx context.Context, c *pgx.Conn) error {
 	for _, step := range []struct {
 		version int
 		sql     string
-	}{{1, migration}, {2, refundMigration}, {3, refundRetryMigration}, {4, subscriptionMigration}, {5, stripeMigration}, {6, anomalyMigration}, {7, ownerSubscriptionRetryMigration}, {8, walletControlMigration}, {9, signedUSDCMigration}, {10, walletPaymentMigration}} {
+	}{{1, migration}, {2, refundMigration}, {3, refundRetryMigration}, {4, subscriptionMigration}, {5, stripeMigration}, {6, anomalyMigration}, {7, ownerSubscriptionRetryMigration}, {8, walletControlMigration}, {9, signedUSDCMigration}, {10, walletPaymentMigration}, {11, usdcSettlementMigration}} {
 		var checksum string
 		err = tx.QueryRow(ctx, "SELECT checksum FROM public.undergrid_sandbox_migrations WHERE version=$1", step.version).Scan(&checksum)
 		switch {
@@ -135,7 +138,8 @@ type Quote struct {
 	ExpiresAt time.Time `json:"expires_at"`
 }
 type Payment struct {
-	WalletAuthorizationHash string `json:"wallet_authorization_hash,omitempty"`
+	Settlement              *USDCSettlementStatus `json:"settlement,omitempty"`
+	WalletAuthorizationHash string                `json:"wallet_authorization_hash,omitempty"`
 	// Payer signatures are broadcast capabilities, retained only for internal dispatch.
 	walletAuthorization *WalletPaymentAuthorization
 	SignedQuote         *SignedQuote `json:"signed_quote,omitempty"`
