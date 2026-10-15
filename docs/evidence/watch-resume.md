@@ -1,0 +1,3 @@
+# Saved watch pause/resume
+
+Locked scope: TDD §5.4 `active ↔ paused` and saved monitoring preference. Shared owner/agent PATCH must stop monitoring while paused, restore the current immutable revision's explicit watch preference on resume, preserve explicitly disabled watches, retain history, and replay a command without repeating effects. Runtime: `mutateIntent` through owner and agent HTTP; persistence: current `intents.watch_enabled`, immutable revision, domain event/idempotency. No new schema or terminal-state policy. Behavioral PostgreSQL tests precede runtime edits. Full release and external provider gates remain separate.
