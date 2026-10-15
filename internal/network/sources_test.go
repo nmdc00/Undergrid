@@ -475,6 +475,19 @@ func TestSourceRefreshUsesRestrictedWorkerLogin(t *testing.T) {
 
 func TestSourceWorkerLoadsConfiguredApprovalFile(t *testing.T) {
 	service, db := fixture(t)
+	var oldPause *time.Time
+	err := db.QueryRow(context.Background(), "SELECT paused_at FROM undergrid_queue.river_queue WHERE name='default'").Scan(&oldPause)
+	if err != nil && err != pgx.ErrNoRows {
+		t.Fatal(err)
+	}
+	if _, err = db.Exec(context.Background(), "INSERT INTO undergrid_queue.river_queue(name,paused_at) VALUES('default',now()) ON CONFLICT(name) DO UPDATE SET paused_at=excluded.paused_at"); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if _, err := db.Exec(context.Background(), "UPDATE undergrid_queue.river_queue SET paused_at=$1 WHERE name='default'", oldPause); err != nil {
+			t.Error(err)
+		}
+	}()
 	cfg := SourceConfig{ID: NewID(), Kind: "capability_manifest", Endpoint: "https://undergrid-source.invalid/feed", Publisher: "fixture", AccessBasis: "fixture access", RepublicationBasis: "fixture metadata", TombstoneBasis: "fixture retention", Fields: []string{"title"}}
 	raw, _ := json.Marshal([]SourceConfig{cfg})
 	path := filepath.Join(t.TempDir(), "sources.json")
@@ -490,7 +503,7 @@ func TestSourceWorkerLoadsConfiguredApprovalFile(t *testing.T) {
 	found := false
 	for time.Now().Before(deadline) {
 		var exists bool
-		if err := db.QueryRow(context.Background(), `SELECT EXISTS(SELECT 1 FROM undergrid.external_sources WHERE id=$1 AND config->>'Endpoint'=$2)`, cfg.ID, cfg.Endpoint).Scan(&exists); err != nil {
+		if err := db.QueryRow(context.Background(), `SELECT EXISTS(SELECT 1 FROM undergrid.external_sources WHERE id=$1 AND config->>'Endpoint'=$2 AND last_error='refresh_failed')`, cfg.ID, cfg.Endpoint).Scan(&exists); err != nil {
 			t.Fatal(err)
 		}
 		if exists {
@@ -513,7 +526,7 @@ func TestSourceWorkerLoadsConfiguredApprovalFile(t *testing.T) {
 		t.Fatal("source worker failed bounded shutdown")
 	}
 	if !found {
-		t.Fatal("configured source never reached actual worker persistence")
+		t.Fatal("configured source refresh starved behind paused default queue")
 	}
 	// .invalid is deliberately unresolvable: this proves startup/job wiring,
 	// not a successful publisher/provider qualification.

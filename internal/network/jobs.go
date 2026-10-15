@@ -130,7 +130,7 @@ func (w *sourceRefreshWorker) Work(ctx context.Context, job *river.Job[sourceRef
 	// Only an immediate/running wakeup absorbs another coordinator tick.
 	// Completed history and delayed failures cannot suppress fresh work.
 	for _, config := range w.refresher.configs {
-		if _, err = client.InsertTx(ctx, tx, sourceRefreshArgs{SourceID: config.ID}, &river.InsertOpts{Queue: sourceRefreshQueue, MaxAttempts: 5, UniqueOpts: river.UniqueOpts{ByArgs: true, ByState: []rivertype.JobState{rivertype.JobStateAvailable, rivertype.JobStatePending, rivertype.JobStateRunning, rivertype.JobStateScheduled}}}); err != nil {
+		if _, err = client.InsertTx(ctx, tx, sourceRefreshArgs{SourceID: config.ID}, &river.InsertOpts{Queue: sourceRefreshQueue, Priority: 2, MaxAttempts: 5, UniqueOpts: river.UniqueOpts{ByArgs: true, ByState: []rivertype.JobState{rivertype.JobStateAvailable, rivertype.JobStatePending, rivertype.JobStateRunning, rivertype.JobStateScheduled}}}); err != nil {
 			return err
 		}
 	}
@@ -183,7 +183,7 @@ func RunWorker(ctx context.Context, dsn, environment string) error {
 		watchRefreshQueue: {MaxWorkers: 2, FetchCooldown: 100 * time.Millisecond, FetchPollInterval: 100 * time.Millisecond},
 		watchFanoutQueue:  {MaxWorkers: 2, FetchCooldown: 100 * time.Millisecond, FetchPollInterval: 100 * time.Millisecond},
 	}, PeriodicJobs: []*river.PeriodicJob{river.NewPeriodicJob(river.PeriodicInterval(time.Minute), func() (river.JobArgs, *river.InsertOpts) {
-		return sourceRefreshArgs{}, &river.InsertOpts{MaxAttempts: 5}
+		return sourceRefreshArgs{}, &river.InsertOpts{Queue: sourceRefreshQueue, Priority: 1, MaxAttempts: 5}
 	}, &river.PeriodicJobOpts{RunOnStart: true}), river.NewPeriodicJob(river.PeriodicInterval(time.Minute), func() (river.JobArgs, *river.InsertOpts) {
 
 		return deadlineArgs{}, &river.InsertOpts{MaxAttempts: 10, Queue: "coordination_deadlines", Priority: 1}
