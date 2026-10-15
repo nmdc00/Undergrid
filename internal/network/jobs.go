@@ -126,9 +126,9 @@ func RunWorker(ctx context.Context, dsn, environment string) error {
 		discoveryRepairQueue:     {MaxWorkers: 1},
 		// Fanout continuations cannot wait behind their own pair jobs. Both
 		// queues bound wakeup latency even when LISTEN/NOTIFY is coalesced.
-		// Pair fetches can refill promptly under backlog; concurrency remains
-		// two, while idle polling stays at 100ms to avoid busy polling.
-		watchRefreshQueue: {MaxWorkers: 2, FetchCooldown: time.Millisecond, FetchPollInterval: 100 * time.Millisecond},
+		// Eight bounded pair slots amortize durable completion latency under
+		// backlog; idle polling stays at 100ms to avoid busy polling.
+		watchRefreshQueue: {MaxWorkers: 8, FetchCooldown: time.Millisecond, FetchPollInterval: 100 * time.Millisecond},
 		watchFanoutQueue:  {MaxWorkers: 2, FetchCooldown: 100 * time.Millisecond, FetchPollInterval: 100 * time.Millisecond},
 	}, PeriodicJobs: []*river.PeriodicJob{river.NewPeriodicJob(river.PeriodicInterval(time.Minute), func() (river.JobArgs, *river.InsertOpts) {
 		return deadlineArgs{}, &river.InsertOpts{MaxAttempts: 10, Queue: "coordination_deadlines", Priority: 1}
