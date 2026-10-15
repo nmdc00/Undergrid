@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/riverqueue/river"
@@ -35,6 +36,22 @@ func enqueueRecruitment(ctx context.Context, tx pgx.Tx, swarm string) error {
 	_, err = client.InsertTx(ctx, tx, recruitArgs{swarm}, &river.InsertOpts{MaxAttempts: 10})
 	return err
 }
+
+const recruitmentDailyLimit = 5
+const recruitmentScanPageSize = 256
+
+// The day boundary is database UTC, independent of a worker's local timezone.
+const recruitmentDayStartSQL = "date_trunc('day',emission.at AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'"
+
+type recruitmentRoom struct {
+	id, coordinator string
+	roles           []RecruitmentRole
+}
+type recruitmentTarget struct {
+	id, principal string
+	profile       AgentProfile
+}
+
 func (s *Service) ScanRecruitment(ctx context.Context, swarmID string) error {
 	db, err := pgx.Connect(ctx, s.dsn)
 	if err != nil {
@@ -44,111 +61,250 @@ func (s *Service) ScanRecruitment(ctx context.Context, swarmID string) error {
 	if _, err = db.Exec(ctx, "SET ROLE undergrid_worker; SET search_path=undergrid,pg_catalog"); err != nil {
 		return err
 	}
-	rows, err := db.Query(ctx, "SELECT id,coordinator_agent_id,recruitment_roles FROM swarms WHERE state='active' AND visibility<>'private' AND ($1='' OR id::text=$1) ORDER BY id LIMIT 1000", swarmID)
-	if err != nil {
-		return err
-	}
-	type room struct {
-		id, coordinator string
-		roles           []RecruitmentRole
-	}
-	rooms := []room{}
-	for rows.Next() {
-		var v room
-		var raw []byte
-		if err = rows.Scan(&v.id, &v.coordinator, &raw); err != nil {
-			rows.Close()
+	// Keyset pages have no global LIMIT cutoff: later rooms and agents remain
+	// reachable even after the network exceeds a single page.
+	after := ""
+	for {
+		rows, err := db.Query(ctx, "SELECT id::text,coordinator_agent_id::text,recruitment_roles FROM swarms WHERE state='active' AND visibility<>'private' AND ($1='' OR id::text=$1) AND id::text>$2 ORDER BY id::text LIMIT $3", swarmID, after, recruitmentScanPageSize)
+		if err != nil {
 			return err
 		}
-		if err = json.Unmarshal(raw, &v.roles); err != nil {
-			rows.Close()
+		rooms := []recruitmentRoom{}
+		for rows.Next() {
+			var room recruitmentRoom
+			var raw []byte
+			if err = rows.Scan(&room.id, &room.coordinator, &raw); err != nil {
+				rows.Close()
+				return err
+			}
+			if err = json.Unmarshal(raw, &room.roles); err != nil {
+				rows.Close()
+				return err
+			}
+			rooms = append(rooms, room)
+		}
+		err = rows.Err()
+		rows.Close()
+		if err != nil {
 			return err
 		}
-		rooms = append(rooms, v)
-	}
-	err = rows.Err()
-	rows.Close()
-	if err != nil {
-		return err
-	}
-	rows, err = db.Query(ctx, "SELECT a.id,a.principal_id,a.profile FROM agents a JOIN principals p ON p.id=a.principal_id WHERE a.status='active' AND p.status='active' AND a.profile->>'public'='true' AND a.profile->>'recruitment'='true' ORDER BY a.id LIMIT 1000")
-	if err != nil {
-		return err
-	}
-	type target struct {
-		id, principal string
-		profile       AgentProfile
-	}
-	targets := []target{}
-	for rows.Next() {
-		var v target
-		var raw []byte
-		if err = rows.Scan(&v.id, &v.principal, &raw); err != nil {
-			rows.Close()
-			return err
-		}
-		if err = json.Unmarshal(raw, &v.profile); err != nil {
-			rows.Close()
-			return err
-		}
-		targets = append(targets, v)
-	}
-	err = rows.Err()
-	rows.Close()
-	if err != nil {
-		return err
-	}
-	for _, room := range rooms {
-		for _, role := range room.roles {
-			for _, target := range targets {
-				if target.id == room.coordinator || !slices.Contains(target.profile.Capabilities, role.SchemaFamily) {
-					continue
-				}
-				if err = s.recruitOne(ctx, db, room.id, role, target.id, target.principal); err != nil {
+		for _, room := range rooms {
+			for _, role := range room.roles {
+				if err = s.scanRecruitmentRole(ctx, db, room, role); err != nil {
 					return err
 				}
 			}
 		}
+		if len(rooms) < recruitmentScanPageSize {
+			return nil
+		}
+		after = rooms[len(rooms)-1].id
 	}
-	return nil
 }
-func (s *Service) recruitOne(ctx context.Context, db *pgx.Conn, swarm string, role RecruitmentRole, agent, principal string) error {
+func recruitmentRemaining(ctx context.Context, db interface {
+	QueryRow(context.Context, string, ...any) pgx.Row
+}, swarm, role string) (int, time.Time, error) {
+	var count int
+	var at time.Time
+	err := db.QueryRow(ctx, "WITH emission AS MATERIALIZED (SELECT clock_timestamp() AS at) SELECT (SELECT count(*) FROM opportunities WHERE kind='builder_recruitment' AND source_swarm_id=$1 AND role_key=$2 AND created_at>="+recruitmentDayStartSQL+"),emission.at FROM emission", swarm, role).Scan(&count, &at)
+	return max(0, recruitmentDailyLimit-count), at, err
+}
+func (s *Service) scanRecruitmentRole(ctx context.Context, db *pgx.Conn, room recruitmentRoom, role RecruitmentRole) error {
+	remaining, _, err := recruitmentRemaining(ctx, db, room.id, role.Key)
+	if err != nil || remaining == 0 {
+		return err
+	}
+	after := ""
+	for {
+		rows, err := db.Query(ctx, `SELECT a.id::text,a.principal_id::text,a.profile FROM agents a JOIN principals p ON p.id=a.principal_id WHERE a.status='active' AND p.status='active' AND a.profile->>'public'='true' AND a.profile->>'recruitment'='true' AND a.profile->'capabilities' @> $1::jsonb AND a.id<>$2 AND a.id::text>$3 ORDER BY a.id::text LIMIT $4`, canonical([]string{role.SchemaFamily}), room.coordinator, after, recruitmentScanPageSize)
+		if err != nil {
+			return err
+		}
+		targets := []recruitmentTarget{}
+		ids := []string{}
+		for rows.Next() {
+			var target recruitmentTarget
+			var raw []byte
+			if err = rows.Scan(&target.id, &target.principal, &raw); err != nil {
+				rows.Close()
+				return err
+			}
+			if err = json.Unmarshal(raw, &target.profile); err != nil {
+				rows.Close()
+				return err
+			}
+			targets = append(targets, target)
+			ids = append(ids, target.id)
+		}
+		err = rows.Err()
+		rows.Close()
+		if err != nil {
+			return err
+		}
+		if len(targets) == 0 {
+			return nil
+		}
+		// Read dedup knowledge once per bounded page, not one transaction per
+		// already-offered recipient. Hash construction stays in one Go rule.
+		rows, err = db.Query(ctx, "SELECT input_hash FROM opportunities WHERE kind='builder_recruitment' AND source_swarm_id=$1 AND role_key=$2 AND recipient_agent_id=ANY($3::uuid[])", room.id, role.Key, ids)
+		if err != nil {
+			return err
+		}
+		seen := map[string]bool{}
+		for rows.Next() {
+			var hash string
+			if err = rows.Scan(&hash); err != nil {
+				rows.Close()
+				return err
+			}
+			seen[hash] = true
+		}
+		err = rows.Err()
+		rows.Close()
+		if err != nil {
+			return err
+		}
+		for _, target := range targets {
+			if seen[recruitmentInputHash(room.id, role, target.id, target.profile)] {
+				continue
+			}
+			exhausted, err := s.recruitOne(ctx, db, room.id, role, target.id, target.principal)
+			if err != nil {
+				return err
+			}
+			if exhausted {
+				return nil
+			}
+		}
+		if len(targets) < recruitmentScanPageSize {
+			return nil
+		}
+		after = targets[len(targets)-1].id
+	}
+}
+func recruitmentInputHash(swarm string, role RecruitmentRole, agent string, profile AgentProfile) string {
+	return digest(canonical([]any{swarm, role, agent, profile.Capabilities}))
+}
+func (s *Service) recruitOne(ctx context.Context, db *pgx.Conn, swarm string, role RecruitmentRole, agent, principal string) (bool, error) {
 	tx, err := db.Begin(ctx)
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer tx.Rollback(ctx)
-	var state string
-	if err = tx.QueryRow(ctx, "SELECT status FROM principals WHERE id=$1 FOR UPDATE", principal).Scan(&state); err != nil {
-		return err
+	// Serialize only workers emitting this role's offers. This is a budget
+	// guard, never a substitute for current domain authority below.
+	if _, err = tx.Exec(ctx, "SELECT pg_advisory_xact_lock(hashtextextended($1, 702836))", swarm+"/"+role.Key); err != nil {
+		return false, err
 	}
-	if state != "active" {
-		return nil
+	var coordinator, owner string
+	err = tx.QueryRow(ctx, "SELECT s.coordinator_agent_id::text,a.principal_id::text FROM swarms s JOIN agents a ON a.id=s.coordinator_agent_id WHERE s.id=$1", swarm).Scan(&coordinator, &owner)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
 	}
-	var raw []byte
-	if err = tx.QueryRow(ctx, "SELECT status,profile FROM agents WHERE id=$1 FOR UPDATE", agent).Scan(&state, &raw); err != nil {
-		return err
+	if err != nil {
+		return false, err
 	}
-	if state != "active" {
-		return nil
+	// Match the domain's principal -> agent guard order. Lock both owners in
+	// sorted order; never acquire the source swarm after recipient authority.
+	rows, err := tx.Query(ctx, "SELECT id::text,status FROM principals WHERE id=ANY($1::uuid[]) ORDER BY id FOR UPDATE", []string{owner, principal})
+	if err != nil {
+		return false, err
 	}
+	active := map[string]bool{}
+	for rows.Next() {
+		var id, state string
+		if err = rows.Scan(&id, &state); err != nil {
+			rows.Close()
+			return false, err
+		}
+		active[id] = state == "active"
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return false, err
+	}
+	if !active[owner] {
+		return true, nil
+	}
+	if !active[principal] {
+		return false, nil
+	}
+	rows, err = tx.Query(ctx, "SELECT id::text,principal_id::text,status,profile FROM agents WHERE id=ANY($1::uuid[]) ORDER BY id FOR UPDATE", []string{coordinator, agent})
+	if err != nil {
+		return false, err
+	}
+	active = map[string]bool{}
 	var profile AgentProfile
-	if json.Unmarshal(raw, &profile) != nil || !profile.Public || !profile.Recruitment || !slices.Contains(profile.Capabilities, role.SchemaFamily) {
-		return nil
+	for rows.Next() {
+		var id, p, state string
+		var raw []byte
+		if err = rows.Scan(&id, &p, &state, &raw); err != nil {
+			rows.Close()
+			return false, err
+		}
+		active[id] = state == "active" && ((id == coordinator && p == owner) || (id == agent && p == principal))
+		if id == agent {
+			if err = json.Unmarshal(raw, &profile); err != nil {
+				rows.Close()
+				return false, err
+			}
+		}
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return false, err
+	}
+	if !active[coordinator] {
+		return true, nil
+	}
+	if !active[agent] || agent == coordinator || !profile.Public || !profile.Recruitment || !slices.Contains(profile.Capabilities, role.SchemaFamily) {
+		return false, nil
+	}
+	var currentCoordinator, state, visibility string
+	var raw []byte
+	err = tx.QueryRow(ctx, "SELECT coordinator_agent_id::text,state,visibility,recruitment_roles FROM swarms WHERE id=$1", swarm).Scan(&currentCoordinator, &state, &visibility, &raw)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if currentCoordinator != coordinator {
+		return false, errors.New("recruitment coordinator changed; retry")
+	}
+	if state != "active" || visibility == "private" {
+		return true, nil
+	}
+	var roles []RecruitmentRole
+	if err = json.Unmarshal(raw, &roles); err != nil {
+		return false, err
+	}
+	if !slices.Contains(roles, role) {
+		return true, nil
+	}
+	// Capture the database clock after all authority waits. Explicitly store
+	// this instant so a transaction crossing midnight consumes its emission
+	// day's budget, rather than its earlier transaction-start day.
+	remaining, emittedAt, err := recruitmentRemaining(ctx, tx, swarm, role.Key)
+	if err != nil || remaining == 0 {
+		return remaining == 0, err
 	}
 	id := NewID()
-	hash := digest(canonical([]any{swarm, role, agent, profile.Capabilities}))
+	hash := recruitmentInputHash(swarm, role, agent, profile)
 	evidence := map[string]any{"algorithm": "declared-capability-v1", "reason": "declared_schema_capability", "assurance": "self_declared"}
-	tag, err := tx.Exec(ctx, "INSERT INTO opportunities(id,recipient_agent_id,source_swarm_id,role_key,candidate_agent_id,kind,input_hash,evidence) VALUES($1,$2,$3,$4,$2,'builder_recruitment',$5,$6) ON CONFLICT DO NOTHING", id, agent, swarm, role.Key, hash, canonical(evidence))
+	tag, err := tx.Exec(ctx, "INSERT INTO opportunities(id,recipient_agent_id,source_swarm_id,role_key,candidate_agent_id,kind,input_hash,evidence,created_at) VALUES($1,$2,$3,$4,$2,'builder_recruitment',$5,$6,$7) ON CONFLICT DO NOTHING", id, agent, swarm, role.Key, hash, canonical(evidence), emittedAt)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if tag.RowsAffected() == 1 {
 		if err = s.notify(ctx, tx, principal, agent, id, 1, "opportunity.available", "/v1/opportunities/"+id); err != nil {
-			return err
+			return false, err
 		}
+		remaining--
 	}
-	return tx.Commit(ctx)
+	return remaining == 0, tx.Commit(ctx)
 }
 func listRecruitment(r *http.Request, tx pgx.Tx, a actor, id string) (int, any, error) {
 	rows, err := tx.Query(r.Context(), `SELECT o.id,o.source_swarm_id,o.role_key,s.objective,o.evidence FROM opportunities o JOIN swarms s ON s.id=o.source_swarm_id WHERE o.recipient_agent_id=$1 AND o.kind='builder_recruitment' AND o.state='suggested' AND s.state='active' AND s.visibility<>'private' AND ($2='' OR o.id::text=$2) ORDER BY o.created_at LIMIT 100`, a.AgentID, id)
