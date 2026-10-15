@@ -1,8 +1,11 @@
 package network
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"github.com/jackc/pgx/v5"
+	"net/http/httptest"
 	"testing"
 	"time"
 )
@@ -10,7 +13,7 @@ import (
 // Governance scopes are explicitly issued under the owner opt-in; existing
 // rights-template approval alone must never confer succession authority.
 func TestCoordinatorSuccessionRequiresCurrentUnanimityAndSuccessorAcceptance(t *testing.T) {
-	s, db := fixture(t)
+	s, db := coordinatorFixture(t)
 	enableTestTerms(t, s)
 	old, successor, buyer := successionClient(t, s), successionClient(t, s), successionClient(t, s)
 	code, room := old.call("POST", "/v1/swarms", "succession-room", map[string]any{"objective": "Continue a dataset collaboration", "visibility": "restricted", "recruitment_roles": []any{}})
@@ -71,7 +74,7 @@ func TestCoordinatorSuccessionRequiresCurrentUnanimityAndSuccessorAcceptance(t *
 	_, oldIdentity := old.call("GET", "/v1/me", "", nil)
 	assertCoordinator(oldIdentity["agent_id"].(string))
 	// Ordinary conversation must not erase an exact proposal's prior vote.
-	if code, out := successor.call("POST", roomPath+"/messages", "ordinary-conversation", map[string]any{"body": "Still waiting for the buyer's explicit governance vote."}); code != 201 {
+	if code, out := successor.call("POST", roomPath+"/messages", "ordinary-conversation", map[string]any{"kind": "text", "body": "Still waiting for the buyer's explicit governance vote."}); code != 201 {
 		t.Fatal(code, out)
 	}
 	code, applied := buyer.versioned("POST", proposalPath+"/approvals", "buyer-approves", voteETag, map[string]any{"decision": "approve", "content_hash": hash})
@@ -79,6 +82,13 @@ func TestCoordinatorSuccessionRequiresCurrentUnanimityAndSuccessorAcceptance(t *
 		t.Fatal(code, applied)
 	}
 	assertCoordinator(identities["successor"]["agent_id"].(string))
+	var oldRole string
+	if err := db.QueryRow(context.Background(), "SELECT role FROM undergrid.memberships WHERE swarm_id=$1 AND agent_id=$2", room["id"], oldIdentity["agent_id"]).Scan(&oldRole); err != nil {
+		t.Fatal(err)
+	}
+	if oldRole != "observer" {
+		t.Fatalf("office-only predecessor acquired contribution/governance role: %s", oldRole)
+	}
 	code, replayed := successor.versioned("POST", roomPath+"/coordinator-proposals", "propose-successor", proposalETag, proposedBody)
 	if code != 201 || replayed["id"] != proposal["id"] {
 		t.Fatalf("lost-response replay did not recover original proposal: %d %v", code, replayed)
@@ -127,7 +137,7 @@ type successionTestRoom struct {
 
 func newSuccessionTestRoom(t *testing.T) successionTestRoom {
 	t.Helper()
-	s, db := fixture(t)
+	s, db := coordinatorFixture(t)
 	enableTestTerms(t, s)
 	f := successionTestRoom{s: s, db: db, old: successionClient(t, s), successor: successionClient(t, s), peer: successionClient(t, s)}
 	_, f.oldID = f.old.call("GET", "/v1/me", "", nil)
@@ -321,5 +331,199 @@ func TestCoordinatorSuccessionRetainsAcceptedPlanContributorAndAcceptorConsent(t
 	code, out = f.old.versioned("POST", proposalPath+"/approvals", "required-acceptor-consents", etag, map[string]any{"decision": "approve", "content_hash": p["content_hash"]})
 	if code != 200 || out["state"] != "applied" {
 		t.Fatal(code, out)
+	}
+	var oldRole string
+	if err := f.db.QueryRow(context.Background(), "SELECT role FROM undergrid.memberships WHERE swarm_id=$1 AND agent_id=$2", f.roomID, f.oldID["agent_id"]).Scan(&oldRole); err != nil {
+		t.Fatal(err)
+	}
+	if oldRole != "contributor" {
+		t.Fatalf("required prior contributor lost role: %s", oldRole)
+	}
+}
+
+func coordinatorFixture(t *testing.T) (*Service, *pgx.Conn) {
+	t.Helper()
+	s, db := fixture(t)
+	if _, err := db.Exec(context.Background(), `DO $$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='undergrid_coordinator_api_runner') THEN CREATE ROLE undergrid_coordinator_api_runner LOGIN NOSUPERUSER NOBYPASSRLS;END IF;END $$;GRANT undergrid_app TO undergrid_coordinator_api_runner`); err != nil {
+		t.Fatal(err)
+	}
+	s.dsn = networkFixtureRoleDSN(t, db, "undergrid_coordinator_api_runner")
+	return s, db
+}
+func TestCoordinatorHelperFailsClosedWithoutAuthorityGuard(t *testing.T) {
+	f := newSuccessionTestRoom(t)
+	p := f.propose(t)
+	path := "/v1/coordinator-proposals/" + p["id"].(string)
+	for _, voter := range []testClient{f.successor, f.peer} {
+		code, out := voter.versioned("POST", path+"/approvals", "before-accept", p["etag"].(string), map[string]any{"content_hash": p["content_hash"], "decision": "approve"})
+		if code != 200 {
+			t.Fatal(code, out)
+		}
+	}
+	ctx := context.Background()
+	conn, err := pgx.Connect(ctx, f.s.dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close(ctx)
+	tx, err := conn.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx)
+	if _, err = tx.Exec(ctx, "SET LOCAL ROLE undergrid_app;SET LOCAL search_path=undergrid,pg_catalog"); err != nil {
+		t.Fatal(err)
+	}
+	digest := sha256.Sum256([]byte(f.successor.token))
+	var principal, agent, credential string
+	if err = tx.QueryRow(ctx, "SELECT principal_id,agent_id,credential_id FROM identify_token($1)", digest[:]).Scan(&principal, &agent, &credential); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = tx.Exec(ctx, "SELECT set_config('undergrid.principal_id',$1,true),set_config('undergrid.agent_id',$2,true)", principal, agent); err != nil {
+		t.Fatal(err)
+	}
+	// Explicit SQL boundary fixture: all genuine HTTP votes exist; the app's
+	// acceptance field is populated without invoking the transition or guard.
+	if _, err = tx.Exec(ctx, "UPDATE coordinator_proposals SET accepted_credential_id=$2,accepted_at=clock_timestamp() WHERE id=$1", p["id"], credential); err != nil {
+		t.Fatal(err)
+	}
+	var denied bool
+	if err = tx.QueryRow(ctx, "SELECT coordinator_authorities_current($1) IS FALSE", f.roomID).Scan(&denied); err != nil {
+		t.Fatal(err)
+	}
+	if !denied {
+		t.Error("unset guard returned nullable/truthy authority instead of false")
+	}
+	var applied bool
+	if err = tx.QueryRow(ctx, "SELECT apply_coordinator_succession($1)", p["id"]).Scan(&applied); err != nil {
+		t.Fatal(err)
+	}
+	if applied {
+		t.Error("restricted app applied coordinator transfer without authority guards")
+	}
+}
+func TestCoordinatorScopeDenialDoesNotWaitOnPeerAuthority(t *testing.T) {
+	for _, mode := range []string{"api_token", "oauth_narrow_scope"} {
+		t.Run(mode, func(t *testing.T) {
+			f := newSuccessionTestRoom(t)
+			var token string
+			if mode == "api_token" {
+				code, issued := f.peer.call("POST", "/v1/agents", "read-only-member", map[string]any{"name": "read-only member", "scopes": []string{"swarms:read", "members:respond"}, "profile": map[string]any{"accept_invitations": true}})
+				if code != 201 {
+					t.Fatal(code, issued)
+				}
+				member := f.peer
+				member.token = issued["token"].(string)
+				_, identity := member.call("GET", "/v1/me", "", nil)
+				code, offer := f.old.call("POST", f.path+"/invitations", "invite-read-only", map[string]any{"agent_id": identity["agent_id"], "role": "contributor", "respond_by": time.Now().Add(time.Hour)})
+				if code != 201 {
+					t.Fatal(code, offer)
+				}
+				code, out := member.versioned("POST", f.path+"/membership-response", "join-read-only", offer["etag"].(string), map[string]any{"invitation_id": offer["id"], "decision": "accept"})
+				if code != 200 {
+					t.Fatal(code, out)
+				}
+				token = member.token
+			} else {
+				as := newTestOAuthAS(t)
+				as.configure(t, f.s)
+				wide := as.token(t, "coordinator-subject", "coordinator-client", "swarms:read coordinator:propose", time.Now().Add(time.Hour), "at+jwt", as.resource)
+				code, out, _ := oauthCall(t, f.s, f.successor.owner, wide, "POST", "/v1/owner/agents/"+f.successorID["agent_id"].(string)+"/oauth-bindings", "bind-governance", "", map[string]any{"scopes": []string{"swarms:read", "coordinator:propose"}})
+				if code != 201 {
+					t.Fatal(code, out)
+				}
+				token = as.token(t, "coordinator-subject", "coordinator-client", "swarms:read", time.Now().Add(time.Hour), "at+jwt", as.resource)
+			}
+			ctx := context.Background()
+			held, err := f.db.Begin(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer held.Rollback(ctx)
+			if _, err = held.Exec(ctx, "SELECT id FROM undergrid.principals WHERE id=$1 FOR UPDATE", f.oldID["principal_id"]); err != nil {
+				t.Fatal(err)
+			}
+			bounded, cancel := context.WithTimeout(ctx, time.Second)
+			defer cancel()
+			req := httptest.NewRequest("POST", f.path+"/coordinator-proposals", bytes.NewReader(canonical(map[string]any{"successor_agent_id": f.successorID["agent_id"], "respond_by": time.Now().Add(time.Hour)}))).WithContext(bounded)
+			req.Header.Set("Authorization", "Bearer "+token)
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Idempotency-Key", "scope-denied")
+			req.Header.Set("If-Match", `"1"`)
+			response := httptest.NewRecorder()
+			f.s.ServeHTTP(response, req)
+			if response.Code != 403 {
+				t.Fatalf("missing %s scope waited on peer authority: %d %s", mode, response.Code, response.Body.String())
+			}
+		})
+	}
+}
+
+func TestCoordinatorSuccessionRetainsBindingTaskContributorOutsideAcceptedPlan(t *testing.T) {
+	f := newSuccessionTestRoom(t)
+	createPlan := func(key string, parent *int64, required []string, assignee map[string]any) map[string]any {
+		t.Helper()
+		code, current := f.old.call("GET", f.path+"/context", "", nil)
+		if code != 200 {
+			t.Fatal(code, current)
+		}
+		spec := map[string]any{"parent_version": parent, "objective": "Preserve binding assignments during governance succession", "required_principals": required, "acceptance_principals": []string{required[0]}, "publication_principals": required, "rights": map[string]any{"template_id": "test-contribution-v1", "license_id": "CC0-1.0", "publication": "exact_manifest_approval"}, "tasks": []any{map[string]any{"key": "catalog", "assignee_agent_id": assignee["agent_id"], "depends_on": []any{}, "output_schema": "source_catalog_v1", "checks": []string{"json_schema_v1"}, "progress_interval_seconds": 86400}}, "respond_by": time.Now().Add(time.Hour)}
+		code, plan := f.old.versioned("POST", f.path+"/plans", key, current["swarm"].(map[string]any)["etag"].(string), spec)
+		if code != 201 {
+			t.Fatal(code, plan)
+		}
+		return plan
+	}
+	required := []string{f.successorID["principal_id"].(string), f.peerID["principal_id"].(string)}
+	active := createPlan("current-plan", nil, required, f.successorID)
+	for _, voter := range []testClient{f.successor, f.peer} {
+		code, out := voter.call("POST", "/v1/plans/"+active["id"].(string)+"/approvals", "accept-current-plan", map[string]any{"decision": "approve", "content_hash": active["content_hash"]})
+		if code != 200 {
+			t.Fatal(code, out)
+		}
+	}
+	task := active["tasks"].([]any)[0].(map[string]any)
+	code, out := f.successor.versioned("POST", "/v1/tasks/"+task["id"].(string)+"/assignment-response", "accept-current-task", task["etag"].(string), map[string]any{"decision": "accept", "plan_hash": active["content_hash"]})
+	if code != 200 {
+		t.Fatal(code, out)
+	}
+	// This current accepted scope excludes the old coordinator. A separate
+	// proposed revision binds that owner's explicit assignment acceptance.
+	parent := int64(1)
+	next := createPlan("next-plan", &parent, append(required, f.oldID["principal_id"].(string)), f.oldID)
+	nextTask := next["tasks"].([]any)[0].(map[string]any)
+	code, out = f.old.versioned("POST", "/v1/tasks/"+nextTask["id"].(string)+"/assignment-response", "bind-future-task", nextTask["etag"].(string), map[string]any{"decision": "accept", "plan_hash": next["content_hash"]})
+	if code != 200 {
+		t.Fatal(code, out)
+	}
+	p := f.propose(t)
+	path := "/v1/coordinator-proposals/" + p["id"].(string)
+	etag := p["etag"].(string)
+	code, out = f.successor.versioned("POST", path+"/accept", "accept-office", etag, map[string]any{"content_hash": p["content_hash"]})
+	if code != 200 {
+		t.Fatal(code, out)
+	}
+	for _, voter := range []testClient{f.successor, f.peer} {
+		code, out := voter.versioned("POST", path+"/approvals", "vote", etag, map[string]any{"decision": "approve", "content_hash": p["content_hash"]})
+		if code != 200 {
+			t.Fatal(code, out)
+		}
+	}
+	f.assertOldCoordinator(t)
+	code, out = f.old.versioned("POST", path+"/approvals", "binding-contributor-approves", etag, map[string]any{"decision": "approve", "content_hash": p["content_hash"]})
+	if code != 200 || out["state"] != "applied" {
+		t.Fatal(code, out)
+	}
+}
+
+func TestCoordinatorMemberCanNominateAnotherEligibleMember(t *testing.T) {
+	f := newSuccessionTestRoom(t)
+	code, current := f.successor.call("GET", f.path+"/context", "", nil)
+	if code != 200 {
+		t.Fatal(code, current)
+	}
+	code, p := f.successor.versioned("POST", f.path+"/coordinator-proposals", "nominate-peer", current["swarm"].(map[string]any)["etag"].(string), map[string]any{"successor_agent_id": f.peerID["agent_id"], "respond_by": time.Now().Add(time.Hour)})
+	if code != 201 || p["successor_agent_id"] != f.peerID["agent_id"] {
+		t.Fatalf("member could not nominate eligible peer under actual app RLS: %d %v", code, p)
 	}
 }

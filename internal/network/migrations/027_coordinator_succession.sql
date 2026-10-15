@@ -48,7 +48,7 @@ CREATE FUNCTION succession_required_principals(target uuid) RETURNS uuid[] LANGU
   WHERE s.id=target AND s.active_plan_id IS NULL AND m.state='accepted' AND m.role='contributor' AND swarm_member(target)
   UNION
   SELECT t.assigned_principal_id FROM tasks t JOIN plan_versions p ON p.id=t.plan_id JOIN swarms s ON s.id=p.swarm_id
-  WHERE s.id=target AND s.active_plan_id IS NULL AND t.state IN('accepted','in_progress','submitted','changes_requested','at_risk') AND swarm_member(target)
+  WHERE s.id=target AND t.state IN('accepted','in_progress','submitted','changes_requested','at_risk') AND swarm_member(target)
  ) required
 $$;
 REVOKE ALL ON FUNCTION succession_required_principals(uuid) FROM PUBLIC;
@@ -56,10 +56,12 @@ GRANT EXECUTE ON FUNCTION succession_required_principals(uuid) TO undergrid_app;
 
 -- Verify the real local credential and room membership before locking any
 -- other authority. The complete roster is bounded or rejected, never truncated.
-CREATE FUNCTION lock_coordinator_authorities(target uuid, credential uuid) RETURNS integer LANGUAGE plpgsql SECURITY DEFINER SET search_path=undergrid,pg_catalog AS $$
+CREATE FUNCTION lock_coordinator_authorities(target uuid, credential uuid, requested_scope text) RETURNS integer LANGUAGE plpgsql SECURITY DEFINER SET search_path=undergrid,pg_catalog AS $$
 DECLARE roster jsonb; current_coordinator uuid;
 BEGIN
+ IF requested_scope IS NULL OR requested_scope NOT IN('coordinator:propose','coordinator:approve','coordinator:accept') THEN RETURN 5; END IF;
  IF NOT EXISTS(SELECT 1 FROM credentials c JOIN agents a ON a.id=c.agent_id JOIN principals p ON p.id=a.principal_id WHERE c.id=credential AND c.agent_id=actor_agent() AND a.principal_id=actor_principal() AND c.revoked_at IS NULL AND c.expires_at>clock_timestamp() AND a.status='active' AND p.status='active') THEN RETURN 3; END IF;
+ IF NOT EXISTS(SELECT 1 FROM credentials WHERE id=credential AND requested_scope=ANY(scopes)) THEN RETURN 5; END IF;
  IF NOT swarm_member(target) THEN RETURN 0; END IF;
  IF (SELECT count(*) FROM memberships WHERE swarm_id=target AND state='accepted')>500 THEN RETURN 2; END IF;
  SELECT coordinator_agent_id INTO current_coordinator FROM swarms WHERE id=target;
@@ -67,18 +69,26 @@ BEGIN
  PERFORM id FROM principals WHERE id IN(SELECT principal_id FROM memberships WHERE swarm_id=target AND state='accepted' UNION SELECT principal_id FROM agents WHERE id=current_coordinator) ORDER BY id FOR UPDATE;
  PERFORM id FROM agents WHERE id IN(SELECT agent_id FROM memberships WHERE swarm_id=target AND state='accepted' UNION SELECT current_coordinator) ORDER BY id FOR UPDATE;
  IF current_coordinator IS DISTINCT FROM (SELECT coordinator_agent_id FROM swarms WHERE id=target) OR roster IS DISTINCT FROM (SELECT jsonb_agg(agent_id ORDER BY agent_id) FROM memberships WHERE swarm_id=target AND state='accepted') THEN RETURN 4; END IF;
- PERFORM set_config('undergrid.coordinator_guard_room',target::text,true),set_config('undergrid.coordinator_guard_roster',roster::text,true);
+ PERFORM set_config('undergrid.coordinator_guard_room',target::text,true),set_config('undergrid.coordinator_guard_roster',roster::text,true),set_config('undergrid.coordinator_guard_scope',requested_scope,true);
  RETURN 1;
 END $$;
-REVOKE ALL ON FUNCTION lock_coordinator_authorities(uuid,uuid) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION lock_coordinator_authorities(uuid,uuid) TO undergrid_app;
+REVOKE ALL ON FUNCTION lock_coordinator_authorities(uuid,uuid,text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION lock_coordinator_authorities(uuid,uuid,text) TO undergrid_app;
 
 CREATE FUNCTION coordinator_authorities_current(target uuid) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=undergrid,pg_catalog AS $$
- SELECT swarm_member(target) AND current_setting('undergrid.coordinator_guard_room',true)=target::text
- AND nullif(current_setting('undergrid.coordinator_guard_roster',true),'')::jsonb=(SELECT jsonb_agg(agent_id ORDER BY agent_id) FROM memberships WHERE swarm_id=target AND state='accepted')
+ SELECT COALESCE(swarm_member(target) AND current_setting('undergrid.coordinator_guard_room',true)=target::text
+ AND nullif(current_setting('undergrid.coordinator_guard_roster',true),'')::jsonb=(SELECT jsonb_agg(agent_id ORDER BY agent_id) FROM memberships WHERE swarm_id=target AND state='accepted'),false)
 $$;
 REVOKE ALL ON FUNCTION coordinator_authorities_current(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION coordinator_authorities_current(uuid) TO undergrid_app;
+
+-- Agent rows are owner-private under RLS. Expose only this eligibility bit to
+-- current room members so nomination is not restricted to one's own agent.
+CREATE FUNCTION coordinator_successor_eligible(target uuid, successor uuid) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=undergrid,pg_catalog AS $$
+ SELECT swarm_member(target) AND EXISTS(SELECT 1 FROM memberships m JOIN agents a ON a.id=m.agent_id JOIN principals p ON p.id=a.principal_id WHERE m.swarm_id=target AND m.agent_id=successor AND m.state='accepted' AND m.role='contributor' AND a.status='active' AND p.status='active')
+$$;
+REVOKE ALL ON FUNCTION coordinator_successor_eligible(uuid,uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION coordinator_successor_eligible(uuid,uuid) TO undergrid_app;
 
 -- Only hashes of owner policies cross this boundary; never expose a peer's raw
 -- policy as proposal metadata. Conversation sequence/version is not consent.
@@ -113,18 +123,20 @@ GRANT EXECUTE ON FUNCTION coordinator_consents_current(uuid) TO undergrid_app;
 -- Narrow transition helper: the app cannot assign arbitrary coordinator IDs.
 -- The command already owns the ordered authority and room/proposal locks.
 CREATE FUNCTION apply_coordinator_succession(target uuid) RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path=undergrid,pg_catalog AS $$
-DECLARE proposal coordinator_proposals; required uuid[];
+DECLARE proposal coordinator_proposals; required uuid[]; previous_contributor boolean;
 BEGIN
  SELECT * INTO proposal FROM coordinator_proposals WHERE id=target;
- IF NOT FOUND OR NOT swarm_member(proposal.swarm_id) OR NOT coordinator_authorities_current(proposal.swarm_id) THEN RETURN false; END IF;
+ IF NOT FOUND OR NOT swarm_member(proposal.swarm_id) OR coordinator_authorities_current(proposal.swarm_id) IS NOT TRUE THEN RETURN false; END IF;
+ IF COALESCE(current_setting('undergrid.coordinator_guard_scope',true),'') NOT IN('coordinator:approve','coordinator:accept') THEN RETURN false; END IF;
  IF NOT EXISTS(SELECT 1 FROM swarms s WHERE s.id=proposal.swarm_id AND (s.active_plan_id IS NULL OR EXISTS(SELECT 1 FROM plan_versions p WHERE p.id=s.active_plan_id AND p.state='accepted'))) THEN RETURN false; END IF;
  IF proposal.state<>'proposed' OR proposal.respond_by<=clock_timestamp() OR proposal.snapshot IS DISTINCT FROM coordinator_snapshot(proposal.swarm_id,proposal.successor_agent_id) THEN RETURN false; END IF;
  IF NOT EXISTS(SELECT 1 FROM memberships m JOIN agents a ON a.id=m.agent_id JOIN principals p ON p.id=a.principal_id JOIN credentials c ON c.agent_id=a.id WHERE m.swarm_id=proposal.swarm_id AND m.agent_id=proposal.successor_agent_id AND m.state='accepted' AND m.role='contributor' AND a.status='active' AND p.status='active' AND c.id=proposal.accepted_credential_id AND c.revoked_at IS NULL AND c.expires_at>clock_timestamp() AND 'coordinator:accept'=ANY(c.scopes) AND p.policy->>'allow_coordinator_succession'='true' AND (p.policy->>'expires_at')::timestamptz>clock_timestamp()) THEN RETURN false; END IF;
  SELECT array_agg(value::uuid) INTO required FROM jsonb_array_elements_text(proposal.snapshot->'required_principals');
- IF NOT coordinator_consents_current(target) OR EXISTS(SELECT 1 FROM unnest(required) r(id) WHERE NOT EXISTS(SELECT 1 FROM coordinator_votes v WHERE v.proposal_id=target AND v.principal_id=r.id AND v.decision='approve')) THEN RETURN false; END IF;
+ IF coordinator_consents_current(target) IS NOT TRUE OR EXISTS(SELECT 1 FROM unnest(required) r(id) WHERE NOT EXISTS(SELECT 1 FROM coordinator_votes v WHERE v.proposal_id=target AND v.principal_id=r.id AND v.decision='approve')) THEN RETURN false; END IF;
+ SELECT EXISTS(SELECT 1 FROM agents a WHERE a.id=proposal.previous_coordinator_agent_id AND a.principal_id=ANY(succession_required_principals(proposal.swarm_id))) INTO previous_contributor;
  UPDATE swarms SET coordinator_agent_id=proposal.successor_agent_id,version=version+1 WHERE id=proposal.swarm_id AND coordinator_agent_id=proposal.previous_coordinator_agent_id AND state='active';
  IF NOT FOUND THEN RETURN false; END IF;
- UPDATE memberships SET role=CASE WHEN agent_id=proposal.successor_agent_id THEN 'coordinator' ELSE 'contributor' END,version=version+1 WHERE swarm_id=proposal.swarm_id AND agent_id IN(proposal.previous_coordinator_agent_id,proposal.successor_agent_id) AND state='accepted';
+ UPDATE memberships SET role=CASE WHEN agent_id=proposal.successor_agent_id THEN 'coordinator' WHEN previous_contributor THEN 'contributor' ELSE 'observer' END,version=version+1 WHERE swarm_id=proposal.swarm_id AND agent_id IN(proposal.previous_coordinator_agent_id,proposal.successor_agent_id) AND state='accepted';
  UPDATE coordinator_proposals SET state='applied',version=version+1 WHERE id=target;
  RETURN true;
 END $$;

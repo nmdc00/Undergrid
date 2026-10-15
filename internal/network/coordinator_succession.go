@@ -40,13 +40,49 @@ func coordinatorRequest(path string) (room, proposal, action string, ok bool) {
 	}
 	return "", "", "", false
 }
+
+// The same finite scope contract serves the denial-only prelock read and the
+// full authorized command. Preliminary checks never grant authority.
+func coordinatorRequiredScope(method, action string) (string, error) {
+	if method == "GET" && action == "read" {
+		return "swarms:read", nil
+	}
+	if method == "POST" {
+		switch action {
+		case "propose":
+			return "coordinator:propose", nil
+		case "approvals":
+			return "coordinator:approve", nil
+		case "accept":
+			return "coordinator:accept", nil
+		}
+	}
+	return "", fail(405, "method_not_allowed")
+}
 func prelockCoordinatorRequest(ctx context.Context, tx pgx.Tx, a actor, method, path string) error {
 	if method != "POST" {
 		return nil
 	}
-	room, proposal, _, ok := coordinatorRequest(path)
+	room, proposal, action, ok := coordinatorRequest(path)
 	if !ok {
 		return nil
+	}
+	scope, err := coordinatorRequiredScope(method, action)
+	if err != nil {
+		return err
+	}
+	preliminary := a
+	if err = tx.QueryRow(ctx, "SELECT scopes FROM credentials WHERE id=$1 AND revoked_at IS NULL AND expires_at>clock_timestamp()", a.CredentialID).Scan(&preliminary.Scopes); errors.Is(err, pgx.ErrNoRows) {
+		return fail(401, "invalid_credential")
+	} else if err != nil {
+		return err
+	}
+	if claims, found := ctx.Value(oauthResourceContextKey).(verifiedOAuth); found {
+		preliminary.grantedScopes = append([]string(nil), preliminary.Scopes...)
+		preliminary.Scopes = scopeIntersection(preliminary.Scopes, claims.Scopes)
+	}
+	if !slices.Contains(preliminary.Scopes, scope) {
+		return insufficientScope(preliminary, scope)
 	}
 	if proposal != "" {
 		if err := tx.QueryRow(ctx, "SELECT swarm_id::text FROM coordinator_proposals WHERE id=$1", proposal).Scan(&room); errors.Is(err, pgx.ErrNoRows) {
@@ -56,7 +92,7 @@ func prelockCoordinatorRequest(ctx context.Context, tx pgx.Tx, a actor, method, 
 		}
 	}
 	var result int
-	if err := tx.QueryRow(ctx, "SELECT lock_coordinator_authorities($1,$2)", room, a.CredentialID).Scan(&result); err != nil {
+	if err := tx.QueryRow(ctx, "SELECT lock_coordinator_authorities($1,$2,$3)", room, a.CredentialID, scope).Scan(&result); err != nil {
 		return err
 	}
 	switch result {
@@ -68,6 +104,8 @@ func prelockCoordinatorRequest(ctx context.Context, tx pgx.Tx, a actor, method, 
 		return fail(409, "succession_roster_limit")
 	case 3:
 		return fail(401, "invalid_credential")
+	case 5:
+		return insufficientScope(preliminary, scope)
 	default:
 		return fail(409, "succession_authority_changed")
 	}
@@ -133,14 +171,9 @@ func (s *Service) coordinatorCommand(r *http.Request, tx pgx.Tx, a actor) (int, 
 	if !ok {
 		return 0, nil, fail(404, "not_found")
 	}
-	scope := "swarms:read"
-	if r.Method == "POST" {
-		scope = map[string]string{"propose": "coordinator:propose", "approvals": "coordinator:approve", "accept": "coordinator:accept"}[action]
-		if scope == "" {
-			return 0, nil, fail(405, "method_not_allowed")
-		}
-	} else if r.Method != "GET" || action != "read" {
-		return 0, nil, fail(405, "method_not_allowed")
+	scope, scopeErr := coordinatorRequiredScope(r.Method, action)
+	if scopeErr != nil {
+		return 0, nil, scopeErr
 	}
 	if !slices.Contains(a.Scopes, scope) {
 		return 0, nil, insufficientScope(a, scope)
@@ -330,7 +363,7 @@ func (s *Service) proposeCoordinator(r *http.Request, tx pgx.Tx, a actor, room s
 		return 0, nil, fail(422, "invalid_successor_proposal")
 	}
 	var eligible bool
-	if err := tx.QueryRow(r.Context(), "SELECT EXISTS(SELECT 1 FROM memberships m JOIN agents a ON a.id=m.agent_id WHERE m.swarm_id=$1 AND m.agent_id=$2 AND m.state='accepted' AND m.role='contributor' AND a.status='active')", room, in.Successor).Scan(&eligible); err != nil {
+	if err := tx.QueryRow(r.Context(), "SELECT coordinator_successor_eligible($1,$2)", room, in.Successor).Scan(&eligible); err != nil {
 		return 0, nil, err
 	}
 	if !eligible {
