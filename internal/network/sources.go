@@ -184,6 +184,8 @@ type sourceItem struct {
 }
 
 func (r *SourceRefresher) refresh(ctx context.Context, db *pgx.Conn, c SourceConfig) error {
+	ctx, cancel := context.WithTimeout(ctx, 45*time.Second)
+	defer cancel()
 	tx, e := db.Begin(ctx)
 	if e != nil {
 		return e
@@ -199,8 +201,6 @@ func (r *SourceRefresher) refresh(ctx context.Context, db *pgx.Conn, c SourceCon
 	}
 	// Per-source row lock serializes processes. Bounded I/O prevents unbounded locks;
 	// failed pages roll back the whole snapshot, retaining the previous good check.
-	ctx, cancel := context.WithTimeout(ctx, 45*time.Second)
-	defer cancel()
 	validators := map[string]string{}
 	json.Unmarshal(validatorsRaw, &validators)
 	nextValidators := map[string]string{}

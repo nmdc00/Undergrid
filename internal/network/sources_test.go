@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestSourceWorkerRejectsUnreviewedConfiguration(t *testing.T) {
@@ -392,4 +393,98 @@ func TestSourceBoundedPaginationUsesConfiguredEndpoint(t *testing.T) {
 	if err = db.QueryRow(context.Background(), `SELECT count(*) FROM undergrid.eligible_external_observations WHERE source_id=$1`, cfg.ID).Scan(&total); err != nil || total != 2 || requests.Load() != 4 {
 		t.Fatalf("pagination result %d requests %d %v", total, requests.Load(), err)
 	}
+}
+
+func TestSourceRefreshUsesRestrictedWorkerLogin(t *testing.T) {
+	_, db := fixture(t)
+	ctx := context.Background()
+	role := "source_runner_" + strings.ReplaceAll(NewID(), "-", "")
+	identifier := pgx.Identifier{role}.Sanitize()
+	if _, err := db.Exec(ctx, "CREATE ROLE "+identifier+" LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS"); err != nil {
+		t.Fatal(err)
+	}
+	defer db.Exec(ctx, "DROP ROLE "+identifier)
+	if _, err := db.Exec(ctx, "GRANT undergrid_worker TO "+identifier); err != nil {
+		t.Fatal(err)
+	}
+	runtimeConfig := db.Config().Copy()
+	runtimeConfig.User = role
+	runtimeDB, err := pgx.ConnectConfig(ctx, runtimeConfig)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer runtimeDB.Close(ctx)
+	var super, bypass bool
+	if err = runtimeDB.QueryRow(ctx, "SELECT rolsuper,rolbypassrls FROM pg_roles WHERE rolname=current_user").Scan(&super, &bypass); err != nil || super || bypass {
+		t.Fatalf("not a restricted runtime login %v %v %v", super, bypass, err)
+	}
+	publisher := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"items":[{"id":"restricted","version":"1","url":"https://publisher.example/tool","title":"Worker metadata","status":"active"}],"next_page":0}`)
+	}))
+	defer publisher.Close()
+	cfg := SourceConfig{ID: NewID(), Kind: "capability_manifest", Endpoint: "https://publisher.example/feed", Publisher: "fixture", AccessBasis: "fixture access", RepublicationBasis: "fixture metadata", TombstoneBasis: "fixture retention", Fields: []string{"title"}}
+	refresher, err := NewSourceRefresher(runtimeConfig.ConnString(), []SourceConfig{cfg})
+	if err != nil {
+		t.Fatal(err)
+	}
+	transport := publisher.Client().Transport.(*http.Transport).Clone()
+	address := strings.TrimPrefix(publisher.URL, "https://")
+	transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, network, address)
+	}
+	transport.TLSClientConfig.InsecureSkipVerify = true
+	refresher.client.Transport = transport
+	if err = (&sourceRefreshWorker{refresher: refresher}).Work(ctx, nil); err != nil {
+		t.Fatal(err)
+	}
+	var count int
+	if err = runtimeDB.QueryRow(ctx, `SELECT count(*) FROM undergrid.eligible_external_observations WHERE source_id=$1`, cfg.ID).Scan(&count); err != nil || count != 1 {
+		t.Fatalf("worker login source ingestion %d %v", count, err)
+	}
+}
+
+func TestSourceWorkerLoadsConfiguredApprovalFile(t *testing.T) {
+	service, db := fixture(t)
+	cfg := SourceConfig{ID: NewID(), Kind: "capability_manifest", Endpoint: "https://undergrid-source.invalid/feed", Publisher: "fixture", AccessBasis: "fixture access", RepublicationBasis: "fixture metadata", TombstoneBasis: "fixture retention", Fields: []string{"title"}}
+	raw, _ := json.Marshal([]SourceConfig{cfg})
+	path := filepath.Join(t.TempDir(), "sources.json")
+	if err := os.WriteFile(path, raw, 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("UNDERGRID_SOURCES_FILE", path)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- RunWorker(ctx, service.dsn, "development") }()
+	deadline := time.Now().Add(10 * time.Second)
+	found := false
+	for time.Now().Before(deadline) {
+		var exists bool
+		if err := db.QueryRow(context.Background(), `SELECT EXISTS(SELECT 1 FROM undergrid.external_sources WHERE id=$1 AND config->>'Endpoint'=$2)`, cfg.ID, cfg.Endpoint).Scan(&exists); err != nil {
+			t.Fatal(err)
+		}
+		if exists {
+			found = true
+			break
+		}
+		select {
+		case err := <-done:
+			t.Fatalf("worker stopped before source configuration loaded: %v", err)
+		case <-time.After(25 * time.Millisecond):
+		}
+	}
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("source worker shutdown: %v", err)
+		}
+	case <-time.After(12 * time.Second):
+		t.Fatal("source worker failed bounded shutdown")
+	}
+	if !found {
+		t.Fatal("configured source never reached actual worker persistence")
+	}
+	// .invalid is deliberately unresolvable: this proves startup/job wiring,
+	// not a successful publisher/provider qualification.
 }
