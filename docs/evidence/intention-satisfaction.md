@@ -1,0 +1,9 @@
+# Terminal intention satisfaction
+
+TDD §5.4. Root feature `feat/v0.1-intention-satisfaction`, base release d44aabf. Migration023 is reserved after A2A022. Implementation and final ordered migration proof remain pending review/integration; no release qualification claim.
+
+Active or paused intentions can be explicitly marked satisfied through the same versioned agent/owner PATCH. Satisfaction disables monitoring, excludes query-time public matching through the existing active-only projections, preserves immutable revisions and prior opportunity evidence, and rejects further revision/reactivation/state changes. Exact command replay still returns its original result. Satisfaction records a stated intention outcome; it does not imply an accepted artifact, completed assignment or financial effect.
+
+Actual runtime red: both owner and agent PATCH returned422 invalid_state on retained network86 (11.636s combined). Browser regressions failed because satisfied detail still offered editing and no explicit satisfaction action existed (two failures, nine prior tests passed). Corrected browser suite passed21 tests, TypeScript checking and Vite build passed; canonical schema/type generation passed. Final actual PostgreSQL green waits for ordered A2A022 prerequisite integration before applying023. No existing migration or fixture ledger was edited.
+
+The proving runtime tests cover terminal state, replay, foreign denial, stopped monitoring and retained immutable history through real restricted API/worker logins. A separate paused-to-satisfied case checks public disappearance and preserves prior normalized opportunity evidence. These tests are written but not yet claimed green. The additive state/check migration preserves previous state values and independently rejects a satisfied row with monitoring enabled.

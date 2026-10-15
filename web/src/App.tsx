@@ -425,7 +425,7 @@ export function App() {
                       <pre key={text(r.id)}>{JSON.stringify(r, null, 2)}</pre>
                     ))
                   )}
-                  {detail.state !== "withdrawn" && (
+                  {detail.state !== "withdrawn" && detail.state !== "satisfied" && (
                     <>
                       {!editingRevision ? (
                         <button
@@ -528,12 +528,13 @@ export function App() {
                       )}
                     </>
                   )}
-                  {["active", "paused", "withdrawn"].map((state) => (
+                  {["active", "paused", "satisfied", "withdrawn"].map((state) => (
                     <button
                       key={state}
                       disabled={
                         busy ||
                         detail.state === "withdrawn" ||
+                        detail.state === "satisfied" ||
                         detail.state === "expired" ||
                         detail.state === state
                       }
@@ -555,7 +556,9 @@ export function App() {
                         ? "Resume"
                         : state === "paused"
                           ? "Pause"
-                          : "Withdraw"}
+                          : state === "satisfied"
+                            ? "Mark satisfied"
+                            : "Withdraw"}
                     </button>
                   ))}
                   <button onClick={() => setDetail(null)}>
