@@ -146,7 +146,7 @@ func mutateIntentOnce(r *http.Request, tx pgx.Tx, a actor, environment string) (
 			}
 			version++
 			eventType = "intent." + inputState
-			if _, err = tx.Exec(ctx, "UPDATE intents SET state=$2,version=$3,watch_enabled=CASE WHEN $2='active' THEN watch_enabled ELSE false END WHERE id=$1", id, inputState, version); err != nil {
+			if _, err = tx.Exec(ctx, "UPDATE intents SET state=$2,version=$3,watch_enabled=CASE WHEN $2='active' THEN (SELECT (document->'watch'->>'enabled')::boolean FROM intent_revisions WHERE intent_id=$1 AND revision=intents.current_revision) ELSE false END WHERE id=$1", id, inputState, version); err != nil {
 				return 0, nil, err
 			}
 		} else {
