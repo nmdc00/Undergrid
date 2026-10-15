@@ -336,6 +336,7 @@ func assertFailedRefreshLeavesImmediateWakeup(t *testing.T) {
 func TestCommittedDiscoveryRefreshesExistingWatcher(t *testing.T) {
 	s, db := fixture(t)
 	a, b := client(t, s), client(t, s)
+	blockedWatcher := client(t, s)
 	input := intentFixture()
 	input.Visibility = "redacted_public"
 	input.PublicSummary = "Later candidate " + NewID()
@@ -343,6 +344,26 @@ func TestCommittedDiscoveryRefreshesExistingWatcher(t *testing.T) {
 	if code != 201 {
 		t.Fatal(code, first)
 	}
+	privateInput := input
+	privateInput.Visibility = "private"
+	code, privateWatch := blockedWatcher.call("POST", "/v1/intents", "private-watch-before-candidate", privateInput)
+	if code != 201 {
+		t.Fatal(code, privateWatch)
+	}
+	// The retained watcher must not depend on the repair lane being available.
+	var oldPause *time.Time
+	err := db.QueryRow(context.Background(), "SELECT paused_at FROM undergrid_queue.river_queue WHERE name=$1", discoveryRepairQueue).Scan(&oldPause)
+	if err != nil && err != pgx.ErrNoRows {
+		t.Fatal(err)
+	}
+	if _, err = db.Exec(context.Background(), "INSERT INTO undergrid_queue.river_queue(name,paused_at) VALUES($1,now()) ON CONFLICT(name) DO UPDATE SET paused_at=excluded.paused_at", discoveryRepairQueue); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if _, err := db.Exec(context.Background(), "UPDATE undergrid_queue.river_queue SET paused_at=$2 WHERE name=$1", discoveryRepairQueue, oldPause); err != nil {
+			t.Error(err)
+		}
+	}()
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- RunWorker(ctx, s.dsn, "development") }()
@@ -360,7 +381,7 @@ func TestCommittedDiscoveryRefreshesExistingWatcher(t *testing.T) {
 	deadline := time.Now().Add(5 * time.Second)
 	for {
 		var scanned bool
-		if err := db.QueryRow(context.Background(), "SELECT last_scan IS NOT NULL FROM undergrid.intents WHERE id=$1", first["id"]).Scan(&scanned); err != nil {
+		if err := db.QueryRow(context.Background(), "SELECT count(*)=2 FROM undergrid.intents WHERE id=ANY($1::uuid[]) AND last_scan IS NOT NULL", []string{first["id"].(string), privateWatch["id"].(string)}).Scan(&scanned); err != nil {
 			t.Fatal(err)
 		}
 		if scanned {
@@ -370,6 +391,23 @@ func TestCommittedDiscoveryRefreshesExistingWatcher(t *testing.T) {
 			t.Fatal("first watch did not scan before candidate arrival")
 		}
 		time.Sleep(20 * time.Millisecond)
+	}
+	code, before := a.call("GET", "/v1/intents/"+first["id"].(string)+"/opportunities", "", nil)
+	if code != 200 || len(before["items"].([]any)) != 0 {
+		t.Fatal("private watch became a public candidate", code, before)
+	}
+	locker, err := pgx.Connect(context.Background(), s.dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer locker.Close(context.Background())
+	held, err := locker.Begin(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer held.Rollback(context.Background())
+	if _, err = held.Exec(context.Background(), "SELECT id FROM undergrid.principals WHERE id=(SELECT principal_id FROM undergrid.intents WHERE id=$1) FOR UPDATE", privateWatch["id"]); err != nil {
+		t.Fatal(err)
 	}
 	code, second := b.call("POST", "/v1/intents", "candidate-after-scan", input)
 	if code != 201 {
@@ -381,12 +419,148 @@ func TestCommittedDiscoveryRefreshesExistingWatcher(t *testing.T) {
 		if code != 200 {
 			t.Fatal(code, page)
 		}
-		if len(page["items"].([]any)) == 1 {
-			return
+		for _, item := range page["items"].([]any) {
+			opportunity := item.(map[string]any)
+			if opportunity["candidate_intent_id"] == second["id"] {
+				var opportunities, events, inbox int
+				if err := db.QueryRow(context.Background(), `SELECT count(*) FROM undergrid.opportunities WHERE source_intent_id=$1 AND candidate_intent_id=$2`, first["id"], second["id"]).Scan(&opportunities); err != nil {
+					t.Fatal(err)
+				}
+				if err := db.QueryRow(context.Background(), `SELECT count(*) FROM undergrid.events WHERE aggregate_id=$1 AND type='opportunity.available'`, opportunity["id"]).Scan(&events); err != nil {
+					t.Fatal(err)
+				}
+				if err := db.QueryRow(context.Background(), `SELECT count(*) FROM undergrid.inbox i JOIN undergrid.events e ON e.id=i.event_id WHERE e.aggregate_id=$1 AND e.type='opportunity.available'`, opportunity["id"]).Scan(&inbox); err != nil {
+					t.Fatal(err)
+				}
+				if opportunities != 1 || events != 1 || inbox != 1 {
+					t.Fatalf("duplicate/missing committed effects: opportunities=%d events=%d inbox=%d", opportunities, events, inbox)
+				}
+				goto WatcherMatched
+			}
 		}
+
 		if time.Now().After(deadline) {
 			t.Fatal("committed refresh lost the previously scanned watcher")
 		}
 		time.Sleep(20 * time.Millisecond)
+	}
+WatcherMatched:
+	deadline = time.Now().Add(5 * time.Second)
+	for {
+		var queued int
+		if err := db.QueryRow(context.Background(), `SELECT count(*) FROM undergrid_queue.river_job WHERE kind='intention_watch_refresh_v1' AND args->>'candidate_id'=$1 AND args->>'watcher_id'=$2 AND state IN('available','running','scheduled','retryable')`, second["id"], privateWatch["id"]).Scan(&queued); err != nil {
+			t.Fatal(err)
+		}
+		if queued > 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("locked watcher did not retain durable refresh work")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if err = held.Rollback(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	deadline = time.Now().Add(5 * time.Second)
+	for {
+		code, page := blockedWatcher.call("GET", "/v1/intents/"+privateWatch["id"].(string)+"/opportunities", "", nil)
+		if code != 200 {
+			t.Fatal(code, page)
+		}
+		matched := false
+		for _, item := range page["items"].([]any) {
+			if item.(map[string]any)["candidate_intent_id"] == second["id"] {
+				matched = true
+			}
+		}
+		var completed bool
+		if err := db.QueryRow(context.Background(), `SELECT EXISTS(SELECT FROM undergrid_queue.river_job WHERE kind='intention_watch_refresh_v1' AND args->>'candidate_id'=$1 AND args->>'watcher_id'=$2 AND state='completed')`, second["id"], privateWatch["id"]).Scan(&completed); err != nil {
+			t.Fatal(err)
+		}
+		if matched && completed {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("locked watcher refresh did not recover after lock release")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+}
+
+// Exercise a full durable continuation independently of whichever UUIDs a
+// retained fixture happened to allocate. Synthetic rows are test-only watches,
+// not independent owners or provider observations.
+func TestWatcherFanoutContinuesBeyondBoundedPage(t *testing.T) {
+	s, db := fixture(t)
+	a, b := client(t, s), client(t, s)
+	input := intentFixture()
+	input.Visibility = "redacted_public"
+	input.PublicSummary = "Fanout boundary " + NewID()
+	code, source := a.call("POST", "/v1/intents", "fanout-source", input)
+	if code != 201 {
+		t.Fatal(code, source)
+	}
+	code, candidate := b.call("POST", "/v1/intents", "fanout-candidate", input)
+	if code != 201 {
+		t.Fatal(code, candidate)
+	}
+	ids := make([]string, 0, 258)
+	for range 257 {
+		ids = append(ids, "ffffffff-ffff-4fff-8fff-"+NewID()[24:])
+	}
+	target := "ffffffff-ffff-4fff-bfff-" + NewID()[24:]
+	ids = append(ids, target)
+	ctx := context.Background()
+	tx, err := db.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx)
+	_, err = tx.Exec(ctx, `INSERT INTO undergrid.intents(id,principal_id,agent_id,state,visibility,expires_at,watch_enabled)
+	 SELECT u.id,i.principal_id,i.agent_id,i.state,i.visibility,i.expires_at,i.watch_enabled FROM undergrid.intents i CROSS JOIN unnest($1::uuid[]) u(id) WHERE i.id=$2`, ids, source["id"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = tx.Exec(ctx, `INSERT INTO undergrid.intent_revisions(intent_id,revision,document,public_projection,content_hash)
+	 SELECT u.id,1,r.document,r.public_projection,r.content_hash FROM undergrid.intent_revisions r CROSS JOIN unnest($1::uuid[]) u(id) WHERE r.intent_id=$2 AND r.revision=1`, ids, source["id"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = tx.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		// Retain fixture history while making these synthetic watches inactive.
+		if _, err := db.Exec(ctx, "UPDATE undergrid.intents SET state='withdrawn' WHERE id=ANY($1::uuid[])", ids); err != nil {
+			t.Error(err)
+		}
+	}()
+	args := watchRefreshArgs{CandidateID: candidate["id"].(string), AfterID: "ffffffff-ffff-4fff-8000-000000000000"}
+	if err = s.enqueueCompatibleWatchers(ctx, args); err != nil {
+		t.Fatal(err)
+	}
+	var targetJobs int
+	countTarget := func() int {
+		t.Helper()
+		if err := db.QueryRow(ctx, "SELECT count(*) FROM undergrid_queue.river_job WHERE kind='intention_watch_refresh_v1' AND args->>'candidate_id'=$1 AND args->>'watcher_id'=$2", args.CandidateID, target).Scan(&targetJobs); err != nil {
+			t.Fatal(err)
+		}
+		return targetJobs
+	}
+	if countTarget() != 0 {
+		t.Fatal("last watcher incorrectly appeared in the bounded first page")
+	}
+	var after string
+	if err = db.QueryRow(ctx, "SELECT args->>'after_id' FROM undergrid_queue.river_job WHERE kind='intention_watch_refresh_v1' AND queue=$1 AND args->>'candidate_id'=$2 AND args->>'after_id'>$3 ORDER BY id DESC LIMIT 1", watchFanoutQueue, args.CandidateID, args.AfterID).Scan(&after); err != nil {
+		t.Fatal("missing durable continuation", err)
+	}
+	args.AfterID = after
+	if err = s.enqueueCompatibleWatchers(ctx, args); err != nil {
+		t.Fatal(err)
+	}
+	if countTarget() != 1 {
+		t.Fatalf("continuation lost/duplicated final compatible watcher: %d", targetJobs)
 	}
 }
