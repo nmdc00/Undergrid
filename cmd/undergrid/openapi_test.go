@@ -38,3 +38,25 @@ func TestExecutableRoutesMCPWithoutStaticFallback(t *testing.T) {
 		t.Fatalf("MCP command mux fell through: %d %s", w.Code, w.Body.String())
 	}
 }
+
+func TestExecutableRoutesA2AWithoutStaticFallback(t *testing.T) {
+	service := network.New("unavailable database", "development", nil)
+	if err := service.ConfigureA2ATransport("https://network.fixture.test"); err != nil {
+		t.Fatal(err)
+	}
+	mux := http.NewServeMux()
+	registerNetworkRoutes(mux, service)
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { http.Error(w, "static fallback", 404) })
+	for _, path := range []string{"/.well-known/agent-card.json", "/a2a/coordination-v1.schema.json"} {
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, httptest.NewRequest("GET", path, nil))
+		if w.Code != 200 || strings.Contains(w.Body.String(), "static fallback") {
+			t.Fatalf("A2A public route fell through: %s %d %s", path, w.Code, w.Body.String())
+		}
+	}
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, httptest.NewRequest("POST", "/a2a/message:send", strings.NewReader(`{}`)))
+	if w.Code != 400 || !strings.Contains(w.Body.String(), "VERSION_NOT_SUPPORTED") {
+		t.Fatalf("A2A executable route fell through: %d %s", w.Code, w.Body.String())
+	}
+}
