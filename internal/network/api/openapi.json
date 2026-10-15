@@ -6470,7 +6470,8 @@
             "enum": [
               "paused",
               "active",
-              "withdrawn"
+              "withdrawn",
+              "satisfied"
             ]
           },
           "revision": {
