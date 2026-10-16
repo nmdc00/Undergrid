@@ -418,6 +418,8 @@ Support one Stripe test platform product, its bounded test subscription, and one
 
 Each `sandbox_payment` is a test purchase with immutable quote fields: actor/agent, product, test-terms ID/hash as the contract reference, asset/atomic amount, fee, payee, network/token if applicable, expiry, nonce, quote hash, approved policy version, authority proof, reservation period and provider idempotency key. For the wallet rail, payer address and binding ID/epoch are part of that immutable quote/hash. Use integer atomic units (`numeric(78,0)` storage/string JSON); no floating-point money or automatic FX. Quote/authorization/provider outcome remain separate typed columns/states on this bounded aggregate, not interchangeable meanings.
 
+Sandbox credential revocation, audience and expiry are checked against current database time after its actor and credential authority locks; transaction-start time cannot extend authority during a wait. Actual separate-login proof is recorded in `evidence/sandbox-credential-expiry.md`.
+
 Sandbox actor has a cap per asset/UTC period and exact product/payee allowlist, approved by interactive principal session. Lock that actor's policy row; sum settled gross purchases plus unresolved reservations in the period; reject excess; insert reservation on the payment row and enqueue. This is adequate for low-volume beta, with serial actor-level authority, and removes budget bucket/reservation abstractions. Unknown provider outcome keeps the reservation. Recheck policy at dispatch; revocation after dispatch requests cancellation but cannot recall an in-flight external operation. A real unexpected charge is recorded and flagged, not hidden by failed authorization checks.
 
 ### 11.2 States and evidence ledger

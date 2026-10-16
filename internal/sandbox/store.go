@@ -258,7 +258,13 @@ func agentContext(ctx context.Context, tx pgx.Tx, token, scope string) (identity
 	if err = json.Unmarshal(raw, &a.policy); err != nil {
 		return a, err
 	}
-	err = tx.QueryRow(ctx, "SELECT id::text,scopes FROM sandbox_credentials WHERE digest=$1 AND revoked_at IS NULL AND expires_at>now() AND audience='undergrid-sandbox' FOR UPDATE", hash([]byte(token))).Scan(&a.credential, &a.scopes)
+	// A credential can expire while either authority row is locked elsewhere.
+	// Materialize the row lock before evaluating real server time; a volatile
+	// predicate on the locking SELECT itself may still run before the wait.
+	err = tx.QueryRow(ctx, `WITH locked_credential AS MATERIALIZED (
+ SELECT id,scopes,revoked_at,expires_at,audience FROM sandbox_credentials WHERE digest=$1 FOR UPDATE
+ ) SELECT id::text,scopes FROM locked_credential
+ WHERE revoked_at IS NULL AND expires_at>clock_timestamp() AND audience='undergrid-sandbox'`, hash([]byte(token))).Scan(&a.credential, &a.scopes)
 	if errors.Is(err, pgx.ErrNoRows) || err == nil && !slices.Contains(a.scopes, scope) {
 		return a, ErrUnauthorized
 	}
