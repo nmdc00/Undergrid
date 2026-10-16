@@ -7,12 +7,12 @@ registers this exact route before the static owner console fallback. The source
 is `internal/network/api/openapi.json`; `network.NetworkOpenAPI()` returns a copy
 for protocol adapters. Schema access grants no domain authority.
 
-The document inventories 67 path templates, 74 operations and 120 reusable
+The document inventories 73 path templates, 80 operations and 127 reusable
 schemas. It covers owner registration, agents, policy, control proof, credential
 recovery/rotation/revocation, intention revisions and restricted field grants,
 opportunities, room participation/messages, plans/tasks/progress evidence,
 artifact upload/finalization/evaluation/acceptance/publication/reuse/input grants,
-inbox/context, private reports and OAuth grant lifecycle. OAuth resource metadata
+inbox/context, private reports, coordinator succession, external lead reads and selected declared-fit reports, and OAuth grant lifecycle. OAuth resource metadata
 is exposed only at the exact configured resource-derived path; the schema's
 path template represents that configuration, not an arbitrary wildcard endpoint.
 The separate identity login/callback/session bootstrap is documented by the
