@@ -21,6 +21,8 @@ type USDCSettlementStatus struct {
 type usdcClaim struct {
 	Start, Scan *big.Int
 	Transaction string
+	Sequence    int64
+	Previous    *usdcObservation
 }
 
 func (s *Store) verifyHistoricalUSDC(ctx context.Context, tx pgx.Tx, p Payment) error {
@@ -83,12 +85,13 @@ func (s *Store) usdcPayment(ctx context.Context, id string) (Payment, usdcClaim,
 			claim.Start, _ = new(big.Int).SetString(*start, 10)
 		}
 		claim.Scan, _ = new(big.Int).SetString(scan, 10)
-		var candidate string
-		err = tx.QueryRow(ctx, `SELECT transaction_hash FROM sandbox_usdc_observations WHERE payment_id=$1 ORDER BY sequence DESC LIMIT 1`, id).Scan(&candidate)
+		previous := &usdcObservation{}
+		err = tx.QueryRow(ctx, `SELECT sequence,transaction_hash,block_hash,block_number::text,finality,evidence FROM sandbox_usdc_observations WHERE payment_id=$1 ORDER BY sequence DESC LIMIT 1`, id).Scan(&claim.Sequence, &previous.Transaction, &previous.BlockHash, &previous.Block, &previous.Finality, &previous.Evidence)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil
 		}
-		claim.Transaction = candidate
+		claim.Transaction = previous.Transaction
+		claim.Previous = previous
 		return err
 	})
 	return p, claim, err
@@ -121,9 +124,15 @@ func (s *Store) recordUSDC(ctx context.Context, id string, proof usdcObservation
 			return ErrConflict
 		}
 		var oldTransaction, oldBlock, oldFinality string
-		err = tx.QueryRow(ctx, `SELECT transaction_hash,block_hash,finality FROM sandbox_usdc_observations WHERE payment_id=$1 ORDER BY sequence DESC LIMIT 1`, id).Scan(&oldTransaction, &oldBlock, &oldFinality)
+		var observedSequence int64
+		err = tx.QueryRow(ctx, `SELECT sequence,transaction_hash,block_hash,finality FROM sandbox_usdc_observations WHERE payment_id=$1 ORDER BY sequence DESC LIMIT 1`, id).Scan(&observedSequence, &oldTransaction, &oldBlock, &oldFinality)
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			return err
+		}
+		// The proof was observed outside the transaction. Actor serialization alone
+		// cannot stop an older RPC snapshot arriving after a newer committed reorg.
+		if observedSequence != proof.expectedSequence {
+			return ErrConflict
 		}
 		if oldFinality != "" && oldFinality != "candidate" && oldFinality != "orphaned" && proof.Finality != "orphaned" {
 			if oldTransaction != proof.Transaction || oldBlock != proof.BlockHash {
@@ -182,21 +191,6 @@ func (s *Store) recordUSDC(ctx context.Context, id string, proof usdcObservation
 		_, err = tx.Exec(ctx, `UPDATE sandbox_payments SET state=$2,provider_reference=$3,updated_at=now() WHERE id=$1`, id, state, proof.Transaction)
 		return err
 	})
-}
-func (s *Store) lastUSDCObservation(ctx context.Context, id string) (*usdcObservation, error) {
-	var result *usdcObservation
-	err := s.transaction(ctx, "undergrid_sandbox_worker", func(tx pgx.Tx) error {
-		proof := &usdcObservation{}
-		err := tx.QueryRow(ctx, `SELECT transaction_hash,block_hash,block_number::text,finality,evidence FROM sandbox_usdc_observations WHERE payment_id=$1 ORDER BY sequence DESC LIMIT 1`, id).Scan(&proof.Transaction, &proof.BlockHash, &proof.Block, &proof.Finality, &proof.Evidence)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil
-		}
-		if err == nil {
-			result = proof
-		}
-		return err
-	})
-	return result, err
 }
 func loadUSDCStatus(ctx context.Context, tx pgx.Tx, p *Payment) error {
 	if p.Quote.Asset != "USDC" {

@@ -41,6 +41,7 @@ type usdcTransaction struct {
 	Chain     string `json:"chainId"`
 }
 type usdcObservation struct {
+	expectedSequence                                                           int64
 	Transaction, BlockHash, Block, Finality, TransferIndex, AuthorizationIndex string
 	Evidence                                                                   json.RawMessage
 }

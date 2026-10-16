@@ -164,7 +164,7 @@ func (f *usdcChainFixture) serve(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(504)
 			return
 		}
-		json.NewEncoder(w).Encode(map[string]any{"success": true, "payer": f.command.Authorization.From, "network": "eip155:84532", "transaction": "0x" + strings.Repeat("a", 64)})
+		json.NewEncoder(w).Encode(map[string]any{"success": true, "payer": f.command.Authorization.From, "network": "eip155:84532", "transaction": "0x" + hash([]byte(f.payment.ID))})
 		return
 	}
 	var request struct {
@@ -181,7 +181,7 @@ func (f *usdcChainFixture) serve(w http.ResponseWriter, r *http.Request) {
 	if phase == 2 {
 		hash = "0x" + strings.Repeat("c", 64)
 	}
-	txHash := "0x" + strings.Repeat("a", 64)
+	txHash := "0x" + hash([]byte(f.payment.ID))
 	fault := f.fault.Load().(string)
 	result := any(nil)
 	switch request.Method {

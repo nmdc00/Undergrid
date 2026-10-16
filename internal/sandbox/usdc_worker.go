@@ -176,7 +176,7 @@ func (s *USDCService) DispatchPayment(ctx context.Context, id string) error {
 	}
 	candidate := usdcObservation{Transaction: settled.Transaction, Block: "0", Finality: "candidate", Evidence: encode(map[string]any{"transaction_hash": settled.Transaction, "provider_result": "unverified_candidate", "designation": "TEST"})}
 	if err = s.store.recordUSDC(ctx, id, candidate); err != nil {
-		return unknown(err)
+		return err
 	}
 	// A facilitator success flag is never an economic fact. Only independent RPC
 	// receipt/finality verification can settle, including a late reported failure.
@@ -198,10 +198,7 @@ func (s *USDCService) ReconcilePayment(ctx context.Context, id string) error {
 	if err = s.checkChain(ctx); err != nil {
 		return err
 	}
-	previous, err := s.store.lastUSDCObservation(ctx, id)
-	if err != nil {
-		return err
-	}
+	previous := claim.Previous
 	if previous != nil && previous.BlockHash != "" && previous.Finality != "orphaned" {
 		number, _ := new(big.Int).SetString(previous.Block, 10)
 		header, err := s.header(ctx, "0x"+number.Text(16))
@@ -210,12 +207,16 @@ func (s *USDCService) ReconcilePayment(ctx context.Context, id string) error {
 		}
 		if header.Hash != previous.BlockHash {
 			correction := *previous
+			correction.expectedSequence = claim.Sequence
 			correction.Finality = "orphaned"
 			correction.Evidence = encode(map[string]any{"transaction_hash": previous.Transaction, "block_hash": previous.BlockHash, "block_number": previous.Block, "canonical_replacement_hash": header.Hash, "designation": "TEST"})
 			if err = s.store.recordUSDC(ctx, id, correction); err != nil {
 				return err
 			}
-			claim.Scan = number
+			p, claim, err = s.store.usdcPayment(ctx, id)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	candidate := claim.Transaction
@@ -228,6 +229,7 @@ func (s *USDCService) ReconcilePayment(ctx context.Context, id string) error {
 			return err
 		}
 		if proof != nil {
+			proof.expectedSequence = claim.Sequence
 			return s.store.recordUSDC(ctx, id, *proof)
 		}
 	}
@@ -241,6 +243,7 @@ func (s *USDCService) ReconcilePayment(ctx context.Context, id string) error {
 			return err
 		}
 		if proof != nil {
+			proof.expectedSequence = claim.Sequence
 			return s.store.recordUSDC(ctx, id, *proof)
 		}
 	}
@@ -302,6 +305,20 @@ func (s *USDCService) findUSDCTransactions(ctx context.Context, p Payment, claim
 		if to.Cmp(from) >= 0 {
 			next := new(big.Int).Add(to, big.NewInt(1))
 			err = s.store.transaction(ctx, "undergrid_sandbox_worker", func(tx pgx.Tx) error {
+				var actor string
+				if err := tx.QueryRow(ctx, "SELECT actor_id::text FROM sandbox_payments WHERE id=$1", p.ID).Scan(&actor); err != nil {
+					return err
+				}
+				if _, err := tx.Exec(ctx, "SELECT id FROM sandbox_actors WHERE id=$1 FOR UPDATE", actor); err != nil {
+					return err
+				}
+				var observed int64
+				if err := tx.QueryRow(ctx, "SELECT COALESCE(max(sequence),0) FROM sandbox_usdc_observations WHERE payment_id=$1", p.ID).Scan(&observed); err != nil {
+					return err
+				}
+				if observed != claim.Sequence {
+					return ErrConflict
+				}
 				_, err := tx.Exec(ctx, "UPDATE sandbox_usdc_claims SET scan_block=GREATEST(scan_block,$2::numeric) WHERE payment_id=$1", p.ID, next.String())
 				return err
 			})
