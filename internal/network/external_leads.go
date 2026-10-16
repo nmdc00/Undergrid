@@ -120,13 +120,7 @@ func (s *Service) listExternalLeads(r *http.Request, tx pgx.Tx, a actor, intent,
 		if err = rows.Scan(&item.ID, &item.SourceID, &item.SourceVersion, &item.Origin, &item.CanonicalURL, &item.Publisher, &item.PermissionNotice, &item.Metadata, &item.ObservedAt, &item.CheckedAt); err != nil {
 			return 0, nil, err
 		}
-		item.IdentityAssurance = "unknown"
-		item.FitStatus = "not_assessed"
-		item.HardConstraints = "unknown"
-		item.FreshUntil = item.CheckedAt.Add(24 * time.Hour)
-		// Hash the public projection only. Private approval files and mutable check
-		// timestamps cannot reveal themselves through a supposedly public digest.
-		item.ProjectionHash = digest(canonical(map[string]any{"id": item.ID, "source_id": item.SourceID, "source_version": item.SourceVersion, "origin": item.Origin, "canonical_url": item.CanonicalURL, "publisher": item.Publisher, "permission_notice": item.PermissionNotice, "metadata": item.Metadata}))
+		item = externalLeadProjection(item)
 		items = append(items, item)
 	}
 	if err = rows.Err(); err != nil {
@@ -185,4 +179,17 @@ func (s *Service) decodeExternalLeadCursor(token string, want externalLeadCursor
 		return "", fail(410, "lead_cursor_expired")
 	}
 	return after, nil
+}
+
+// externalLeadProjection annotates the already permission-filtered public row.
+// Both list and declared-fit reads publish this exact assurance/hash contract.
+func externalLeadProjection(lead externalLead) externalLead {
+	lead.IdentityAssurance = "unknown"
+	lead.FitStatus = "not_assessed"
+	lead.HardConstraints = "unknown"
+	lead.FreshUntil = lead.CheckedAt.Add(24 * time.Hour)
+	// Hash the public projection only. Private approval files and mutable check
+	// timestamps cannot reveal themselves through a supposedly public digest.
+	lead.ProjectionHash = digest(canonical(map[string]any{"id": lead.ID, "source_id": lead.SourceID, "source_version": lead.SourceVersion, "origin": lead.Origin, "canonical_url": lead.CanonicalURL, "publisher": lead.Publisher, "permission_notice": lead.PermissionNotice, "metadata": lead.Metadata}))
+	return lead
 }

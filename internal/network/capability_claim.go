@@ -22,11 +22,13 @@ type capabilityClaim struct {
 }
 
 func parseCapabilityClaim(raw []byte) (*capabilityClaim, error) {
+	// Bound decoding separately from the normalized declaration: PostgreSQL
+	// JSONB spacing must not make the same permitted claim become invalid.
+	if len(raw) > 16384 {
+		return nil, errors.New("capability claim encoding exceeds budget")
+	}
 	if len(raw) == 0 || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
 		return nil, nil
-	}
-	if len(raw) > 8192 {
-		return nil, errors.New("capability claim exceeds budget")
 	}
 	var claim capabilityClaim
 	decoder := json.NewDecoder(bytes.NewReader(raw))
@@ -61,6 +63,9 @@ func parseCapabilityClaim(raw []byte) (*capabilityClaim, error) {
 	}
 	if claim.ProvidedFields != nil && !list(*claim.ProvidedFields, 100) || !list(claim.LicenseIDs, 20) {
 		return nil, errors.New("invalid declared field or license set")
+	}
+	if len(canonical(claim)) > 8192 {
+		return nil, errors.New("normalized capability claim exceeds budget")
 	}
 	return &claim, nil
 }

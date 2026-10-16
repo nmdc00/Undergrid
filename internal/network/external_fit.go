@@ -7,7 +7,6 @@ import (
 	"net/url"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -129,11 +128,7 @@ func (s *Service) externalFitReport(r *http.Request, tx pgx.Tx, a actor, intent 
 	if lead.Origin != "external_capability" {
 		return 0, nil, fail(422, "capability_lead_required")
 	}
-	lead.IdentityAssurance = "unknown"
-	lead.FitStatus = "not_assessed"
-	lead.HardConstraints = "unknown"
-	lead.FreshUntil = lead.CheckedAt.Add(24 * time.Hour)
-	lead.ProjectionHash = digest(canonical(map[string]any{"id": lead.ID, "source_id": lead.SourceID, "source_version": lead.SourceVersion, "origin": lead.Origin, "canonical_url": lead.CanonicalURL, "publisher": lead.Publisher, "permission_notice": lead.PermissionNotice, "metadata": lead.Metadata}))
+	lead = externalLeadProjection(lead)
 	claim, claimErr := parseCapabilityClaim(rawClaim)
 	claimStatus := "declared"
 	if claimErr != nil {
