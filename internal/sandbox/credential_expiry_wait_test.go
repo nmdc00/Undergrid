@@ -74,6 +74,7 @@ func TestSandboxCredentialExpiryAfterAuthorityWait(t *testing.T) {
 			}
 			body, _ := json.Marshal(map[string]string{"quote_hash": payment.Hash})
 			req := httptest.NewRequest(http.MethodPost, "/v1/payments/"+payment.ID+"/authorize", bytes.NewReader(body)).WithContext(ctx)
+			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("Authorization", "Bearer "+token)
 			req.Header.Set("Idempotency-Key", "expired-during-financial-authority-wait")
 			done := make(chan int, 1)
