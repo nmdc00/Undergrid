@@ -250,6 +250,9 @@ func a2aResourcePath(op networkOperation, r *http.Request, result any) string {
 	if op.name == "swarm_create" && validID(id) {
 		return "/v1/swarms/" + id + "/context"
 	}
+	if op.name == "coordinator_propose" && validID(id) {
+		return "/v1/coordinator-proposals/" + id
+	}
 	if op.name == "plan_propose" && validID(id) {
 		return "/v1/plans/" + id
 	}
@@ -267,7 +270,7 @@ func a2aResourcePath(op networkOperation, r *http.Request, result any) string {
 		switch parts[2] {
 		case "swarms":
 			return "/v1/swarms/" + parts[3] + "/context"
-		case "plans", "tasks", "artifacts", "artifact-input-grants":
+		case "plans", "tasks", "artifacts", "artifact-input-grants", "coordinator-proposals":
 			return "/v1/" + parts[2] + "/" + parts[3]
 		}
 	}
