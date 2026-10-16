@@ -29,3 +29,6 @@ The first combined focused race gate after these corrections failed72.640s on re
 
 
 Corrected CAS/canonical focused `-race` gate passed6.448s on retained financial95 with separate actual app-only and worker-only logins. The concurrency oracle freezes an older finalized header response across a newer committed orphan observation and requires `ErrConflict`, continued unknown state and exactly one original facilitator submission. The canonical lifecycle independently proves safe/finalized observations, replay deduplication, reorg corrections and current refundable capacity. An initial rerun compiler failure from a shadowed fixture helper name was corrected before any PostgreSQL test executed. Scheduler/remaining worker lifecycle gates are still pending.
+
+
+A stronger bounded-priority fairness oracle then failed43.104s against the mixed16 selector:101 historical settled rows delayed an authorized payment beyond two ticks. The follow-up selector reserves eight slots for active payments and eight for settled canonical monitoring, fills unused capacity from either group, and retains the total16/four-I/O bound and persisted due-time rotation. No historical payment, nonce claim or observation was deleted or reset. This follow-up is awaiting its green gate.

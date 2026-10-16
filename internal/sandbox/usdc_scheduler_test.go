@@ -49,7 +49,7 @@ func TestUSDCWorkerHistoricalFailuresDoNotStarveNewPayment(t *testing.T) {
 	if _, err := f.owner.db.Exec(ctx, `UPDATE undergrid_sandbox.sandbox_payments SET updated_at=now()-interval '2 hours',usdc_next_check=now()-interval '1 hour' WHERE id=ANY($1::uuid[])`, old); err != nil {
 		t.Fatal(err)
 	}
-	for n := 0; n < 10; n++ {
+	for n := 0; n < 2; n++ {
 		if err := f.service.tickUSDC(ctx); err != nil {
 			t.Fatal(err)
 		}
@@ -68,7 +68,7 @@ func TestUSDCWorkerHistoricalFailuresDoNotStarveNewPayment(t *testing.T) {
 			return
 		}
 	}
-	t.Fatal("more than100 settled rows permanently starved a new authorized payment")
+	t.Fatal("more than100 settled rows delayed a new authorized payment beyond two bounded ticks")
 }
 func TestUSDCWorkerContinuesCanonicalRechecksWithoutRepeatingTransfer(t *testing.T) {
 	f := newUSDCChainFixture(t)

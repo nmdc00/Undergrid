@@ -37,7 +37,16 @@ func (s *USDCService) tickUSDC(ctx context.Context) error {
 	type item struct{ ID, State string }
 	items := []item{}
 	err := s.store.transaction(ctx, "undergrid_sandbox_worker", func(tx pgx.Tx) error {
-		rows, err := tx.Query(ctx, `SELECT id::text,state FROM sandbox_payments WHERE quote->>'rail'='x402_test' AND quote->>'product'=$1 AND quote->>'payee'=$2 AND state IN('authorized','submitting','pending','unknown','settled') AND payer_authorization IS NOT NULL AND usdc_next_check<=clock_timestamp() ORDER BY usdc_next_check,id LIMIT 16`, s.config.Product, s.config.Payee)
+		rows, err := tx.Query(ctx, `WITH due AS (
+    SELECT id,state,usdc_next_check,
+           row_number() OVER (PARTITION BY state='settled' ORDER BY usdc_next_check,id) AS position
+    FROM sandbox_payments
+    WHERE quote->>'rail'='x402_test' AND quote->>'product'=$1 AND quote->>'payee'=$2
+      AND state IN('authorized','submitting','pending','unknown','settled')
+      AND payer_authorization IS NOT NULL AND usdc_next_check<=clock_timestamp()
+)
+SELECT id::text,state FROM due
+ORDER BY CASE WHEN position<=8 THEN 0 ELSE 1 END,usdc_next_check,id LIMIT 16`, s.config.Product, s.config.Payee)
 		if err != nil {
 			return err
 		}
@@ -56,7 +65,9 @@ func (s *USDCService) tickUSDC(ctx context.Context) error {
 	}
 
 	// Bound provider I/O independently of the number of historical settled rows.
-	// The persisted due time rotates successes and failures through the same queue.
+	// Reserve eight slots each for active payments and settled reorg monitoring,
+	// filling unused capacity from either group. Persisted due times rotate both
+	// successful and failed attempts without letting historical rows block dispatch.
 	work := make(chan item, len(items))
 	for _, i := range items {
 		work <- i

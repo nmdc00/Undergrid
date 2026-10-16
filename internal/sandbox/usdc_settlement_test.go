@@ -229,7 +229,14 @@ func (f *usdcChainFixture) serve(w http.ResponseWriter, r *http.Request) {
 		}
 		result = map[string]any{"number": number, "hash": hash, "timestamp": fmt.Sprintf("0x%x", time.Now().Unix())}
 	case "eth_getTransactionByHash":
-		result = map[string]any{"hash": txHash, "to": USDCTestToken, "input": f.calldata(), "blockHash": hash, "blockNumber": "0x64", "chainId": "0x14a34"}
+		to, input := USDCTestToken, f.calldata()
+		if fault == "wrapped-call" {
+			to = "0x" + strings.Repeat("8", 40)
+		}
+		if fault == "unsupported-calldata" {
+			input = "0x00000000" + strings.TrimPrefix(input, "0x")[8:]
+		}
+		result = map[string]any{"hash": txHash, "to": to, "input": input, "blockHash": hash, "blockNumber": "0x64", "chainId": "0x14a34"}
 	case "eth_getTransactionReceipt":
 		if phase == 2 {
 			break
@@ -398,7 +405,16 @@ func TestUSDCUnknownReconcilesHistoricalProofWithoutResubmission(t *testing.T) {
 	}
 	f.fault.Store("")
 	f.phase.Store(1)
-	if err = f.service.ReconcilePayment(ctx, p.ID); err != nil {
+	// A restarted service has no in-memory candidate or verification state.
+	restarted, err := NewUSDCService(f.service.store, f.service.config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	restarted.client = f.server.Client()
+	if err = restarted.VerifyConfiguration(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err = restarted.ReconcilePayment(ctx, p.ID); err != nil {
 		t.Fatal(err)
 	}
 	var state, key, retainedPeriod string
@@ -410,7 +426,7 @@ func TestUSDCUnknownReconcilesHistoricalProofWithoutResubmission(t *testing.T) {
 	}
 }
 func TestUSDCRejectsMismatchedCanonicalEvidence(t *testing.T) {
-	for _, fault := range []string{"wrong-chain", "wrong-token", "wrong-payer", "wrong-payee", "wrong-value", "wrong-nonce", "reverted"} {
+	for _, fault := range []string{"wrong-chain", "wrong-token", "wrong-payer", "wrong-payee", "wrong-value", "wrong-nonce", "reverted", "wrapped-call", "unsupported-calldata"} {
 		t.Run(fault, func(t *testing.T) {
 			f := newUSDCChainFixture(t)
 			ctx := context.Background()
