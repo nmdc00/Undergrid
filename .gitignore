@@ -2,10 +2,11 @@
 .env.*
 !.env.example
 !.env.sandbox.example
+!.env.sandbox-worker.example
 /bin/
 /undergrid
 /coverage/
-/web/node_modules/
+/web/node_modules
 /web/dist/
 __pycache__/
 *.sqlite
@@ -33,3 +34,7 @@ GEMINI.md
 .DS_Store
 *.swp
 *.swo
+
+# Browser test output.
+/web/test-results/
+/web/playwright-report/

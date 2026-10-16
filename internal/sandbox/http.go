@@ -12,17 +12,21 @@ import (
 
 type OwnerAuthenticator func(*http.Request) (Owner, error)
 type Handler struct {
-	store    *Store
-	owner    OwnerAuthenticator
-	products map[string]Quote
+	store           *Store
+	owner           OwnerAuthenticator
+	products        map[string]Quote
+	financialOrigin string
 }
 
-func NewHandler(store *Store, owner OwnerAuthenticator, products map[string]Quote) *Handler {
+func NewHandler(store *Store, owner OwnerAuthenticator, products map[string]Quote, financialOrigin string) (*Handler, error) {
+	if _, err := validateFinancialOrigin(financialOrigin); err != nil {
+		return nil, errors.New("HTTPS financial sandbox origin required")
+	}
 	catalog := make(map[string]Quote, len(products))
 	for k, v := range products {
 		catalog[k] = v
 	}
-	return &Handler{store, owner, catalog}
+	return &Handler{store: store, owner: owner, products: catalog, financialOrigin: financialOrigin}, nil
 }
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
@@ -40,6 +44,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			code = 413
 		case errors.Is(err, ErrConflict):
 			code = 409
+		case errors.Is(err, ErrNotFound):
+			code = 404
 		case errors.Is(err, ErrLimit):
 			code = 403
 		}
@@ -85,6 +91,36 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		respond(201, map[string]string{"id": id, "designation": "TEST"})
+	case r.Method == "POST" && r.URL.Path == "/v1/owner/wallet-challenges":
+		var cmd struct {
+			Address string `json:"address"`
+		}
+		if !decode(&cmd) {
+			return
+		}
+		o, err := owner()
+		if err != nil {
+			fail(ErrUnauthorized)
+			return
+		}
+		challenge, err := h.store.CreateWalletChallenge(r.Context(), o, r.Header.Get("Idempotency-Key"), cmd.Address, h.financialOrigin)
+		if err != nil {
+			fail(err)
+			return
+		}
+		respond(201, challenge)
+	case r.Method == "GET" && r.URL.Path == "/v1/owner/wallet-binding":
+		o, err := owner()
+		if err != nil {
+			fail(ErrUnauthorized)
+			return
+		}
+		binding, err := h.store.GetWalletBinding(r.Context(), o)
+		if err != nil {
+			fail(err)
+			return
+		}
+		respond(200, binding)
 	case r.Method == "GET" && r.URL.Path == "/v1/owner/policy":
 		o, err := owner()
 		if err != nil {
@@ -149,6 +185,44 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		respond(200, map[string]string{"state": "revoked", "designation": "TEST"})
+	case r.Method == "POST" && r.URL.Path == "/v1/owner/subscriptions":
+		var cmd struct {
+			SubscriptionConsent
+			Product string `json:"product"`
+		}
+		if !decode(&cmd) {
+			return
+		}
+		o, err := owner()
+		if err != nil {
+			fail(ErrUnauthorized)
+			return
+		}
+		q, ok := h.products[cmd.Product]
+		if !ok {
+			fail(ErrInvalid)
+			return
+		}
+		sub, err := h.store.CreateSubscription(r.Context(), o, r.Header.Get("Idempotency-Key"), cmd.SubscriptionConsent, q)
+		if err != nil {
+			fail(err)
+			return
+		}
+		respond(201, sub)
+	case r.Method == "POST" && r.URL.Path == "/v1/refunds":
+		var cmd struct {
+			Payment string `json:"payment_id"`
+			Amount  string `json:"amount_atomic"`
+		}
+		if !decode(&cmd) {
+			return
+		}
+		refund, err := h.store.RequestRefund(r.Context(), token, r.Header.Get("Idempotency-Key"), cmd.Payment, cmd.Amount)
+		if err != nil {
+			fail(err)
+			return
+		}
+		respond(201, refund)
 	case r.Method == "POST" && r.URL.Path == "/v1/payments":
 		var cmd struct {
 			Product string `json:"product"`
@@ -170,9 +244,103 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		respond(201, p)
 	default:
 		parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+		if r.Method == "POST" && len(parts) == 5 && parts[0] == "v1" && parts[1] == "owner" && parts[2] == "wallet-challenges" && validUUID(parts[3]) && parts[4] == "prove" {
+			var cmd struct {
+				Signature string `json:"signature"`
+			}
+			if !decode(&cmd) {
+				return
+			}
+			o, err := owner()
+			if err != nil {
+				fail(ErrUnauthorized)
+				return
+			}
+			binding, err := h.store.ProveWalletControl(r.Context(), o, parts[3], r.Header.Get("Idempotency-Key"), cmd.Signature, h.financialOrigin)
+			if err != nil {
+				fail(err)
+				return
+			}
+			respond(200, binding)
+			return
+		}
+		if len(parts) >= 4 && parts[0] == "v1" && parts[1] == "owner" && parts[2] == "subscriptions" && validUUID(parts[3]) {
+			if r.Method == "GET" && len(parts) == 4 {
+				o, err := owner()
+				if err != nil {
+					fail(ErrUnauthorized)
+					return
+				}
+				sub, err := h.store.GetSubscription(r.Context(), o, parts[3])
+				if err != nil {
+					fail(err)
+					return
+				}
+				respond(200, sub)
+				return
+			}
+			if r.Method == "POST" && len(parts) == 5 && parts[4] == "cancel" {
+				var cmd struct {
+					Hash string `json:"consent_hash"`
+				}
+				if !decode(&cmd) {
+					return
+				}
+				o, err := owner()
+				if err != nil {
+					fail(ErrUnauthorized)
+					return
+				}
+				if err = h.store.CancelSubscription(r.Context(), o, parts[3], cmd.Hash); err != nil {
+					fail(err)
+					return
+				}
+				respond(200, map[string]string{"state": "canceled", "designation": "TEST"})
+				return
+			}
+		}
+		if len(parts) >= 3 && parts[0] == "v1" && parts[1] == "refunds" && validUUID(parts[2]) {
+			if r.Method == "GET" && len(parts) == 3 {
+				refund, err := h.store.GetRefund(r.Context(), token, parts[2])
+				if err != nil {
+					fail(err)
+					return
+				}
+				respond(200, refund)
+				return
+			}
+			if r.Method == "POST" && len(parts) == 4 && parts[3] == "authorize" {
+				var cmd struct {
+					Hash string `json:"refund_hash"`
+				}
+				if !decode(&cmd) {
+					return
+				}
+				refund, err := h.store.AuthorizeRefund(r.Context(), token, parts[2], cmd.Hash, r.Header.Get("Idempotency-Key"))
+				if err != nil {
+					fail(err)
+					return
+				}
+				respond(200, refund)
+				return
+			}
+		}
 		if len(parts) >= 3 && parts[0] == "v1" && parts[1] == "payments" && validUUID(parts[2]) {
 			if r.Method == "GET" && len(parts) == 3 {
 				p, err := h.store.GetPayment(r.Context(), token, parts[2])
+				if err != nil {
+					fail(err)
+					return
+				}
+				respond(200, p)
+				return
+			}
+			if r.Method == "POST" && len(parts) == 4 && parts[3] == "wallet-authorization" {
+				var cmd WalletPaymentCommand
+				if !decode(&cmd) {
+					return
+				}
+				p, err := h.store.AuthorizeWalletPayment(r.Context(), token, parts[2], r.Header.Get("Idempotency-Key"), cmd)
 				if err != nil {
 					fail(err)
 					return

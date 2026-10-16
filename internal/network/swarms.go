@@ -28,7 +28,7 @@ type SwarmInput struct {
 func (s *Service) swarmCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, error) {
 	if r.Method == "GET" {
 		if !slices.Contains(a.Scopes, "swarms:read") {
-			return 0, nil, fail(403, "insufficient_scope")
+			return 0, nil, insufficientScope(a, "swarms:read")
 		}
 		parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/v1/swarms/"), "/")
 		if len(parts) == 2 && validID(parts[0]) && parts[1] == "context" {
@@ -48,7 +48,7 @@ func (s *Service) swarmCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, e
 		}
 	}
 	if !slices.Contains(a.Scopes, scope) {
-		return 0, nil, fail(403, "insufficient_scope")
+		return 0, nil, insufficientScope(a, scope)
 	}
 	if r.URL.Path != "/v1/swarms" {
 		parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/v1/swarms/"), "/")
@@ -182,7 +182,7 @@ func (s *Service) invite(r *http.Request, tx pgx.Tx, a actor, swarm string) (int
 			return 0, nil, fail(422, "invalid_application")
 		}
 		id = in.ApplicationID
-		err = tx.QueryRow(r.Context(), "UPDATE memberships SET state='offered',role=$4,respond_by=$5,version=version+1 WHERE id=$1 AND swarm_id=$2 AND agent_id=$3 AND state='applied' RETURNING principal_id,version", id, swarm, in.AgentID, in.Role, in.RespondBy).Scan(&principal, &version)
+		err = tx.QueryRow(r.Context(), "UPDATE memberships SET state='offered',role=$4,respond_by=$5,version=version+1 WHERE id=$1 AND swarm_id=$2 AND agent_id=$3 AND state='applied' AND respond_by>now() RETURNING principal_id,version", id, swarm, in.AgentID, in.Role, in.RespondBy).Scan(&principal, &version)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return 0, nil, fail(409, "application_not_current")
 		}
@@ -409,14 +409,27 @@ func swarmContext(r *http.Request, tx pgx.Tx, a actor, id string) (int, any, err
 	return 200, map[string]any{"swarm": map[string]any{"id": id, "objective": objective, "visibility": visibility, "version": version, "etag": etag(version), "history_policy": "full"}, "messages": messages, "next_sequence": after, "head_sequence": sequence, "has_more": after < sequence}, nil
 }
 func (s *Service) roomEvent(ctx context.Context, tx pgx.Tx, a actor, aggregate string, version int64, kind, swarm, path string) error {
+	return s.roomEventAudience(ctx, tx, a, aggregate, version, kind, swarm, path, nil)
+}
+
+func (s *Service) roomEventAudience(ctx context.Context, tx pgx.Tx, a actor, aggregate string, version int64, kind, swarm, path string, audience []string) error {
 	id := NewID()
 	origin := "registered"
 	if s.environment != "production" {
 		origin = "release_test"
 	}
-	_, err := tx.Exec(ctx, "INSERT INTO events(id,aggregate_kind,aggregate_id,version,principal_id,agent_id,type,facts,origin) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)", id, strings.Split(kind, ".")[0], aggregate, version, a.PrincipalID, a.AgentID, kind, canonical(map[string]string{"swarm_id": swarm, "resource_path": path}), origin)
+	facts := map[string]any{"swarm_id": swarm, "resource_path": path}
+	if len(audience) > 0 {
+		facts["audience_principal_ids"] = audience
+	}
+	_, err := tx.Exec(ctx, "INSERT INTO events(id,aggregate_kind,aggregate_id,version,principal_id,agent_id,type,facts,origin) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)", id, strings.Split(kind, ".")[0], aggregate, version, a.PrincipalID, a.AgentID, kind, canonical(facts), origin)
 	if err != nil {
 		return err
 	}
-	return enqueueFanout(ctx, tx, id)
+	switch kind {
+	case "coordinator.expired", "membership.expired", "plan.expired", "task.assignment_expired", "task.at_risk", "task.abandoned", "task.cancelled":
+		return enqueueFanoutInQueue(ctx, tx, id, "coordination_deadlines")
+	default:
+		return enqueueFanout(ctx, tx, id)
+	}
 }
