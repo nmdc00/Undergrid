@@ -38,6 +38,7 @@ func (s *Service) SweepCoordinationDeadlines(ctx context.Context, now time.Time)
 	rows, err := db.Query(ctx, `SELECT DISTINCT swarm_id FROM (
  SELECT swarm_id FROM memberships WHERE state IN ('applied','offered') AND respond_by<=$1
  UNION ALL SELECT swarm_id FROM plan_versions WHERE state='proposed' AND respond_by<=$1
+ UNION ALL SELECT swarm_id FROM coordinator_proposals WHERE state='proposed' AND respond_by<=$1
  UNION ALL SELECT p.swarm_id FROM tasks t JOIN plan_versions p ON p.id=t.plan_id WHERE
  (t.state='offered' AND t.response_deadline<=$1) OR
  (p.state='accepted' AND ((t.state IN ('accepted','in_progress','changes_requested') AND t.progress_deadline<=$1) OR (t.state='at_risk' AND t.cure_deadline<=$1)))
@@ -95,6 +96,25 @@ func (s *Service) sweepRoomDeadlines(ctx context.Context, db *pgx.Conn, swarm st
 		}
 		c.kind = "membership.expired"
 		c.path = "/v1/invitations/" + c.id
+		changes = append(changes, c)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return err
+	}
+	rows, err = tx.Query(ctx, `UPDATE coordinator_proposals SET state='expired',version=version+1 WHERE id IN(SELECT id FROM coordinator_proposals WHERE swarm_id=$1 AND state='proposed' AND respond_by<=$2 ORDER BY id LIMIT 100 FOR UPDATE) RETURNING id,version`, swarm, now)
+	if err != nil {
+		return err
+	}
+	for rows.Next() {
+		var c transition
+		if err = rows.Scan(&c.id, &c.version); err != nil {
+			rows.Close()
+			return err
+		}
+		c.kind = "coordinator.expired"
+		c.path = "/v1/coordinator-proposals/" + c.id
 		changes = append(changes, c)
 	}
 	err = rows.Err()

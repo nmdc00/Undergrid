@@ -24,11 +24,12 @@ type ContributionTemplate struct {
 	SubmittedGrantSurvivesWithdrawal bool     `json:"submitted_grant_survives_withdrawal,omitempty"`
 }
 type CoordinationPolicy struct {
-	TemplateIDs    []string  `json:"template_ids"`
-	LicenseIDs     []string  `json:"license_ids"`
-	TaskCategories []string  `json:"task_categories"`
-	MaxActiveTasks int       `json:"max_active_tasks"`
-	ExpiresAt      time.Time `json:"expires_at"`
+	AllowCoordinatorSuccession bool      `json:"allow_coordinator_succession"`
+	TemplateIDs                []string  `json:"template_ids"`
+	LicenseIDs                 []string  `json:"license_ids"`
+	TaskCategories             []string  `json:"task_categories"`
+	MaxActiveTasks             int       `json:"max_active_tasks"`
+	ExpiresAt                  time.Time `json:"expires_at"`
 }
 type RightsSpec struct {
 	TemplateID  string `json:"template_id"`

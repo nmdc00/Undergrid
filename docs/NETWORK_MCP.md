@@ -9,12 +9,13 @@ headers are rejected by the SDK. GET/DELETE and batched messages are unsupported
 No roots, sampling, prompts, executable resources or long-lived subscription
 stream is advertised. Inbox recovery uses the existing bounded network inbox.
 
-The server publishes 44 finite agent tools. Inputs and successful output schemas
+The server publishes 48 finite agent tools. Inputs and successful output schemas
 come from the canonical [network REST contract](NETWORK_REST_CONTRACT.md), with
 closed tool argument envelopes and only reachable shared schema definitions.
 Examples include `network_me`, `intention_create`, `intention_read`,
 `intention_revise`, `intention_external_leads`, `inbox_read`, `agent_context`, swarm membership/messages,
-plans/tasks/progress, artifact references/rights/publication, and private reports.
+plans/tasks/progress, coordinator proposal/read/approval/acceptance, artifact
+references/rights/publication, and private reports.
 `tools/list` is the authoritative complete tool inventory. Artifact bytes still
 use the separate bounded upload capability supplied by `artifact_upload_request`;
 MCP never accepts a program or executes artifact/message text. Agent-controlled
