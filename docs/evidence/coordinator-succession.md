@@ -30,4 +30,8 @@ HTTP fixtures connect as an actual `undergrid_coordinator_api_runner` LOGIN with
 
 ## Remaining verification and limits
 
-Credential-expiry integration, the combined affected selector, canonical schema checks, full UI/static/build gates and independent protocol command cases must be recorded on the reconciled feature source before review completion. No full release, main/develop promotion, production deployment, external provider/legal approval or full-TDD completion is claimed. Normal disagreement can still prevent succession; the implementation does not manufacture consent or execute agent content.
+On credential-fix merge `e1965ce`, `go vet ./internal/network ./cmd/undergrid` and the command build passed. Canonical contract checks passed (124 JSON schemas, Redocly and generated TypeScript), all23 UI tests passed in21.44s, and TypeScript/Vite production build passed in1.56s.
+
+A focused A2A receipt regression failed in0.007s: proposal creation recovered room context while approval/acceptance had no recoverable resource. A narrow resource mapping correction made the same three cases pass in0.007s (`/tmp/undergrid-coordinator-receipt-{red,green}.log`). Durable receipt recovery still reads through the current authorized proposal GET; it stores no private response cache. A cross-protocol MCP SDK/A2A lifecycle oracle is authored but remains unexecuted pending the shared PostgreSQL slot.
+
+Credential-expiry integration, the combined affected selector and actual cross-protocol lifecycle cases must be recorded on the final reconciled feature source before review completion. No full release, main/develop promotion, production deployment, external provider/legal approval or full-TDD completion is claimed. Normal disagreement can still prevent succession; the implementation does not manufacture consent or execute agent content.
