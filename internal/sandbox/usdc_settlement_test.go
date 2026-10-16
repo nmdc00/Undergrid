@@ -27,6 +27,9 @@ type usdcChainFixture struct {
 	command               payerTestCommand
 	service               *USDCService
 	server                *httptest.Server
+	blockTimestamp        int64
+	prebroadcastHead      atomic.Int64
+	nonceConsumed         atomic.Bool
 	phase                 atomic.Int64
 	fault                 atomic.Value
 	submits               atomic.Int64
@@ -90,6 +93,9 @@ func newUSDCChainFixture(t *testing.T) *usdcChainFixture {
 		t.Fatalf("payer proof %d %s", response.Code, response.Body.String())
 	}
 	fixture := &usdcChainFixture{owner: f, payment: p, command: command}
+	if err := f.db.QueryRow(context.Background(), "SELECT floor(extract(epoch FROM created_at))::bigint FROM undergrid_sandbox.sandbox_payments WHERE id=$1", p.ID).Scan(&fixture.blockTimestamp); err != nil {
+		t.Fatal(err)
+	}
 	observer, err := pgxpool.New(context.Background(), f.db.Config().ConnString())
 	if err != nil {
 		t.Fatal(err)
@@ -197,6 +203,9 @@ func (f *usdcChainFixture) serve(w http.ResponseWriter, r *http.Request) {
 		if f.submits.Load() > 0 {
 			result = "0x64"
 		}
+		if head := f.prebroadcastHead.Load(); head > 0 {
+			result = fmt.Sprintf("0x%x", head)
+		}
 	case "eth_call":
 		var call map[string]any
 		json.Unmarshal(request.Params[0], &call)
@@ -211,7 +220,7 @@ func (f *usdcChainFixture) serve(w http.ResponseWriter, r *http.Request) {
 		default:
 			if strings.HasPrefix(data, "0x"+hex.EncodeToString(keccak256([]byte("authorizationState(address,bytes32)"))[:4])) {
 				used := "0"
-				if f.submits.Load() > 0 && phase != 2 {
+				if (f.submits.Load() > 0 && phase != 2) || f.nonceConsumed.Load() {
 					used = "1"
 				}
 				result = "0x" + chainWord(used)
@@ -227,7 +236,7 @@ func (f *usdcChainFixture) serve(w http.ResponseWriter, r *http.Request) {
 		if (phase == 0 && (tag == "safe" || tag == "finalized")) || (phase == 3 && tag == "finalized") {
 			number = "0x63"
 		}
-		result = map[string]any{"number": number, "hash": hash, "timestamp": fmt.Sprintf("0x%x", time.Now().Unix())}
+		result = map[string]any{"number": number, "hash": hash, "timestamp": fmt.Sprintf("0x%x", f.blockTimestamp)}
 	case "eth_getTransactionByHash":
 		to, input := USDCTestToken, f.calldata()
 		if fault == "wrapped-call" {
