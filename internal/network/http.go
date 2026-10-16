@@ -367,6 +367,12 @@ func (s *Service) agentCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, e
 	if r.URL.Path == "/v1/swarms" || strings.HasPrefix(r.URL.Path, "/v1/swarms/") {
 		return s.swarmCommand(r, tx, a)
 	}
+	if id, ok := externalFitIntentID(r.URL.Path); ok {
+		if !slices.Contains(a.Scopes, "intents:read") {
+			return 0, nil, insufficientScope(a, "intents:read")
+		}
+		return s.externalFitReport(r, tx, a, id)
+	}
 	if id, ok := externalLeadIntentID(r.URL.Path); ok {
 		if !slices.Contains(a.Scopes, "intents:read") {
 			return 0, nil, insufficientScope(a, "intents:read")

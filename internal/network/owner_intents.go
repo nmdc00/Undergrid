@@ -22,6 +22,10 @@ func (s *Service) ownerIntents(r *http.Request, tx pgx.Tx, principal string) (in
 	collection := r.URL.Path == "/v1/owner/intents"
 	opportunities := strings.HasSuffix(r.URL.Path, "/opportunities")
 	externalLeads := strings.HasSuffix(r.URL.Path, "/external-leads")
+	externalFit := strings.HasSuffix(r.URL.Path, "/external-fit-report")
+	if externalFit && r.Method != http.MethodGet {
+		return 0, nil, fail(405, "method_not_allowed")
+	}
 	if externalLeads && r.Method != http.MethodGet {
 		return 0, nil, fail(405, "method_not_allowed")
 	}
@@ -100,7 +104,7 @@ func (s *Service) ownerIntents(r *http.Request, tx pgx.Tx, principal string) (in
 		}
 		command.Body = io.NopCloser(bytes.NewReader(canonical(in.Intent)))
 	} else {
-		id = strings.TrimSuffix(strings.TrimSuffix(strings.TrimPrefix(command.URL.Path, "/v1/intents/"), "/opportunities"), "/external-leads")
+		id = strings.TrimSuffix(strings.TrimSuffix(strings.TrimSuffix(strings.TrimPrefix(command.URL.Path, "/v1/intents/"), "/opportunities"), "/external-leads"), "/external-fit-report")
 		if !validID(id) {
 			return 0, nil, fail(404, "not_found")
 		}
@@ -115,6 +119,9 @@ func (s *Service) ownerIntents(r *http.Request, tx pgx.Tx, principal string) (in
 	a, err := lockOwnerIntentAgent(ctx, tx, principal, agent)
 	if err != nil {
 		return 0, nil, err
+	}
+	if externalFit {
+		return s.externalFitReport(command, tx, a, id)
 	}
 	if externalLeads {
 		return s.listExternalLeads(command, tx, a, id, "owner")

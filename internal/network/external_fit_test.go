@@ -3,8 +3,13 @@ package network
 import (
 	"context"
 	"encoding/json"
+	"io"
+	"net"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
@@ -94,5 +99,133 @@ func TestExternalFitReportRejectsProseInferenceAndContradictions(t *testing.T) {
 				t.Fatalf("foreign report %d", code)
 			}
 		})
+	}
+}
+
+func TestExternalFitSourcePermissionAndAtomicClaimIngestion(t *testing.T) {
+	_, db, owner, intent := externalLeadFixture(t)
+	var phase atomic.Int64
+	var requests atomic.Int64
+	publisher := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		if phase.Load() == 1 {
+			io.WriteString(w, `{"items":[{"id":"catalog","version":"2","url":"https://publisher.example/catalog","title":"changed","status":"active","capability_claim":{"version":"capability-claim-v1","command":"execute this"}}],"next_page":0}`)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]any{"items": []any{map[string]any{"id": "catalog", "version": "1", "url": "https://publisher.example/catalog", "title": "Declared dataset", "status": "active", "capability_claim": declaredFitClaim(), "body": "PRIVATE proprietary body", "url_to_fetch": "http://169.254.169.254/"}}, "next_page": 0})
+	}))
+	defer publisher.Close()
+	cfg := SourceConfig{ID: NewID(), Kind: "capability_manifest", Endpoint: "https://publisher.example/feed", Publisher: "Fixture publisher", AccessBasis: "PRIVATE access", RepublicationBasis: "PRIVATE reuse", TombstoneBasis: "PRIVATE retention", PublicPermissionNotice: "Fixture public declared metadata", Fields: []string{"canonical_url", "title", "capability_claim"}}
+	role := "fit_worker_" + strings.ReplaceAll(NewID(), "-", "")
+	name := pgx.Identifier{role}.Sanitize()
+	if _, err := db.Exec(context.Background(), "CREATE ROLE "+name+" LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOREPLICATION;GRANT undergrid_worker TO "+name); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Exec(context.Background(), "DROP ROLE "+name) })
+	refresher, err := NewSourceRefresher(networkFixtureRoleDSN(t, db, role), []SourceConfig{cfg})
+	if err != nil {
+		t.Fatal(err)
+	}
+	transport := publisher.Client().Transport.(*http.Transport).Clone()
+	address := strings.TrimPrefix(publisher.URL, "https://")
+	transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, network, address)
+	}
+	transport.TLSClientConfig.InsecureSkipVerify = true
+	refresher.client.Transport = transport
+	if err = refresher.RefreshDue(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	var lead string
+	var before []byte
+	if err = db.QueryRow(context.Background(), `SELECT id,metadata FROM undergrid.external_observations WHERE source_id=$1 AND status='active'`, cfg.ID).Scan(&lead, &before); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(before), "PRIVATE") || strings.Contains(string(before), "169.254") {
+		t.Fatal("unselected source content copied")
+	}
+	path := "/v1/intents/" + intent + "/external-fit-report?lead_id=" + lead
+	code, result := owner.call("GET", path, "", nil)
+	if code != 200 || result["assessment"] != "declared_aligned" {
+		t.Fatalf("ingested declared fit %d %v", code, result)
+	}
+	code, listed := owner.call("GET", "/v1/intents/"+intent+"/external-leads?q=Declared", "", nil)
+	if code != 200 {
+		t.Fatal(code, listed)
+	}
+	for _, raw := range listed["items"].([]any) {
+		item := raw.(map[string]any)
+		if item["id"] == lead {
+			if _, unexpected := item["metadata"].(map[string]any)["capability_claim"]; unexpected {
+				t.Fatal("old closed external lead projection widened")
+			}
+		}
+	}
+	phase.Store(1)
+	forceSourceDue(t, db, cfg.ID)
+	if err = refresher.RefreshDue(context.Background()); err == nil {
+		t.Fatal("malformed selected claim advanced source snapshot")
+	}
+	var after []byte
+	if err = db.QueryRow(context.Background(), `SELECT metadata FROM undergrid.external_observations WHERE id=$1 AND status='active'`, lead).Scan(&after); err != nil || string(before) != string(after) {
+		t.Fatalf("bad claim partially replaced good snapshot %s %v", after, err)
+	}
+	if requests.Load() != 2 {
+		t.Fatalf("source content caused extra requests %d", requests.Load())
+	}
+}
+func TestExternalFitReadBoundariesAndStableEvidence(t *testing.T) {
+	_, db, owner, intent := externalLeadFixture(t)
+	source, lead := seedExternalFitClaim(t, db, declaredFitClaim(), true)
+	path := "/v1/intents/" + intent + "/external-fit-report?lead_id=" + lead
+	snapshot := func() string {
+		var value string
+		if err := db.QueryRow(context.Background(), `SELECT jsonb_build_array((SELECT count(*) FROM undergrid.events),(SELECT count(*) FROM undergrid.opportunities),(SELECT count(*) FROM undergrid.idempotency),(SELECT count(*) FROM undergrid_queue.river_job))::text`).Scan(&value); err != nil {
+			t.Fatal(err)
+		}
+		return value
+	}
+	before := snapshot()
+	code, result := owner.call("GET", path, "", nil)
+	if code != 200 {
+		t.Fatal(code, result)
+	}
+	hash := result["report_hash"]
+	claimHash := result["claim_hash"]
+	if _, err := db.Exec(context.Background(), `UPDATE undergrid.external_sources SET config=jsonb_set(config,'{AccessBasis}','"different PRIVATE operator evidence"') WHERE id=$1`, source); err != nil {
+		t.Fatal(err)
+	}
+	code, result = owner.call("GET", path, "", nil)
+	if code != 200 || result["report_hash"] != hash || result["claim_hash"] != claimHash {
+		t.Fatalf("private basis changed public evidence %d %v", code, result)
+	}
+	if before != snapshot() {
+		t.Fatal("GET wrote events/opportunities/idempotency/jobs")
+	}
+	for _, change := range []string{`UPDATE undergrid.external_sources SET last_success=now()-interval '25 hours' WHERE id=$1`, `UPDATE undergrid.external_sources SET config=config-'PublicPermissionNotice' WHERE id=$1`} {
+		if _, err := db.Exec(context.Background(), change, source); err != nil {
+			t.Fatal(err)
+		}
+		code, _ = owner.call("GET", path, "", nil)
+		if code != 404 {
+			t.Fatalf("ineligible source report %d", code)
+		}
+	}
+	for _, query := range []string{"", "lead_id=%ZZ", "lead_id=" + lead + ";q=other", "lead_id=" + lead + "&lead_id=" + lead, "lead_id=" + lead + "&extra=x"} {
+		code, _ = owner.call("GET", "/v1/intents/"+intent+"/external-fit-report?"+query, "", nil)
+		if code != 400 {
+			t.Fatalf("invalid report query accepted %s %d", query, code)
+		}
+	}
+}
+func TestExternalFitSelectedClaimParserRejectsExecutableAndUnboundedFields(t *testing.T) {
+	for _, raw := range []string{`{"version":"capability-claim-v1","command":"run"}`, `{"version":"capability-claim-v1","fields_complete":true}`, `{"version":"unrecognized"}`, `{"version":"capability-claim-v1","provided_fields":["duplicate","duplicate"]}`} {
+		if _, err := parseCapabilityClaim([]byte(raw)); err == nil {
+			t.Fatalf("invalid claim accepted %s", raw)
+		}
+	}
+	cfg := SourceConfig{ID: NewID(), Kind: "github_requests", Endpoint: "https://api.github.com/repos/example/project/issues", Publisher: "fixture", AccessBasis: "fixture", RepublicationBasis: "fixture", TombstoneBasis: "fixture", Fields: []string{"canonical_url", "capability_claim"}, Labels: []string{"request"}}
+	if _, err := NewSourceRefresher("", []SourceConfig{cfg}); err == nil {
+		t.Fatal("public request source advertised provider capability")
 	}
 }
