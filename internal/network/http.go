@@ -299,6 +299,12 @@ func authenticate(ctx context.Context, tx pgx.Tx, authorization, method, path st
 		return a, err
 	}
 	if claims, ok := ctx.Value(oauthResourceContextKey).(verifiedOAuth); ok && !strings.HasPrefix(token, "ug_") {
+		// Signature verification precedes database waits. A later access token
+		// can expire before its longer-lived local grant, so recheck its own
+		// deadline after acquiring the complete actor authority.
+		if !claims.Expires.After(time.Now()) {
+			return a, fail(401, "invalid_credential")
+		}
 		a.grantedScopes = append([]string(nil), a.Scopes...)
 		a.Scopes = scopeIntersection(a.Scopes, claims.Scopes)
 	}
