@@ -576,6 +576,9 @@ func TestCoordinatorTransferSerializesWithRecruitmentAuthority(t *testing.T) {
 	// Observe the actual backend lock wait rather than assuming a scheduling delay.
 	for {
 		var blocked bool
+		if _, err = held.Exec(ctx, "SELECT pg_stat_clear_snapshot()"); err != nil {
+			t.Fatal(err)
+		}
 		if err = held.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE pid=$1 AND wait_event_type='Lock')", worker.PgConn().PID()).Scan(&blocked); err != nil {
 			t.Fatal(err)
 		}
@@ -599,6 +602,9 @@ func TestCoordinatorTransferSerializesWithRecruitmentAuthority(t *testing.T) {
 	}()
 	for {
 		var blocked bool
+		if _, err = held.Exec(ctx, "SELECT pg_stat_clear_snapshot()"); err != nil {
+			t.Fatal(err)
+		}
 		if err = held.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE usename='undergrid_coordinator_api_runner' AND wait_event_type='Lock')").Scan(&blocked); err != nil {
 			t.Fatal(err)
 		}
@@ -637,6 +643,9 @@ func TestCoordinatorTransferSerializesWithRecruitmentAuthority(t *testing.T) {
 	}()
 	for {
 		var blocked bool
+		if _, err = newGuard.Exec(ctx, "SELECT pg_stat_clear_snapshot()"); err != nil {
+			t.Fatal(err)
+		}
 		if err = newGuard.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE pid=$1 AND wait_event_type='Lock')", worker.PgConn().PID()).Scan(&blocked); err != nil {
 			t.Fatal(err)
 		}
