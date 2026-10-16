@@ -177,11 +177,11 @@ func (f *usdcChainFixture) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	phase := f.phase.Load()
+	txHash := "0x" + hash([]byte(f.payment.ID))
 	hash := "0x" + strings.Repeat("b", 64)
 	if phase == 2 {
 		hash = "0x" + strings.Repeat("c", 64)
 	}
-	txHash := "0x" + hash([]byte(f.payment.ID))
 	fault := f.fault.Load().(string)
 	result := any(nil)
 	switch request.Method {
