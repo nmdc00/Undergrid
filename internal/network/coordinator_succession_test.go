@@ -527,3 +527,139 @@ func TestCoordinatorMemberCanNominateAnotherEligibleMember(t *testing.T) {
 		t.Fatalf("member could not nominate eligible peer under actual app RLS: %d %v", code, p)
 	}
 }
+
+// Recruitment reads the current coordinator before its ordered owner guards.
+// A real handoff racing that read must either serialize or retry, never deadlock
+// or emit a second offer from stale source authority.
+func TestCoordinatorTransferSerializesWithRecruitmentAuthority(t *testing.T) {
+	f := newSuccessionTestRoom(t)
+	p := f.propose(t)
+	path := "/v1/coordinator-proposals/" + p["id"].(string)
+	for _, action := range []string{"accept", "approvals"} {
+		body := map[string]any{"content_hash": p["content_hash"]}
+		if action == "approvals" {
+			body["decision"] = "approve"
+		}
+		if code, out := f.successor.versioned("POST", path+"/"+action, "prepare-"+action, p["etag"].(string), body); code != 200 {
+			t.Fatal(code, out)
+		}
+	}
+	recipient := successionClient(t, f.s)
+	_, identity := recipient.call("GET", "/v1/me", "", nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if _, err := f.db.Exec(ctx, `DO $$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='undergrid_coordinator_worker_runner') THEN CREATE ROLE undergrid_coordinator_worker_runner LOGIN NOSUPERUSER NOBYPASSRLS;END IF;END $$;GRANT undergrid_worker TO undergrid_coordinator_worker_runner`); err != nil {
+		t.Fatal(err)
+	}
+	worker, err := pgx.Connect(ctx, networkFixtureRoleDSN(t, f.db, "undergrid_coordinator_worker_runner"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer worker.Close(context.Background())
+	if _, err = worker.Exec(ctx, "SET ROLE undergrid_worker;SET search_path=undergrid,pg_catalog"); err != nil {
+		t.Fatal(err)
+	}
+	held, err := f.db.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer held.Rollback(context.Background())
+	if _, err = held.Exec(ctx, "SELECT id FROM undergrid.principals WHERE id=$1 FOR UPDATE", f.oldID["principal_id"]); err != nil {
+		t.Fatal(err)
+	}
+	role := RecruitmentRole{Key: "builder", SchemaFamily: "source_catalog_v1"}
+	recruited := make(chan error, 1)
+	go func() {
+		_, err := f.s.recruitOne(ctx, worker, f.roomID, role, identity["agent_id"].(string), identity["principal_id"].(string))
+		recruited <- err
+	}()
+	// Observe the actual backend lock wait rather than assuming a scheduling delay.
+	for {
+		var blocked bool
+		if err = held.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE pid=$1 AND wait_event_type='Lock')", worker.PgConn().PID()).Scan(&blocked); err != nil {
+			t.Fatal(err)
+		}
+		if blocked {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatal("recruitment never reached owner guard", ctx.Err())
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
+	type response struct {
+		code int
+		body map[string]any
+	}
+	voted := make(chan response, 1)
+	go func() {
+		code, body := f.peer.versioned("POST", path+"/approvals", "handoff-with-recruitment", p["etag"].(string), map[string]any{"decision": "approve", "content_hash": p["content_hash"]})
+		voted <- response{code, body}
+	}()
+	for {
+		var blocked bool
+		if err = held.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE usename='undergrid_coordinator_api_runner' AND wait_event_type='Lock')").Scan(&blocked); err != nil {
+			t.Fatal(err)
+		}
+		if blocked {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatal("handoff never reached owner guard", ctx.Err())
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
+	if err = held.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	r := <-voted
+	if r.code != 200 || r.body["state"] != "applied" {
+		t.Fatal(r)
+	}
+	if err = <-recruited; err != nil && err.Error() != "recruitment coordinator changed; retry" {
+		t.Fatal(err)
+	}
+	// A subsequent attempt must guard the new coordinator's agent, proving
+	// the source authority is refreshed rather than retaining the old office.
+	newGuard, err := f.db.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer newGuard.Rollback(context.Background())
+	if _, err = newGuard.Exec(ctx, "SELECT id FROM undergrid.agents WHERE id=$1 FOR UPDATE", f.successorID["agent_id"]); err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		_, err := f.s.recruitOne(ctx, worker, f.roomID, role, identity["agent_id"].(string), identity["principal_id"].(string))
+		recruited <- err
+	}()
+	for {
+		var blocked bool
+		if err = newGuard.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE pid=$1 AND wait_event_type='Lock')", worker.PgConn().PID()).Scan(&blocked); err != nil {
+			t.Fatal(err)
+		}
+		if blocked {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatal("recruitment did not guard successor agent", ctx.Err())
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
+	if err = newGuard.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err = <-recruited; err != nil {
+		t.Fatal(err)
+	}
+	var count int
+	if err = f.db.QueryRow(ctx, "SELECT count(*) FROM undergrid.opportunities WHERE source_swarm_id=$1 AND recipient_agent_id=$2", f.roomID, identity["agent_id"]).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("handoff/recruitment emitted %d offers", count)
+	}
+}

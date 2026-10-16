@@ -39,8 +39,11 @@ func TestCoordinatorSuccessionMCPA2ALifecycleAndReceiptRecovery(t *testing.T) {
 	call := func(name string, args map[string]any) map[string]any {
 		t.Helper()
 		result, err := peer.CallTool(context.Background(), &mcp.CallToolParams{Name: name, Arguments: args})
-		if err != nil || result.IsError {
-			t.Fatalf("%s: %v %+v", name, err, result)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if result.IsError {
+			t.Fatalf("%s: %+v", name, result)
 		}
 		return mcpToolData(t, result)
 	}
