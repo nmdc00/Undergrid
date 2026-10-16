@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"github.com/jackc/pgx/v5"
+	"log/slog"
 	"math/big"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -35,7 +37,7 @@ func (s *USDCService) tickUSDC(ctx context.Context) error {
 	type item struct{ ID, State string }
 	items := []item{}
 	err := s.store.transaction(ctx, "undergrid_sandbox_worker", func(tx pgx.Tx) error {
-		rows, err := tx.Query(ctx, `SELECT id::text,state FROM sandbox_payments WHERE quote->>'rail'='x402_test' AND quote->>'product'=$1 AND quote->>'payee'=$2 AND state IN('authorized','submitting','pending','unknown','settled') ORDER BY updated_at,id LIMIT 100`, s.config.Product, s.config.Payee)
+		rows, err := tx.Query(ctx, `SELECT id::text,state FROM sandbox_payments WHERE quote->>'rail'='x402_test' AND quote->>'product'=$1 AND quote->>'payee'=$2 AND state IN('authorized','submitting','pending','unknown','settled') AND payer_authorization IS NOT NULL AND usdc_next_check<=clock_timestamp() ORDER BY usdc_next_check,id LIMIT 16`, s.config.Product, s.config.Payee)
 		if err != nil {
 			return err
 		}
@@ -52,16 +54,54 @@ func (s *USDCService) tickUSDC(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
+	// Bound provider I/O independently of the number of historical settled rows.
+	// The persisted due time rotates successes and failures through the same queue.
+	work := make(chan item, len(items))
 	for _, i := range items {
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-		if i.State == "authorized" {
-			_ = s.DispatchPayment(ctx, i.ID)
-		} else {
-			_ = s.ReconcilePayment(ctx, i.ID)
+		work <- i
+	}
+	close(work)
+	var workers sync.WaitGroup
+	failures := make(chan error, 4)
+	for n := 0; n < 4; n++ {
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			for i := range work {
+				if ctx.Err() != nil {
+					return
+				}
+				var attempt error
+				if i.State == "authorized" {
+					attempt = s.DispatchPayment(ctx, i.ID)
+				} else {
+					attempt = s.ReconcilePayment(ctx, i.ID)
+				}
+				var label any
+				if attempt != nil {
+					label = "reconciliation_failed"
+					slog.Warn("TEST USDC reconciliation requires retry", "payment_id", i.ID)
+				}
+				schedule := s.store.transaction(ctx, "undergrid_sandbox_worker", func(tx pgx.Tx) error {
+					_, err := tx.Exec(ctx, `UPDATE sandbox_payments SET usdc_next_check=clock_timestamp()+interval '1 minute',usdc_last_error=$2 WHERE id=$1`, i.ID, label)
+					return err
+				})
+				if schedule != nil {
+					failures <- schedule
+					return
+				}
+			}
+		}()
+	}
+	workers.Wait()
+	close(failures)
+	for err := range failures {
+		if err != nil {
+			return err
 		}
 	}
+
 	return nil
 }
 func (s *USDCService) paymentAllowed(p Payment) bool {

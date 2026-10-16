@@ -15,11 +15,13 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // Controlled HTTPS/RPC data are fixture evidence, never actual provider proof.
 // Calldata and events are independently encoded from the signed test command.
 type usdcChainFixture struct {
+	observer              *pgxpool.Pool
 	owner                 *walletHTTPFixture
 	payment               Payment
 	command               payerTestCommand
@@ -88,6 +90,12 @@ func newUSDCChainFixture(t *testing.T) *usdcChainFixture {
 		t.Fatalf("payer proof %d %s", response.Code, response.Body.String())
 	}
 	fixture := &usdcChainFixture{owner: f, payment: p, command: command}
+	observer, err := pgxpool.New(context.Background(), f.db.Config().ConnString())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(observer.Close)
+	fixture.observer = observer
 	fixture.fault.Store("")
 	fixture.server = httptest.NewTLSServer(http.HandlerFunc(fixture.serve))
 	t.Cleanup(fixture.server.Close)
@@ -127,7 +135,7 @@ func (f *usdcChainFixture) calldata() string {
 func (f *usdcChainFixture) serve(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	var transactions int
-	err := f.owner.db.QueryRow(r.Context(), `SELECT count(*) FROM pg_stat_activity WHERE datname=current_database() AND usename LIKE 'usdc_chain_%' AND state='idle in transaction'`).Scan(&transactions)
+	err := f.observer.QueryRow(r.Context(), `SELECT count(*) FROM pg_stat_activity WHERE datname=current_database() AND usename LIKE 'usdc_chain_%' AND state='idle in transaction'`).Scan(&transactions)
 	if err == nil && transactions > 0 {
 		f.providerInTransaction.Store(true)
 	}
