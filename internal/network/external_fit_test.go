@@ -247,7 +247,7 @@ func TestExternalFitSelectsLeadBeyondPublicListFirstPage(t *testing.T) {
 		value := new(big.Int).Sub(n, big.NewInt(int64(i)))
 		hex := fmt.Sprintf("%032x", value)
 		id := hex[:8] + "-" + hex[8:12] + "-" + hex[12:16] + "-" + hex[16:20] + "-" + hex[20:]
-		if _, err := db.Exec(context.Background(), `INSERT INTO undergrid.external_observations(id,source_id,source_key,source_version,canonical_url,kind,metadata,content_hash,status) VALUES($1,$2,$1::text,'1','https://publisher.example/earlier','external_capability','{"title":"earlier"}',$3,'active')`, id, source, strings.Repeat("a", 64)); err != nil {
+		if _, err := db.Exec(context.Background(), `INSERT INTO undergrid.external_observations(id,source_id,source_key,source_version,canonical_url,kind,metadata,content_hash,status) VALUES($1::uuid,$2,($1::uuid)::text,'1','https://publisher.example/earlier','external_capability','{"title":"earlier"}',$3,'active')`, id, source, strings.Repeat("a", 64)); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -399,5 +399,33 @@ func TestExternalFitReportBindsRevisionWithoutBudgetInference(t *testing.T) {
 	code, after = owner.call("GET", path, "", nil)
 	if code != 200 || after["requirements_hash"] == before["requirements_hash"] || after["assessment"] != "incompatible" {
 		t.Fatalf("new required field not re-evaluated %d %v", code, after)
+	}
+}
+
+func TestExternalFitRequiresCurrentReadAuthority(t *testing.T) {
+	s, db, owner, intent := externalLeadFixture(t)
+	_, lead := seedExternalFitClaim(t, db, declaredFitClaim(), true)
+	path := "/v1/intents/" + intent + "/external-fit-report?lead_id=" + lead
+	var agent string
+	if err := db.QueryRow(context.Background(), `SELECT agent_id FROM undergrid.intents WHERE id=$1`, intent).Scan(&agent); err != nil {
+		t.Fatal(err)
+	}
+	blocked := owner
+	blocked.token = "ug_" + NewID()
+	if _, err := db.Exec(context.Background(), `INSERT INTO undergrid.credentials(id,agent_id,digest,scopes,audience,expires_at) VALUES($1,$2,$3,$4,'undergrid-network',now()+interval '1 hour')`, NewID(), agent, sha256Bytes(blocked.token), []string{"inbox:read"}); err != nil {
+		t.Fatal(err)
+	}
+	if code, result := blocked.call("GET", path, "", nil); code != 403 {
+		t.Fatalf("missing read scope %d %v", code, result)
+	}
+	foreign := client(t, s)
+	if code, result := foreign.call("GET", path, "", nil); code != 404 {
+		t.Fatalf("foreign ownership %d %v", code, result)
+	}
+	if code, result := owner.call("DELETE", "/v1/credentials/current", "", nil); code != 200 {
+		t.Fatal(code, result)
+	}
+	if code, result := owner.call("GET", path, "", nil); code != 401 {
+		t.Fatalf("revoked credential %d %v", code, result)
 	}
 }
