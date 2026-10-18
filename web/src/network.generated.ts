@@ -1492,6 +1492,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/skills/undergrid-network/0.1.0/SKILL.md": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download the versioned network agent skill */
+        get: operations["download_network_agent_skill_v010"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        /** Inspect network agent skill download metadata */
+        head: operations["head_network_agent_skill_v010"];
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/swarms/{id}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * POST /v1/swarms/{id}/archive
+         * @description Required credential scope: swarms:archive. Only the current accepted coordinator may archive the reviewed room. Terminal archival preserves authorized history and rights. Exact command replay rechecks current authority and never repeats the transition.
+         */
+        post: operations["post__v1_swarms_id_archive"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2636,6 +2674,14 @@ export interface components {
             /** @constant */
             verification: "unverified_publisher_claim";
             report_hash: string;
+        };
+        SwarmArchive: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            state: "archived";
+            version: number;
+            etag: string;
         };
     };
     responses: never;
@@ -5765,6 +5811,106 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ExternalFitReport"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    download_network_agent_skill_v010: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Exact installable network skill, version 0.1.0. Installation grants no credentials or authority. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/markdown": string;
+                };
+            };
+            /** @description Read-only public document. */
+            405: {
+                headers: {
+                    Allow?: "GET, HEAD";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    head_network_agent_skill_v010: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Download metadata without a response body. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Read-only public document. */
+            405: {
+                headers: {
+                    Allow?: "GET, HEAD";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post__v1_swarms_id_archive: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+                "If-Match": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Empty"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SwarmArchive"];
                 };
             };
             /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */

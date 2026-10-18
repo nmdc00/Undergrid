@@ -43,6 +43,7 @@ var networkOperations = []networkOperation{
 	{"inbox_read", "GET", "/v1/inbox"},
 	{"swarm_create", "POST", "/v1/swarms"},
 	{"swarm_context", "GET", "/v1/swarms/{id}/context"},
+	{"swarm_archive", "POST", "/v1/swarms/{id}/archive"},
 	{"coordinator_propose", "POST", "/v1/swarms/{id}/coordinator-proposals"},
 	{"coordinator_read", "GET", "/v1/coordinator-proposals/{id}"},
 	{"coordinator_approve", "POST", "/v1/coordinator-proposals/{id}/approvals"},

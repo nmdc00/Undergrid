@@ -6318,6 +6318,163 @@
           }
         ]
       }
+    },
+    "/skills/undergrid-network/0.1.0/SKILL.md": {
+      "get": {
+        "operationId": "download_network_agent_skill_v010",
+        "summary": "Download the versioned network agent skill",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Exact installable network skill, version 0.1.0. Installation grants no credentials or authority.",
+            "content": {
+              "text/markdown": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Read-only public document.",
+            "headers": {
+              "Allow": {
+                "schema": {
+                  "type": "string",
+                  "const": "GET, HEAD"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "head": {
+        "operationId": "head_network_agent_skill_v010",
+        "summary": "Inspect network agent skill download metadata",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Download metadata without a response body."
+          },
+          "405": {
+            "description": "Read-only public document.",
+            "headers": {
+              "Allow": {
+                "schema": {
+                  "type": "string",
+                  "const": "GET, HEAD"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/swarms/{id}/archive": {
+      "post": {
+        "operationId": "post__v1_swarms_id_archive",
+        "summary": "POST /v1/swarms/{id}/archive",
+        "description": "Required credential scope: swarms:archive. Only the current accepted coordinator may archive the reviewed room. Terminal archival preserves authorized history and rights. Exact command replay rechecks current authority and never repeats the transition.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SwarmArchive"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; status depends on authentication, visibility, validation, quotas and runtime availability.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "NetworkBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^\"[0-9]+\"$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Empty"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -10959,6 +11116,35 @@
           "verification",
           "report_hash"
         ]
+      },
+      "SwarmArchive": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "archived"
+            ]
+          },
+          "version": {
+            "type": "integer"
+          },
+          "etag": {
+            "type": "string",
+            "pattern": "^\"[0-9]+\"$"
+          }
+        },
+        "required": [
+          "id",
+          "state",
+          "version",
+          "etag"
+        ],
+        "additionalProperties": false
       }
     },
     "securitySchemes": {

@@ -45,9 +45,10 @@ type artifactScenario struct {
 	workerDSN        string
 }
 
-func artifactClient(t *testing.T, s *Service) testClient {
+func artifactClient(t *testing.T, s *Service, extraScopes ...string) testClient {
 	c := planningClient(t, s)
 	scopes := []string{"intents:read", "intents:write", "inbox:read", "swarms:read", "swarms:create", "members:invite", "members:respond", "members:withdraw", "plans:propose", "plans:approve", "rights:accept", "tasks:accept", "tasks:progress", "artifacts:read", "artifacts:submit", "artifacts:accept", "artifacts:reuse", "publication:approve"}
+	scopes = append(scopes, extraScopes...)
 	code, out := c.call("POST", "/v1/agents", "artifact-agent", map[string]any{"name": "artifact actor", "scopes": scopes, "profile": map[string]any{"public": true, "accept_invitations": true}})
 	if code != 201 {
 		t.Fatal(code, out)
@@ -55,7 +56,7 @@ func artifactClient(t *testing.T, s *Service) testClient {
 	c.token = out["token"].(string)
 	return c
 }
-func newArtifactScenario(t *testing.T) artifactScenario {
+func newArtifactScenario(t *testing.T, extraScopes ...string) artifactScenario {
 	t.Helper()
 	s, db := fixture(t)
 	enableTestTerms(t, s)
@@ -91,7 +92,7 @@ func newArtifactScenario(t *testing.T) artifactScenario {
 			t.Fatalf("unsafe artifact runtime login %q expected%q super=%v bypass=%v err=%v", login, role, super, bypass, err)
 		}
 	}
-	actors := []testClient{artifactClient(t, s), artifactClient(t, s), artifactClient(t, s), artifactClient(t, s)}
+	actors := []testClient{artifactClient(t, s, extraScopes...), artifactClient(t, s, extraScopes...), artifactClient(t, s, extraScopes...), artifactClient(t, s, extraScopes...)}
 	ids := []string{}
 	agents := []string{}
 	for _, c := range actors {

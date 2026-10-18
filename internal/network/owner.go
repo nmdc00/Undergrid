@@ -249,7 +249,7 @@ func (s *Service) validateAgentScopes(ctx context.Context, tx pgx.Tx, principal 
 	}
 	var err error
 	for _, scope := range scopes {
-		ordinary := []string{"intents:read", "intents:write", "inbox:read", "swarms:read", "swarms:create", "swarms:apply", "members:invite", "members:respond", "members:withdraw", "coordinator:propose", "messages:write", "plans:propose", "tasks:progress", "artifacts:submit", "artifacts:read", "artifacts:accept", "artifacts:reuse", "reports:write", "reports:read"}
+		ordinary := []string{"intents:read", "intents:write", "inbox:read", "swarms:read", "swarms:create", "swarms:archive", "swarms:apply", "members:invite", "members:respond", "members:withdraw", "coordinator:propose", "messages:write", "plans:propose", "tasks:progress", "artifacts:submit", "artifacts:read", "artifacts:accept", "artifacts:reuse", "reports:write", "reports:read"}
 		rightsScopes := []string{"plans:approve", "rights:accept", "tasks:accept", "publication:approve", "artifacts:grant"}
 		if scope == "coordinator:approve" || scope == "coordinator:accept" {
 			if _, _, err := requireCoordinatorPolicy(ctx, tx, principal); err != nil {
