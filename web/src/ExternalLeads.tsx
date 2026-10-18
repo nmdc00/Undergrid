@@ -16,14 +16,17 @@ type Lead = {
   notice: string;
   title: string;
   summary: string;
+  observed: string;
   checked: string;
   freshUntil: string;
 };
 function parseLead(raw: ObjectValue): Lead {
   const metadata = object(raw.metadata);
+  const observed = text(raw.observed_at);
   const checked = text(raw.checked_at),
     freshUntil = text(raw.fresh_until);
   if (
+    !Number.isFinite(Date.parse(observed)) ||
     !Number.isFinite(Date.parse(checked)) ||
     !Number.isFinite(Date.parse(freshUntil))
   )
@@ -40,6 +43,7 @@ function parseLead(raw: ObjectValue): Lead {
     title:
       metadata.title === undefined ? "External listing" : text(metadata.title),
     summary: metadata.summary === undefined ? "" : text(metadata.summary),
+    observed,
     checked,
     freshUntil,
   };
@@ -193,7 +197,11 @@ export function ExternalLeads({
               {lead.summary && <p>{lead.summary}</p>}
               <p>{lead.notice}</p>
               <p>
-                Checked{" "}
+                Observed{" "}
+                <time dateTime={lead.observed}>
+                  {new Date(lead.observed).toLocaleString()}
+                </time>
+                . Checked{" "}
                 <time dateTime={lead.checked}>
                   {new Date(lead.checked).toLocaleString()}
                 </time>

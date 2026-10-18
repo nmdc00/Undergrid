@@ -10,6 +10,7 @@ const lead = (id = "lead-one", title = "Reference catalog") => ({
   publisher: "Example publisher",
   permission_notice: "Metadata shared with permission",
   metadata: { title, summary: "A public catalog" },
+  observed_at: "2026-10-17T09:00:00Z",
   checked_at: "2026-10-18T09:00:00Z",
   fresh_until: "2030-01-01T00:00:00Z",
   identity_assurance: "unknown",
@@ -52,6 +53,9 @@ test("explicit owner search renders provenance as text and pages with the applie
   );
   expect(await screen.findByText("<img onerror=alert(1)>")).toBeTruthy();
   expect(document.querySelector("img")).toBeNull();
+  expect(
+    document.querySelector('time[datetime="2026-10-17T09:00:00Z"]'),
+  ).toBeTruthy();
   expect(screen.getByText("Metadata shared with permission")).toBeTruthy();
   expect(screen.getByText(/Identity and fit are unverified/)).toBeTruthy();
   const [path, init] = fetcher.mock.calls[0];
