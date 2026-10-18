@@ -1,7 +1,7 @@
 # Swarm inactivity lifecycle
 
 Task: TDD §7.3 long inactivity, one feature branch
-`feat/v0.1-swarm-inactivity`, based on release `a5cbfea`.
+`feat/v0.1-swarm-inactivity`, originally based on release `a5cbfea`, reconciled with explicit archive release `0126c25`.
 
 Observable behavior: warn once after 30 days without accepted progress and
 terminally archive after 45 days. Creation time is the initial baseline;
@@ -40,3 +40,5 @@ Required evidence before merge: actual app-only/worker-only LOGIN lifecycle
 tests, reviewed accepted-progress boundary, repeated/restarted sweeps, atomic
 event/job effects, affected archive/progress/deadline race regression and
 TDD/evidence reconciliation. Legal retention approval remains a separate gate.
+
+Locked policy contract before runtime implementation: the warning episode key is the accepted-progress baseline instant as integer Unix microseconds, independent of timezone/JSON timestamp rendering. Policy warning/archive facts contain the room resource, `initiated_by: inactivity_policy` and the episode clock only; no private evidence IDs, task IDs, artifact hashes, audience lists or reports. Worker-only progress projection may return a timestamp but must not grant raw private evidence reads. Discovery excludes already-warned rooms until their archive deadline or a newly accepted-progress episode, so a bounded batch can reach other due rooms. Network030 is reserved if these least-privilege worker grants require migration; Network029 remains exclusively dependency blocking.
