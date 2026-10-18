@@ -417,3 +417,30 @@ test("owner explicitly marks an intention satisfied using its reviewed version",
   expect(JSON.parse(sent.init!.body as string)).toEqual({ state: "satisfied" });
   expect(new Headers(sent.init?.headers).get("If-Match")).toBe('"v1"');
 });
+
+test("active intention exposes permitted external lead discovery", async () => {
+  fixture();
+  render(<App />);
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Review intention" }),
+  );
+  expect(
+    await screen.findByRole("button", { name: "Find external leads" }),
+  ).toBeTruthy();
+  expect(screen.getByRole("heading", { name: "External leads" })).toBeTruthy();
+});
+
+test.each(["paused", "satisfied", "withdrawn", "expired"])(
+  "%s intention does not offer external discovery",
+  async (state) => {
+    fixture(true, state);
+    render(<App />);
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Review intention" }),
+    );
+    await screen.findByRole("heading", { name: "Private catalog" });
+    expect(
+      screen.queryByRole("button", { name: "Find external leads" }),
+    ).toBeNull();
+  },
+);
