@@ -329,34 +329,9 @@ func (s *Service) withdrawMembership(r *http.Request, tx pgx.Tx, a actor, swarm 
 	if role == "coordinator" {
 		return 0, nil, fail(409, "archive_or_transfer_before_withdrawal")
 	}
-	// Withdraw the live claim before removing membership visibility. Submitted
-	// evidence remains immutable; the old claim can no longer satisfy a task.
-	rows, err := tx.Query(r.Context(), "UPDATE tasks SET state='withdrawn',claim_epoch=claim_epoch+1,version=version+1 WHERE assigned_agent_id=$1 AND plan_id IN (SELECT id FROM plan_versions WHERE swarm_id=$2) AND state NOT IN ('accepted_output','abandoned','cancelled','withdrawn','open') RETURNING id,version", a.AgentID, swarm)
-	if err != nil {
+	// Keep submitted evidence while invalidating live claims and their DAG.
+	if err := s.withdrawAssignments(r.Context(), tx, a, swarm); err != nil {
 		return 0, nil, err
-	}
-	type changedTask struct {
-		id      string
-		version int64
-	}
-	changed := []changedTask{}
-	for rows.Next() {
-		var task changedTask
-		if err = rows.Scan(&task.id, &task.version); err != nil {
-			rows.Close()
-			return 0, nil, err
-		}
-		changed = append(changed, task)
-	}
-	err = rows.Err()
-	rows.Close()
-	if err != nil {
-		return 0, nil, err
-	}
-	for _, task := range changed {
-		if err = s.roomEvent(r.Context(), tx, a, task.id, task.version, "task.withdrawn", swarm, "/v1/tasks/"+task.id); err != nil {
-			return 0, nil, err
-		}
 	}
 	version++
 	if _, err := tx.Exec(r.Context(), "UPDATE memberships SET state='withdrawn',version=$2 WHERE id=$1", id, version); err != nil {
@@ -413,12 +388,20 @@ func (s *Service) roomEvent(ctx context.Context, tx pgx.Tx, a actor, aggregate s
 }
 
 func (s *Service) roomEventAudience(ctx context.Context, tx pgx.Tx, a actor, aggregate string, version int64, kind, swarm, path string, audience []string) error {
+	return s.roomEventFacts(ctx, tx, a, aggregate, version, kind, swarm, path, audience, nil)
+}
+
+func (s *Service) roomEventFacts(ctx context.Context, tx pgx.Tx, a actor, aggregate string, version int64, kind, swarm, path string, audience []string, extra map[string]any) error {
 	id := NewID()
 	origin := "registered"
 	if s.environment != "production" {
 		origin = "release_test"
 	}
-	facts := map[string]any{"swarm_id": swarm, "resource_path": path}
+	facts := map[string]any{}
+	for key, value := range extra {
+		facts[key] = value
+	}
+	facts["swarm_id"], facts["resource_path"] = swarm, path
 	if len(audience) > 0 {
 		facts["audience_principal_ids"] = audience
 	}

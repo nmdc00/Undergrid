@@ -235,6 +235,9 @@ func TestWithdrawalDependencyEvidenceRecoveryAndReplacement(t *testing.T) {
 	if err = tx.QueryRow(ctx, "SELECT principal_task_load()").Scan(&load); err != nil || load != 4 {
 		t.Fatalf("blocked workload released: %d %v", load, err)
 	}
+	if _, err = tx.Exec(ctx, `UPDATE tasks SET dependency_blocked=false WHERE id=$1`, f.tasks["leaf"]["id"]); err == nil {
+		t.Fatal("application role cleared historical dependency blocking")
+	}
 	if err = tx.Rollback(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -436,6 +439,9 @@ func TestWithdrawalDependencyBlockingPreservesVerifiedEvidence(t *testing.T) {
 	}
 	x.startWorker(t)
 	evaluation := x.waitEvaluation(t, id)
+	if evaluation["result"] != "passed" {
+		t.Fatalf("fixed verifier did not pass: %v", evaluation)
+	}
 	var artifactBefore, evaluationBefore []byte
 	if err := x.db.QueryRow(ctx, `SELECT row_to_json(a)::text FROM undergrid.artifacts a WHERE id=$1`, id).Scan(&artifactBefore); err != nil {
 		t.Fatal(err)
@@ -468,6 +474,11 @@ func TestWithdrawalDependencyBlockingPreservesVerifiedEvidence(t *testing.T) {
 	}
 	if err := x.db.QueryRow(ctx, `SELECT row_to_json(e)::text FROM undergrid.evaluations e WHERE id=$1`, evaluation["id"]).Scan(&evaluationAfter); err != nil {
 		t.Fatal(err)
+	}
+	var pointer string
+	var epoch int
+	if err := x.db.QueryRow(ctx, `SELECT submitted_artifact_id::text,claim_epoch FROM undergrid.tasks WHERE id=$1`, x.task["id"]).Scan(&pointer, &epoch); err != nil || pointer != id || epoch != 2 {
+		t.Fatalf("withdrawal changed canonical artifact pointer or retained old claim: pointer=%s epoch=%d err=%v", pointer, epoch, err)
 	}
 	if string(artifactBefore) != string(artifactAfter) || string(evaluationBefore) != string(evaluationAfter) {
 		t.Fatal("withdrawal mutated sealed artifact or acknowledged evaluation")
