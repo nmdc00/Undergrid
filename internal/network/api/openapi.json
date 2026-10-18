@@ -6174,6 +6174,215 @@
           }
         ]
       }
+    },
+    "/v1/intents/{id}/external-fit-report": {
+      "get": {
+        "operationId": "get__v1_intents_id_external_fit_report",
+        "summary": "Compare one permitted publisher capability declaration with current owned intention requirements",
+        "description": "Read-only declared constraint evidence, never verified capability, legal rights, availability, independent demand or semantic ranking. Current own active intention and permitted fresh source are required. Only explicitly permission-allowlisted capability_claim v1 fields participate; missing declarations are unknown. Output/schema contradictions, missing fields in an explicitly complete declaration and disjoint declared license options are incompatible declarations. Private budgets and operator approval basis do not participate. The source remains untrusted and no URL/code is fetched or executed. External request leads are rejected with422 capability_lead_required. No pair/event/job/idempotency writes.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalFitReport"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; status depends on authentication, visibility, validation, quotas and runtime availability.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "NetworkBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "lead_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/v1/owner/intents/{id}/external-fit-report": {
+      "get": {
+        "operationId": "get__v1_owner_intents_id_external_fit_report",
+        "summary": "Compare one permitted publisher capability declaration with current owned intention requirements",
+        "description": "Read-only declared constraint evidence, never verified capability, legal rights, availability, independent demand or semantic ranking. Current own active intention and permitted fresh source are required. Only explicitly permission-allowlisted capability_claim v1 fields participate; missing declarations are unknown. Output/schema contradictions, missing fields in an explicitly complete declaration and disjoint declared license options are incompatible declarations. Private budgets and operator approval basis do not participate. The source remains untrusted and no URL/code is fetched or executed. External request leads are rejected with422 capability_lead_required. No pair/event/job/idempotency writes.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalFitReport"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; status depends on authentication, visibility, validation, quotas and runtime availability.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OwnerSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "lead_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/skills/undergrid-network/0.1.0/SKILL.md": {
+      "get": {
+        "operationId": "download_network_agent_skill_v010",
+        "summary": "Download the versioned network agent skill",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Exact installable network skill, version 0.1.0. Installation grants no credentials or authority.",
+            "content": {
+              "text/markdown": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Read-only public document.",
+            "headers": {
+              "Allow": {
+                "schema": {
+                  "type": "string",
+                  "const": "GET, HEAD"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "head": {
+        "operationId": "head_network_agent_skill_v010",
+        "summary": "Inspect network agent skill download metadata",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Download metadata without a response body."
+          },
+          "405": {
+            "description": "Read-only public document.",
+            "headers": {
+              "Allow": {
+                "schema": {
+                  "type": "string",
+                  "const": "GET, HEAD"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -10582,6 +10791,224 @@
           "assessment"
         ],
         "additionalProperties": false
+      },
+      "PublisherCapabilityClaim": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "version"
+        ],
+        "properties": {
+          "version": {
+            "type": "string",
+            "const": "capability-claim-v1"
+          },
+          "output": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "type": "string",
+                "maxLength": 64
+              },
+              "schema_family": {
+                "type": "string",
+                "maxLength": 128
+              }
+            }
+          },
+          "provided_fields": {
+            "type": "array",
+            "maxItems": 100,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          "fields_complete": {
+            "type": "boolean"
+          },
+          "license_ids": {
+            "type": "array",
+            "maxItems": 20,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        }
+      },
+      "DeclaredExternalConstraint": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "constraint": {
+            "type": "string",
+            "enum": [
+              "output_kind",
+              "schema_family",
+              "required_field",
+              "license_ids"
+            ]
+          },
+          "requested": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "string"
+            }
+          },
+          "declared": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "declared_aligned",
+              "declared_incompatible",
+              "unknown"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "declaration_missing",
+              "declared_output_mismatch",
+              "declared_output_equal",
+              "field_set_missing",
+              "not_declared_in_partial_field_set",
+              "required_field_declared",
+              "missing_from_complete_declared_field_set",
+              "license_evidence_missing",
+              "declared_license_options_disjoint",
+              "declared_license_option_intersection"
+            ]
+          },
+          "evidence_field": {
+            "type": "string",
+            "enum": [
+              "capability_claim.output.kind",
+              "capability_claim.output.schema_family",
+              "capability_claim.provided_fields",
+              "capability_claim.license_ids"
+            ]
+          },
+          "evidence_class": {
+            "type": "string",
+            "const": "unverified_publisher_claim"
+          }
+        },
+        "required": [
+          "constraint",
+          "requested",
+          "declared",
+          "status",
+          "reason",
+          "evidence_field",
+          "evidence_class"
+        ]
+      },
+      "ExternalFitReport": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "algorithm": {
+            "type": "string",
+            "const": "external-claim-constraints-v1"
+          },
+          "intention_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "intention_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "requirements_hash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "lead": {
+            "$ref": "#/components/schemas/ExternalLead"
+          },
+          "claim": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublisherCapabilityClaim"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "claim_status": {
+            "type": "string",
+            "enum": [
+              "declared",
+              "missing",
+              "invalid"
+            ]
+          },
+          "claim_hash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "constraints": {
+            "type": "array",
+            "maxItems": 53,
+            "items": {
+              "$ref": "#/components/schemas/DeclaredExternalConstraint"
+            }
+          },
+          "assessment": {
+            "type": "string",
+            "enum": [
+              "declared_aligned",
+              "incompatible",
+              "needs_clarification"
+            ]
+          },
+          "identity_assurance": {
+            "type": "string",
+            "const": "unknown"
+          },
+          "rights_assurance": {
+            "type": "string",
+            "const": "unknown"
+          },
+          "verification": {
+            "type": "string",
+            "const": "unverified_publisher_claim"
+          },
+          "report_hash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "algorithm",
+          "intention_id",
+          "intention_revision",
+          "requirements_hash",
+          "lead",
+          "claim",
+          "claim_status",
+          "claim_hash",
+          "constraints",
+          "assessment",
+          "identity_assurance",
+          "rights_assurance",
+          "verification",
+          "report_hash"
+        ]
       }
     },
     "securitySchemes": {
