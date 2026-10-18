@@ -6318,6 +6318,71 @@
           }
         ]
       }
+    },
+    "/skills/undergrid-network/0.1.0/SKILL.md": {
+      "get": {
+        "operationId": "download_network_agent_skill_v010",
+        "summary": "Download the versioned network agent skill",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Exact installable network skill, version 0.1.0. Installation grants no credentials or authority.",
+            "content": {
+              "text/markdown": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Read-only public document.",
+            "headers": {
+              "Allow": {
+                "schema": {
+                  "type": "string",
+                  "const": "GET, HEAD"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "head": {
+        "operationId": "head_network_agent_skill_v010",
+        "summary": "Inspect network agent skill download metadata",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Download metadata without a response body."
+          },
+          "405": {
+            "description": "Read-only public document.",
+            "headers": {
+              "Allow": {
+                "schema": {
+                  "type": "string",
+                  "const": "GET, HEAD"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
