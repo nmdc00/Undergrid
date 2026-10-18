@@ -57,3 +57,37 @@ func TestSwarmInactivityWarningAndArchiveSurviveRestart(t *testing.T) {
 		t.Fatal(code, snapshot)
 	}
 }
+
+func TestSwarmInactivityMessagesDoNotPostponeOverdueArchive(t *testing.T) {
+	s, db := coordinatorFixture(t)
+	a := planningClient(t, s)
+	code, room := a.call("POST", "/v1/swarms", "no-message-progress", map[string]any{"objective": "messages are not accepted progress", "visibility": "restricted", "recruitment_roles": []any{}})
+	if code != 201 {
+		t.Fatal(code, room)
+	}
+	id := room["id"].(string)
+	ctx := context.Background()
+	if _, err := db.Exec(ctx, "UPDATE undergrid.swarms SET created_at=clock_timestamp()-interval '46 days' WHERE id=$1", id); err != nil {
+		t.Fatal(err)
+	}
+	code, out := a.call("POST", "/v1/swarms/"+id+"/messages", "recent-message", map[string]any{"body": "Still here. This is not reviewed work."})
+	if code != 201 {
+		t.Fatal(code, out)
+	}
+	// First repair after a long outage must archive without an earlier warning
+	// sweep. Fresh chatter and event timestamps cannot reset the progress clock.
+	if _, err := db.Exec(ctx, `DO $$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='undergrid_inactivity_worker_runner') THEN CREATE ROLE undergrid_inactivity_worker_runner LOGIN NOSUPERUSER NOBYPASSRLS; END IF; END $$; GRANT undergrid_worker TO undergrid_inactivity_worker_runner`); err != nil {
+		t.Fatal(err)
+	}
+	worker := New(networkFixtureRoleDSN(t, db, "undergrid_inactivity_worker_runner"), "development", nil)
+	if err := worker.SweepCoordinationDeadlines(ctx, time.Now().UTC()); err != nil {
+		t.Fatal(err)
+	}
+	var state string
+	if err := db.QueryRow(ctx, "SELECT state FROM undergrid.swarms WHERE id=$1", id).Scan(&state); err != nil {
+		t.Fatal(err)
+	}
+	if state != "archived" {
+		t.Fatalf("overdue room remained %s after fresh chatter or missing day-30 sweep", state)
+	}
+}
