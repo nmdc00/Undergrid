@@ -192,5 +192,6 @@ func registerNetworkRoutes(mux *http.ServeMux, service *network.Service) {
 	mux.Handle("/.well-known/", service)
 	mux.Handle("/health/", service)
 	mux.Handle("/openapi.json", service)
+	mux.Handle("/skills/undergrid-network/", service)
 	mux.Handle("/a2a/", service)
 }
