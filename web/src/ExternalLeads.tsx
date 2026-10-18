@@ -1,3 +1,4 @@
+import { ExternalFitReport } from "./ExternalFitReport";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   ApiError,
@@ -74,14 +75,20 @@ export function ExternalLeads({
     [busy, setBusy] = useState(false);
   const [error, setError] = useState(""),
     [searched, setSearched] = useState(false);
+  const [selected, setSelected] = useState<string | null>(null);
   const generation = useRef(0);
-  useEffect(() => {
+  // An authority denial also invalidates pagination begun before that denial.
+  function discardResults() {
     generation.current++;
     setLeads([]);
+    setSelected(null);
     setCursor("");
-    setError("");
     setBusy(false);
     setSearched(false);
+  }
+  useEffect(() => {
+    discardResults();
+    setError("");
     return () => {
       generation.current++;
     };
@@ -92,6 +99,7 @@ export function ExternalLeads({
     setError("");
     if (!after) {
       setLeads([]);
+      setSelected(null);
       setCursor("");
       setSearched(false);
     }
@@ -123,6 +131,7 @@ export function ExternalLeads({
     } catch (failure) {
       if (mine !== generation.current) return;
       setLeads([]);
+      setSelected(null);
       setCursor("");
       setSearched(false);
       if (failure instanceof ApiError && failure.status === 401) {
@@ -211,6 +220,11 @@ export function ExternalLeads({
                 </time>
                 .
               </p>
+              {lead.origin === "external_capability" && (
+                <button type="button" onClick={() => setSelected(lead.id)}>
+                  Review declared fit
+                </button>
+              )}
               {source && (
                 <a href={source} target="_blank" rel="noopener noreferrer">
                   Open source
@@ -220,6 +234,24 @@ export function ExternalLeads({
           );
         })}
       </ul>
+      {selected && (
+        <ExternalFitReport
+          key={selected}
+          intentionID={intentionID}
+          leadID={selected}
+          csrf={csrf}
+          onUnauthorized={() => {
+            discardResults();
+            setError("Your session expired. Sign in again.");
+            onUnauthorized();
+          }}
+          onUnavailable={() => {
+            discardResults();
+            setError("This lead is no longer available. Search again.");
+          }}
+          onClose={() => setSelected(null)}
+        />
+      )}
       {cursor && leads.length < 200 && (
         <button disabled={busy} onClick={() => void load(applied, cursor)}>
           Load more leads
