@@ -1452,6 +1452,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/intents/{id}/external-fit-report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Compare one permitted publisher capability declaration with current owned intention requirements
+         * @description Read-only declared constraint evidence, never verified capability, legal rights, availability, independent demand or semantic ranking. Current own active intention and permitted fresh source are required. Only explicitly permission-allowlisted capability_claim v1 fields participate; missing declarations are unknown. Output/schema contradictions, missing fields in an explicitly complete declaration and disjoint declared license options are incompatible declarations. Private budgets and operator approval basis do not participate. The source remains untrusted and no URL/code is fetched or executed. External request leads are rejected with422 capability_lead_required. No pair/event/job/idempotency writes.
+         */
+        get: operations["get__v1_intents_id_external_fit_report"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/intents/{id}/external-fit-report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Compare one permitted publisher capability declaration with current owned intention requirements
+         * @description Read-only declared constraint evidence, never verified capability, legal rights, availability, independent demand or semantic ranking. Current own active intention and permitted fresh source are required. Only explicitly permission-allowlisted capability_claim v1 fields participate; missing declarations are unknown. Output/schema contradictions, missing fields in an explicitly complete declaration and disjoint declared license options are incompatible declarations. Private budgets and operator approval basis do not participate. The source remains untrusted and no URL/code is fetched or executed. External request leads are rejected with422 capability_lead_required. No pair/event/job/idempotency writes.
+         */
+        get: operations["get__v1_owner_intents_id_external_fit_report"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2542,6 +2582,54 @@ export interface components {
             intention_revision: number;
             /** @constant */
             assessment: "not_assessed";
+        };
+        PublisherCapabilityClaim: {
+            /** @constant */
+            version: "capability-claim-v1";
+            output?: {
+                kind?: string;
+                schema_family?: string;
+            };
+            provided_fields?: string[];
+            fields_complete?: boolean;
+            license_ids?: string[];
+        };
+        DeclaredExternalConstraint: {
+            /** @enum {string} */
+            constraint: "output_kind" | "schema_family" | "required_field" | "license_ids";
+            requested: string[];
+            declared: string[];
+            /** @enum {string} */
+            status: "declared_aligned" | "declared_incompatible" | "unknown";
+            /** @enum {string} */
+            reason: "declaration_missing" | "declared_output_mismatch" | "declared_output_equal" | "field_set_missing" | "not_declared_in_partial_field_set" | "required_field_declared" | "missing_from_complete_declared_field_set" | "license_evidence_missing" | "declared_license_options_disjoint" | "declared_license_option_intersection";
+            /** @enum {string} */
+            evidence_field: "capability_claim.output.kind" | "capability_claim.output.schema_family" | "capability_claim.provided_fields" | "capability_claim.license_ids";
+            /** @constant */
+            evidence_class: "unverified_publisher_claim";
+        };
+        ExternalFitReport: {
+            /** @constant */
+            algorithm: "external-claim-constraints-v1";
+            /** Format: uuid */
+            intention_id: string;
+            intention_revision: number;
+            requirements_hash: string;
+            lead: components["schemas"]["ExternalLead"];
+            claim: components["schemas"]["PublisherCapabilityClaim"] | null;
+            /** @enum {string} */
+            claim_status: "declared" | "missing" | "invalid";
+            claim_hash: string;
+            constraints: components["schemas"]["DeclaredExternalConstraint"][];
+            /** @enum {string} */
+            assessment: "declared_aligned" | "incompatible" | "needs_clarification";
+            /** @constant */
+            identity_assurance: "unknown";
+            /** @constant */
+            rights_assurance: "unknown";
+            /** @constant */
+            verification: "unverified_publisher_claim";
+            report_hash: string;
         };
     };
     responses: never;
@@ -5597,6 +5685,80 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ExternalLeads"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get__v1_intents_id_external_fit_report: {
+        parameters: {
+            query: {
+                lead_id: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExternalFitReport"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get__v1_owner_intents_id_external_fit_report: {
+        parameters: {
+            query: {
+                lead_id: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExternalFitReport"];
                 };
             };
             /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */

@@ -235,6 +235,13 @@ func a2aResourcePath(op networkOperation, r *http.Request, result any) string {
 	value, _ := result.(map[string]any)
 	id, _ := value["id"].(string)
 	if op.method == "GET" {
+		if op.name == "intention_external_fit_report" {
+			lead := r.URL.Query().Get("lead_id")
+			if !validID(lead) {
+				return ""
+			}
+			return path + "?lead_id=" + strings.ToLower(lead)
+		}
 		return path
 	}
 	if op.name == "intention_create" && validID(id) {
@@ -363,7 +370,11 @@ func (n *networkA2A) recoverTask(ctx context.Context, original *http.Request, re
 	}
 	request := original.Clone(ctx)
 	request.Method = "GET"
-	request.URL = &url.URL{Path: receipt.resource}
+	reference, ok := a2aReceiptReferenceURL(receipt.resource)
+	if !ok {
+		return task
+	}
+	request.URL = reference
 	request.Body = http.NoBody
 	_, current, err := n.service.execute(request)
 	if err != nil {
@@ -460,4 +471,22 @@ func (n *networkA2A) CancelTask(ctx context.Context, in *a2a.CancelTaskRequest) 
 		return nil, err
 	}
 	return nil, a2a.ErrTaskNotCancelable
+}
+
+// Receipts retain opaque resource identities, never arbitrary input queries.
+// Only the finite selected-fit read needs a query component to recover authority.
+func a2aReceiptReferenceURL(reference string) (*url.URL, bool) {
+	u, err := url.ParseRequestURI(reference)
+	if err != nil || u.Scheme != "" || u.Host != "" || u.User != nil || u.Fragment != "" || u.RawPath != "" || strings.Contains(reference, "#") || !strings.HasPrefix(u.Path, "/v1/") || strings.HasPrefix(reference, "//") {
+		return nil, false
+	}
+	if _, fit := externalFitIntentID(u.Path); fit {
+		q, err := url.ParseQuery(u.RawQuery)
+		if err != nil || len(q) != 1 || len(q["lead_id"]) != 1 || !validID(q.Get("lead_id")) {
+			return nil, false
+		}
+	} else if u.RawQuery != "" || u.ForceQuery {
+		return nil, false
+	}
+	return u, true
 }
