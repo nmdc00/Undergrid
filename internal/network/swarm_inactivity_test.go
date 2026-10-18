@@ -175,3 +175,56 @@ func TestSwarmInactivityOnlyReviewedAcceptedEvidenceRenewsClock(t *testing.T) {
 		})
 	}
 }
+
+// A verifier result and one beneficiary's acceptance are not completed output.
+// Only the final required acceptance can renew the room's accepted-work clock.
+func TestSwarmInactivityOnlyCompleteOutputAcceptanceRenewsClock(t *testing.T) {
+	for _, complete := range []bool{false, true} {
+		name := "partial"
+		if complete {
+			name = "complete"
+		}
+		t.Run(name, func(t *testing.T) {
+			x := newArtifactScenario(t)
+			data := []byte(`{"sources":[{"source_id":"inactivity-output","source_url":"https://example.org/"}]}`)
+			upload := x.upload(t, data, "output-clock")
+			path := "/v1/artifacts/" + upload["id"].(string)
+			if code, out := x.actors[2].call("POST", path+"/finalize", "seal-clock", x.finalBody(data)); code != 200 {
+				t.Fatal(code, out)
+			}
+			x.startWorker(t)
+			evaluation := x.waitEvaluation(t, upload["id"].(string))
+			if evaluation["result"] != "passed" {
+				t.Fatal(evaluation)
+			}
+			actors := x.actors[:1]
+			if complete {
+				actors = x.actors[:2]
+			}
+			for _, a := range actors {
+				if code, out := a.call("POST", path+"/acceptances", "clock-accept", map[string]any{"evaluation_id": evaluation["id"], "artifact_sha256": digest(data), "plan_hash": x.plan["content_hash"]}); code != 200 {
+					t.Fatal(code, out)
+				}
+			}
+			ctx := context.Background()
+			if _, err := x.db.Exec(ctx, "UPDATE undergrid.swarms SET created_at=clock_timestamp()-interval '46 days' WHERE id=$1", x.room["id"]); err != nil {
+				t.Fatal(err)
+			}
+			worker := New(x.workerDSN, "development", nil)
+			if err := worker.SweepCoordinationDeadlines(ctx, time.Now().UTC()); err != nil {
+				t.Fatal(err)
+			}
+			var state string
+			if err := x.db.QueryRow(ctx, "SELECT state FROM undergrid.swarms WHERE id=$1", x.room["id"]).Scan(&state); err != nil {
+				t.Fatal(err)
+			}
+			want := "archived"
+			if complete {
+				want = "active"
+			}
+			if state != want {
+				t.Fatalf("%s acceptance room=%s want=%s", name, state, want)
+			}
+		})
+	}
+}
