@@ -255,3 +255,126 @@ func TestSwarmInactivityOnlyCompleteOutputAcceptanceRenewsClock(t *testing.T) {
 		})
 	}
 }
+
+func TestSwarmInactivityBoundedWarningDrainDoesNotStarveLaterRooms(t *testing.T) {
+	s, db := coordinatorFixture(t)
+	a := planningClient(t, s)
+	ctx := context.Background()
+	ids := []string{}
+	for range 101 {
+		code, room := a.call("POST", "/v1/swarms", NewID(), map[string]any{"objective": "fair bounded inactivity warnings", "visibility": "restricted", "recruitment_roles": []any{}})
+		if code != 201 {
+			t.Fatal(code, room)
+		}
+		ids = append(ids, room["id"].(string))
+	}
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	if _, err := db.Exec(ctx, "UPDATE undergrid.swarms SET created_at=$2 WHERE id=ANY($1::uuid[])", ids, now.Add(-31*24*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(ctx, `DO $$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='undergrid_inactivity_worker_runner') THEN CREATE ROLE undergrid_inactivity_worker_runner LOGIN NOSUPERUSER NOBYPASSRLS; END IF; END $$; GRANT undergrid_worker TO undergrid_inactivity_worker_runner`); err != nil {
+		t.Fatal(err)
+	}
+	worker := New(networkFixtureRoleDSN(t, db, "undergrid_inactivity_worker_runner"), "development", nil)
+	for range 2 {
+		if err := worker.SweepCoordinationDeadlines(ctx, now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var count int
+	if err := db.QueryRow(ctx, "SELECT count(*) FROM undergrid.events WHERE aggregate_id=ANY($1::uuid[]) AND type='swarm.inactivity_warning'", ids).Scan(&count); err != nil || count != len(ids) {
+		t.Fatalf("bounded discovery starved rooms: warned=%d want=%d err=%v", count, len(ids), err)
+	}
+	// A restarted sweep with a different timezone represents the same instant,
+	// not a new warning episode.
+	restarted := New(worker.dsn, "development", nil)
+	if err := restarted.SweepCoordinationDeadlines(ctx, now.In(time.FixedZone("fixture", 7*60*60))); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRow(ctx, "SELECT count(*) FROM undergrid.events WHERE aggregate_id=ANY($1::uuid[]) AND type='swarm.inactivity_warning'", ids).Scan(&count); err != nil || count != len(ids) {
+		t.Fatalf("timezone/restart duplicated warnings: count=%d err=%v", count, err)
+	}
+}
+
+func TestSwarmInactivitySerializesWithFinalOutputAcceptance(t *testing.T) {
+	x := newArtifactScenario(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	data := []byte(`{"sources":[{"source_id":"inactivity-race","source_url":"https://example.org/"}]}`)
+	upload := x.upload(t, data, "race-output")
+	path := "/v1/artifacts/" + upload["id"].(string)
+	if code, out := x.actors[2].call("POST", path+"/finalize", "race-seal", x.finalBody(data)); code != 200 {
+		t.Fatal(code, out)
+	}
+	var args artifactEvaluationArgs
+	if err := x.db.QueryRow(ctx, "SELECT args FROM undergrid_queue.river_job WHERE kind='artifact_evaluation_v1' AND args->>'artifact_id'=$1 ORDER BY id LIMIT 1", upload["id"]).Scan(&args); err != nil {
+		t.Fatal(err)
+	}
+	worker := New(x.workerDSN, "development", nil)
+	worker.artifacts = x.s.artifacts
+	if err := worker.evaluateArtifact(ctx, args); err != nil {
+		t.Fatal(err)
+	}
+	evaluation := x.waitEvaluation(t, upload["id"].(string))
+	acceptance := map[string]any{"evaluation_id": evaluation["id"], "artifact_sha256": digest(data), "plan_hash": x.plan["content_hash"]}
+	if code, out := x.actors[0].call("POST", path+"/acceptances", "race-first", acceptance); code != 200 {
+		t.Fatal(code, out)
+	}
+	if _, err := x.db.Exec(ctx, "UPDATE undergrid.swarms SET created_at=clock_timestamp()-interval '46 days' WHERE id=$1", x.room["id"]); err != nil {
+		t.Fatal(err)
+	}
+	held, err := x.db.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer held.Rollback(context.Background())
+	if _, err = held.Exec(ctx, "SELECT id FROM undergrid.swarms WHERE id=$1 FOR UPDATE", x.room["id"]); err != nil {
+		t.Fatal(err)
+	}
+	swept, accepted := make(chan error, 1), make(chan int, 1)
+	go func() { swept <- worker.SweepCoordinationDeadlines(ctx, time.Now().UTC()) }()
+	go func() {
+		code, _ := x.actors[1].call("POST", path+"/acceptances", "race-final", acceptance)
+		accepted <- code
+	}()
+	for {
+		var waiting int
+		if _, err = held.Exec(ctx, "SELECT pg_stat_clear_snapshot()"); err != nil {
+			t.Fatal(err)
+		}
+		if err = held.QueryRow(ctx, "SELECT count(DISTINCT usename) FROM pg_stat_activity WHERE usename IN ('undergrid_artifact_worker_runner','undergrid_artifact_api_runner') AND wait_event_type='Lock'").Scan(&waiting); err != nil {
+			t.Fatal(err)
+		}
+		if waiting == 2 {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
+	if err = held.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err = <-swept; err != nil {
+		t.Fatal(err)
+	}
+	code := <-accepted
+	var state, taskState string
+	var acceptedEvents int
+	if err = x.db.QueryRow(ctx, "SELECT s.state,t.state,(SELECT count(*) FROM undergrid.events WHERE aggregate_id=t.id AND type='task.output_accepted') FROM undergrid.swarms s JOIN undergrid.tasks t ON t.id=$2 WHERE s.id=$1", x.room["id"], x.task["id"]).Scan(&state, &taskState, &acceptedEvents); err != nil {
+		t.Fatal(err)
+	}
+	if code == 200 {
+		if state != "active" || taskState != "accepted_output" || acceptedEvents != 1 {
+			t.Fatal("accepted progress lost archive race", state, taskState, acceptedEvents)
+		}
+	} else if code == 409 {
+		if state != "archived" || taskState == "accepted_output" || acceptedEvents != 0 {
+			t.Fatal("archive manufactured late acceptance", state, taskState, acceptedEvents)
+		}
+	} else {
+		t.Fatal("unexpected racing acceptance", code, state)
+	}
+}
