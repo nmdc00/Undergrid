@@ -91,3 +91,78 @@ func TestSwarmInactivityMessagesDoNotPostponeOverdueArchive(t *testing.T) {
 		t.Fatalf("overdue room remained %s after fresh chatter or missing day-30 sweep", state)
 	}
 }
+
+func TestSwarmInactivityOnlyReviewedAcceptedEvidenceRenewsClock(t *testing.T) {
+	for _, decision := range []string{"pending", "reject", "accept"} {
+		t.Run(decision, func(t *testing.T) {
+			x := newArtifactScenario(t)
+			ctx := context.Background()
+			id := x.room["id"].(string)
+			data := []byte(`{"sources":[{"source_id":"inactivity-fixture","source_url":"https://example.org/"}]}`)
+			// Keep the report narrower than the complete membership. The warning
+			// must never copy private evidence metadata into room-wide events.
+			audience := []string{x.principals[0], x.principals[2]}
+			upload := x.uploadForAudience(t, data, "clock-progress", "progress", audience)
+			artifactPath := "/v1/artifacts/" + upload["id"].(string)
+			code, out := x.actors[2].call("POST", artifactPath+"/finalize", "clock-seal", x.finalBody(data))
+			if code != 200 {
+				t.Fatal(code, out)
+			}
+			x.startWorker(t)
+			evaluation := x.waitEvaluation(t, upload["id"].(string))
+			if evaluation["result"] != "passed" {
+				t.Fatal(evaluation)
+			}
+			taskPath := "/v1/tasks/" + x.task["id"].(string)
+			_, current := x.actors[2].call("GET", taskPath, "", nil)
+			code, evidence := x.actors[2].versioned("POST", taskPath+"/progress-evidence", "clock-evidence", current["etag"].(string), map[string]any{
+				"claim_epoch": current["claim_epoch"], "artifact_id": upload["id"], "artifact_sha256": digest(data), "evaluation_id": evaluation["id"],
+				"report": "Private reviewed fixture progress.", "audience_principal_ids": audience, "reviewer_principal_id": x.principals[0],
+			})
+			if code != 201 {
+				t.Fatal(code, evidence)
+			}
+			if decision != "pending" {
+				code, out = x.actors[0].call("POST", taskPath+"/progress-evidence-review", "clock-review", map[string]any{
+					"evidence_id": evidence["id"], "decision": decision, "report_sha256": evidence["report_sha256"],
+				})
+				if code != 200 {
+					t.Fatal(code, out)
+				}
+			}
+			if _, err := x.db.Exec(ctx, "UPDATE undergrid.swarms SET created_at=clock_timestamp()-interval '46 days' WHERE id=$1", id); err != nil {
+				t.Fatal(err)
+			}
+			worker := New(x.workerDSN, "development", nil)
+			if err := worker.SweepCoordinationDeadlines(ctx, time.Now().UTC()); err != nil {
+				t.Fatal(err)
+			}
+			var state string
+			if err := x.db.QueryRow(ctx, "SELECT state FROM undergrid.swarms WHERE id=$1", id).Scan(&state); err != nil {
+				t.Fatal(err)
+			}
+			want := "archived"
+			if decision == "accept" {
+				want = "active"
+			}
+			if state != want {
+				t.Fatalf("%s evidence: room=%s want=%s", decision, state, want)
+			}
+			if decision == "accept" {
+				if err := worker.SweepCoordinationDeadlines(ctx, time.Now().UTC().Add(31*24*time.Hour)); err != nil {
+					t.Fatal(err)
+				}
+				var warnings int
+				if err := x.db.QueryRow(ctx, "SELECT count(*) FROM undergrid.events WHERE aggregate_id=$1 AND type='swarm.inactivity_warning'", id).Scan(&warnings); err != nil || warnings != 1 {
+					t.Fatalf("accepted progress did not start a new warning clock: warnings=%d err=%v", warnings, err)
+				}
+			}
+			var leaked int
+			if err := x.db.QueryRow(ctx, `SELECT count(*) FROM undergrid.events WHERE aggregate_id=$1 AND type IN('swarm.inactivity_warning','swarm.archived')
+			 AND (strpos(facts::text,$2)>0 OR strpos(facts::text,$3)>0 OR strpos(facts::text,$4)>0 OR strpos(facts::text,$5)>0)`,
+				id, evidence["id"], upload["id"], x.task["id"], "Private reviewed fixture progress.").Scan(&leaked); err != nil || leaked != 0 {
+				t.Fatalf("room-wide inactivity event disclosed private progress metadata: count=%d err=%v", leaked, err)
+			}
+		})
+	}
+}
