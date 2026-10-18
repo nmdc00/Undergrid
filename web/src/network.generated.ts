@@ -1332,6 +1332,126 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/swarms/{id}/coordinator-proposals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * POST /v1/swarms/{id}/coordinator-proposals
+         * @description Required credential scope: coordinator:propose. Current membership and authority are enforced in the shared domain transaction. Approval/acceptance additionally require live explicit owner succession policy. Successor acceptance is separate from unanimous current contributor/acceptor votes. No silence-as-consent.
+         */
+        post: operations["post__v1_swarms_id_coordinator_proposals"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/coordinator-proposals/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * GET /v1/coordinator-proposals/{id}
+         * @description Required credential scope: swarms:read. Current membership and authority are enforced in the shared domain transaction. Approval/acceptance additionally require live explicit owner succession policy. Successor acceptance is separate from unanimous current contributor/acceptor votes. No silence-as-consent.
+         */
+        get: operations["get__v1_coordinator_proposals_id"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/coordinator-proposals/{id}/approvals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * POST /v1/coordinator-proposals/{id}/approvals
+         * @description Required credential scope: coordinator:approve. Current membership and authority are enforced in the shared domain transaction. Approval/acceptance additionally require live explicit owner succession policy. Successor acceptance is separate from unanimous current contributor/acceptor votes. No silence-as-consent.
+         */
+        post: operations["post__v1_coordinator_proposals_id_approvals"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/coordinator-proposals/{id}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * POST /v1/coordinator-proposals/{id}/accept
+         * @description Required credential scope: coordinator:accept. Current membership and authority are enforced in the shared domain transaction. Approval/acceptance additionally require live explicit owner succession policy. Successor acceptance is separate from unanimous current contributor/acceptor votes. No silence-as-consent.
+         */
+        post: operations["post__v1_coordinator_proposals_id_accept"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/intents/{id}/external-leads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read authorized external metadata for an active owned intention
+         * @description Current owner/agent authority and active intention required. Read-only unassessed external leads, not participating agents, independent demand or capability fit. Public permission notice and current field allowlist are rechecked on every page; stale/revoked/withdrawn sources disappear. q is literal permitted-title/summary substring filtering. Cursors bind current actor, owner/agent channel, intention revision, filters and page size for 30 minutes; changed bindings return 400, expired cursors 410. Source origin and identity assurance remain explicit. No invitations, pair writes, semantic scoring or content execution. Malformed query encoding, raw semicolons and U+0000 are rejected with400; the complete raw query is bounded to8192bytes.
+         */
+        get: operations["get__v1_intents_id_external_leads"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/intents/{id}/external-leads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read authorized external metadata for an active owned intention
+         * @description Current owner/agent authority and active intention required. Read-only unassessed external leads, not participating agents, independent demand or capability fit. Public permission notice and current field allowlist are rechecked on every page; stale/revoked/withdrawn sources disappear. q is literal permitted-title/summary substring filtering. Cursors bind current actor, owner/agent channel, intention revision, filters and page size for 30 minutes; changed bindings return 400, expired cursors 410. Source origin and identity assurance remain explicit. No invitations, pair writes, semantic scoring or content execution. Malformed query encoding, raw semicolons and U+0000 are rejected with400; the complete raw query is bounded to8192bytes.
+         */
+        get: operations["get__v1_owner_intents_id_external_leads"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1392,6 +1512,11 @@ export interface components {
             max_active_tasks: number;
             /** Format: date-time */
             expires_at: string;
+            /**
+             * @description Explicit owner authorization for eligible agents to approve exact coordinator succession proposals or accept the office; never rights or spending authority.
+             * @default false
+             */
+            allow_coordinator_succession: boolean;
         };
         Policy: {
             version: number;
@@ -2333,6 +2458,90 @@ export interface components {
             claim_epoch: number;
             agreement_hash: string;
             submission_attestation: string;
+        };
+        CoordinatorProposalInput: {
+            /** Format: uuid */
+            successor_agent_id: string;
+            /** Format: date-time */
+            respond_by: string;
+        };
+        CoordinatorVote: {
+            content_hash: string;
+            /** @enum {string} */
+            decision: "approve" | "reject";
+        };
+        CoordinatorAcceptance: {
+            content_hash: string;
+        };
+        CoordinatorProposal: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            swarm_id: string;
+            /** Format: uuid */
+            successor_agent_id: string;
+            /** Format: uuid */
+            previous_coordinator_agent_id: string;
+            /** @enum {string} */
+            state: "proposed" | "applied" | "rejected" | "expired";
+            version: number;
+            etag: string;
+            content_hash: string;
+            /** Format: date-time */
+            respond_by: string;
+            required_principals: string[];
+            successor_accepted: boolean;
+            /** @description Current proposal snapshot and all recorded consents remain valid. An applied historical snapshot will differ from the resulting room. */
+            current: boolean;
+            votes: {
+                /** Format: uuid */
+                principal_id: string;
+                /** @enum {string} */
+                decision: "approve" | "reject";
+            }[];
+        };
+        ExternalLeadMetadata: {
+            title?: string;
+            summary?: string;
+            tags?: string[];
+            updated_at?: string;
+        };
+        ExternalLead: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            source_id: string;
+            source_version: string;
+            /** @enum {string} */
+            origin: "external_request" | "external_capability";
+            /** Format: uri */
+            canonical_url: string;
+            publisher: string;
+            permission_notice: string;
+            metadata: components["schemas"]["ExternalLeadMetadata"];
+            /** Format: date-time */
+            observed_at: string;
+            /** Format: date-time */
+            checked_at: string;
+            /** Format: date-time */
+            fresh_until: string;
+            /** @constant */
+            identity_assurance: "unknown";
+            /** @constant */
+            fit_status: "not_assessed";
+            /** @constant */
+            hard_constraints: "unknown";
+            projection_hash: string;
+        };
+        ExternalLeads: {
+            items: components["schemas"]["ExternalLead"][];
+            next_cursor: string;
+            limit: number;
+            /** Format: uuid */
+            intention_id: string;
+            intention_revision: number;
+            /** @constant */
+            assessment: "not_assessed";
         };
     };
     responses: never;
@@ -5147,6 +5356,247 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OAuthResourceMetadata"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post__v1_swarms_id_coordinator_proposals: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+                "If-Match": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CoordinatorProposalInput"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            201: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoordinatorProposal"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get__v1_coordinator_proposals_id: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoordinatorProposal"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post__v1_coordinator_proposals_id_approvals: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+                "If-Match": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CoordinatorVote"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoordinatorProposal"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post__v1_coordinator_proposals_id_accept: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+                "If-Match": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CoordinatorAcceptance"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoordinatorProposal"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get__v1_intents_id_external_leads: {
+        parameters: {
+            query?: {
+                kind?: "external_request" | "external_capability";
+                q?: string;
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExternalLeads"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get__v1_owner_intents_id_external_leads: {
+        parameters: {
+            query?: {
+                kind?: "external_request" | "external_capability";
+                q?: string;
+                limit?: number;
+                cursor?: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExternalLeads"];
                 };
             };
             /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */

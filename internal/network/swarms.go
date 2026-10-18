@@ -427,7 +427,7 @@ func (s *Service) roomEventAudience(ctx context.Context, tx pgx.Tx, a actor, agg
 		return err
 	}
 	switch kind {
-	case "membership.expired", "plan.expired", "task.assignment_expired", "task.at_risk", "task.abandoned", "task.cancelled":
+	case "coordinator.expired", "membership.expired", "plan.expired", "task.assignment_expired", "task.at_risk", "task.abandoned", "task.cancelled":
 		return enqueueFanoutInQueue(ctx, tx, id, "coordination_deadlines")
 	default:
 		return enqueueFanout(ctx, tx, id)

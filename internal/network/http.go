@@ -291,11 +291,20 @@ func authenticate(ctx context.Context, tx pgx.Tx, authorization, method, path st
 			}
 		}
 	}
+	if err = prelockCoordinatorRequest(ctx, tx, a, method, path); err != nil {
+		return a, err
+	}
 	a, err = lockActor(ctx, tx, a)
 	if err != nil {
 		return a, err
 	}
 	if claims, ok := ctx.Value(oauthResourceContextKey).(verifiedOAuth); ok && !strings.HasPrefix(token, "ug_") {
+		// Signature verification precedes database waits. A later access token
+		// can expire before its longer-lived local grant, so recheck its own
+		// deadline after acquiring the complete actor authority.
+		if !claims.Expires.After(time.Now()) {
+			return a, fail(401, "invalid_credential")
+		}
 		a.grantedScopes = append([]string(nil), a.Scopes...)
 		a.Scopes = scopeIntersection(a.Scopes, claims.Scopes)
 	}
@@ -316,7 +325,13 @@ func lockActor(ctx context.Context, tx pgx.Tx, a actor) (actor, error) {
 	if state != "active" {
 		return a, fail(401, "inactive_agent")
 	}
-	err = tx.QueryRow(ctx, "SELECT scopes FROM credentials WHERE id=$1 AND revoked_at IS NULL AND expires_at>now() FOR UPDATE", a.CredentialID).Scan(&a.Scopes)
+	// Lock first, then evaluate real server time. now() is fixed at transaction
+	// start; even clock_timestamp() in the locking WHERE may run before a row
+	// lock wait. MATERIALIZED prevents the expiry predicate moving ahead of it.
+	err = tx.QueryRow(ctx, `WITH locked_credential AS MATERIALIZED (
+ SELECT scopes,revoked_at,expires_at FROM credentials WHERE id=$1 FOR UPDATE
+ ) SELECT scopes FROM locked_credential
+ WHERE revoked_at IS NULL AND expires_at>clock_timestamp()`, a.CredentialID).Scan(&a.Scopes)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return a, fail(401, "invalid_credential")
 	}
@@ -334,9 +349,12 @@ func scopeIntersection(current, token []string) []string {
 }
 
 func networkOAuthScopes() []string {
-	return []string{"intents:read", "intents:write", "inbox:read", "swarms:read", "swarms:create", "swarms:apply", "members:invite", "members:respond", "members:withdraw", "messages:write", "plans:propose", "plans:approve", "tasks:progress", "tasks:accept", "artifacts:submit", "artifacts:read", "artifacts:accept", "artifacts:reuse", "artifacts:grant", "rights:accept", "publication:approve", "reports:read", "reports:write"}
+	return []string{"intents:read", "intents:write", "inbox:read", "swarms:read", "swarms:create", "swarms:apply", "members:invite", "members:respond", "members:withdraw", "coordinator:propose", "coordinator:approve", "coordinator:accept", "messages:write", "plans:propose", "plans:approve", "tasks:progress", "tasks:accept", "artifacts:submit", "artifacts:read", "artifacts:accept", "artifacts:reuse", "artifacts:grant", "rights:accept", "publication:approve", "reports:read", "reports:write"}
 }
 func (s *Service) agentCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, error) {
+	if _, _, _, ok := coordinatorRequest(r.URL.Path); ok {
+		return s.coordinatorCommand(r, tx, a)
+	}
 	if r.URL.Path == "/v1/reports" || strings.HasPrefix(r.URL.Path, "/v1/reports/") {
 		return s.reportCommand(r, tx, a)
 	}
@@ -360,6 +378,12 @@ func (s *Service) agentCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, e
 	}
 	if r.URL.Path == "/v1/swarms" || strings.HasPrefix(r.URL.Path, "/v1/swarms/") {
 		return s.swarmCommand(r, tx, a)
+	}
+	if id, ok := externalLeadIntentID(r.URL.Path); ok {
+		if !slices.Contains(a.Scopes, "intents:read") {
+			return 0, nil, insufficientScope(a, "intents:read")
+		}
+		return s.listExternalLeads(r, tx, a, id, "agent")
 	}
 	if r.Method == "GET" && (r.URL.Path == "/v1/opportunities" || strings.HasPrefix(r.URL.Path, "/v1/opportunities/") || (strings.HasPrefix(r.URL.Path, "/v1/intents/") && strings.HasSuffix(r.URL.Path, "/opportunities"))) {
 		if !slices.Contains(a.Scopes, "intents:read") {

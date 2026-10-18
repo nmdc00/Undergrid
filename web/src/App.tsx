@@ -21,6 +21,7 @@ const ordinaryScopes = [
   "members:invite",
   "members:respond",
   "members:withdraw",
+  "coordinator:propose",
   "messages:write",
   "plans:propose",
   "tasks:progress",

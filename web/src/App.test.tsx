@@ -279,6 +279,7 @@ test("policy controls send explicit bounded fields and the reviewed ETag", async
   )!;
   expect(new Headers(sent.init?.headers).get("If-Match")).toBe('"v1"');
   expect(JSON.parse(sent.init!.body as string)).toEqual({
+    allow_coordinator_succession: false,
     template_ids: [],
     license_ids: [],
     task_categories: [],
