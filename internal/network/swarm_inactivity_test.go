@@ -317,7 +317,7 @@ func TestSwarmInactivitySerializesWithFinalOutputAcceptance(t *testing.T) {
 	}
 	evaluation := x.waitEvaluation(t, upload["id"].(string))
 	acceptance := map[string]any{"evaluation_id": evaluation["id"], "artifact_sha256": digest(data), "plan_hash": x.plan["content_hash"]}
-	if code, out := x.actors[0].call("POST", path+"/acceptances", "race-first", acceptance); code != 200 {
+	if code, out := x.actors[1].call("POST", path+"/acceptances", "race-first", acceptance); code != 200 {
 		t.Fatal(code, out)
 	}
 	if _, err := x.db.Exec(ctx, "UPDATE undergrid.swarms SET created_at=clock_timestamp()-interval '46 days' WHERE id=$1", x.room["id"]); err != nil {
@@ -333,8 +333,27 @@ func TestSwarmInactivitySerializesWithFinalOutputAcceptance(t *testing.T) {
 	}
 	swept, accepted := make(chan error, 1), make(chan int, 1)
 	go func() { swept <- worker.SweepCoordinationDeadlines(ctx, time.Now().UTC()) }()
+	// Queue the worker at the room before the coordinator's command. This also
+	// exercises principal→room order against event foreign-key attribution.
+	for {
+		var waiting bool
+		if _, err = held.Exec(ctx, "SELECT pg_stat_clear_snapshot()"); err != nil {
+			t.Fatal(err)
+		}
+		if err = held.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE usename='undergrid_artifact_worker_runner' AND wait_event_type='Lock')").Scan(&waiting); err != nil {
+			t.Fatal(err)
+		}
+		if waiting {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
 	go func() {
-		code, _ := x.actors[1].call("POST", path+"/acceptances", "race-final", acceptance)
+		code, _ := x.actors[0].call("POST", path+"/acceptances", "race-final", acceptance)
 		accepted <- code
 	}()
 	for {
