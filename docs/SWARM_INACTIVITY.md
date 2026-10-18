@@ -23,11 +23,18 @@ to a room's owner must not imply that owner explicitly requested archival.
 Reuse the explicit archive transition after its feature is merged, keeping
 coordinator scope/ETag checks confined to the human command.
 
-Test-first checkpoint: `TestSwarmInactivityWarningAndArchiveSurviveRestart`
-authored; actual PostgreSQL RED and further accepted-progress/concurrency,
-fanout, first-sweep-overdue and stale-work tests remain pending. No runtime
-behavior or migration has changed. Network migration029 belongs exclusively
-to downstream dependency blocking. Do not edit applied migrations.
+Test-first checkpoint: boundary/restart, fresh-message/first-overdue sweep,
+and pending/rejected/accepted private progress lifecycle tests are authored
+and compile. Actual PostgreSQL RED remains pending; compilation exercises no
+behavior. Concurrency, fanout recovery and output acceptance linkage still
+need proving scenarios. No runtime behavior or migration has changed.
+Network migration029 belongs exclusively to downstream dependency blocking.
+Do not edit applied migrations.
+
+Review identified a prerequisite: output acceptance currently emits an event
+after a guarded task UPDATE without checking its affected-row count. Prove
+and correct stale-candidate acceptance separately before treating those events
+alone as an accepted-progress clock. Pending tests are not passing evidence.
 
 Required evidence before merge: actual app-only/worker-only LOGIN lifecycle
 tests, reviewed accepted-progress boundary, repeated/restarted sweeps, atomic
