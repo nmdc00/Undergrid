@@ -68,6 +68,15 @@ func (s *Store) beginDispatch(ctx context.Context, id string, startBlock *big.In
 		if !walletValid || !consentValid || !valid || !permits(policy, p.Quote) || !p.Quote.ExpiresAt.After(time.Now()) {
 			blocked = true
 			p.State = "canceled"
+			if p.Quote.Asset == "USDC" && p.walletAuthorization != nil {
+				// Local revocation cannot revoke an accepted transferable EIP3009
+				// proof held outside Undergrid. Keep its original reservation and
+				// monitor historical facts without granting new spending authority.
+				if err = s.claimUSDCDispatch(ctx, tx, p, nil); err != nil {
+					return err
+				}
+				p.State = "unknown"
+			}
 		} else {
 			p.State = "submitting"
 			if p.Quote.Asset == "USDC" {
