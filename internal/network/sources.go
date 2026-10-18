@@ -72,6 +72,12 @@ func NewSourceRefresher(dsn string, configs []SourceConfig) (*SourceRefresher, e
 			}
 		}
 		for _, f := range c.Fields {
+			if f == "capability_claim" {
+				if c.Kind != "capability_manifest" {
+					return nil, errors.New("request source cannot declare capability claims")
+				}
+				continue
+			}
 			if f != "canonical_url" && f != "title" && f != "summary" && f != "tags" && f != "updated_at" {
 				return nil, errors.New("unapproved metadata field")
 			}
@@ -485,6 +491,16 @@ func parseSourcePage(c SourceConfig, body []byte, page int) ([]sourceItem, bool,
 		metadata := map[string]any{}
 		if state == "active" {
 			for _, field := range c.Fields {
+				if field == "capability_claim" {
+					claim, err := parseCapabilityClaim(m[field])
+					if err != nil {
+						return nil, false, err
+					}
+					if claim != nil {
+						metadata[field] = claim
+					}
+					continue
+				}
 				if field == "canonical_url" {
 					metadata[field] = canonical
 					continue
