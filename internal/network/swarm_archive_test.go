@@ -129,6 +129,8 @@ func archiveArtifactRoom(t *testing.T, x artifactScenario) {
 func TestSwarmArchivePreservesAcknowledgedVerificationButBlocksCanonicalWork(t *testing.T) {
 	x := newArtifactScenario(t, "swarms:archive", "artifacts:grant")
 	data := []byte(`{"sources":[{"source_id":"archive-fixture","source_url":"https://example.org/"}]}`)
+	// Issue both generations before sealing moves the assignment to submitted.
+	preissued := x.upload(t, data, "prearchive-quarantine")
 	upload := x.upload(t, data, "prearchive-upload")
 	path := "/v1/artifacts/" + upload["id"].(string)
 	code, sealed := x.actors[2].call("POST", path+"/finalize", "prearchive-seal", x.finalBody(data))
@@ -139,7 +141,6 @@ func TestSwarmArchivePreservesAcknowledgedVerificationButBlocksCanonicalWork(t *
 	if err := x.db.QueryRow(context.Background(), "SELECT args FROM undergrid_queue.river_job WHERE kind='artifact_evaluation_v1' AND args->>'artifact_id'=$1 ORDER BY id LIMIT 1", upload["id"]).Scan(&args); err != nil {
 		t.Fatal(err)
 	}
-	preissued := x.upload(t, data, "prearchive-quarantine")
 	archiveArtifactRoom(t, x)
 	worker := &artifactEvaluationWorker{service: New(x.workerDSN, "development", nil)}
 	worker.service.artifacts = x.s.artifacts
@@ -339,8 +340,8 @@ func TestSwarmArchiveMCPA2AAndCurrentReceiptRecovery(t *testing.T) {
 				t.Fatal(code, out)
 			}
 			code, out, _ = a2aCall(f.old, "GET", "/a2a/tasks/"+receipt, nil)
-			if code != 404 {
-				t.Fatal("receipt retained withdrawn room authority", code, out)
+			if code != 200 || out["artifacts"] != nil || out["history"] != nil {
+				t.Fatal("withdrawn receipt must retain metadata without private room resources", code, out)
 			}
 		})
 	}
