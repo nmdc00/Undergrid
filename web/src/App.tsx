@@ -2,6 +2,7 @@ import type { components } from "./network.generated";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { AgentAuthority } from "./AgentAuthority";
 import { OwnerPolicy } from "./OwnerPolicy";
+import { ExternalLeads } from "./ExternalLeads";
 import {
   ApiError,
   items,
@@ -428,6 +429,20 @@ export function App() {
                     results.map((r) => (
                       <pre key={text(r.id)}>{JSON.stringify(r, null, 2)}</pre>
                     ))
+                  )}
+                  {detail.state === "active" && (
+                    <ExternalLeads
+                      key={`${text(detail.id)}:${String(detail.version)}`}
+                      intentionID={text(detail.id)}
+                      csrf={csrf}
+                      onUnauthorized={() => {
+                        generation.current++;
+                        setSecret("");
+                        setCSRF("");
+                        setDetail(null);
+                        setPhase("signed-out");
+                      }}
+                    />
                   )}
                   {!terminalIntention && (
                     <>
