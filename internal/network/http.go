@@ -94,6 +94,10 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
+	if strings.HasPrefix(r.URL.Path, "/skills/undergrid-network/") {
+		s.serveAgentSkill(w, r)
+		return
+	}
 	if r.URL.Path == "/.well-known/agent-card.json" || r.URL.Path == "/a2a" || strings.HasPrefix(r.URL.Path, "/a2a/") {
 		if s.a2a == nil {
 			writeA2AProtocolError(w, a2aUnavailable())

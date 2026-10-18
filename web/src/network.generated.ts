@@ -1492,6 +1492,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/skills/undergrid-network/0.1.0/SKILL.md": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download the versioned network agent skill */
+        get: operations["download_network_agent_skill_v010"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        /** Inspect network agent skill download metadata */
+        head: operations["head_network_agent_skill_v010"];
+        patch?: never;
+        trace?: never;
+    };
     "/v1/swarms/{id}/archive": {
         parameters: {
             query?: never;
@@ -5794,6 +5812,64 @@ export interface operations {
                 headers: {
                     /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
                     "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    download_network_agent_skill_v010: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Exact installable network skill, version 0.1.0. Installation grants no credentials or authority. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/markdown": string;
+                };
+            };
+            /** @description Read-only public document. */
+            405: {
+                headers: {
+                    Allow?: "GET, HEAD";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    head_network_agent_skill_v010: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Download metadata without a response body. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Read-only public document. */
+            405: {
+                headers: {
+                    Allow?: "GET, HEAD";
                     [name: string]: unknown;
                 };
                 content: {
