@@ -22,3 +22,15 @@ precondition and checked state transition. Existing readable evidence, fixed
 verification and published licensed reuse must remain intact. No migration or
 provider action is required. Run affected artifact lifecycle/race regressions
 and reconcile the owning TDD/evidence before integration.
+
+Actual fault-injection RED on PostgreSQL96 failed30.634s: the second vote
+returned200 for an output whose current task submission reference was absent.
+The narrow guard now checks submission identity and submitted/accepted-output
+state before any approval, and requires exactly one row from the terminal
+state/version/submission UPDATE before emitting completion. Shared artifact
+read, grant and verification authority remains unchanged.
+
+Focused actual-login lifecycle GREEN passed4.054s, including atomic denial,
+restoring the current pointer, retry with the same key after denial and repeated
+successful receipt replay with exactly one completion event. Affected broader
+artifact race regression remains pending; this checkpoint is not a release claim.

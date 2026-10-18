@@ -58,6 +58,12 @@ func TestArtifactAcceptanceRejectsNoncurrentSubmissionAtomically(t *testing.T) {
 	if code != 200 {
 		t.Fatal(code, out)
 	}
+	for range 2 {
+		code, out = x.actors[1].call("POST", path+"/acceptances", "second-current-vote", body)
+		if code != 200 {
+			t.Fatal(code, out)
+		}
+	}
 	if err := x.db.QueryRow(ctx, `SELECT state,version,
 	 (SELECT count(*) FROM undergrid.approvals WHERE artifact_id=$2 AND purpose='acceptance'),
 	 (SELECT count(*) FROM undergrid.events WHERE aggregate_id=t.id AND type='task.output_accepted')
