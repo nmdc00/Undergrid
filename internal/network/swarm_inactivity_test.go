@@ -50,6 +50,15 @@ func TestSwarmInactivityWarningAndArchiveSurviveRestart(t *testing.T) {
 			t.Fatalf("day %d: state=%s warnings=%d archives=%d; want %s/%d/%d", days, state, warnings, archives, wantState, wantWarnings, wantArchives)
 		}
 	}
+	// Both policy events and their durable fanout jobs commit with state. Policy
+	// attribution must not pretend the coordinator submitted a command.
+	var invalid, jobs int
+	if err := db.QueryRow(ctx, `SELECT count(*) FROM undergrid.events WHERE aggregate_id=$1 AND type IN ('swarm.inactivity_warning','swarm.archived') AND facts->>'initiated_by' IS DISTINCT FROM 'inactivity_policy'`, id).Scan(&invalid); err != nil || invalid != 0 {
+		t.Fatalf("policy event attribution invalid=%d err=%v", invalid, err)
+	}
+	if err := db.QueryRow(ctx, `SELECT count(*) FROM undergrid_queue.river_job j JOIN undergrid.events e ON j.args->>'event_id'=e.id::text WHERE e.aggregate_id=$1 AND e.type IN ('swarm.inactivity_warning','swarm.archived') AND j.kind='event_fanout_v1'`, id).Scan(&jobs); err != nil || jobs != 2 {
+		t.Fatalf("policy event fanout jobs=%d err=%v", jobs, err)
+	}
 	// Current context remains readable; archiving never manufactures consent or
 	// erases the coordinator's participation and historical export authority.
 	code, snapshot := a.call("GET", "/v1/swarms/"+id+"/context", "", nil)
