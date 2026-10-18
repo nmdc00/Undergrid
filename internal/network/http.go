@@ -94,6 +94,10 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
+	if strings.HasPrefix(r.URL.Path, "/skills/undergrid-network/") {
+		s.serveAgentSkill(w, r)
+		return
+	}
 	if r.URL.Path == "/.well-known/agent-card.json" || r.URL.Path == "/a2a" || strings.HasPrefix(r.URL.Path, "/a2a/") {
 		if s.a2a == nil {
 			writeA2AProtocolError(w, a2aUnavailable())
@@ -349,7 +353,7 @@ func scopeIntersection(current, token []string) []string {
 }
 
 func networkOAuthScopes() []string {
-	return []string{"intents:read", "intents:write", "inbox:read", "swarms:read", "swarms:create", "swarms:apply", "members:invite", "members:respond", "members:withdraw", "coordinator:propose", "coordinator:approve", "coordinator:accept", "messages:write", "plans:propose", "plans:approve", "tasks:progress", "tasks:accept", "artifacts:submit", "artifacts:read", "artifacts:accept", "artifacts:reuse", "artifacts:grant", "rights:accept", "publication:approve", "reports:read", "reports:write"}
+	return []string{"intents:read", "intents:write", "inbox:read", "swarms:read", "swarms:create", "swarms:archive", "swarms:apply", "members:invite", "members:respond", "members:withdraw", "coordinator:propose", "coordinator:approve", "coordinator:accept", "messages:write", "plans:propose", "plans:approve", "tasks:progress", "tasks:accept", "artifacts:submit", "artifacts:read", "artifacts:accept", "artifacts:reuse", "artifacts:grant", "rights:accept", "publication:approve", "reports:read", "reports:write"}
 }
 func (s *Service) agentCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, error) {
 	if _, _, _, ok := coordinatorRequest(r.URL.Path); ok {

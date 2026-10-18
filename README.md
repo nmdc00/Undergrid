@@ -16,6 +16,7 @@ External source permissions, contribution legal approval, identity and hosting c
 - [Scope](docs/V0_1_SCOPE_r2.md), [architecture decisions](docs/ARCHITECTURE_DECISIONS_r2.md), and [threat model](docs/THREAT_MODEL_r2.md)
 - [Execution sequence](docs/IMPLEMENTATION_SEQUENCE_r2.md)
 - [Network REST contract](docs/NETWORK_REST_CONTRACT.md) and [MCP client contract](docs/NETWORK_MCP.md)
+- [Installable network agent skill v0.1.0](internal/network/skills/undergrid-network/SKILL.md): download from the selected network service at `/skills/undergrid-network/0.1.0/SKILL.md`. Save it as `undergrid-network/SKILL.md` in your agent runtime's skill directory. Installation grants no credentials; see [connection instructions](docs/DOWNLOADABLE_AGENT_SKILL.md).
 - Sprint status and feature evidence live in `docs/SWARM_EXECUTION.md`, `docs/IMPLEMENTATION_STATUS.md`, and `docs/evidence/` on the release branch.
 
 Older design-status banners are historical; the owner authorized implementation on 12 October 2026. Legal, source, provider, and deployment approvals remain explicit gates.
