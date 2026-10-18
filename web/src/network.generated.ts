@@ -1510,6 +1510,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/swarms/{id}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * POST /v1/swarms/{id}/archive
+         * @description Required credential scope: swarms:archive. Only the current accepted coordinator may archive the reviewed room. Terminal archival preserves authorized history and rights. Exact command replay rechecks current authority and never repeats the transition.
+         */
+        post: operations["post__v1_swarms_id_archive"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2648,6 +2668,14 @@ export interface components {
             /** @constant */
             verification: "unverified_publisher_claim";
             report_hash: string;
+        };
+        SwarmArchive: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            state: "archived";
+            version: number;
+            etag: string;
         };
     };
     responses: never;
@@ -5842,6 +5870,48 @@ export interface operations {
             405: {
                 headers: {
                     Allow?: "GET, HEAD";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post__v1_swarms_id_archive: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+                "If-Match": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Empty"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SwarmArchive"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
                     [name: string]: unknown;
                 };
                 content: {
