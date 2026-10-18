@@ -28,6 +28,7 @@ type usdcChainFixture struct {
 	service               *USDCService
 	server                *httptest.Server
 	blockTimestamp        int64
+	receiptBlock          atomic.Int64
 	prebroadcastHead      atomic.Int64
 	nonceConsumed         atomic.Bool
 	phase                 atomic.Int64
@@ -93,6 +94,7 @@ func newUSDCChainFixture(t *testing.T) *usdcChainFixture {
 		t.Fatalf("payer proof %d %s", response.Code, response.Body.String())
 	}
 	fixture := &usdcChainFixture{owner: f, payment: p, command: command}
+	fixture.receiptBlock.Store(100)
 	if err := f.db.QueryRow(context.Background(), "SELECT floor(extract(epoch FROM created_at))::bigint FROM undergrid_sandbox.sandbox_payments WHERE id=$1", p.ID).Scan(&fixture.blockTimestamp); err != nil {
 		t.Fatal(err)
 	}
@@ -189,6 +191,7 @@ func (f *usdcChainFixture) serve(w http.ResponseWriter, r *http.Request) {
 		hash = "0x" + strings.Repeat("c", 64)
 	}
 	fault := f.fault.Load().(string)
+	receiptNumber := fmt.Sprintf("0x%x", f.receiptBlock.Load())
 	result := any(nil)
 	switch request.Method {
 	case "eth_chainId":
@@ -236,7 +239,17 @@ func (f *usdcChainFixture) serve(w http.ResponseWriter, r *http.Request) {
 		if (phase == 0 && (tag == "safe" || tag == "finalized")) || (phase == 3 && tag == "finalized") {
 			number = "0x63"
 		}
-		result = map[string]any{"number": number, "hash": hash, "timestamp": fmt.Sprintf("0x%x", f.blockTimestamp)}
+		timestamp := f.blockTimestamp
+		if f.prebroadcastHead.Load() > 0 && strings.HasPrefix(tag, "0x") {
+			height, err := chainQuantity(tag)
+			if err != nil || !height.IsInt64() {
+				w.WriteHeader(400)
+				return
+			}
+			number = tag
+			timestamp += 2 * (height.Int64() - 100)
+		}
+		result = map[string]any{"number": number, "hash": hash, "timestamp": fmt.Sprintf("0x%x", timestamp)}
 	case "eth_getTransactionByHash":
 		to, input := USDCTestToken, f.calldata()
 		if fault == "wrapped-call" {
@@ -245,7 +258,7 @@ func (f *usdcChainFixture) serve(w http.ResponseWriter, r *http.Request) {
 		if fault == "unsupported-calldata" {
 			input = "0x00000000" + strings.TrimPrefix(input, "0x")[8:]
 		}
-		result = map[string]any{"hash": txHash, "to": to, "input": input, "blockHash": hash, "blockNumber": "0x64", "chainId": "0x14a34"}
+		result = map[string]any{"hash": txHash, "to": to, "input": input, "blockHash": hash, "blockNumber": receiptNumber, "chainId": "0x14a34"}
 	case "eth_getTransactionReceipt":
 		if phase == 2 {
 			break
@@ -271,19 +284,19 @@ func (f *usdcChainFixture) serve(w http.ResponseWriter, r *http.Request) {
 			nonce = "0x" + strings.Repeat("4", 64)
 		}
 		logs := []any{
-			map[string]any{"address": token, "topics": []string{"0x" + hex.EncodeToString(keccak256([]byte("AuthorizationUsed(address,bytes32)"))), "0x" + chainAddress(from), nonce}, "data": "0x", "logIndex": "0x0", "transactionHash": txHash, "blockHash": hash, "blockNumber": "0x64", "removed": false},
-			map[string]any{"address": token, "topics": []string{"0x" + hex.EncodeToString(keccak256([]byte("Transfer(address,address,uint256)"))), "0x" + chainAddress(from), "0x" + chainAddress(to)}, "data": "0x" + chainWord(value), "logIndex": "0x1", "transactionHash": txHash, "blockHash": hash, "blockNumber": "0x64", "removed": false},
+			map[string]any{"address": token, "topics": []string{"0x" + hex.EncodeToString(keccak256([]byte("AuthorizationUsed(address,bytes32)"))), "0x" + chainAddress(from), nonce}, "data": "0x", "logIndex": "0x0", "transactionHash": txHash, "blockHash": hash, "blockNumber": receiptNumber, "removed": false},
+			map[string]any{"address": token, "topics": []string{"0x" + hex.EncodeToString(keccak256([]byte("Transfer(address,address,uint256)"))), "0x" + chainAddress(from), "0x" + chainAddress(to)}, "data": "0x" + chainWord(value), "logIndex": "0x1", "transactionHash": txHash, "blockHash": hash, "blockNumber": receiptNumber, "removed": false},
 		}
 		status := "0x1"
 		if fault == "reverted" {
 			status = "0x0"
 		}
-		result = map[string]any{"transactionHash": txHash, "blockHash": hash, "blockNumber": "0x64", "status": status, "logs": logs, "to": token}
+		result = map[string]any{"transactionHash": txHash, "blockHash": hash, "blockNumber": receiptNumber, "status": status, "logs": logs, "to": token}
 	case "eth_getLogs":
 		if phase == 2 {
 			result = []any{}
 		} else {
-			result = []any{map[string]any{"address": USDCTestToken, "topics": []string{"0x" + hex.EncodeToString(keccak256([]byte("AuthorizationUsed(address,bytes32)"))), "0x" + chainAddress(f.command.Authorization.From), f.command.Authorization.Nonce}, "data": "0x", "transactionHash": txHash, "blockHash": hash, "blockNumber": "0x64", "logIndex": "0x0", "removed": false}}
+			result = []any{map[string]any{"address": USDCTestToken, "topics": []string{"0x" + hex.EncodeToString(keccak256([]byte("AuthorizationUsed(address,bytes32)"))), "0x" + chainAddress(f.command.Authorization.From), f.command.Authorization.Nonce}, "data": "0x", "transactionHash": txHash, "blockHash": hash, "blockNumber": receiptNumber, "logIndex": "0x0", "removed": false}}
 		}
 	default:
 		w.WriteHeader(400)

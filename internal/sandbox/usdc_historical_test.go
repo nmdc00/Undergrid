@@ -9,9 +9,11 @@ func TestUSDCHistoricalPrebroadcastRecoversWithoutNewAuthorityOrSubmission(t *te
 	for _, tc := range []struct {
 		name            string
 		head            int64
+		receipt         int64
 		revoke, missing bool
 	}{
 		{name: "same_head_created_second", head: 100},
+		{name: "timestamp_predecessor_boundary", head: 100, receipt: 99},
 		{name: "earlier_block_after_credential_revocation", head: 105, revoke: true},
 		{name: "consumed_nonce_without_canonical_transfer", head: 105, revoke: true, missing: true},
 	} {
@@ -21,6 +23,9 @@ func TestUSDCHistoricalPrebroadcastRecoversWithoutNewAuthorityOrSubmission(t *te
 			f.phase.Store(1)
 			if tc.missing {
 				f.phase.Store(2)
+			}
+			if tc.receipt != 0 {
+				f.receiptBlock.Store(tc.receipt)
 			}
 			f.prebroadcastHead.Store(tc.head)
 			f.nonceConsumed.Store(true)
