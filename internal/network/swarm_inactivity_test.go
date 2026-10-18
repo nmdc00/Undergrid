@@ -378,3 +378,32 @@ func TestSwarmInactivitySerializesWithFinalOutputAcceptance(t *testing.T) {
 		t.Fatal("unexpected racing acceptance", code, state)
 	}
 }
+
+func TestSwarmInactivityArchiveStopsLaterDeadlineMutation(t *testing.T) {
+	x := newArtifactScenario(t)
+	ctx := context.Background()
+	if _, err := x.db.Exec(ctx, "UPDATE undergrid.swarms SET created_at=clock_timestamp()-interval '46 days' WHERE id=$1", x.room["id"]); err != nil {
+		t.Fatal(err)
+	}
+	worker := New(x.workerDSN, "development", nil)
+	now := time.Now().UTC()
+	if err := worker.SweepCoordinationDeadlines(ctx, now); err != nil {
+		t.Fatal(err)
+	}
+	var state, taskBefore, taskAfter string
+	if err := x.db.QueryRow(ctx, "SELECT s.state,t.state FROM undergrid.swarms s JOIN undergrid.tasks t ON t.id=$2 WHERE s.id=$1", x.room["id"], x.task["id"]).Scan(&state, &taskBefore); err != nil {
+		t.Fatal(err)
+	}
+	if state != "archived" {
+		t.Fatal("room not archived", state)
+	}
+	if err := worker.SweepCoordinationDeadlines(ctx, now.Add(60*24*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if err := x.db.QueryRow(ctx, "SELECT state FROM undergrid.tasks WHERE id=$1", x.task["id"]).Scan(&taskAfter); err != nil {
+		t.Fatal(err)
+	}
+	if taskBefore != taskAfter {
+		t.Fatalf("terminal room task mutated by later timer: %s -> %s", taskBefore, taskAfter)
+	}
+}
