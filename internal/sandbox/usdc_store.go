@@ -207,3 +207,29 @@ func loadUSDCStatus(ctx context.Context, tx pgx.Tx, p *Payment) error {
 	}
 	return err
 }
+
+// claimConsumedUSDC records historical recovery, never new spending authority.
+// The actor lock serializes policy/revocation commands and payment transitions.
+func (s *Store) claimConsumedUSDC(ctx context.Context, id string) error {
+	return s.transaction(ctx, "undergrid_sandbox_worker", func(tx pgx.Tx) error {
+		var actor string
+		if err := tx.QueryRow(ctx, "SELECT actor_id::text FROM sandbox_payments WHERE id=$1", id).Scan(&actor); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, "SELECT id FROM sandbox_actors WHERE id=$1 FOR UPDATE", actor); err != nil {
+			return err
+		}
+		p, err := loadPayment(ctx, tx, id)
+		if err != nil {
+			return err
+		}
+		if p.State != "authorized" {
+			return ErrConflict
+		}
+		if err = s.claimUSDCDispatch(ctx, tx, p, nil); err != nil {
+			return err
+		}
+		_, err = tx.Exec(ctx, "UPDATE sandbox_payments SET state='unknown',updated_at=now() WHERE id=$1", id)
+		return err
+	})
+}

@@ -94,7 +94,7 @@ func (s *USDCService) rpc(ctx context.Context, method string, params any, output
 	return nil
 }
 func chainQuantity(raw string) (*big.Int, error) {
-	if !strings.HasPrefix(raw, "0x") || len(raw) < 3 || len(raw) > 66 || strings.ToLower(raw) != raw {
+	if !strings.HasPrefix(raw, "0x") || len(raw) < 3 || len(raw) > 66 || !validLowerHex(raw[2:]) {
 		return nil, ErrInvalid
 	}
 	if len(raw) > 3 && raw[2] == '0' {

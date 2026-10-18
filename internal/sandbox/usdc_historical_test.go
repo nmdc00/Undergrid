@@ -2,6 +2,7 @@ package sandbox
 
 import (
 	"context"
+	"math/big"
 	"testing"
 )
 
@@ -59,9 +60,36 @@ func TestUSDCHistoricalPrebroadcastRecoversWithoutNewAuthorityOrSubmission(t *te
 			if state != expected || effects != economicFacts || key != actualKey || period != actualPeriod {
 				t.Fatalf("historical nonce recovery state=%s effects=%d key_retained=%v period_retained=%v", state, effects, key == actualKey, period == actualPeriod)
 			}
+			var start *string
+			var scan string
+			if err := f.owner.db.QueryRow(ctx, "SELECT start_block::text,scan_block::text FROM undergrid_sandbox.sandbox_usdc_claims WHERE payment_id=$1", f.payment.ID).Scan(&start, &scan); err != nil {
+				t.Fatal(err)
+			}
+			if start != nil || (tc.missing && scan != "101") {
+				t.Fatalf("historical claim start=%v scan=%s", start, scan)
+			}
 			if f.submits.Load() != 0 || f.verifies.Load() != 0 {
 				t.Fatalf("historical proof disclosed to provider verify=%d settle=%d", f.verifies.Load(), f.submits.Load())
 			}
 		})
+	}
+}
+
+func TestUSDCHistoricalSearchFloorIncludesGenesisAndBoundsHeight(t *testing.T) {
+	f := newUSDCChainFixture(t)
+	f.prebroadcastHead.Store(100)
+	for _, height := range []int64{0, 100, 105} {
+		floor, err := f.service.historicalUSDCFloor(context.Background(), f.payment.ID, big.NewInt(height))
+		want := int64(99)
+		if height == 0 {
+			want = 0
+		}
+		if err != nil || floor == nil || floor.Cmp(big.NewInt(want)) != 0 {
+			t.Fatalf("height %d floor=%v err=%v", height, floor, err)
+		}
+	}
+	oversized := new(big.Int).Lsh(big.NewInt(1), 64)
+	if _, err := f.service.historicalUSDCFloor(context.Background(), f.payment.ID, oversized); err == nil {
+		t.Fatal("unbounded historical height accepted")
 	}
 }

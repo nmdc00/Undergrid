@@ -146,6 +146,14 @@ func (s *USDCService) DispatchPayment(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
+	if used {
+		// A consumed nonce is already an external attempt. Preserve its historical
+		// authority and reservation even when current dispatch authority expired.
+		if err = s.store.claimConsumedUSDC(ctx, id); err != nil {
+			return err
+		}
+		return s.ReconcilePayment(ctx, id)
+	}
 	// Any disclosure of a transferable signature is an external spending attempt.
 	// Claim before /verify, not merely before /settle, and never repeat an attempt.
 	p, err = s.store.beginDispatch(ctx, id, start)
@@ -153,12 +161,6 @@ func (s *USDCService) DispatchPayment(ctx context.Context, id string) error {
 		return err
 	}
 	unknown := func(cause error) error { return errors.Join(cause, s.store.MarkUnknown(ctx, id)) }
-	if used {
-		if err = s.store.MarkUnknown(ctx, id); err != nil {
-			return err
-		}
-		return s.ReconcilePayment(ctx, id)
-	}
 	authorization := p.walletAuthorization.Authorization
 	requirements := map[string]any{"scheme": "exact", "network": "eip155:84532", "amount": authorization.Value, "asset": USDCTestToken, "payTo": p.Quote.Payee, "maxTimeoutSeconds": int64(time.Until(p.Quote.ExpiresAt).Seconds()), "extra": map[string]any{"assetTransferMethod": "eip3009", "name": p.walletAuthorization.Domain.Name, "version": p.walletAuthorization.Domain.Version}}
 	payload := map[string]any{"x402Version": 2, "accepted": requirements, "resource": map[string]any{"url": s.config.ResourceURL, "mimeType": "application/json"}, "payload": map[string]any{"signature": p.walletAuthorization.Signature, "authorization": map[string]any{"from": authorization.From, "to": authorization.To, "value": authorization.Value, "validAfter": authorization.ValidAfter, "validBefore": authorization.ValidBefore, "nonce": authorization.Nonce}}}
@@ -270,7 +272,13 @@ func (s *USDCService) findUSDCTransactions(ctx context.Context, p Payment, claim
 		return nil, err
 	}
 	from := new(big.Int)
-	if claim.Scan != nil {
+	if claim.Start == nil && (claim.Scan == nil || claim.Scan.Sign() == 0) {
+		from, err = s.historicalUSDCFloor(ctx, p.ID, latest)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if claim.Scan != nil && claim.Scan.Sign() > 0 {
 		from.Set(claim.Scan)
 	}
 	if claim.Start != nil && from.Cmp(claim.Start) <= 0 {
@@ -339,4 +347,41 @@ func (s *USDCService) findUSDCTransactions(ctx context.Context, p Payment, claim
 		}
 	}
 	return candidates, nil
+}
+
+// historicalUSDCFloor locates the first header at the immutable creation second,
+// including its predecessor for timestamp rounding. RPC heights are bounded to
+// uint64, so lower-bound search needs at most 65 header requests, even at genesis.
+func (s *USDCService) historicalUSDCFloor(ctx context.Context, id string, latest *big.Int) (*big.Int, error) {
+	if latest.BitLen() > 64 {
+		return nil, ErrInvalid
+	}
+	var created int64
+	if err := s.store.transaction(ctx, "undergrid_sandbox_worker", func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, "SELECT floor(extract(epoch FROM created_at))::bigint FROM sandbox_payments WHERE id=$1", id).Scan(&created)
+	}); err != nil {
+		return nil, err
+	}
+	low, high := new(big.Int), new(big.Int).Add(latest, big.NewInt(1))
+	for low.Cmp(high) < 0 {
+		mid := new(big.Int).Rsh(new(big.Int).Add(low, high), 1)
+		header, err := s.header(ctx, "0x"+mid.Text(16))
+		if err != nil {
+			return nil, err
+		}
+		number, _ := chainQuantity(header.Number)
+		if number.Cmp(mid) != 0 {
+			return nil, ErrConflict
+		}
+		timestamp, _ := chainQuantity(header.Timestamp)
+		if timestamp.Cmp(big.NewInt(created)) < 0 {
+			low.Add(mid, big.NewInt(1))
+		} else {
+			high.Set(mid)
+		}
+	}
+	if low.Sign() > 0 {
+		low.Sub(low, big.NewInt(1))
+	}
+	return low, nil
 }
