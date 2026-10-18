@@ -211,3 +211,307 @@ test("an old unauthorized response cannot sign out a newer selection", async () 
   expect(currentSession).not.toHaveBeenCalled();
   expect(screen.queryByRole("alert")).toBeNull();
 });
+
+test("owner can inspect declared constraint gaps for a selected capability lead", async () => {
+  const id = "00000000-0000-4000-8000-000000000001";
+  const fetcher = vi
+    .fn()
+    .mockResolvedValueOnce(respond(page([lead(id)])))
+    .mockResolvedValueOnce(
+      respond({
+        intention_id: "intent",
+        intention_revision: 1,
+        lead: { id },
+        assessment: "needs_clarification",
+        verification: "unverified_publisher_claim",
+        identity_assurance: "unknown",
+        rights_assurance: "unknown",
+        claim_status: "declared",
+        constraints: [
+          {
+            constraint: "required_field",
+            requested: ["email"],
+            declared: [],
+            status: "unknown",
+            reason: "__proto__",
+          },
+        ],
+      }),
+    );
+  vi.stubGlobal("fetch", fetcher);
+  render(
+    <ExternalLeads
+      intentionID="intent"
+      csrf="csrf"
+      onUnauthorized={() => {}}
+    />,
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "Find external leads" }),
+  );
+  await screen.findByText("Reference catalog");
+  await userEvent.click(
+    screen.getByRole("button", { name: "Review declared fit" }),
+  );
+  expect(
+    await screen.findByRole("heading", { name: "Needs clarification" }),
+  ).toBeTruthy();
+  expect(screen.getByRole("cell", { name: "email" })).toBeTruthy();
+  expect(screen.getByRole("cell", { name: "Unknown" })).toBeTruthy();
+  const requested = new URL(fetcher.mock.calls[1][0], "https://owner.example");
+  expect(requested.pathname).toBe(
+    "/v1/owner/intents/intent/external-fit-report",
+  );
+  expect(requested.searchParams.get("lead_id")).toBe(id);
+});
+
+test("external requests are never presented as capability fit candidates", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockResolvedValue(
+        respond(page([{ ...lead(), origin: "external_request" }])),
+      ),
+  );
+  render(
+    <ExternalLeads
+      intentionID="intent"
+      csrf="csrf"
+      onUnauthorized={() => {}}
+    />,
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "Find external leads" }),
+  );
+  await screen.findByText("Reference catalog");
+  expect(
+    screen.queryByRole("button", { name: "Review declared fit" }),
+  ).toBeNull();
+});
+
+test("revoked report availability removes the previously visible source metadata", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockResolvedValueOnce(respond(page()))
+      .mockResolvedValueOnce(respond({ error: { code: "not_found" } }, 404)),
+  );
+  render(
+    <ExternalLeads
+      intentionID="intent"
+      csrf="csrf"
+      onUnauthorized={() => {}}
+    />,
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "Find external leads" }),
+  );
+  await screen.findByText("Reference catalog");
+  await userEvent.click(
+    screen.getByRole("button", { name: "Review declared fit" }),
+  );
+  await screen.findByText("This lead is no longer available. Search again.");
+  expect(screen.queryByText("Reference catalog")).toBeNull();
+  expect(screen.queryByRole("table")).toBeNull();
+});
+
+test("late fit reports cannot replace a newer selected lead", async () => {
+  let resolve!: (response: Response) => void;
+  const report = (id: string, assessment: string) => ({
+    intention_id: "intent",
+    intention_revision: 1,
+    lead: { id },
+    assessment,
+    verification: "unverified_publisher_claim",
+    identity_assurance: "unknown",
+    rights_assurance: "unknown",
+    claim_status: "missing",
+    constraints: [],
+  });
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockResolvedValueOnce(
+        respond(
+          page([
+            lead("first", "First catalog"),
+            lead("second", "Second catalog"),
+          ]),
+        ),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise<Response>((done) => {
+            resolve = done;
+          }),
+      )
+      .mockResolvedValueOnce(respond(report("second", "incompatible"))),
+  );
+  render(
+    <ExternalLeads
+      intentionID="intent"
+      csrf="csrf"
+      onUnauthorized={() => {}}
+    />,
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "Find external leads" }),
+  );
+  await screen.findByText("First catalog");
+  await userEvent.click(
+    screen.getAllByRole("button", { name: "Review declared fit" })[0],
+  );
+  await userEvent.click(
+    screen.getAllByRole("button", { name: "Review declared fit" })[1],
+  );
+  await screen.findByRole("heading", { name: "Declared mismatch" });
+  resolve(respond(report("first", "declared_aligned")));
+  await new Promise((done) => setTimeout(done, 0));
+  expect(
+    screen.queryByRole("heading", { name: "Declared alignment" }),
+  ).toBeNull();
+  expect(
+    screen.getByRole("heading", { name: "Declared mismatch" }),
+  ).toBeTruthy();
+});
+
+test("an expired assessment session clears results without claiming an empty search", async () => {
+  const unauthorized = vi.fn();
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockResolvedValueOnce(respond(page()))
+      .mockResolvedValueOnce(
+        respond({ error: { code: "invalid_session" } }, 401),
+      ),
+  );
+  render(
+    <ExternalLeads
+      intentionID="intent"
+      csrf="csrf"
+      onUnauthorized={unauthorized}
+    />,
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "Find external leads" }),
+  );
+  await screen.findByText("Reference catalog");
+  await userEvent.click(
+    screen.getByRole("button", { name: "Review declared fit" }),
+  );
+  await waitFor(() => expect(unauthorized).toHaveBeenCalledOnce());
+  expect(screen.queryByText("Reference catalog")).toBeNull();
+  expect(
+    screen.queryByText("No current permitted leads match these filters."),
+  ).toBeNull();
+});
+
+test("a report bound to another intention is rejected without displaying its requirements", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockResolvedValueOnce(respond(page()))
+      .mockResolvedValueOnce(
+        respond({
+          intention_id: "another-owner-intent",
+          intention_revision: 1,
+          lead: { id: "lead-one" },
+          assessment: "declared_aligned",
+          verification: "unverified_publisher_claim",
+          identity_assurance: "unknown",
+          rights_assurance: "unknown",
+          claim_status: "declared",
+          constraints: [
+            {
+              constraint: "required_field",
+              requested: ["PRIVATE REQUIREMENT"],
+              declared: [],
+              status: "unknown",
+              reason: "declaration_missing",
+            },
+          ],
+        }),
+      ),
+  );
+  render(
+    <ExternalLeads
+      intentionID="intent"
+      csrf="csrf"
+      onUnauthorized={() => {}}
+    />,
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "Find external leads" }),
+  );
+  await screen.findByText("Reference catalog");
+  await userEvent.click(
+    screen.getByRole("button", { name: "Review declared fit" }),
+  );
+  await screen.findByText("The assessment could not be loaded. Try again.");
+  expect(screen.queryByText("PRIVATE REQUIREMENT")).toBeNull();
+  expect(screen.queryByRole("table")).toBeNull();
+});
+
+test.each([401, 404])(
+  "assessment%d invalidates pending pagination before it can restore listings",
+  async (status) => {
+    let assessment!: (response: Response) => void,
+      pagination!: (response: Response) => void;
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(respond(page([lead()], "next")))
+        .mockImplementationOnce(
+          () =>
+            new Promise<Response>((done) => {
+              assessment = done;
+            }),
+        )
+        .mockImplementationOnce(
+          () =>
+            new Promise<Response>((done) => {
+              pagination = done;
+            }),
+        ),
+    );
+    const unauthorized = vi.fn();
+    render(
+      <ExternalLeads
+        intentionID="intent"
+        csrf="csrf"
+        onUnauthorized={unauthorized}
+      />,
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Find external leads" }),
+    );
+    await screen.findByText("Reference catalog");
+    await userEvent.click(
+      screen.getByRole("button", { name: "Review declared fit" }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Load more leads" }),
+    );
+    assessment(respond({ error: { code: "not_found" } }, status));
+    await waitFor(() =>
+      expect(screen.queryByText("Reference catalog")).toBeNull(),
+    );
+    pagination(respond(page([lead("stale", "STALE PAGINATION")])));
+    await new Promise((done) => setTimeout(done, 0));
+    expect(screen.queryByText("STALE PAGINATION")).toBeNull();
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Find external leads",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(false);
+    if (status === 401) expect(unauthorized).toHaveBeenCalledOnce();
+  },
+);

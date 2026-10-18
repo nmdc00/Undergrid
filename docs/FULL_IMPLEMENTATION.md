@@ -2,7 +2,9 @@
 
 Owner instruction on 2026-10-13: full implementation with an agent swarm. Scope is the complete must-ship inventory in UNDERGRID_TDD_v0.1-r2.md and V0_1_SCOPE_r2.md, excluding explicitly deferred product features. Older design-status banners are historical. GitHub-hosted CI remains disabled by owner instruction; configured local behavioral, lifecycle, race/static/build checks remain required. Legal/source/provider/deployment approvals remain explicit and are not inferred from implementation or code promotion.
 
-Current release baseline: `release/v0.1` at `7b645fb` after retained-fixture corrections PRs #44/#45, canonical OpenAPI #43, signed USDC quotes PR #42, response ETags #41, OAuth #40, restricted sharing #39, verifier implementation #38, error contract #37, intention revisions #36, report intake #35 and owner issuance #34. `main` remains at `22d38de` and `develop` at `29464ac`; their source trees are identical, and main is an ancestor of develop through the synchronization merge. The current release wave has not been promoted to either branch. One branch per observable behavior, one isolated worktree per agent; no direct protected-branch pushes or forced history rewrites.
+Current snapshot (2026-10-18): see [Current implementation status](IMPLEMENTATION_STATUS.md) for the requirement matrix, merged `release/v0.1` baseline `2589e00` (through PR #67), exact verification boundaries, pending branches and external gates. No full-suite coverage result is asserted for that head. Hosted CI is explicitly waived; required local checks remain.
+
+The sections below preserve **historical execution chronology and feature evidence**. Their baseline, assignment, “next” and “pending” labels describe their recorded checkpoint, not current completion. Do not use an older checkpoint as the latest release status; reconcile it with the current matrix. One branch per observable behavior and one isolated worktree per agent remain the workflow; protected-branch promotion and deployment require their own validation.
 
 ## Locked first-wave assignments
 
