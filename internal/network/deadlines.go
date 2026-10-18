@@ -39,6 +39,11 @@ func (s *Service) SweepCoordinationDeadlines(ctx context.Context, now time.Time)
  SELECT swarm_id FROM memberships WHERE state IN ('applied','offered') AND respond_by<=$1
  UNION ALL SELECT swarm_id FROM plan_versions WHERE state='proposed' AND respond_by<=$1
  UNION ALL SELECT swarm_id FROM coordinator_proposals WHERE state='proposed' AND respond_by<=$1
+ UNION ALL SELECT s.id FROM swarms s CROSS JOIN LATERAL (SELECT swarm_accepted_progress_at(s.id) AS since) activity
+ WHERE s.state='active' AND activity.since <= $1::timestamptz-interval '30 days'
+ AND (activity.since <= $1::timestamptz-interval '45 days' OR NOT EXISTS(
+ SELECT 1 FROM events e WHERE e.aggregate_id=s.id AND e.type='swarm.inactivity_warning'
+ AND (e.facts->>'inactivity_since_us')::bigint=(extract(epoch FROM activity.since)*1000000)::bigint))
  UNION ALL SELECT p.swarm_id FROM tasks t JOIN plan_versions p ON p.id=t.plan_id WHERE
  (t.state='offered' AND t.response_deadline<=$1) OR
  (p.state='accepted' AND ((t.state IN ('accepted','in_progress','changes_requested') AND t.progress_deadline<=$1) OR (t.state='at_risk' AND t.cure_deadline<=$1)))
@@ -186,5 +191,39 @@ func (s *Service) sweepRoomDeadlines(ctx context.Context, db *pgx.Conn, swarm st
 			return err
 		}
 	}
+	if err := s.applySwarmInactivity(ctx, tx, a, swarm, now); err != nil {
+		return err
+	}
 	return tx.Commit(ctx)
+}
+
+// Room locking serializes the accepted-progress clock with reviews, output
+// acceptance and explicit archival. Discovery carries no cached authority.
+func (s *Service) applySwarmInactivity(ctx context.Context, tx pgx.Tx, attribution actor, swarm string, now time.Time) error {
+	var state string
+	var version int64
+	var since time.Time
+	if err := tx.QueryRow(ctx, "SELECT state,version,swarm_accepted_progress_at(id) FROM swarms WHERE id=$1", swarm).Scan(&state, &version, &since); err != nil {
+		return err
+	}
+	if state != "active" || now.Before(since.Add(30*24*time.Hour)) {
+		return nil
+	}
+	// The event principal identifies the room's accountable coordinator. The
+	// explicit initiator prevents attributing a command or consent to that actor.
+	facts := map[string]any{"initiated_by": "inactivity_policy", "inactivity_since_us": since.UnixMicro()}
+	if !now.Before(since.Add(45 * 24 * time.Hour)) {
+		return s.transitionSwarmArchive(ctx, tx, attribution, swarm, version+1, facts)
+	}
+	var warned bool
+	if err := tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM events WHERE aggregate_id=$1 AND type='swarm.inactivity_warning' AND (facts->>'inactivity_since_us')::bigint=$2)", swarm, since.UnixMicro()).Scan(&warned); err != nil {
+		return err
+	}
+	if warned {
+		return nil
+	}
+	if _, err := tx.Exec(ctx, "UPDATE swarms SET version=version+1 WHERE id=$1", swarm); err != nil {
+		return err
+	}
+	return s.roomEventDetails(ctx, tx, attribution, swarm, version+1, "swarm.inactivity_warning", swarm, "/v1/swarms/"+swarm+"/context", nil, facts)
 }

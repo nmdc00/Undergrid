@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // A clock fixture changes only creation time. Every room and participant is
@@ -141,6 +143,31 @@ func TestSwarmInactivityOnlyReviewedAcceptedEvidenceRenewsClock(t *testing.T) {
 			}
 			if _, err := x.db.Exec(ctx, "UPDATE undergrid.swarms SET created_at=clock_timestamp()-interval '46 days' WHERE id=$1", id); err != nil {
 				t.Fatal(err)
+			}
+			if decision == "accept" {
+				projection, err := pgx.Connect(ctx, x.workerDSN)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer projection.Close(ctx)
+				var stamp time.Time
+				if err = projection.QueryRow(ctx, "SELECT undergrid.swarm_accepted_progress_at($1)", id).Scan(&stamp); err != nil {
+					t.Fatal(err)
+				}
+				if stamp.Before(time.Now().Add(-time.Hour)) {
+					t.Fatal("accepted progress projection lost clock", stamp)
+				}
+				if _, err = projection.Exec(ctx, "SELECT report FROM undergrid.task_progress_evidence"); err == nil {
+					t.Fatal("clock worker gained raw private evidence reads")
+				}
+				api, err := pgx.Connect(ctx, x.s.dsn)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer api.Close(ctx)
+				if _, err = api.Exec(ctx, "SELECT undergrid.swarm_accepted_progress_at($1)", id); err == nil {
+					t.Fatal("API gained privileged private progress projection")
+				}
 			}
 			worker := New(x.workerDSN, "development", nil)
 			if err := worker.SweepCoordinationDeadlines(ctx, time.Now().UTC()); err != nil {
