@@ -3,10 +3,13 @@ package network
 import (
 	"bytes"
 	"context"
+	"github.com/jackc/pgx/v5"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/riverqueue/river"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 func TestSwarmArchiveTerminalLifecycleAndMemberExit(t *testing.T) {
@@ -124,7 +127,7 @@ func archiveArtifactRoom(t *testing.T, x artifactScenario) {
 }
 
 func TestSwarmArchivePreservesAcknowledgedVerificationButBlocksCanonicalWork(t *testing.T) {
-	x := newArtifactScenario(t, "swarms:archive")
+	x := newArtifactScenario(t, "swarms:archive", "artifacts:grant")
 	data := []byte(`{"sources":[{"source_id":"archive-fixture","source_url":"https://example.org/"}]}`)
 	upload := x.upload(t, data, "prearchive-upload")
 	path := "/v1/artifacts/" + upload["id"].(string)
@@ -136,6 +139,7 @@ func TestSwarmArchivePreservesAcknowledgedVerificationButBlocksCanonicalWork(t *
 	if err := x.db.QueryRow(context.Background(), "SELECT args FROM undergrid_queue.river_job WHERE kind='artifact_evaluation_v1' AND args->>'artifact_id'=$1 ORDER BY id LIMIT 1", upload["id"]).Scan(&args); err != nil {
 		t.Fatal(err)
 	}
+	preissued := x.upload(t, data, "prearchive-quarantine")
 	archiveArtifactRoom(t, x)
 	worker := &artifactEvaluationWorker{service: New(x.workerDSN, "development", nil)}
 	worker.service.artifacts = x.s.artifacts
@@ -166,10 +170,14 @@ func TestSwarmArchivePreservesAcknowledgedVerificationButBlocksCanonicalWork(t *
 		{x.actors[0], path + "/publication-approvals"},
 		{x.actors[0], path + "/publish"},
 		{x.actors[2], path + "/finalize"},
+		{x.actors[2], path + "/input-grants"},
 	} {
 		if code, out := entry.client.call("POST", entry.path, "archived-write-"+NewID(), map[string]any{}); code != 409 {
 			t.Fatal("archived canonical write accepted", entry.path, code, out)
 		}
+	}
+	if code, out := x.actors[2].call("POST", "/v1/artifacts/uploads", NewID(), map[string]any{"swarm_id": x.room["id"], "plan_id": x.plan["id"], "task_id": x.task["id"], "claim_epoch": x.task["claim_epoch"], "media_type": "application/json", "size_bytes": len(data)}); code != 409 {
+		t.Fatal("archived room issued a new upload", code, out)
 	}
 	if code, out := x.actors[3].call("GET", path, "", nil); code != 404 {
 		t.Fatal("archived private artifact leaked", code, out)
@@ -177,7 +185,7 @@ func TestSwarmArchivePreservesAcknowledgedVerificationButBlocksCanonicalWork(t *
 	if code, out := x.actors[2].call("GET", path, "", nil); code != 200 {
 		t.Fatal("archive erased current private history", code, out)
 	}
-	req, _ := http.NewRequest("PUT", upload["upload_url"].(string), bytes.NewReader(data))
+	req, _ := http.NewRequest("PUT", preissued["upload_url"].(string), bytes.NewReader(data))
 	req.Header.Set("Content-Type", "application/json")
 	response, err := x.server.Client().Do(req)
 	if err != nil {
@@ -283,5 +291,135 @@ func TestSwarmArchiveAndSuccessionSerializeOneGovernanceOutcome(t *testing.T) {
 		}
 	} else {
 		t.Fatal("neither concurrent governance action completed", a, v)
+	}
+}
+
+func TestSwarmArchiveMCPA2AAndCurrentReceiptRecovery(t *testing.T) {
+	for _, transport := range []string{"mcp", "a2a"} {
+		t.Run(transport, func(t *testing.T) {
+			f := newSuccessionTestRoom(t)
+			if err := f.s.ConfigureMCP("https://network.fixture.test"); err != nil {
+				t.Fatal(err)
+			}
+			if err := f.s.ConfigureA2ATransport("https://network.fixture.test"); err != nil {
+				t.Fatal(err)
+			}
+			_, current := f.old.call("GET", f.path+"/context", "", nil)
+			version := current["swarm"].(map[string]any)["etag"]
+			if transport == "mcp" {
+				peer := mcpSDKClient(t, f.s, f.old.token)
+				result, err := peer.CallTool(context.Background(), &mcp.CallToolParams{Name: "swarm_archive", Arguments: map[string]any{"id": f.roomID, "if_match": version, "idempotency_key": NewID(), "body": map[string]any{}}})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if result.IsError {
+					t.Fatal(result)
+				}
+				if out := mcpToolData(t, result); out["state"] != "archived" {
+					t.Fatal(out)
+				}
+				return
+			}
+			body := a2aCommandBody(NewID(), "swarm_archive", NewID(), map[string]any{})
+			commandArgs(body)["id"], commandArgs(body)["if_match"] = f.roomID, version
+			code, out, _ := a2aCall(f.old, "POST", "/a2a/message:send", body)
+			if code != 200 || a2aLiveTaskResult(out)["state"] != "archived" {
+				t.Fatal(code, out)
+			}
+			receipt := out["task"].(map[string]any)["id"].(string)
+			code, recovered, _ := a2aCall(f.old, "GET", "/a2a/tasks/"+receipt, nil)
+			if code != 200 {
+				t.Fatal(code, recovered)
+			}
+			resource := recovered["artifacts"].([]any)[0].(map[string]any)["parts"].([]any)[0].(map[string]any)["data"].(map[string]any)["resource"].(map[string]any)
+			if resource["swarm"].(map[string]any)["state"] != "archived" {
+				t.Fatal(recovered)
+			}
+			if code, out := f.old.call("POST", f.path+"/withdraw", NewID(), map[string]any{}); code != 200 {
+				t.Fatal(code, out)
+			}
+			code, out, _ = a2aCall(f.old, "GET", "/a2a/tasks/"+receipt, nil)
+			if code != 404 {
+				t.Fatal("receipt retained withdrawn room authority", code, out)
+			}
+		})
+	}
+}
+
+func TestSwarmArchiveSerializesWithRecruitment(t *testing.T) {
+	f := newSuccessionTestRoom(t)
+	recipient := successionClient(t, f.s)
+	_, identity := recipient.call("GET", "/v1/me", "", nil)
+	_, current := f.old.call("GET", f.path+"/context", "", nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	if _, err := f.db.Exec(ctx, `DO $$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='undergrid_coordinator_worker_runner') THEN CREATE ROLE undergrid_coordinator_worker_runner LOGIN NOSUPERUSER NOBYPASSRLS;END IF;END $$;GRANT undergrid_worker TO undergrid_coordinator_worker_runner`); err != nil {
+		t.Fatal(err)
+	}
+	worker, err := pgx.Connect(ctx, networkFixtureRoleDSN(t, f.db, "undergrid_coordinator_worker_runner"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer worker.Close(context.Background())
+	if _, err = worker.Exec(ctx, "SET ROLE undergrid_worker;SET search_path=undergrid,pg_catalog"); err != nil {
+		t.Fatal(err)
+	}
+	held, err := f.db.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer held.Rollback(context.Background())
+	if _, err = held.Exec(ctx, "SELECT id FROM undergrid.principals WHERE id=$1 FOR UPDATE", f.oldID["principal_id"]); err != nil {
+		t.Fatal(err)
+	}
+	role := RecruitmentRole{Key: "builder", SchemaFamily: "source_catalog_v1"}
+	recruited := make(chan error, 1)
+	go func() {
+		_, err := f.s.recruitOne(ctx, worker, f.roomID, role, identity["agent_id"].(string), identity["principal_id"].(string))
+		recruited <- err
+	}()
+	for {
+		var blocked bool
+		if _, err = held.Exec(ctx, "SELECT pg_stat_clear_snapshot()"); err != nil {
+			t.Fatal(err)
+		}
+		if err = held.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE pid=$1 AND wait_event_type='Lock')", worker.PgConn().PID()).Scan(&blocked); err != nil {
+			t.Fatal(err)
+		}
+		if blocked {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
+	archived := make(chan int, 1)
+	go func() {
+		code, _ := f.old.versioned("POST", f.path+"/archive", NewID(), current["swarm"].(map[string]any)["etag"].(string), map[string]any{})
+		archived <- code
+	}()
+	if err = held.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if code := <-archived; code != 200 {
+		t.Fatal("archive lost recruitment race", code)
+	}
+	if err = <-recruited; err != nil {
+		t.Fatal(err)
+	}
+	var before, after int
+	if err = f.db.QueryRow(ctx, "SELECT count(*) FROM undergrid.opportunities WHERE source_swarm_id=$1", f.roomID).Scan(&before); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.s.recruitOne(ctx, worker, f.roomID, role, identity["agent_id"].(string), identity["principal_id"].(string)); err != nil {
+		t.Fatal(err)
+	}
+	if err = f.db.QueryRow(ctx, "SELECT count(*) FROM undergrid.opportunities WHERE source_swarm_id=$1", f.roomID).Scan(&after); err != nil {
+		t.Fatal(err)
+	}
+	if before != after {
+		t.Fatal("archive emitted further recruitment", before, after)
 	}
 }
