@@ -349,7 +349,7 @@ func scopeIntersection(current, token []string) []string {
 }
 
 func networkOAuthScopes() []string {
-	return []string{"intents:read", "intents:write", "inbox:read", "swarms:read", "swarms:create", "swarms:apply", "members:invite", "members:respond", "members:withdraw", "coordinator:propose", "coordinator:approve", "coordinator:accept", "messages:write", "plans:propose", "plans:approve", "tasks:progress", "tasks:accept", "artifacts:submit", "artifacts:read", "artifacts:accept", "artifacts:reuse", "artifacts:grant", "rights:accept", "publication:approve", "reports:read", "reports:write"}
+	return []string{"intents:read", "intents:write", "inbox:read", "swarms:read", "swarms:create", "swarms:archive", "swarms:apply", "members:invite", "members:respond", "members:withdraw", "coordinator:propose", "coordinator:approve", "coordinator:accept", "messages:write", "plans:propose", "plans:approve", "tasks:progress", "tasks:accept", "artifacts:submit", "artifacts:read", "artifacts:accept", "artifacts:reuse", "artifacts:grant", "rights:accept", "publication:approve", "reports:read", "reports:write"}
 }
 func (s *Service) agentCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, error) {
 	if _, _, _, ok := coordinatorRequest(r.URL.Path); ok {

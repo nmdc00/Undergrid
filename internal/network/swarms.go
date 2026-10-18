@@ -42,7 +42,7 @@ func (s *Service) swarmCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, e
 	scope := "swarms:create"
 	if r.URL.Path != "/v1/swarms" {
 		parts := strings.Split(r.URL.Path, "/")
-		scope = map[string]string{"plans": "plans:propose", "applications": "swarms:apply", "invitations": "members:invite", "membership-response": "members:respond", "withdraw": "members:withdraw", "messages": "messages:write"}[parts[len(parts)-1]]
+		scope = map[string]string{"archive": "swarms:archive", "plans": "plans:propose", "applications": "swarms:apply", "invitations": "members:invite", "membership-response": "members:respond", "withdraw": "members:withdraw", "messages": "messages:write"}[parts[len(parts)-1]]
 		if scope == "" {
 			return 0, nil, fail(404, "not_found")
 		}
@@ -54,6 +54,11 @@ func (s *Service) swarmCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, e
 		parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/v1/swarms/"), "/")
 		if len(parts) != 2 || !validID(parts[0]) {
 			return 0, nil, fail(404, "not_found")
+		}
+		if parts[1] == "archive" {
+			if _, err := roomMembershipAuthority(r.Context(), tx, parts[0], true); err != nil {
+				return 0, nil, err
+			}
 		}
 		if slices.Contains([]string{"plans", "messages", "invitations"}, parts[1]) {
 			if err := roomAuthority(r.Context(), tx, a, parts[0], parts[1] == "invitations"); err != nil {
@@ -71,6 +76,8 @@ func (s *Service) swarmCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, e
 		}
 		id, action := parts[0], parts[1]
 		switch action {
+		case "archive":
+			return s.archiveSwarm(r, tx, a, id)
 		case "plans":
 			return s.proposePlan(r, tx, a, id)
 		case "invitations":
@@ -136,27 +143,65 @@ func (s *Service) createSwarm(r *http.Request, tx pgx.Tx, a actor) (int, any, er
 	}
 	return 201, map[string]any{"id": id, "version": 1, "etag": etag(1), "visibility": in.Visibility, "history_policy": "full"}, nil
 }
-func roomAuthority(ctx context.Context, tx pgx.Tx, a actor, id string, coordinator bool) error {
+func roomMembershipAuthority(ctx context.Context, tx pgx.Tx, id string, coordinator bool) (string, error) {
 	var member, manager bool
 	var state string
 	err := tx.QueryRow(ctx, "SELECT swarm_member(id),swarm_coordinator(id),state FROM swarms WHERE id=$1 FOR UPDATE", id).Scan(&member, &manager, &state)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return fail(404, "not_found")
+		return "", fail(404, "not_found")
 	}
 	if err != nil {
-		return err
+		return "", err
 	}
 	if !member {
-		return fail(404, "not_found")
+		return "", fail(404, "not_found")
 	}
 	if coordinator && !manager {
-		return fail(403, "coordinator_required")
+		return "", fail(403, "coordinator_required")
+	}
+	return state, nil
+}
+
+func roomAuthority(ctx context.Context, tx pgx.Tx, a actor, id string, coordinator bool) error {
+	state, err := roomMembershipAuthority(ctx, tx, id, coordinator)
+	if err != nil {
+		return err
 	}
 	if state != "active" {
 		return fail(409, "swarm_archived")
 	}
 	return nil
 }
+
+func (s *Service) archiveSwarm(r *http.Request, tx pgx.Tx, a actor, swarm string) (int, any, error) {
+	var in struct{}
+	if err := decode(r, &in); err != nil {
+		return 0, nil, err
+	}
+	var state string
+	var version int64
+	if err := tx.QueryRow(r.Context(), "SELECT state,version FROM swarms WHERE id=$1 FOR UPDATE", swarm).Scan(&state, &version); err != nil {
+		return 0, nil, err
+	}
+	if r.Header.Get("If-Match") == "" {
+		return 0, nil, fail(428, "if_match_required")
+	}
+	if r.Header.Get("If-Match") != etag(version) {
+		return 0, nil, fail(409, "version_conflict")
+	}
+	if state != "active" {
+		return 0, nil, fail(409, "swarm_archived")
+	}
+	version++
+	if _, err := tx.Exec(r.Context(), "UPDATE swarms SET state='archived',version=$2 WHERE id=$1", swarm, version); err != nil {
+		return 0, nil, err
+	}
+	if err := s.roomEvent(r.Context(), tx, a, swarm, version, "swarm.archived", swarm, "/v1/swarms/"+swarm+"/context"); err != nil {
+		return 0, nil, err
+	}
+	return 200, map[string]any{"id": swarm, "state": "archived", "version": version, "etag": etag(version)}, nil
+}
+
 func (s *Service) invite(r *http.Request, tx pgx.Tx, a actor, swarm string) (int, any, error) {
 	if err := roomAuthority(r.Context(), tx, a, swarm, true); err != nil {
 		return 0, nil, err
@@ -314,7 +359,8 @@ func (s *Service) postMessage(r *http.Request, tx pgx.Tx, a actor, swarm string)
 	return 201, map[string]any{"id": id, "sequence": sequence, "content_trust": "untrusted"}, nil
 }
 func (s *Service) withdrawMembership(r *http.Request, tx pgx.Tx, a actor, swarm string) (int, any, error) {
-	if err := roomAuthority(r.Context(), tx, a, swarm, false); err != nil {
+	roomState, err := roomMembershipAuthority(r.Context(), tx, swarm, false)
+	if err != nil {
 		return 0, nil, err
 	}
 	var in struct{}
@@ -326,7 +372,7 @@ func (s *Service) withdrawMembership(r *http.Request, tx pgx.Tx, a actor, swarm 
 	if err := tx.QueryRow(r.Context(), "SELECT id,role,version FROM memberships WHERE swarm_id=$1 AND agent_id=$2 FOR UPDATE", swarm, a.AgentID).Scan(&id, &role, &version); err != nil {
 		return 0, nil, err
 	}
-	if role == "coordinator" {
+	if role == "coordinator" && roomState == "active" {
 		return 0, nil, fail(409, "archive_or_transfer_before_withdrawal")
 	}
 	// Withdraw the live claim before removing membership visibility. Submitted
@@ -368,10 +414,10 @@ func (s *Service) withdrawMembership(r *http.Request, tx pgx.Tx, a actor, swarm 
 	return 200, map[string]any{"state": "withdrawn"}, nil
 }
 func swarmContext(r *http.Request, tx pgx.Tx, a actor, id string) (int, any, error) {
-	var objective, visibility string
+	var objective, visibility, state string
 	var version, sequence int64
 	var member bool
-	err := tx.QueryRow(r.Context(), "SELECT objective,visibility,version,sequence,swarm_member(id) FROM swarms WHERE id=$1", id).Scan(&objective, &visibility, &version, &sequence, &member)
+	err := tx.QueryRow(r.Context(), "SELECT objective,visibility,state,version,sequence,swarm_member(id) FROM swarms WHERE id=$1", id).Scan(&objective, &visibility, &state, &version, &sequence, &member)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return 0, nil, fail(404, "not_found")
 	}
@@ -406,7 +452,7 @@ func swarmContext(r *http.Request, tx pgx.Tx, a actor, id string) (int, any, err
 	if err = rows.Err(); err != nil {
 		return 0, nil, err
 	}
-	return 200, map[string]any{"swarm": map[string]any{"id": id, "objective": objective, "visibility": visibility, "version": version, "etag": etag(version), "history_policy": "full"}, "messages": messages, "next_sequence": after, "head_sequence": sequence, "has_more": after < sequence}, nil
+	return 200, map[string]any{"swarm": map[string]any{"id": id, "objective": objective, "visibility": visibility, "state": state, "version": version, "etag": etag(version), "history_policy": "full"}, "messages": messages, "next_sequence": after, "head_sequence": sequence, "has_more": after < sequence}, nil
 }
 func (s *Service) roomEvent(ctx context.Context, tx pgx.Tx, a actor, aggregate string, version int64, kind, swarm, path string) error {
 	return s.roomEventAudience(ctx, tx, a, aggregate, version, kind, swarm, path, nil)
