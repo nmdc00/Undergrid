@@ -8254,6 +8254,13 @@
             "enum": [
               "full"
             ]
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "active",
+              "archived"
+            ]
           }
         },
         "required": [
@@ -8262,7 +8269,8 @@
           "etag",
           "objective",
           "visibility",
-          "history_policy"
+          "history_policy",
+          "state"
         ],
         "additionalProperties": false
       },

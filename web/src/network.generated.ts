@@ -1970,6 +1970,8 @@ export interface components {
             visibility: string;
             /** @enum {string} */
             history_policy: "full";
+            /** @enum {string} */
+            state: "active" | "archived";
         };
         SwarmContext: {
             swarm: components["schemas"]["SwarmSummary"];
