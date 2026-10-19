@@ -122,6 +122,27 @@ func TestBrowserOwnerDomainCSRFAndIsolation(t *testing.T) {
 	if code != 200 {
 		t.Fatal("recipient owner me", code, recipientMe)
 	}
+	roomPath := "/v1/owner/agents/" + out["id"].(string) + "/swarms"
+	roomBody := map[string]any{"objective": "Private browser room", "visibility": "private", "history_policy": "full", "recruitment_roles": []any{}}
+	for _, attack := range [][2]string{{"https://attacker.test", "fixture-csrf"}, {"https://undergrid.test", ""}, {"https://undergrid.test", "wrong"}} {
+		if status, result := call(a, "POST", roomPath, attack[0], attack[1], roomBody); status != 401 {
+			t.Fatal("room CSRF bypass", status, result)
+		}
+	}
+	if status, result := call(b, "POST", roomPath, "https://undergrid.test", "fixture-csrf", roomBody); status != 404 {
+		t.Fatal("foreign browser room authority", status, result)
+	}
+	roomCode, room := call(a, "POST", roomPath, "https://undergrid.test", "fixture-csrf", roomBody)
+	if roomCode != 201 || room["visibility"] != "private" || room["history_policy"] != "full" {
+		t.Fatal("browser room creation", roomCode, room)
+	}
+	if status, result := call(a, "POST", roomPath, "https://undergrid.test", "fixture-csrf", roomBody); status != 201 || result["id"] != room["id"] {
+		t.Fatal("browser room replay", status, result)
+	}
+	var roomCount int
+	if err = db.QueryRow(context.Background(), "SELECT count(*) FROM undergrid.swarms WHERE creator_principal_id=$1", ownerMe["id"]).Scan(&roomCount); err != nil || roomCount != 1 {
+		t.Fatal("browser room CSRF/replay effects", roomCount, err)
+	}
 	intentExpiry := time.Now().Add(2 * time.Hour).UTC()
 	code, restricted := call(a, "POST", "/v1/owner/intents", "https://undergrid.test", "fixture-csrf", map[string]any{
 		"agent_id": out["id"],

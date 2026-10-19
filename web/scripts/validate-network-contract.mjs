@@ -43,6 +43,19 @@ const baseline={id:'a8391ea6-5003-401e-85e1-47c116fe3da0',version:1,etag:'"1"',s
 if (!publicIntent(baseline)) throw Error('Independent public fixture invalid');
 if (publicIntent({...baseline,budget:{amount_minor:100,currency:'EUR',kind:'stated_budget'}})) throw Error('Public budget leak permitted');
 if (publicIntent({...baseline,version:'1'})) throw Error('String version permitted');
+if (process.argv.includes('--owner-swarm-creation')) {
+ const created=cases.find(c=>c.method==='POST'&&c.path.endsWith('/swarms')&&c.status===201);
+ if (!created) throw Error('Missing actual owner swarm creation lifecycle');
+ const request=validateSchema({$ref:'#/components/schemas/OwnerSwarmCreateInput'});
+ for (const mutate of [x=>delete x.history_policy,x=>x.history_policy='from_join',x=>x.visibility='public',x=>x.principal_id=baseline.id,x=>x.public_transcript_consent=true]) {
+  const invalid=structuredClone(created.request);mutate(invalid);
+  if (request(invalid)) throw Error('Owner room request authority/disclosure bypass');
+ }
+ const response=validateSchema({$ref:'#/components/schemas/OwnerSwarmCreated'});
+ if (response({...created.response,visibility:'public'})||response({...created.response,version:'1'})||response({...created.response,private_transcript:'forbidden'})) throw Error('Owner creation response privacy/type bypass');
+ console.log(`Validated ${cases.length} actual owner creation cases and independent disclosure/privacy denials`);
+ process.exit(0);
+}
 if (process.argv.includes('--owner-participation')) {
  const page=cases.find(c=>c.path.endsWith('/participation')&&c.method==='GET'&&c.status===200);
  const invitation=cases.find(c=>c.path.includes('/invitations/')&&c.status===200);
