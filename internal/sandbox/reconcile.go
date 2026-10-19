@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/jackc/pgx/v5"
+	"math/big"
 	"time"
 )
 
@@ -12,6 +13,10 @@ import (
 // provider call. A crash leaves submitting, which requires reconciliation rather
 // than a new charge. The payment's provider key never changes.
 func (s *Store) BeginDispatch(ctx context.Context, id string) (Payment, error) {
+	return s.beginDispatch(ctx, id, nil)
+}
+
+func (s *Store) beginDispatch(ctx context.Context, id string, startBlock *big.Int) (Payment, error) {
 	var p Payment
 	blocked := false
 	err := s.transaction(ctx, "undergrid_sandbox_worker", func(tx pgx.Tx) error {
@@ -63,8 +68,22 @@ func (s *Store) BeginDispatch(ctx context.Context, id string) (Payment, error) {
 		if !walletValid || !consentValid || !valid || !permits(policy, p.Quote) || !p.Quote.ExpiresAt.After(time.Now()) {
 			blocked = true
 			p.State = "canceled"
+			if p.Quote.Asset == "USDC" && p.walletAuthorization != nil {
+				// Local revocation cannot revoke an accepted transferable EIP3009
+				// proof held outside Undergrid. Keep its original reservation and
+				// monitor historical facts without granting new spending authority.
+				if err = s.claimUSDCDispatch(ctx, tx, p, nil); err != nil {
+					return err
+				}
+				p.State = "unknown"
+			}
 		} else {
 			p.State = "submitting"
+			if p.Quote.Asset == "USDC" {
+				if err = s.claimUSDCDispatch(ctx, tx, p, startBlock); err != nil {
+					return err
+				}
+			}
 		}
 		_, err = tx.Exec(ctx, "UPDATE sandbox_payments SET state=$2,updated_at=now() WHERE id=$1", id, p.State)
 		return err
