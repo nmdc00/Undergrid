@@ -208,7 +208,7 @@ func (s *Store) BeginRefundDispatch(ctx context.Context, id string) (Refund, err
 			return err
 		}
 		var valid bool
-		if err = tx.QueryRow(ctx, "SELECT r.policy_version=$2 AND c.revoked_at IS NULL AND c.expires_at>now() FROM sandbox_refunds r JOIN sandbox_credentials c ON c.id=r.credential_id WHERE r.id=$1", id, version).Scan(&valid); err != nil {
+		if err = tx.QueryRow(ctx, "SELECT r.policy_version=$2 AND c.revoked_at IS NULL AND c.expires_at>clock_timestamp() FROM sandbox_refunds r JOIN sandbox_credentials c ON c.id=r.credential_id WHERE r.id=$1", id, version).Scan(&valid); err != nil {
 			return err
 		}
 		allowed, err := refundCapacity(ctx, tx, r.PaymentID, r.Amount, id)
