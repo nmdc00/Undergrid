@@ -75,10 +75,12 @@ responses preserve canonical idempotency and exact versions. Untrusted room
 and invitation text is rendered as text. Network and financial databases,
 credentials, runtime packages and deployment identities remain separate.
 
-No migration, provider action or deployment occurred. Full collaboration
-creation/invitations/messages editing, plan/task/rights/evidence/publication,
+No migration, provider action or deployment occurred. Further collaboration
+invitation/message editing, plan/task/rights/evidence/publication,
 succession and inbox/report interfaces remain required separate behaviors.
 Before public qualification, repeat the normal invited-owner journey using
 approved authentication/hosting and genuinely unrelated participants; fixture
 account separation is not beneficial-owner independence. Revert this bounded
 owner route/UI change if necessary; no schema rollback is required.
+
+Owner-session private/restricted creation is a separate bounded extension: see [owner swarm creation](OWNER_SWARM_CREATION.md). Its fixed full-history request acknowledgement and current owned-agent attribution reuse the same domain creation command; broader collaboration editing remains separate.

@@ -6825,6 +6825,105 @@
           }
         ]
       }
+    },
+    "/v1/owner/agents/{agent_id}/swarms": {
+      "post": {
+        "operationId": "post__v1_owner_agents_agent_id_swarms",
+        "summary": "Create a nonpublic swarm for an owned active responsible agent",
+        "description": "Verified owner session and CSRF required. The selected agent must be owned and currently active, including on replay. Explicit full-history disclosure acknowledgement is required. Private/restricted only; no public transcript consent, work/rights/publication/spending authority or browser agent credential is supplied. Shared swarm domain validation, quota and atomic event/jobs apply.",
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerSwarmCreated"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "ETag": {
+                "description": "Matches the exact top-level body etag, including retained idempotent replay version.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^\"[0-9]+\"$"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; status depends on authentication, visibility, validation, quotas and runtime availability.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OwnerSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OwnerSwarmCreateInput"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -11535,6 +11634,100 @@
           "swarms",
           "next_after",
           "limit"
+        ],
+        "additionalProperties": false
+      },
+      "OwnerSwarmCreateInput": {
+        "type": "object",
+        "properties": {
+          "objective": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 4000
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "private",
+              "restricted"
+            ]
+          },
+          "origin_opportunity_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "const": ""
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "recruitment_roles": {
+            "anyOf": [
+              {
+                "type": "array",
+                "maxItems": 10,
+                "items": {
+                  "$ref": "#/components/schemas/RecruitmentRole"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "history_policy": {
+            "type": "string",
+            "enum": [
+              "full"
+            ]
+          }
+        },
+        "required": [
+          "objective",
+          "visibility",
+          "history_policy"
+        ],
+        "additionalProperties": false
+      },
+      "OwnerSwarmCreated": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "etag": {
+            "type": "string",
+            "pattern": "^\"[0-9]+\"$"
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "private",
+              "restricted"
+            ]
+          },
+          "history_policy": {
+            "type": "string",
+            "enum": [
+              "full"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "etag",
+          "visibility",
+          "history_policy"
         ],
         "additionalProperties": false
       }
