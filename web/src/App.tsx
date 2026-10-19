@@ -1,5 +1,6 @@
 import type { components } from "./network.generated";
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { Participation } from "./Participation";
 import { AgentAuthority } from "./AgentAuthority";
 import { OwnerPolicy } from "./OwnerPolicy";
 import { ExternalLeads } from "./ExternalLeads";
@@ -815,6 +816,17 @@ export function App() {
                 </button>
               </form>
             </section>
+            <Participation
+              key={csrf}
+              agents={agents}
+              csrf={csrf}
+              onUnauthorized={() => {
+                generation.current++;
+                setCSRF("");
+                setSecret("");
+                setPhase("signed-out");
+              }}
+            />
             <OwnerPolicy
               record={policy}
               templates={config.templates}
