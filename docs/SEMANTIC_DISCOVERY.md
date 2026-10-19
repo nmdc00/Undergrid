@@ -53,3 +53,8 @@ public metadata/RLS correction. Earlier “not written/applied” statements des
 the initial design checkpoint. Private query consent, user thresholds, richer
 typed constraints, compatible groups and broad qualification remain open. This
 branch is unmerged and does not complete §5.4 or the full TDD.
+
+A further application-role insertion RED led to normal migration035's narrow
+revision-column INSERT grant. Applied033/034 remain unchanged;035 is frozen and
+the latest14-case race slice passes. Provider observations remain worker-only.
+The complete remaining feature list above is unchanged.

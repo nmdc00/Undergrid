@@ -118,3 +118,26 @@ notifications/dismissal behavior; configured semantic watcher throughput and
 shutdown gates; broader network/protocol/UI integration. Real provider/model
 relevance, permission/legal policy and deployment are separate external gates.
 No PR, merge, actual provider verification or full §5.4 completion is claimed.
+
+## Application insert boundary follow-up
+
+A further actual app-only SQL privilege test failed0.444s: the inherited
+whole-table INSERT grant allowed an owned new revision to include a forged
+complete embedding/provider tuple. This was a database-role gap in the unmerged
+feature, not a claim that the published HTTP decoder accepted embedding fields.
+The fixture rolled back the insert and withdrew its test intention normally.
+Log: `/tmp/undergrid-semantic-embedding-insert-red97.log`.
+
+Test-first checkpoint15d7431 precedes correction0850040. New migration035
+replaces the application table-level INSERT grant with only the five intention
+revision columns the domain actually writes. Worker observation updates and
+normal default creation metadata remain separate. Previously applied033/034
+are unchanged. Frozen035 SHA256:
+`bcce92ce36f2351499c789a940d910fc6324721db5d0cd2743ac699837101d3d`.
+
+Final affected public/privilege slice passed5.989s under race,14 cases/subcases,
+no failures/skips (`/tmp/undergrid-semantic-insert-boundary-green97.jsonl`). It
+requires the app-role forged insertion to fail specifically with42501 and also
+runs normal API creation/revision, semantic HTTP/Ajv evidence, withdrawal during
+provider I/O, exact standing-demand fallback and provider validation. These are
+still scoped feature proofs, not full semantic, release or provider qualification.
