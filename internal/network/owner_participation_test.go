@@ -1,9 +1,15 @@
 package network
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
+	"os/exec"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -40,6 +46,32 @@ func TestOwnerParticipationInvitationLifecycleWithoutAgentCredential(t *testing.
 	_, identity := b.call("GET", "/v1/me", "", nil)
 	agent := identity["agent_id"].(string)
 	base := "/v1/owner/agents/" + agent
+	var cases []map[string]any
+	observe := func(r *http.Request, w *httptest.ResponseRecorder, body any) {
+		// Unsupported verbs are asserted as405 below, not advertised as operations.
+		if w.Code == 405 || !strings.HasPrefix(r.URL.Path, "/v1/owner/agents/") {
+			return
+		}
+		var response any
+		if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+			t.Fatal(err)
+		}
+		cases = append(cases, map[string]any{"method": r.Method, "path": r.URL.String(), "request": body, "response": response, "status": w.Code, "request_id": w.Header().Get("X-Request-ID"), "etag": w.Header().Get("ETag")})
+	}
+	b.observe, foreign.observe = observe, observe
+	defer func() {
+		raw, err := json.Marshal(cases)
+		if err != nil {
+			t.Fatal(err)
+		}
+		cmd := exec.Command("node", "../../web/scripts/validate-network-contract.mjs", "--owner-participation")
+		cmd.Stdin = bytes.NewReader(raw)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Errorf("independent owner HTTP contract: %v %s", err, out)
+		}
+	}()
+
 	code, room := a.call("POST", "/v1/swarms", "owner-participation-room", map[string]any{"objective": "Private collaboration", "visibility": "restricted", "recruitment_roles": []any{}})
 	if code != 201 {
 		t.Fatal(code, room)
@@ -72,6 +104,18 @@ func TestOwnerParticipationInvitationLifecycleWithoutAgentCredential(t *testing.
 	if code != 200 || out["objective"] != "Private collaboration" || out["history_policy"] != "full" || out["messages"] != nil {
 		t.Fatal(code, out)
 	}
+	code, out = ownerCallMatch(foreign, "GET", base+"/invitations/"+invite["id"].(string), "", "", nil)
+	if code != 404 {
+		t.Fatal(code, out)
+	}
+	code, out = ownerCallMatch(b, "GET", base+"/participation?after=bad-cursor", "", "", nil)
+	if code != 400 {
+		t.Fatal(code, out)
+	}
+	code, out = ownerCallMatch(b, "POST", base+"/participation", "wrong-participation-method", "", map[string]any{})
+	if code != 405 {
+		t.Fatal(code, out)
+	}
 	body := map[string]any{"invitation_id": invite["id"], "decision": "accept"}
 	path := base + "/swarms/" + swarm + "/membership-response"
 	code, out = ownerCallMatch(b, "POST", path, "owner-no-match", "", body)
@@ -80,6 +124,10 @@ func TestOwnerParticipationInvitationLifecycleWithoutAgentCredential(t *testing.
 	}
 	code, out = ownerCallMatch(b, "POST", path, "owner-stale-match", `"999"`, body)
 	if code != 409 {
+		t.Fatal(code, out)
+	}
+	code, out = ownerCallMatch(foreign, "POST", path, "foreign-decision", invite["etag"].(string), body)
+	if code != 404 {
 		t.Fatal(code, out)
 	}
 	for range 2 {
@@ -108,4 +156,12 @@ func TestOwnerParticipationInvitationLifecycleWithoutAgentCredential(t *testing.
 	if code != 404 {
 		t.Fatalf("withdrawn owner history: %d %v", code, out)
 	}
+	if _, err := db.Exec(ctx, "UPDATE undergrid.agents SET status='revoked' WHERE id=$1", agent); err != nil {
+		t.Fatal(err)
+	}
+	code, out = ownerCallMatch(b, "GET", base+"/participation", "", "", nil)
+	if code != 403 {
+		t.Fatalf("revoked attribution agent accepted: %d %v", code, out)
+	}
+
 }
