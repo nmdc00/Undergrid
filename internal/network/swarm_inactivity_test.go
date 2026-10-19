@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/riverqueue/river"
 )
 
 // A clock fixture changes only creation time. Every room and participant is
@@ -61,6 +62,44 @@ func TestSwarmInactivityWarningAndArchiveSurviveRestart(t *testing.T) {
 	}
 	if err := db.QueryRow(ctx, `SELECT count(*) FROM undergrid_queue.river_job j JOIN undergrid.events e ON j.args->>'event_id'=e.id::text WHERE e.aggregate_id=$1 AND e.type IN ('swarm.inactivity_warning','swarm.archived') AND j.kind='event_fanout_v1'`, id).Scan(&jobs); err != nil || jobs != 2 {
 		t.Fatalf("policy event fanout jobs=%d err=%v", jobs, err)
+	}
+	rows, err := db.Query(ctx, "SELECT id::text FROM undergrid.events WHERE aggregate_id=$1 AND type IN ('swarm.inactivity_warning','swarm.archived') ORDER BY created_at,id", id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var eventIDs []string
+	for rows.Next() {
+		var eventID string
+		if err := rows.Scan(&eventID); err != nil {
+			rows.Close()
+			t.Fatal(err)
+		}
+		eventIDs = append(eventIDs, eventID)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		t.Fatal(err)
+	}
+	rows.Close()
+	fanout := &fanoutWorker{dsn: worker.dsn}
+	for _, eventID := range eventIDs {
+		for range 2 {
+			if err := fanout.Work(ctx, &river.Job[fanoutArgs]{Args: fanoutArgs{EventID: eventID}}); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	code, inbox := a.call("GET", "/v1/inbox", "", nil)
+	if code != 200 {
+		t.Fatal(code, inbox)
+	}
+	seen := map[string]int{}
+	for _, raw := range inbox["events"].([]any) {
+		event := raw.(map[string]any)
+		seen[event["type"].(string)]++
+	}
+	if seen["swarm.inactivity_warning"] != 1 || seen["swarm.archived"] != 1 {
+		t.Fatal("policy fanout retry did not preserve one inbox event", inbox)
 	}
 	// Current context remains readable; archiving never manufactures consent or
 	// erases the coordinator's participation and historical export authority.
