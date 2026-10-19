@@ -20,10 +20,8 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// This first oracle uses only existing runtime entrypoints: a configured worker
-// must discover meaningfully related public summaries with no lexical overlap.
-// Controlled vectors prove pipeline behavior, never real-model relevance.
-func TestSemanticParaphraseDiscoveryThroughConfiguredWorker(t *testing.T) {
+func semanticFixture(t *testing.T) (*Service, *pgx.Conn, string) {
+	t.Helper()
 	s, db := fixture(t)
 	_, err := db.Exec(context.Background(), `DO $$ BEGIN
  IF NOT EXISTS(SELECT FROM pg_roles WHERE rolname='undergrid_semantic_api_runner') THEN CREATE ROLE undergrid_semantic_api_runner LOGIN NOSUPERUSER NOBYPASSRLS; END IF;
@@ -34,6 +32,16 @@ func TestSemanticParaphraseDiscoveryThroughConfiguredWorker(t *testing.T) {
 	}
 	s.dsn = networkFixtureRoleDSN(t, db, "undergrid_semantic_api_runner")
 	workerDSN := networkFixtureRoleDSN(t, db, "undergrid_semantic_worker_runner")
+	return s, db, workerDSN
+}
+
+// This first oracle uses only existing runtime entrypoints: a configured worker
+// must discover meaningfully related public summaries with no lexical overlap.
+// Controlled vectors prove pipeline behavior, never real-model relevance.
+func TestSemanticParaphraseDiscoveryThroughConfiguredWorker(t *testing.T) {
+	s, db, workerDSN := semanticFixture(t)
+	var err error
+	t.Setenv("UNDERGRID_EMBEDDING_API_KEY", "")
 	summaries := []string{"Environmental regulation reference catalog", "Climate agency citation directory"}
 	var mu sync.Mutex
 	inputs := []string{}
@@ -208,4 +216,103 @@ func TestSemanticParaphraseDiscoveryThroughConfiguredWorker(t *testing.T) {
 	mu.Lock()
 	defer mu.Unlock()
 	t.Fatalf("configured semantic discovery missed nonlexical paraphrase; approved endpoint inputs=%v", inputs)
+}
+
+// The same worker domain entrypoint used by the committed scan job must not
+// hold authority during provider I/O or persist an observation after withdrawal.
+func TestSemanticWithdrawalDuringProviderIOLeavesNoEmbeddingOrOpportunity(t *testing.T) {
+	s, db, workerDSN := semanticFixture(t)
+	a := client(t, s)
+	t.Setenv("UNDERGRID_EMBEDDING_API_KEY", "")
+	input := intentFixture()
+	input.Visibility = "redacted_public"
+	input.PublicSummary = "Approved revocation projection " + NewID()
+	input.Objective = "PRIVATE MUST NOT BE SENT"
+	code, created := a.call("POST", "/v1/intents", "revocation-source", input)
+	if code != 201 {
+		t.Fatal(code, created)
+	}
+	id := created["id"].(string)
+	entered, release := make(chan struct{}), make(chan struct{})
+	var once sync.Once
+	unblock := func() { once.Do(func() { close(release) }) }
+	defer unblock()
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Model    string `json:"model"`
+			Revision string `json:"model_revision"`
+			Input    string `json:"input"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Input != input.PublicSummary {
+			http.Error(w, "unapproved projection", 422)
+			return
+		}
+		close(entered)
+		select {
+		case <-release:
+		case <-r.Context().Done():
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"model": body.Model, "model_revision": body.Revision, "input_sha256": digest([]byte(body.Input)), "embedding": []float64{1, 0, 0}})
+	}))
+	defer server.Close()
+	dir := t.TempDir()
+	ca := filepath.Join(dir, "ca.pem")
+	if err := os.WriteFile(ca, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw}), 0600); err != nil {
+		t.Fatal(err)
+	}
+	profile, err := newSemanticProvider(semanticConfig{Endpoint: server.URL, ProviderID: "controlled-revocation", Model: "controlled", ModelRevision: "1", Dimensions: 3, PermissionEvidence: "controlled fixture only", PrivacyPolicySHA256: strings.Repeat("e", 64), AllowPublicProjections: true, TestOnly: true, TLSRootCAFile: ca}, "development")
+	if err != nil {
+		t.Fatal(err)
+	}
+	worker := New(workerDSN, "development", nil)
+	worker.semantic = profile
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	done := make(chan error, 1)
+	completed := false
+	go func() { done <- worker.scanIntentions(ctx, id) }()
+	defer func() {
+		unblock()
+		cancel()
+		if !completed {
+			select {
+			case <-done:
+			case <-time.After(5 * time.Second):
+				t.Error("scan did not stop")
+			}
+		}
+	}()
+	select {
+	case <-entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("provider not reached")
+	}
+	started := time.Now()
+	code, withdrawn := a.versioned("PATCH", "/v1/intents/"+id, "withdraw-during-embedding", created["etag"].(string), map[string]any{"state": "withdrawn"})
+	if code != 200 || time.Since(started) > 2*time.Second {
+		t.Fatalf("authority blocked behind provider: %d %v", code, withdrawn)
+	}
+	unblock()
+	select {
+	case err = <-done:
+		completed = true
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	var state string
+	var watch bool
+	var embeddings, opportunities int
+	if err = db.QueryRow(context.Background(), `SELECT state,watch_enabled,
+ (SELECT count(*) FROM undergrid.intent_revisions WHERE intent_id=$1 AND embedding IS NOT NULL),
+ (SELECT count(*) FROM undergrid.opportunities WHERE source_intent_id=$1 OR candidate_intent_id=$1)
+ FROM undergrid.intents WHERE id=$1`, id).Scan(&state, &watch, &embeddings, &opportunities); err != nil {
+		t.Fatal(err)
+	}
+	if state != "withdrawn" || watch || embeddings != 0 || opportunities != 0 {
+		t.Fatal(state, watch, embeddings, opportunities)
+	}
 }
