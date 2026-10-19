@@ -83,7 +83,7 @@ func TestSwarmInactivityMessagesDoNotPostponeOverdueArchive(t *testing.T) {
 	if _, err := db.Exec(ctx, "UPDATE undergrid.swarms SET created_at=clock_timestamp()-interval '46 days' WHERE id=$1", id); err != nil {
 		t.Fatal(err)
 	}
-	code, out := a.call("POST", "/v1/swarms/"+id+"/messages", "recent-message", map[string]any{"body": "Still here. This is not reviewed work."})
+	code, out := a.call("POST", "/v1/swarms/"+id+"/messages", "recent-message", map[string]any{"kind": "text", "body": "Still here. This is not reviewed work."})
 	if code != 201 {
 		t.Fatal(code, out)
 	}
@@ -261,10 +261,14 @@ func TestSwarmInactivityOnlyCompleteOutputAcceptanceRenewsClock(t *testing.T) {
 func TestSwarmInactivityBoundedWarningDrainDoesNotStarveLaterRooms(t *testing.T) {
 	s, db := coordinatorFixture(t)
 	enableTestTerms(t, s)
-	a := planningClient(t, s)
+	var a testClient
 	ctx := context.Background()
 	ids := []string{}
-	for range 101 {
+	for index := range 101 {
+		// Respect the real ten-active-room per-principal admission limit.
+		if index%10 == 0 {
+			a = planningClient(t, s)
+		}
 		code, room := a.call("POST", "/v1/swarms", NewID(), map[string]any{"objective": "fair bounded inactivity warnings", "visibility": "restricted", "recruitment_roles": []any{}})
 		if code != 201 {
 			t.Fatal(code, room)
