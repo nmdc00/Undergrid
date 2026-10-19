@@ -193,13 +193,23 @@ func (s *Service) archiveSwarm(r *http.Request, tx pgx.Tx, a actor, swarm string
 		return 0, nil, fail(409, "swarm_archived")
 	}
 	version++
-	if _, err := tx.Exec(r.Context(), "UPDATE swarms SET state='archived',version=$2 WHERE id=$1", swarm, version); err != nil {
-		return 0, nil, err
-	}
-	if err := s.roomEvent(r.Context(), tx, a, swarm, version, "swarm.archived", swarm, "/v1/swarms/"+swarm+"/context"); err != nil {
+	if err := s.transitionSwarmArchive(r.Context(), tx, a, swarm, version, nil); err != nil {
 		return 0, nil, err
 	}
 	return 200, map[string]any{"id": swarm, "state": "archived", "version": version, "etag": etag(version)}, nil
+}
+
+// The caller holds the room lock and owns the command or worker preconditions.
+// This shared terminal transition never grants consent or creates completion.
+func (s *Service) transitionSwarmArchive(ctx context.Context, tx pgx.Tx, a actor, swarm string, version int64, policy map[string]any) error {
+	tag, err := tx.Exec(ctx, "UPDATE swarms SET state='archived',version=$2 WHERE id=$1 AND state='active' AND version=$2-1", swarm, version)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() != 1 {
+		return fail(409, "swarm_archived_or_changed")
+	}
+	return s.roomEventFacts(ctx, tx, a, swarm, version, "swarm.archived", swarm, "/v1/swarms/"+swarm+"/context", nil, policy)
 }
 
 func (s *Service) invite(r *http.Request, tx pgx.Tx, a actor, swarm string) (int, any, error) {
