@@ -1650,6 +1650,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/owner/agents/{agent_id}/swarms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create a nonpublic swarm for an owned active responsible agent
+         * @description Verified owner session and CSRF required. The selected agent must be owned and currently active, including on replay. Explicit full-history disclosure acknowledgement is required. Private/restricted only; no public transcript consent, work/rights/publication/spending authority or browser agent credential is supplied. Shared swarm domain validation, quota and atomic event/jobs apply.
+         */
+        post: operations["post__v1_owner_agents_agent_id_swarms"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2892,6 +2912,25 @@ export interface components {
             allow_private_projections?: boolean;
             default_minimum_similarity?: number;
         } & unknown;
+        OwnerSwarmCreateInput: {
+            objective: string;
+            /** @enum {string} */
+            visibility: "private" | "restricted";
+            origin_opportunity_id?: string | "" | null;
+            recruitment_roles?: components["schemas"]["RecruitmentRole"][] | null;
+            /** @enum {string} */
+            history_policy: "full";
+        };
+        OwnerSwarmCreated: {
+            /** Format: uuid */
+            id: string;
+            version: number;
+            etag: string;
+            /** @enum {string} */
+            visibility: "private" | "restricted";
+            /** @enum {string} */
+            history_policy: "full";
+        };
     };
     responses: never;
     parameters: never;
@@ -6346,6 +6385,50 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SemanticMatchingPolicy"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post__v1_owner_agents_agent_id_swarms: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+                "X-CSRF-Token": string;
+            };
+            path: {
+                agent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OwnerSwarmCreateInput"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            201: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    /** @description Matches the exact top-level body etag, including retained idempotent replay version. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OwnerSwarmCreated"];
                 };
             };
             /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */

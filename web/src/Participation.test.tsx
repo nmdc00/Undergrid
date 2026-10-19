@@ -65,7 +65,9 @@ test("owner reviews the invitation before exact versioned decision without agent
     await screen.findByRole("button", { name: "Review invitation" }),
   );
   expect(await screen.findByText(packet.objective)).toBeTruthy();
-  expect(screen.getByText(/full room history/i)).toBeTruthy();
+  expect(
+    screen.getByText(/Accepting gives access to full room history/i),
+  ).toBeTruthy();
   await userEvent.click(
     screen.getByRole("button", { name: "Accept invitation" }),
   );

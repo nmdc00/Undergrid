@@ -86,6 +86,19 @@ if (process.argv.includes('--semantic-discovery')) {
  console.log(`Validated ${cases.length} actual semantic HTTP cases and independent projection/pinning denials`);
  process.exit(0);
 }
+if (process.argv.includes('--owner-swarm-creation')) {
+ const created=cases.find(c=>c.method==='POST'&&c.path.endsWith('/swarms')&&c.status===201);
+ if (!created) throw Error('Missing actual owner swarm creation lifecycle');
+ const request=validateSchema({$ref:'#/components/schemas/OwnerSwarmCreateInput'});
+ for (const mutate of [x=>delete x.history_policy,x=>x.history_policy='from_join',x=>x.visibility='public',x=>x.principal_id=baseline.id,x=>x.public_transcript_consent=true]) {
+  const invalid=structuredClone(created.request);mutate(invalid);
+  if (request(invalid)) throw Error('Owner room request authority/disclosure bypass');
+ }
+ const response=validateSchema({$ref:'#/components/schemas/OwnerSwarmCreated'});
+ if (response({...created.response,visibility:'public'})||response({...created.response,version:'1'})||response({...created.response,private_transcript:'forbidden'})) throw Error('Owner creation response privacy/type bypass');
+ console.log(`Validated ${cases.length} actual owner creation cases and independent disclosure/privacy denials`);
+ process.exit(0);
+}
 if (process.argv.includes('--owner-participation')) {
  const page=cases.find(c=>c.path.endsWith('/participation')&&c.method==='GET'&&c.status===200);
  const invitation=cases.find(c=>c.path.includes('/invitations/')&&c.status===200);
