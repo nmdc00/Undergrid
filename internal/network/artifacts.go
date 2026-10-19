@@ -260,6 +260,11 @@ func (s *Service) currentArtifactAuthority(ctx context.Context, tx pgx.Tx, a act
 	if head == nil || *head != p.id || p.state != "accepted" || t.epoch != art.epoch || t.plan != art.plan || t.agent != art.agent || !slices.Contains([]string{"accepted", "in_progress", "changes_requested", "at_risk", "submitted", "accepted_output"}, t.state) {
 		return fail(409, "artifact_assignment_not_current")
 	}
+	if t.state != "accepted_output" {
+		if err := requireTaskDependencies(ctx, tx, t); err != nil {
+			return err
+		}
+	}
 	if submit && art.agent != a.AgentID {
 		return fail(403, "assignee_required")
 	}

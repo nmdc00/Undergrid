@@ -221,6 +221,9 @@ func (s *Service) reviewTaskProgressEvidence(r *http.Request, tx pgx.Tx, a actor
 	if head == nil || *head != p.id {
 		return 0, nil, fail(409, "progress_evidence_stale")
 	}
+	if err = requireTaskDependencies(r.Context(), tx, t); err != nil {
+		return 0, nil, err
+	}
 	if err = progressWindowCurrent(t); err != nil {
 		return 0, nil, err
 	}
