@@ -41,7 +41,7 @@ func (s *Service) SweepCoordinationDeadlines(ctx context.Context, now time.Time)
  UNION ALL SELECT swarm_id FROM coordinator_proposals WHERE state='proposed' AND respond_by<=$1
  UNION ALL SELECT p.swarm_id FROM tasks t JOIN plan_versions p ON p.id=t.plan_id WHERE
  (t.state='offered' AND t.response_deadline<=$1) OR
- (p.state='accepted' AND ((t.state IN ('accepted','in_progress','changes_requested') AND t.progress_deadline<=$1) OR (t.state='at_risk' AND t.cure_deadline<=$1)))
+ (p.state='accepted' AND NOT t.dependency_blocked AND ((t.state IN ('accepted','in_progress','changes_requested') AND t.progress_deadline<=$1) OR (t.state='at_risk' AND t.cure_deadline<=$1)))
  ) due ORDER BY swarm_id LIMIT 100`, now)
 	if err != nil {
 		return err
@@ -124,7 +124,7 @@ func (s *Service) sweepRoomDeadlines(ctx context.Context, db *pgx.Conn, swarm st
 	}
 	// Lock due plans before their tasks, matching task response/progress commands.
 	rows, err = tx.Query(ctx, `SELECT p.id FROM plan_versions p WHERE p.swarm_id=$1 AND ((p.state='proposed' AND p.respond_by<=$2) OR EXISTS(SELECT 1 FROM tasks t WHERE t.plan_id=p.id AND (
- (t.state='offered' AND t.response_deadline<=$2) OR (p.state='accepted' AND ((t.state IN ('accepted','in_progress','changes_requested') AND t.progress_deadline<=$2) OR (t.state='at_risk' AND t.cure_deadline<=$2)))
+ (t.state='offered' AND t.response_deadline<=$2) OR (p.state='accepted' AND NOT t.dependency_blocked AND ((t.state IN ('accepted','in_progress','changes_requested') AND t.progress_deadline<=$2) OR (t.state='at_risk' AND t.cure_deadline<=$2)))
  ))) ORDER BY p.id LIMIT 100 FOR UPDATE`, swarm, now)
 	if err != nil {
 		return err
@@ -156,8 +156,8 @@ func (s *Service) sweepRoomDeadlines(ctx context.Context, db *pgx.Conn, swarm st
  cure_deadline=CASE WHEN t.state IN ('accepted','in_progress','changes_requested') AND p.state='accepted' THEN t.progress_deadline+$3::bigint*interval '1 second' ELSE NULL END
  FROM plan_versions p WHERE t.plan_id=p.id AND p.id=$1 AND (
  (p.state='expired' AND t.state IN ('offered','accepted')) OR (t.state='offered' AND t.response_deadline<=$2) OR
- (t.state IN ('accepted','in_progress','changes_requested') AND p.state='accepted' AND t.progress_deadline<=$2) OR
- (t.state='at_risk' AND p.state='accepted' AND t.cure_deadline<=$2)) RETURNING t.id,t.version,t.state`, plan, now, int64(taskCureWindow/time.Second))
+ (t.state IN ('accepted','in_progress','changes_requested') AND p.state='accepted' AND NOT t.dependency_blocked AND t.progress_deadline<=$2) OR
+ (t.state='at_risk' AND p.state='accepted' AND NOT t.dependency_blocked AND t.cure_deadline<=$2)) RETURNING t.id,t.version,t.state`, plan, now, int64(taskCureWindow/time.Second))
 		if e != nil {
 			return e
 		}

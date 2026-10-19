@@ -260,6 +260,11 @@ func (s *Service) currentArtifactAuthority(ctx context.Context, tx pgx.Tx, a act
 	if head == nil || *head != p.id || p.state != "accepted" || t.epoch != art.epoch || t.plan != art.plan || t.agent != art.agent || !slices.Contains([]string{"accepted", "in_progress", "changes_requested", "at_risk", "submitted", "accepted_output"}, t.state) {
 		return fail(409, "artifact_assignment_not_current")
 	}
+	if t.state != "accepted_output" {
+		if err := requireTaskDependencies(ctx, tx, t); err != nil {
+			return err
+		}
+	}
 	if submit && art.agent != a.AgentID {
 		return fail(403, "assignee_required")
 	}
@@ -535,6 +540,9 @@ func (s *Service) acceptArtifact(r *http.Request, tx pgx.Tx, a actor, p storedPl
 	if art.purpose != "output" || !validID(in.Evaluation) || in.SHA != art.sha || in.PlanHash != p.hash || !slices.Contains([]string{"verified", "published"}, art.state) {
 		return 0, nil, fail(409, "exact_passing_evaluation_required")
 	}
+	if t.artifact == nil || *t.artifact != art.id || !slices.Contains([]string{"submitted", "accepted_output"}, t.state) {
+		return 0, nil, fail(409, "artifact_not_current_submission")
+	}
 	var passed bool
 	err := tx.QueryRow(r.Context(), "SELECT EXISTS(SELECT 1 FROM evaluations WHERE id=$1 AND artifact_id=$2 AND generation=$3 AND input_sha256=$4 AND manifest_sha256=$5 AND result='passed')", in.Evaluation, art.id, art.generation, art.sha, art.manifestHash).Scan(&passed)
 	if err != nil {
@@ -555,8 +563,12 @@ func (s *Service) acceptArtifact(r *http.Request, tx pgx.Tx, a actor, p storedPl
 		return 0, nil, err
 	}
 	if count == len(p.sealed.Plan.AcceptancePrincipals) && t.state != "accepted_output" {
-		if _, err = tx.Exec(r.Context(), "UPDATE tasks SET state='accepted_output',version=version+1 WHERE id=$1 AND submitted_artifact_id=$2", t.id, art.id); err != nil {
+		tag, err := tx.Exec(r.Context(), "UPDATE tasks SET state='accepted_output',version=version+1 WHERE id=$1 AND submitted_artifact_id=$2 AND state='submitted' AND version=$3", t.id, art.id, t.version)
+		if err != nil {
 			return 0, nil, err
+		}
+		if tag.RowsAffected() != 1 {
+			return 0, nil, fail(409, "artifact_not_current_submission")
 		}
 		if err = s.roomEvent(r.Context(), tx, a, t.id, t.version+1, "task.output_accepted", p.swarm, "/v1/tasks/"+t.id); err != nil {
 			return 0, nil, err
