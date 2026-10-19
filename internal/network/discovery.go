@@ -123,7 +123,7 @@ func (s *Service) scanIntentCandidate(ctx context.Context, db *pgx.Conn, id, can
 	}
 	var candidates []demandCandidate
 	if s.semantic != nil {
-		candidates, err = s.semanticCandidates(ctx, tx, id, principal, candidateID)
+		candidates, err = s.semanticCandidates(ctx, tx, id, principal, candidateID, input)
 		if err != nil {
 			return err
 		}

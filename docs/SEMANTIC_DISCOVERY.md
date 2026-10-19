@@ -58,3 +58,14 @@ A further application-role insertion RED led to normal migration035's narrow
 revision-column INSERT grant. Applied033/034 remain unchanged;035 is frozen and
 the latest14-case race slice passes. Provider observations remain worker-only.
 The complete remaining feature list above is unchanged.
+
+## Typed constraints and constraint-first retrieval checkpoint
+
+Typed coverage, freshness, delivery and input alternatives now have scoped actual
+HTTP/contract and PostgreSQL lifecycle proof. Hard eligibility precedes all three
+retrieval limits; a 25-candidate saturation regression proves incompatible demands
+do not hide an eligible exact match. See the evidence checkpoints for actual REDs,
+restricted-role race results, retained-queue failure and scan-cost tradeoff.
+Private selected-query consent, user thresholds, compatible groups, complementary
+discovery and broad queue/load/provider qualification remain unfinished. This
+feature branch remains unmerged.
