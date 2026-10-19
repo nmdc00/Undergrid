@@ -1530,6 +1530,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/owner/agents/{agent_id}/invitations/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * GET /v1/owner/agents/{agent_id}/invitations/{id}
+         * @description Verified owner session selects an owned active agent, without minting credentials. Existing domain invitation/room checks remain authoritative; admission does not accept work or rights. CSRF required for mutations. Exact version and command-key recovery apply to decisions.
+         */
+        get: operations["owner_participation_get_{id}"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/agents/{agent_id}/swarms/{id}/context": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * GET /v1/owner/agents/{agent_id}/swarms/{id}/context
+         * @description Verified owner session selects an owned active agent, without minting credentials. Existing domain invitation/room checks remain authoritative; admission does not accept work or rights. CSRF required for mutations. Exact version and command-key recovery apply to decisions.
+         */
+        get: operations["owner_participation_get_context"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/agents/{agent_id}/swarms/{id}/membership-response": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * POST /v1/owner/agents/{agent_id}/swarms/{id}/membership-response
+         * @description Verified owner session selects an owned active agent, without minting credentials. Existing domain invitation/room checks remain authoritative; admission does not accept work or rights. CSRF required for mutations. Exact version and command-key recovery apply to decisions.
+         */
+        post: operations["owner_participation_post_membership_response"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/agents/{agent_id}/participation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read current owned-agent participation in bounded membership order
+         * @description Verified owner session selects an owned active agent, without minting credentials. Existing domain invitation/room checks remain authoritative; admission does not accept work or rights. CSRF required for mutations. Exact version and command-key recovery apply to decisions.
+         */
+        get: operations["owner_participation_get_page"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2684,6 +2764,14 @@ export interface components {
             state: "archived";
             version: number;
             etag: string;
+        };
+        OwnerParticipation: {
+            pending: components["schemas"]["PendingInvitation"][];
+            swarms: components["schemas"]["SwarmRef"][];
+            /** @description Last membership UUID; empty when no further page. Bound to the explicitly selected owned agent by every query. */
+            next_after: string;
+            /** @constant */
+            limit: 100;
         };
     };
     responses: never;
@@ -5913,6 +6001,166 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SwarmArchive"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "owner_participation_get_{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                agent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    /** @description Matches the exact top-level body etag, including retained idempotent replay version. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Invitation"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    owner_participation_get_context: {
+        parameters: {
+            query?: {
+                /** @description At most100messages; use next_sequence to continue. */
+                after_seq?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+                agent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SwarmContext"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    owner_participation_post_membership_response: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+                "If-Match": string;
+                "X-CSRF-Token": string;
+            };
+            path: {
+                id: string;
+                agent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MembershipResponse"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    /** @description Matches the exact top-level body etag, including retained idempotent replay version. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MembershipResult"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    owner_participation_get_page: {
+        parameters: {
+            query?: {
+                after?: string;
+            };
+            header?: never;
+            path: {
+                agent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OwnerParticipation"];
                 };
             };
             /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */

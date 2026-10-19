@@ -76,7 +76,7 @@ func (s *Service) ownerIntents(r *http.Request, tx pgx.Tx, principal string) (in
 		if err != nil {
 			return 0, nil, err
 		}
-		a, err := lockOwnerIntentAgent(ctx, tx, principal, agent)
+		a, err := lockOwnerAgent(ctx, tx, principal, agent)
 		if err != nil {
 			return 0, nil, err
 		}
@@ -116,7 +116,7 @@ func (s *Service) ownerIntents(r *http.Request, tx pgx.Tx, principal string) (in
 			return 0, nil, err
 		}
 	}
-	a, err := lockOwnerIntentAgent(ctx, tx, principal, agent)
+	a, err := lockOwnerAgent(ctx, tx, principal, agent)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -138,7 +138,7 @@ func (s *Service) ownerIntents(r *http.Request, tx pgx.Tx, principal string) (in
 	return 0, nil, fail(405, "method_not_allowed")
 }
 
-func lockOwnerIntentAgent(ctx context.Context, tx pgx.Tx, principal, agent string) (actor, error) {
+func lockOwnerAgent(ctx context.Context, tx pgx.Tx, principal, agent string) (actor, error) {
 	var state string
 	err := tx.QueryRow(ctx, "SELECT status FROM agents WHERE id=$1 AND principal_id=$2 FOR UPDATE", agent, principal).Scan(&state)
 	if errors.Is(err, pgx.ErrNoRows) {

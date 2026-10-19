@@ -43,6 +43,19 @@ const baseline={id:'a8391ea6-5003-401e-85e1-47c116fe3da0',version:1,etag:'"1"',s
 if (!publicIntent(baseline)) throw Error('Independent public fixture invalid');
 if (publicIntent({...baseline,budget:{amount_minor:100,currency:'EUR',kind:'stated_budget'}})) throw Error('Public budget leak permitted');
 if (publicIntent({...baseline,version:'1'})) throw Error('String version permitted');
+if (process.argv.includes('--owner-participation')) {
+ const page=cases.find(c=>c.path.endsWith('/participation')&&c.method==='GET'&&c.status===200);
+ const invitation=cases.find(c=>c.path.includes('/invitations/')&&c.status===200);
+ const decision=cases.find(c=>c.path.endsWith('/membership-response')&&c.method==='POST'&&c.status===200);
+ if (!page||!invitation||!decision) throw Error('Missing actual owner participation lifecycle');
+ const validate=validateSchema({$ref:'#/components/schemas/OwnerParticipation'});
+ if (validate({...page.response,private_transcript:'forbidden'})) throw Error('Participation transcript leak permitted');
+ if (validate({...page.response,next_after:42})) throw Error('Participation cursor type bypass');
+ const packet=validateSchema({$ref:'#/components/schemas/Invitation'});
+ if (packet({...invitation.response,messages:[]})) throw Error('Invitation history leak permitted');
+ console.log(`Validated ${cases.length} actual owner HTTP cases and independent privacy/type denials`);
+ process.exit(0);
+}
 const published=cases.find(c=>c.path.startsWith('/v1/artifacts/')&&c.method==='GET'&&c.response?.state==='published');
 if (!published) throw Error('Missing real public artifact projection case');
 const artifact=validateSchema({$ref:'#/components/schemas/Artifact'});
