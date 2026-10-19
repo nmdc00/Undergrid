@@ -41,8 +41,9 @@ func (s *Store) beginDispatch(ctx context.Context, id string, startBlock *big.In
 		if p.State != "authorized" {
 			return ErrConflict
 		}
+		// Credential expiry is evaluated after the actor wait, not at transaction start.
 		var valid bool
-		err = tx.QueryRow(ctx, `SELECT p.policy_version=$2 AND p.reservation_period=(now() AT TIME ZONE 'UTC')::date AND c.revoked_at IS NULL AND c.expires_at>now() FROM sandbox_payments p JOIN sandbox_credentials c ON c.id=p.credential_id WHERE p.id=$1`, id, version).Scan(&valid)
+		err = tx.QueryRow(ctx, `SELECT p.policy_version=$2 AND p.reservation_period=(now() AT TIME ZONE 'UTC')::date AND c.revoked_at IS NULL AND c.expires_at>clock_timestamp() FROM sandbox_payments p JOIN sandbox_credentials c ON c.id=p.credential_id WHERE p.id=$1`, id, version).Scan(&valid)
 		if err != nil {
 			return err
 		}
