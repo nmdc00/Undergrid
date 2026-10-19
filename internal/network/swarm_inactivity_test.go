@@ -12,6 +12,7 @@ import (
 // created through the restricted API; the worker uses its own LOGIN.
 func TestSwarmInactivityWarningAndArchiveSurviveRestart(t *testing.T) {
 	s, db := coordinatorFixture(t)
+	enableTestTerms(t, s)
 	a := planningClient(t, s)
 	code, room := a.call("POST", "/v1/swarms", "inactivity-room", map[string]any{"objective": "inactivity lifecycle", "visibility": "restricted", "recruitment_roles": []any{}})
 	if code != 201 {
@@ -71,6 +72,7 @@ func TestSwarmInactivityWarningAndArchiveSurviveRestart(t *testing.T) {
 
 func TestSwarmInactivityMessagesDoNotPostponeOverdueArchive(t *testing.T) {
 	s, db := coordinatorFixture(t)
+	enableTestTerms(t, s)
 	a := planningClient(t, s)
 	code, room := a.call("POST", "/v1/swarms", "no-message-progress", map[string]any{"objective": "messages are not accepted progress", "visibility": "restricted", "recruitment_roles": []any{}})
 	if code != 201 {
@@ -258,6 +260,7 @@ func TestSwarmInactivityOnlyCompleteOutputAcceptanceRenewsClock(t *testing.T) {
 
 func TestSwarmInactivityBoundedWarningDrainDoesNotStarveLaterRooms(t *testing.T) {
 	s, db := coordinatorFixture(t)
+	enableTestTerms(t, s)
 	a := planningClient(t, s)
 	ctx := context.Background()
 	ids := []string{}

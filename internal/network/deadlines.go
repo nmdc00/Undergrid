@@ -2,6 +2,7 @@ package network
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -35,7 +36,7 @@ func (s *Service) SweepCoordinationDeadlines(ctx context.Context, now time.Time)
 	if _, err = db.Exec(ctx, "SET ROLE undergrid_worker; SET search_path=undergrid,pg_catalog"); err != nil {
 		return err
 	}
-	rows, err := db.Query(ctx, `SELECT DISTINCT swarm_id FROM (
+	rows, err := db.Query(ctx, `SELECT DISTINCT due.swarm_id FROM (
  SELECT swarm_id FROM memberships WHERE state IN ('applied','offered') AND respond_by<=$1
  UNION ALL SELECT swarm_id FROM plan_versions WHERE state='proposed' AND respond_by<=$1
  UNION ALL SELECT swarm_id FROM coordinator_proposals WHERE state='proposed' AND respond_by<=$1
@@ -47,7 +48,7 @@ func (s *Service) SweepCoordinationDeadlines(ctx context.Context, now time.Time)
  UNION ALL SELECT p.swarm_id FROM tasks t JOIN plan_versions p ON p.id=t.plan_id WHERE
  (t.state='offered' AND t.response_deadline<=$1) OR
  (p.state='accepted' AND NOT t.dependency_blocked AND ((t.state IN ('accepted','in_progress','changes_requested') AND t.progress_deadline<=$1) OR (t.state='at_risk' AND t.cure_deadline<=$1)))
- ) due ORDER BY swarm_id LIMIT 100`, now)
+ ) due JOIN swarms active_room ON active_room.id=due.swarm_id WHERE active_room.state='active' ORDER BY due.swarm_id LIMIT 100`, now)
 	if err != nil {
 		return err
 	}
@@ -79,7 +80,11 @@ func (s *Service) sweepRoomDeadlines(ctx context.Context, db *pgx.Conn, swarm st
 	}
 	defer tx.Rollback(ctx)
 	var coordinator, principal string
-	if err = tx.QueryRow(ctx, `SELECT s.coordinator_agent_id,a.principal_id FROM swarms s JOIN agents a ON a.id=s.coordinator_agent_id WHERE s.id=$1 FOR UPDATE OF s`, swarm).Scan(&coordinator, &principal); err != nil {
+	// Lock event attribution before the room, matching authenticated commands.
+	// A changed coordinator or archived room is skipped and safely rediscovered.
+	if err = tx.QueryRow(ctx, `SELECT coordinator_agent::text,coordinator_principal::text FROM lock_swarm_deadline_room($1)`, swarm).Scan(&coordinator, &principal); errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	} else if err != nil {
 		return err
 	}
 	a := actor{PrincipalID: principal, AgentID: coordinator}
