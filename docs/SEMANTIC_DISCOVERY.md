@@ -202,3 +202,67 @@ new revision gets an explicit grant choice rather than a carried checkbox. The
 UTF-8 check is a user-facing guard; server validation remains independent. This
 closes the recorded create/edit console gap locally, not compatible groups,
 complementary discovery, provider qualification or full-release integration.
+
+## Explicit refresh isolation checkpoint
+
+Configured global refresh now uses the same independently durable revision/profile
+repair coordinator as due sweeps, while including not-yet-due active watches.
+The shared projection policy selects priority2 for selected semantic queries
+in both due repair and explicit refresh; exact-only watches retain priority4
+background work. A newly persisted observation promotes its exact revision/profile
+repair wakeup to priority1 in the same transaction as vector/ready-work persistence. Both use the same
+two-worker lane and duplicate/retry protection. No provider I/O occurs in the
+coordinator. Configured-off exact refresh remains on its existing path.
+
+Actual new oracle on retained98 moves its three controlled intentions' scheduler
+timestamps one day ahead, then requires refresh replay deduplication, separate
+revision wakeups and healthy completion/opportunity despite one rejected query.
+RED0.969s reproduced the serial provider error
+(`/tmp/undergrid-semantic-refresh-red98.log`). Initial durable scheduling and
+then universal refresh priority still failed the unchanged eight-second healthy
+recovery deadline (logs `semantic-refresh-green98.jsonl` and
+`semantic-refresh-priority-green98.jsonl` under `/tmp/undergrid-`). A four-worker
+trial also failed and was reverted (`semantic-refresh-four-workers98.jsonl`).
+Queue inspection showed refresh flooding the foreground with exact-only watches.
+Using the existing selectedProjection policy for priority, with two workers,
+passed the focused oracle7.12s / package8.156s
+(`/tmp/undergrid-semantic-refresh-selected-priority98.jsonl`).
+Vet passed; broader affected gate is pending in
+`/tmp/undergrid-semantic-refresh-affected98.jsonl`.
+
+No queue/history deletion, migration change or deadline extension occurred.
+The scheduler uses shared domain projection eligibility rather than duplicating
+disclosure rules. Priority is local scheduling metadata and does not change job
+identity, authorization or provider verification. Larger-load fairness, atomic
+in-flight provider claims, groups/complementary discovery and full release gates
+remain open.
+
+The first broader affected gate failed62.763s with two distinct findings
+(`/tmp/undergrid-semantic-refresh-affected98.jsonl`): scheduled semantic work
+still had background priority and missed its unchanged deadline; the legacy
+recruitment oracle also depended on retained eligible accounts and emitted only
+three offers. The source now applies shared projection priority to due repair
+as well. The legacy fixture explicitly creates five eligible foreign recipients
+instead of relying on unrelated retained accounts; its five offer/event/inbox
+assertions remain unchanged. This is a test setup correction, not evidence of
+a provider or beneficial-owner independence defect. Final affected rerun is
+`/tmp/undergrid-semantic-refresh-final-affected98.jsonl`; vet passes.
+
+The next broader run still failed70.750s on scheduled-repair latency
+(`/tmp/undergrid-semantic-refresh-final-affected98.jsonl`); the corrected legacy
+fixture passed. Retained fixture inspection found92 active public watches,
+including39 completed vectors from older immutable profiles. Equal selected-query
+priority was insufficient. Ready observation persistence now atomically promotes
+its existing pending/scheduled/retryable repair job to priority1, while pending
+selected queries use priority2 and exact-only watches4. No provider authority or
+job identity changes. Both unchanged recovery oracles then passed package9.396s
+(`/tmp/undergrid-semantic-refresh-ready-promotion98.jsonl`; explicit refresh2.55s).
+Vet passed. The final broader gate is
+`/tmp/undergrid-semantic-refresh-ready-final98.jsonl`: PASS61.986s,
+19 top-level tests, zero failures/skips. This supersedes earlier pending
+affected-gate statements; scheduled repair passed2.76s in the combined run.
+
+Already-observed vectors scheduled by later repair, as well as very large queue
+and model-cutover workloads, still require additional fairness qualification;
+this checkpoint specifically proves promotion when the observation completes
+after repair scheduling. No passing whole-feature/release claim follows.

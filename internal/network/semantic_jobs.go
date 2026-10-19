@@ -2,7 +2,9 @@ package network
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -94,6 +96,12 @@ func retryDiscoveryLock(err error) error {
 // Observation and its ready wakeups commit together. Revision/profile pins stop
 // obsolete work; no running or delayed job absorbs a later revision's wakeup.
 func enqueueSemanticReady(ctx context.Context, tx pgx.Tx, id string, revision int, profile string) error {
+	// A committed observation promotes its already-durable repair wakeup. This
+	// preserves freshness behind failed/obsolete projections without another job
+	// identity or a nontransactional priority race.
+	if _, err := tx.Exec(ctx, `UPDATE undergrid_queue.river_job SET priority=1 WHERE kind='semantic_repair_v1' AND args->>'intent_id'=$1 AND args->>'revision'=$2 AND args->>'profile_hash'=$3 AND state IN ('available','pending','scheduled','retryable')`, id, fmt.Sprint(revision), profile); err != nil {
+		return err
+	}
 	client, err := river.NewClient(riverpgxv5.New(nil), &river.Config{Schema: "undergrid_queue"})
 	if err != nil {
 		return err
@@ -145,7 +153,7 @@ func (w *semanticRepairWorker) Work(ctx context.Context, job *river.Job[semantic
 
 // Commit bounded independent work without provider I/O. Pending/retrying work is
 // excluded before LIMIT so poison projections cannot monopolize each sweep.
-func (s *Service) enqueueSemanticRepairs(ctx context.Context) error {
+func (s *Service) enqueueSemanticRepairs(ctx context.Context, refresh bool) error {
 	db, err := pgx.Connect(ctx, s.dsn)
 	if err != nil {
 		return err
@@ -159,18 +167,35 @@ func (s *Service) enqueueSemanticRepairs(ctx context.Context) error {
 		return err
 	}
 	defer tx.Rollback(ctx)
-	rows, err := tx.Query(ctx, `SELECT i.id,i.current_revision FROM intents i WHERE i.state='active' AND i.watch_enabled AND i.next_scan<=now() AND NOT EXISTS (SELECT 1 FROM undergrid_queue.river_job j WHERE j.kind='semantic_repair_v1' AND j.args->>'intent_id'=i.id::text AND j.args->>'revision'=i.current_revision::text AND j.args->>'profile_hash'=$1 AND j.state IN ('available','pending','running','scheduled','retryable')) ORDER BY i.next_scan,i.id LIMIT 1000`, s.semantic.hash)
+	rows, err := tx.Query(ctx, `SELECT i.id,i.current_revision,r.document FROM intents i JOIN intent_revisions r ON r.intent_id=i.id AND r.revision=i.current_revision WHERE i.state='active' AND i.watch_enabled AND ($2 OR i.next_scan<=now()) AND NOT EXISTS (SELECT 1 FROM undergrid_queue.river_job j WHERE j.kind='semantic_repair_v1' AND j.args->>'intent_id'=i.id::text AND j.args->>'revision'=i.current_revision::text AND j.args->>'profile_hash'=$1 AND j.state IN ('available','pending','running','scheduled','retryable')) ORDER BY i.next_scan,i.id LIMIT 1000`, s.semantic.hash, refresh)
 	if err != nil {
 		return err
 	}
-	jobs := []semanticRepairArgs{}
+	type repairJob struct {
+		args     semanticRepairArgs
+		priority int
+	}
+	jobs := []repairJob{}
 	for rows.Next() {
 		a := semanticRepairArgs{ProfileHash: s.semantic.hash}
-		if err = rows.Scan(&a.IntentID, &a.Revision); err != nil {
+		var raw []byte
+		if err = rows.Scan(&a.IntentID, &a.Revision, &raw); err != nil {
 			rows.Close()
 			return err
 		}
-		jobs = append(jobs, a)
+		priority := 4
+		var input IntentInput
+		if err = json.Unmarshal(raw, &input); err != nil {
+			rows.Close()
+			return err
+		}
+		// Selected semantic queries retain foreground priority in both due
+		// repair and explicit refresh; exact-only watches remain background.
+		if _, _, eligible := s.semantic.selectedProjection(input, ""); eligible {
+			priority = 2
+		}
+
+		jobs = append(jobs, repairJob{a, priority})
 	}
 	err = rows.Err()
 	rows.Close()
@@ -181,8 +206,8 @@ func (s *Service) enqueueSemanticRepairs(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	for _, a := range jobs {
-		_, err = client.InsertTx(ctx, tx, a, &river.InsertOpts{Queue: semanticRepairQueue, Priority: 4, MaxAttempts: 10, UniqueOpts: river.UniqueOpts{ByArgs: true, ByState: []rivertype.JobState{rivertype.JobStateAvailable, rivertype.JobStatePending, rivertype.JobStateRunning, rivertype.JobStateScheduled, rivertype.JobStateRetryable}}})
+	for _, job := range jobs {
+		_, err = client.InsertTx(ctx, tx, job.args, &river.InsertOpts{Queue: semanticRepairQueue, Priority: job.priority, MaxAttempts: 10, UniqueOpts: river.UniqueOpts{ByArgs: true, ByState: []rivertype.JobState{rivertype.JobStateAvailable, rivertype.JobStatePending, rivertype.JobStateRunning, rivertype.JobStateScheduled, rivertype.JobStateRetryable}}})
 		if err != nil {
 			return err
 		}

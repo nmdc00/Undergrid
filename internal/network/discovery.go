@@ -14,15 +14,15 @@ import (
 // ScanDueIntentions is the durable queue worker's repair sweep. Each intention
 // commits independently; a crash can retry without losing or duplicating output.
 func (s *Service) ScanDueIntentions(ctx context.Context) error {
-	if s.semantic != nil {
-		return s.enqueueSemanticRepairs(ctx)
-	}
 	return s.scanIntentions(ctx, "")
 }
 
 // A committed intention gets its own bounded job; background repair retains
 // the existing sweep for other watches without occupying foreground slots.
 func (s *Service) scanIntentions(ctx context.Context, cause string) error {
+	if s.semantic != nil && (cause == "" || cause == "refresh") {
+		return s.enqueueSemanticRepairs(ctx, cause == "refresh")
+	}
 	db, err := pgx.Connect(ctx, s.dsn)
 	if err != nil {
 		return err

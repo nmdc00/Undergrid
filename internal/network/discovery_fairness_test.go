@@ -215,7 +215,10 @@ func TestLegacyDefaultDiscoveryJobPreservesWatcherAndRecruitment(t *testing.T) {
 		t.Fatal(code, second)
 	}
 	organizer := collaborationClient(t, s)
-	collaborationClient(t, s)
+	// Seed the full daily cap explicitly; retained accounts may expire.
+	for range recruitmentDailyLimit {
+		collaborationClient(t, s)
+	}
 	code, room := organizer.call("POST", "/v1/swarms", "legacy-role", map[string]any{"objective": "Legacy recruitment", "visibility": "restricted", "recruitment_roles": []any{map[string]any{"key": "builder", "schema_family": "source_catalog_v1", "description": "Build catalog"}}})
 	if code != 201 {
 		t.Fatal(code, room)

@@ -17,6 +17,12 @@ import (
 // A repair coordinator must commit independently recoverable work before any
 // provider call. One rejected projection cannot abort the other owners' repair.
 func TestSemanticRepairQueuesIndependentRevisionPinnedWorkBeforeProviderIO(t *testing.T) {
+	semanticRepairLifecycle(t, false)
+}
+func TestSemanticRefreshQueuesNotYetDueWorkWithoutProviderIO(t *testing.T) {
+	semanticRepairLifecycle(t, true)
+}
+func semanticRepairLifecycle(t *testing.T, refresh bool) {
 	s, db, workerDSN := semanticFixture(t)
 	t.Setenv("UNDERGRID_EMBEDDING_API_KEY", "")
 	badSummary := "Rejected repair projection " + NewID()
@@ -94,8 +100,16 @@ func TestSemanticRepairQueuesIndependentRevisionPinnedWorkBeforeProviderIO(t *te
 		t.Fatal(err)
 	}
 	ctx := context.Background()
+	scan := func() error { return runner.ScanDueIntentions(ctx) }
+	if refresh {
+		// Controlled scheduler timestamps distinguish explicit refresh from due repair.
+		if _, err := db.Exec(ctx, `UPDATE undergrid.intents SET next_scan=now()+interval '1 day' WHERE id=ANY($1::uuid[])`, []string{bad["id"].(string), first["id"].(string), second["id"].(string)}); err != nil {
+			t.Fatal(err)
+		}
+		scan = func() error { return runner.scanIntentions(ctx, "refresh") }
+	}
 	for range 2 {
-		if err := runner.ScanDueIntentions(ctx); err != nil {
+		if err := scan(); err != nil {
 			t.Fatalf("one rejected projection aborted coordinator: %v", err)
 		}
 	}
@@ -118,7 +132,7 @@ func TestSemanticRepairQueuesIndependentRevisionPinnedWorkBeforeProviderIO(t *te
 		t.Fatal(code, changed)
 	}
 	first = changed
-	if err := runner.ScanDueIntentions(ctx); err != nil {
+	if err := scan(); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.QueryRow(ctx, `SELECT count(*) FROM undergrid_queue.river_job WHERE kind='semantic_repair_v1' AND args->>'intent_id'=$1 AND args->>'profile_hash'=$2`, first["id"], runner.semantic.hash).Scan(&count); err != nil {
