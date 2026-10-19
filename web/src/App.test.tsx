@@ -444,3 +444,14 @@ test.each(["paused", "satisfied", "withdrawn", "expired"])(
     ).toBeNull();
   },
 );
+
+test("owner workspace exposes participation without asking for an agent bearer", async () => {
+  fixture();
+  render(<App />);
+  expect(
+    await screen.findByRole("heading", { name: "Swarm participation" }),
+  ).toBeTruthy();
+  expect(
+    screen.getByRole("button", { name: "Load participation" }),
+  ).toBeTruthy();
+});
