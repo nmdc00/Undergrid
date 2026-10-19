@@ -187,3 +187,70 @@ Actual PostgreSQL98 restricted-role lifecycle proves private-to-public discovery
 Preserved broader failure: `/tmp/undergrid-private-query-affected98.log` failed53.413s because the configured primary worker missed its unchanged8-second paraphrase deadline on retained queues. Read-only audit confirmed both required vectors committed within4s and actual cosine0.994834 exceeded the source0.99 threshold; the forward source scan preceded candidate embedding, while completion scan/fanout jobs remained available with attempt0 behind older jobs. Thus queued wakeup starvation, broad obsolete pair fanout and serial repair poisoning remain concrete recovery/throughput work, not a numeric ranking fix. The final selected pass excludes that timed primary scenario and does not erase this failure. Private-query console controls, computed groups, complementary discovery, broad queue/load and real provider qualification remain incomplete. This checkpoint remains on the unmerged semantic feature branch.
 
 Quality assessment: one shared projection/consent policy controls provider input and watcher eligibility; provider transport remains separate from domain authority and financial code. Private query fingerprints bind selected text only, never the full private document. Explicit profile audit facts avoid duplicating private prose. Resource ownership and lock order stay in the existing worker transaction; provider I/O remains outside it. Operator policy freshness now has both pre-send and pre-persistence checks. The remaining queue starvation is a release blocker for this complete semantic vertical and is explicitly retained.
+
+### Fresh embedding and committed-match queue capacity (2026-10-19)
+
+The unchanged primary configured-worker oracle was rerun on retained98 before
+this correction and failed13.332s (`/tmp/undergrid-semantic-retained-primary-before-ready98.log`):
+fresh provider inputs did not reach the endpoint within the existing8-second
+match window. Older discovery/fanout work and repeated rejected projections
+occupied the same lanes as fresh work. This extends the previously proven
+post-embedding wakeup starvation; it is not a numeric comparison failure.
+
+Configured API intention changes now enqueue a dedicated embedding job in the
+same domain transaction. Successful immutable observation persistence commits
+revision/profile-bound ready-source and ready-fanout jobs in its own transaction.
+Ready source/pair processing never calls a provider. Separate bounded embedding,
+ready-source, fanout and pair lanes prevent legacy scan/provider/fanout backlog
+from consuming all fresh capacity. The ready worker checks current revision and
+profile; the original domain transaction still rechecks active authority and
+projection. Fanout continuations retain their revision/profile pins and reserved
+lane. Its denial-only numeric precheck requires both vectors under the current
+profile and the watcher's actual cutoff before enqueueing a semantic pair;
+exact declared-outcome comparisons retain their separate path. No new network
+migration or queue data reset was introduced. Queue pool capacity now accounts
+for13 fetchers plus completion/maintenance headroom.
+
+The unchanged retained98 primary oracle then passed5.322s
+(`/tmp/undergrid-semantic-retained-primary-ready-green98.log`), including its
+actual HTTP/Ajv contract and threshold/revision checks. The first attempt had an
+unused-import compilation failure, preserved separately at
+`/tmp/undergrid-semantic-ready-unused-import-build-failure.log`; that is setup
+failure, not a behavioral RED. Final affected race gate passed17 top-level tests,
+zero failures/skips,24.035s (`/tmp/undergrid-semantic-ready-affected98.jsonl`),
+including the primary worker, held-provider recovery, private selected-query
+consent, insertion/withdrawal boundaries, constraint-first retrieval and typed
+constraint/threshold HTTP lifecycles. Network/command vet passed
+(`/tmp/undergrid-semantic-ready-vet.log`).
+
+The additional held-provider oracle is characterized honestly. Its first attempt
+on retained98 failed9.827s before its controlled requests occupied foreground
+capacity (`/tmp/undergrid-semantic-ready-backlog-red98.log`); that is an incomplete
+setup, not the intended starvation assertion. A separate network-only PostgreSQL
+fixture99 at `/tmp/undergrid-pg-semantic-ready-55499` used the qualified PG16.11/
+pgvector prefix and normal migrations001–036, retaining98 unchanged. On99 the
+held-provider case already passed18.467s BEFORE the new lanes because existing
+ordinary fanout capacity can serve a small controlled queue. That run is retained
+at `/tmp/undergrid-semantic-held-provider-characterization99.log`; it must not be
+claimed as a missing-behavior RED. The actual before/after evidence is the
+unchanged retained98 primary failure/pass above. The final affected run also
+passed the held-provider case on retained98 without deleting its queues.
+
+Owner creation PR81 was merged to release7e5ba0f and reconciled into this feature
+branch. Canonical JSON and independent validator cases retain BOTH features;
+generated TypeScript was regenerated. Combined139-schema parity,53 UI tests
+(15.69s) and TypeScript/Vite build passed in the owner-semantic-merge logs.
+Root separately verified the exact merged release's three owner lifecycle,
+rollback and shared-quota race cases4.805s, zero failures/skips
+(`/tmp/undergrid-owner-create-exact-release-7e5ba0f96.jsonl`). Develop/main and
+deployment remain unchanged.
+
+Remaining concrete work includes independently recoverable per-intention repair
+(the serial legacy repair sweep can still stop at one provider error), provider
+in-flight/retry qualification, large-cohort queue/load gates, private query UI,
+compatible groups and complementary discovery. These local passes do not prove
+full discovery/TDD/release completion or real provider relevance. Quality review:
+provider I/O is separated from lock-bounded ready matching; one shared threshold,
+hard-constraint and projection policy remains authoritative. Durable wakeup pins
+prevent running/delayed older revisions from swallowing fresh revision work;
+legacy jobs remain runnable rather than being deleted or relabeled.

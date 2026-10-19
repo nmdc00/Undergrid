@@ -92,7 +92,7 @@ func (s *Service) ensureSemanticEmbedding(ctx context.Context, db *pgx.Conn, id 
 		return err
 	}
 	if tag.RowsAffected() == 1 {
-		if err = enqueueScan(ctx, tx, id); err != nil {
+		if err = enqueueSemanticReady(ctx, tx, id, revision, p.hash); err != nil {
 			return err
 		}
 	}

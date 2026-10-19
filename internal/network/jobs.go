@@ -3,6 +3,7 @@ package network
 import (
 	"context"
 	"errors"
+	"os"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -64,6 +65,13 @@ func enqueueScan(ctx context.Context, tx pgx.Tx, cause string) error {
 	client, err := river.NewClient(riverpgxv5.New(nil), &river.Config{Schema: "undergrid_queue"})
 	if err != nil {
 		return err
+	}
+	// Fresh owner changes have embedding capacity independent of retained scan
+	// and provider-failure backlog. Configured-off exact matching stays unchanged.
+	if os.Getenv("UNDERGRID_SEMANTIC_CONFIG_FILE") != "" {
+		if _, err = client.InsertTx(ctx, tx, semanticEmbeddingArgs{IntentID: cause}, &river.InsertOpts{Queue: semanticEmbeddingQueue, Priority: 1, MaxAttempts: 10}); err != nil {
+			return err
+		}
 	}
 	if _, err = client.InsertTx(ctx, tx, scanArgs{cause}, &river.InsertOpts{MaxAttempts: 10, Queue: discoveryQueue, Priority: 1}); err != nil {
 		return err
@@ -145,9 +153,9 @@ func RunWorker(ctx context.Context, dsn, environment string) error {
 	if err != nil {
 		return err
 	}
-	// Nine queue fetchers, completion and periodic/leader maintenance must
+	// Thirteen queue fetchers, completion and periodic/leader maintenance must
 	// retain pool capacity even while another queue has a backlog.
-	config.MaxConns = 16
+	config.MaxConns = 20
 	config.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
 		_, err := conn.Exec(ctx, "SET ROLE undergrid_worker")
 		return err
@@ -171,6 +179,8 @@ func RunWorker(ctx context.Context, dsn, environment string) error {
 	river.AddWorker(workers, &artifactEvaluationWorker{service: service})
 	river.AddWorker(workers, &inputGrantDeliveryWorker{dsn: dsn})
 	river.AddWorker(workers, &scanWorker{service: service})
+	river.AddWorker(workers, &semanticEmbeddingWorker{service: service})
+	river.AddWorker(workers, &semanticReadyWorker{service: service})
 	river.AddWorker(workers, &watchRefreshWorker{service: service})
 	river.AddWorker(workers, &fanoutWorker{dsn: dsn})
 	river.AddWorker(workers, &recruitWorker{service: New(dsn, environment, nil)})
@@ -182,6 +192,10 @@ func RunWorker(ctx context.Context, dsn, environment string) error {
 		"coordination_deadlines": {MaxWorkers: 2},
 		discoveryQueue:           {MaxWorkers: 2},
 		discoveryRepairQueue:     {MaxWorkers: 1},
+		semanticEmbeddingQueue:   {MaxWorkers: 2, FetchPollInterval: 100 * time.Millisecond},
+		semanticReadyQueue:       {MaxWorkers: 2, FetchPollInterval: 100 * time.Millisecond},
+		semanticFanoutQueue:      {MaxWorkers: 2, FetchPollInterval: 100 * time.Millisecond},
+		semanticPairQueue:        {MaxWorkers: 4, FetchPollInterval: 100 * time.Millisecond},
 		// Fanout continuations cannot wait behind their own pair jobs. Both
 		// queues bound wakeup latency even when LISTEN/NOTIFY is coalesced.
 		// Eight bounded pair slots amortize durable completion latency under

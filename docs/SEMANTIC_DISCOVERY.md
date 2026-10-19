@@ -96,3 +96,19 @@ but the post-embedding wakeup remained behind old queued work; recovery/fairness
 must be proven without deleting retained jobs or extending the deadline. Computed
 groups, complementary discovery and full release/provider qualification remain
 open. This checkpoint does not establish full §5.4 completion.
+
+## Reserved fresh and ready-work capacity
+
+The unchanged retained98 primary worker failure now has a scoped before/after
+proof:13.332s failure before isolation,5.322s pass afterwards. Fresh configured
+embedding jobs and committed ready-source/fanout/pair work have separate bounded
+capacity. Fanout checks actual current vector/profile/cutoff readiness before
+queueing semantic pairs. The affected race gate passes17 top-level tests24.035s,
+including private consent, typed constraints and held-provider recovery. No
+retained queue was deleted and the match deadline was not increased. See the
+evidence for the separate held-provider characterization and setup failures.
+
+The earlier statement that the primary retained-queue deadline still fails is
+historical at its recorded checkpoint. Serial repair error isolation, broader
+queue/load/provider qualification, private query controls, computed groups and
+complementary discovery remain incomplete; this is still an unmerged feature.

@@ -4,10 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 )
@@ -17,9 +15,11 @@ const watchFanoutQueue = "intention_watch_fanout"
 const watcherRefreshPageSize = 256
 
 type watchRefreshArgs struct {
-	CandidateID string `json:"candidate_id"`
-	WatcherID   string `json:"watcher_id,omitempty"`
-	AfterID     string `json:"after_id,omitempty"`
+	CandidateID      string `json:"candidate_id"`
+	WatcherID        string `json:"watcher_id,omitempty"`
+	AfterID          string `json:"after_id,omitempty"`
+	ReadyProfileHash string `json:"ready_profile_hash,omitempty"`
+	ReadyRevision    int    `json:"ready_revision,omitempty"`
 }
 
 func (watchRefreshArgs) Kind() string { return "intention_watch_refresh_v1" }
@@ -33,6 +33,14 @@ func (w *watchRefreshWorker) Work(ctx context.Context, job *river.Job[watchRefre
 	args := job.Args
 	if !validID(args.CandidateID) || args.WatcherID != "" && !validID(args.WatcherID) || args.AfterID != "" && !validID(args.AfterID) || args.WatcherID != "" && args.AfterID != "" {
 		return errors.New("invalid watcher refresh identity")
+	}
+	if args.ReadyProfileHash != "" {
+		if args.ReadyRevision < 1 {
+			return errors.New("invalid ready candidate revision")
+		}
+		if w.service.semantic == nil || args.ReadyProfileHash != w.service.semantic.hash {
+			return nil
+		}
 	}
 	if args.WatcherID == "" {
 		return w.service.enqueueCompatibleWatchers(ctx, args)
@@ -58,12 +66,7 @@ func (w *watchRefreshWorker) Work(ctx context.Context, job *river.Job[watchRefre
 	if err != nil || !eligible {
 		return err
 	}
-	err = w.service.scanIntentCandidate(ctx, db, args.WatcherID, args.CandidateID, true)
-	var locked *pgconn.PgError
-	if errors.As(err, &locked) && locked.Code == "55P03" {
-		return river.JobSnooze(250 * time.Millisecond)
-	}
-	return err
+	return retryDiscoveryLock(w.service.scanIntentCandidate(ctx, db, args.WatcherID, args.CandidateID, true))
 }
 
 // Fanout reads a bounded page without taking unrelated owner locks. Only
@@ -96,7 +99,22 @@ func (s *Service) enqueueCompatibleWatchers(ctx context.Context, args watchRefre
 	if err = json.Unmarshal(raw, &candidate); err != nil {
 		return err
 	}
-	rows, err := tx.Query(ctx, `SELECT i.id::text,r.document FROM intents i JOIN intent_revisions r ON r.intent_id=i.id AND r.revision=i.current_revision JOIN principals p ON p.id=i.principal_id JOIN agents a ON a.id=i.agent_id WHERE i.state='active' AND i.watch_enabled AND i.expires_at>now() AND i.principal_id<>$1 AND p.status='active' AND a.status='active' AND ($2='' OR i.id::text>$2) ORDER BY i.id LIMIT $3`, principal, args.AfterID, watcherRefreshPageSize)
+	profile := ""
+	if s.semantic != nil {
+		profile = s.semantic.hash
+	}
+	if args.ReadyProfileHash != "" {
+		var current bool
+		if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM intents i JOIN intent_revisions r ON r.intent_id=i.id AND r.revision=i.current_revision WHERE i.id=$1 AND i.current_revision=$2 AND r.embedding_profile_hash=$3 AND r.embedding IS NOT NULL)`, args.CandidateID, args.ReadyRevision, args.ReadyProfileHash).Scan(&current); err != nil || !current {
+			return err
+		}
+	}
+	rows, err := tx.Query(ctx, `SELECT i.id::text,r.document,
+ CASE WHEN r.embedding IS NOT NULL AND target.embedding IS NOT NULL AND r.embedding_profile_hash=$4 AND target.embedding_profile_hash=$4 THEN 1-(r.embedding OPERATOR(public.<=>) target.embedding) END
+ FROM intents i JOIN intent_revisions r ON r.intent_id=i.id AND r.revision=i.current_revision
+ JOIN principals p ON p.id=i.principal_id JOIN agents a ON a.id=i.agent_id
+ CROSS JOIN (SELECT cr.embedding,cr.embedding_profile_hash FROM intents ci JOIN intent_revisions cr ON cr.intent_id=ci.id AND cr.revision=ci.current_revision WHERE ci.id=$5) target
+ WHERE i.state='active' AND i.watch_enabled AND i.expires_at>clock_timestamp() AND i.principal_id<>$1 AND p.status='active' AND a.status='active' AND ($2='' OR i.id::text>$2) ORDER BY i.id LIMIT $3`, principal, args.AfterID, watcherRefreshPageSize, profile, args.CandidateID)
 	if err != nil {
 		return err
 	}
@@ -106,7 +124,8 @@ func (s *Service) enqueueCompatibleWatchers(ctx context.Context, args watchRefre
 	for rows.Next() {
 		var id string
 		var document []byte
-		if err = rows.Scan(&id, &document); err != nil {
+		var cosine *float64
+		if err = rows.Scan(&id, &document, &cosine); err != nil {
 			rows.Close()
 			return err
 		}
@@ -121,7 +140,7 @@ func (s *Service) enqueueCompatibleWatchers(ctx context.Context, args watchRefre
 		if s.semantic != nil {
 			_, _, semanticEligible = s.semantic.selectedProjection(watcher, "")
 		}
-		if CompareDemand(watcher, candidate).Compatible || (semanticEligible && compareDemandConstraints(watcher, candidate).Compatible) {
+		if CompareDemand(watcher, candidate).Compatible || (semanticEligible && cosine != nil && *cosine >= s.semantic.minimumSimilarity(watcher) && compareDemandConstraints(watcher, candidate).Compatible) {
 			compatible = append(compatible, id)
 		}
 	}
@@ -134,13 +153,17 @@ func (s *Service) enqueueCompatibleWatchers(ctx context.Context, args watchRefre
 	if err != nil {
 		return err
 	}
+	pairQueue, fanoutQueue := watchRefreshQueue, watchFanoutQueue
+	if args.ReadyProfileHash != "" {
+		pairQueue, fanoutQueue = semanticPairQueue, semanticFanoutQueue
+	}
 	for _, watcher := range compatible {
-		if _, err = queue.InsertTx(ctx, tx, watchRefreshArgs{CandidateID: args.CandidateID, WatcherID: watcher}, &river.InsertOpts{Queue: watchRefreshQueue, Priority: 1, MaxAttempts: 10}); err != nil {
+		if _, err = queue.InsertTx(ctx, tx, watchRefreshArgs{CandidateID: args.CandidateID, WatcherID: watcher, ReadyProfileHash: args.ReadyProfileHash, ReadyRevision: args.ReadyRevision}, &river.InsertOpts{Queue: pairQueue, Priority: 1, MaxAttempts: 10}); err != nil {
 			return err
 		}
 	}
 	if count == watcherRefreshPageSize {
-		if _, err = queue.InsertTx(ctx, tx, watchRefreshArgs{CandidateID: args.CandidateID, AfterID: last}, &river.InsertOpts{Queue: watchFanoutQueue, Priority: 2, MaxAttempts: 10}); err != nil {
+		if _, err = queue.InsertTx(ctx, tx, watchRefreshArgs{CandidateID: args.CandidateID, AfterID: last, ReadyProfileHash: args.ReadyProfileHash, ReadyRevision: args.ReadyRevision}, &river.InsertOpts{Queue: fanoutQueue, Priority: 2, MaxAttempts: 10}); err != nil {
 			return err
 		}
 	}

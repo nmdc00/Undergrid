@@ -32,3 +32,26 @@ No new feature PR has been opened for these assignments. Merge order follows
 actual dependency readiness, then release/develop revalidation and main promotion.
 Full-TDD completion requires the entire implementation matrix plus real reserved
 qualification, not merely this wave or green fixture tests.
+
+## Subsequent integration checkpoint
+
+Owner creation PR81 is now merged to release`7e5ba0f`; its private default was
+preserved after review. Root's exact merged-release lifecycle/quota/rollback race
+gate passed three cases4.805s with no failures/skips. The semantic branch has
+reconciled this release, with combined139-schema parity,53 UI tests and build
+proof. Its original retained-queue primary test now passes after reserving fresh
+embedding and ready matching capacity; serial repair/load and other semantic
+requirements remain open. No promotion or deployment occurred.
+
+Financial candidate`0a28c78` passed the full local financial race checkpoint
+(sandbox192.535s, command2.213s;83 top-level tests, no failures/skips). Review then
+identified pending nullable-completed-setup-URL, exact unpaid invoice amount and
+mixed-actor setup ownership cases. That old full pass is NOT proof these gaps are
+closed. The genuine app-role mixed-actor insertion and worker snapshot drift
+have new actual REDs; additive financial014 and current worker ownership checks
+are undergoing focused validation. Applied012/013 remain unchanged.
+
+The archive and settlement agents later hit their announced usage limit again;
+root continues locally without creating replacement agents to bypass it. New
+owner-invitation work was assigned but must be inspected before claiming any
+implementation. Existing branches, migrations, data and evidence are preserved.
