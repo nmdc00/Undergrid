@@ -87,6 +87,9 @@ func (s *Service) ownerCommand(r *http.Request, tx pgx.Tx) (int, any, error) {
 	if r.Method != "POST" && r.Method != "GET" && !(r.Method == "PATCH" && strings.HasPrefix(r.URL.Path, "/v1/owner/intents/")) {
 		return 0, nil, fail(405, "method_not_allowed")
 	}
+	if r.Method == "GET" && r.URL.Path == "/v1/owner/matching-policy" {
+		return matchingPolicy(s.environment)
+	}
 	if r.Method == "GET" && r.URL.Path == "/v1/owner/config" {
 		return 200, map[string]any{"terms_version": s.termsVersion, "contribution_templates": s.publicTemplates()}, nil
 	}

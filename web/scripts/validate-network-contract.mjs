@@ -52,6 +52,19 @@ if (process.argv.includes('--typed-demand-constraints')) {
  console.log(`Validated ${cases.length} actual typed demand HTTP cases and independent range/assurance denials`);
  process.exit(0);
 }
+if (process.argv.includes('--private-semantic-query')) {
+ const policy=cases.find(c=>c.path==='/v1/matching-policy'&&c.status===200)?.response;
+ const request=cases.find(c=>c.method==='POST'&&c.request?.private_semantic_query)?.request;
+ if (!policy?.profile_hash||!request) throw Error('Missing actual pinned private query lifecycle');
+ const validate=validateSchema({$ref:'#/components/schemas/PrivateSemanticQuery'});
+ for (const grant of [{...request.private_semantic_query,acknowledge_external_processing:false},{projection:request.private_semantic_query.projection,profile_hash:policy.profile_hash},{...request.private_semantic_query,profile_hash:'unbound'}]) {
+  if (validate(grant)) throw Error('Invalid private processing acknowledgment permitted');
+ }
+ const metadata=validateSchema({$ref:'#/components/schemas/SemanticMatchingPolicy'});
+ if (metadata({...policy,api_key:'secret'})) throw Error('Provider credential disclosure permitted');
+ console.log(`Validated ${cases.length} private query HTTP cases and independent consent/privacy denials`);
+ process.exit(0);
+}
 if (process.argv.includes('--semantic-discovery')) {
  const proof=cases.flatMap(c=>Array.isArray(c.response?.items)?c.response.items:[]).map(x=>x.evidence).find(x=>x?.algorithm==='hard-constraints-hybrid-cosine-v1');
  if (!proof) throw Error('Missing actual semantic opportunity lifecycle');

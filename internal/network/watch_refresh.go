@@ -117,7 +117,11 @@ func (s *Service) enqueueCompatibleWatchers(ctx context.Context, args watchRefre
 			rows.Close()
 			return err
 		}
-		if CompareDemand(watcher, candidate).Compatible || (s.semantic != nil && watcher.Visibility == "redacted_public" && compareDemandConstraints(watcher, candidate).Compatible) {
+		semanticEligible := false
+		if s.semantic != nil {
+			_, _, semanticEligible = s.semantic.selectedProjection(watcher, "")
+		}
+		if CompareDemand(watcher, candidate).Compatible || (semanticEligible && compareDemandConstraints(watcher, candidate).Compatible) {
 			compatible = append(compatible, id)
 		}
 	}

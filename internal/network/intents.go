@@ -76,10 +76,11 @@ func mutateIntentOnce(r *http.Request, tx pgx.Tx, a actor, environment string) (
 		if err = decode(r, &input); err != nil {
 			return 0, nil, err
 		}
-		if input.SemanticMinimumSimilarity != nil {
-			facts["semantic_minimum_similarity"] = *input.SemanticMinimumSimilarity
-		}
+		facts = intentMatchingFacts(input)
 		if err = input.validate(); err != nil {
+			return 0, nil, err
+		}
+		if err = validateSemanticConsent(input, environment); err != nil {
 			return 0, nil, err
 		}
 		if err = admitPrincipalResource(ctx, tx, a.PrincipalID, "active_intents"); err != nil {
@@ -158,10 +159,11 @@ func mutateIntentOnce(r *http.Request, tx pgx.Tx, a actor, environment string) (
 			if err = decodeIntentJSON(mutation.Revision, &input); err != nil {
 				return 0, nil, err
 			}
-			if input.SemanticMinimumSimilarity != nil {
-				facts["semantic_minimum_similarity"] = *input.SemanticMinimumSimilarity
-			}
+			facts = intentMatchingFacts(input)
 			if err = input.validate(); err != nil {
+				return 0, nil, err
+			}
+			if err = validateSemanticConsent(input, environment); err != nil {
 				return 0, nil, err
 			}
 			if input.Visibility != visibility {

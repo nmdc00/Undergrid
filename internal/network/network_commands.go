@@ -23,6 +23,7 @@ type networkCommandArguments struct {
 }
 
 var networkOperations = []networkOperation{
+	{"matching_policy_read", "GET", "/v1/matching-policy"},
 	{"credential_revoke_current", "DELETE", "/v1/credentials/current"},
 	{"contribution_templates", "GET", "/v1/policies/contribution-templates"},
 	{"opportunities_list", "GET", "/v1/opportunities"},

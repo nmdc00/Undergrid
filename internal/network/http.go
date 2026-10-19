@@ -408,6 +408,12 @@ func (s *Service) agentCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, e
 		}
 		return s.inboxCommand(r, tx, a)
 	}
+	if r.Method == "GET" && r.URL.Path == "/v1/matching-policy" {
+		if !slices.Contains(a.Scopes, "intents:read") {
+			return 0, nil, insufficientScope(a, "intents:read")
+		}
+		return matchingPolicy(s.environment)
+	}
 	if r.Method == "GET" && r.URL.Path == "/v1/me" {
 		return 200, map[string]any{"agent_id": a.AgentID, "principal_id": a.PrincipalID, "environment": s.environment, "scopes": a.Scopes}, nil
 	}

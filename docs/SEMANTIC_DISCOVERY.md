@@ -80,3 +80,19 @@ RED/green results and the controlled-vector/provider distinction. Private query
 consent, computed groups, complementary discovery and broader queue/load/provider
 qualification remain unfinished; user thresholds are no longer an open runtime
 implementation item.
+
+## Private query consent checkpoint
+
+The domain/API/worker path now supports explicit selected private query text,
+reviewable exact-profile consent, operator class gating, current-policy checks,
+write-once database binding and owner-only public-material matches. Actual
+restricted-role PostgreSQL/HTTP and blocked-provider revocation tests pass; see
+[evidence](evidence/semantic-discovery.md) for the missing-route/storage/fanout/
+old-worker REDs and the final scoped gate. Migration036 is applied/frozen on98;
+033–035 are unchanged. Private-query console controls remain pending.
+
+The retained-queue primary worker deadline still fails. Both vectors were ready
+but the post-embedding wakeup remained behind old queued work; recovery/fairness
+must be proven without deleting retained jobs or extending the deadline. Computed
+groups, complementary discovery and full release/provider qualification remain
+open. This checkpoint does not establish full §5.4 completion.

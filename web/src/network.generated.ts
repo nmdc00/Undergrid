@@ -1610,6 +1610,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/matching-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Review the current semantic provider and disclosure policy
+         * @description Current authenticated policy metadata for explicit projection consent. Operator endpoints, keys and test CA configuration are not returned. Profile changes require new consent; provider identity is a configured assertion.
+         */
+        get: operations["get__v1_matching-policy"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/matching-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Review the current semantic provider and disclosure policy
+         * @description Current authenticated policy metadata for explicit projection consent. Operator endpoints, keys and test CA configuration are not returned. Profile changes require new consent; provider identity is a configured assertion.
+         */
+        get: operations["get__v1_owner_matching-policy"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1805,6 +1845,7 @@ export interface components {
             /** Format: date-time */
             expires_at: string;
             semantic_minimum_similarity?: number | null;
+            private_semantic_query?: components["schemas"]["PrivateSemanticQuery"] | null;
         };
         OwnerIntentInput: {
             /** Format: uuid */
@@ -1842,6 +1883,7 @@ export interface components {
             etag: string;
             state: string;
             semantic_minimum_similarity?: number | null;
+            private_semantic_query?: components["schemas"]["PrivateSemanticQuery"] | null;
         };
         PublicIntent: {
             /** Format: uuid */
@@ -1900,6 +1942,7 @@ export interface components {
             semantic_profile_hash?: string;
             model?: string;
             model_revision?: string;
+            /** @description Hash of the approved public projection or owner-selected private query; never a private intention document fingerprint. */
             source_projection_hash?: string;
             candidate_projection_hash?: string;
             /** @description PostgreSQL full-text rank, not a probability. */
@@ -2829,6 +2872,26 @@ export interface components {
             status: "aligned" | "incompatible" | "unknown";
             reason: string;
         };
+        PrivateSemanticQuery: {
+            /** @description Explicitly selected provider input, at most1000 UTF-8 bytes. Never automatically populated from private objectives or budgets. */
+            projection: string;
+            profile_hash: string;
+            /** @constant */
+            acknowledge_external_processing: true;
+        };
+        SemanticMatchingPolicy: {
+            enabled: boolean;
+            profile_hash?: string;
+            provider_id?: string;
+            model?: string;
+            model_revision?: string;
+            dimensions?: number;
+            permission_evidence?: string;
+            privacy_policy_sha256?: string;
+            allow_public_projections?: boolean;
+            allow_private_projections?: boolean;
+            default_minimum_similarity?: number;
+        } & unknown;
     };
     responses: never;
     parameters: never;
@@ -6217,6 +6280,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OwnerParticipation"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get__v1_matching-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SemanticMatchingPolicy"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get__v1_owner_matching-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SemanticMatchingPolicy"];
                 };
             };
             /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */

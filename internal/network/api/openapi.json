@@ -6825,6 +6825,110 @@
           }
         ]
       }
+    },
+    "/v1/matching-policy": {
+      "get": {
+        "operationId": "get__v1_matching-policy",
+        "summary": "Review the current semantic provider and disclosure policy",
+        "description": "Current authenticated policy metadata for explicit projection consent. Operator endpoints, keys and test CA configuration are not returned. Profile changes require new consent; provider identity is a configured assertion.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SemanticMatchingPolicy"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; status depends on authentication, visibility, validation, quotas and runtime availability.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "NetworkBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/owner/matching-policy": {
+      "get": {
+        "operationId": "get__v1_owner_matching-policy",
+        "summary": "Review the current semantic provider and disclosure policy",
+        "description": "Current authenticated policy metadata for explicit projection consent. Operator endpoints, keys and test CA configuration are not returned. Profile changes require new consent; provider identity is a configured assertion.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SemanticMatchingPolicy"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; status depends on authentication, visibility, validation, quotas and runtime availability.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OwnerSession": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -7701,6 +7805,16 @@
                 "type": "null"
               }
             ]
+          },
+          "private_semantic_query": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PrivateSemanticQuery"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -7863,6 +7977,16 @@
                 "minimum": 0,
                 "maximum": 1,
                 "description": "Selected cosine similarity cutoff for this intention; overrides the operator default. Not a probability. Changes require an audited intention revision."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "private_semantic_query": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PrivateSemanticQuery"
               },
               {
                 "type": "null"
@@ -8106,7 +8230,8 @@
           },
           "source_projection_hash": {
             "type": "string",
-            "pattern": "^[a-f0-9]{64}$"
+            "pattern": "^[a-f0-9]{64}$",
+            "description": "Hash of the approved public projection or owner-selected private query; never a private intention document fingerprint."
           },
           "candidate_projection_hash": {
             "type": "string",
@@ -11919,6 +12044,108 @@
           "reason"
         ],
         "additionalProperties": false
+      },
+      "PrivateSemanticQuery": {
+        "type": "object",
+        "properties": {
+          "projection": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 1000,
+            "description": "Explicitly selected provider input, at most1000 UTF-8 bytes. Never automatically populated from private objectives or budgets."
+          },
+          "profile_hash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "acknowledge_external_processing": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": [
+          "projection",
+          "profile_hash",
+          "acknowledge_external_processing"
+        ],
+        "additionalProperties": false
+      },
+      "SemanticMatchingPolicy": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "profile_hash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "provider_id": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "model_revision": {
+            "type": "string"
+          },
+          "dimensions": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4096
+          },
+          "permission_evidence": {
+            "type": "string"
+          },
+          "privacy_policy_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "allow_public_projections": {
+            "type": "boolean"
+          },
+          "allow_private_projections": {
+            "type": "boolean"
+          },
+          "default_minimum_similarity": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "enabled": {
+                  "const": true
+                }
+              },
+              "required": [
+                "enabled"
+              ]
+            },
+            "then": {
+              "required": [
+                "enabled",
+                "profile_hash",
+                "provider_id",
+                "model",
+                "model_revision",
+                "dimensions",
+                "permission_evidence",
+                "privacy_policy_sha256",
+                "allow_public_projections",
+                "allow_private_projections",
+                "default_minimum_similarity"
+              ]
+            }
+          }
+        ]
       }
     },
     "securitySchemes": {

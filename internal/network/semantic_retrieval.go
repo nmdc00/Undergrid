@@ -28,7 +28,8 @@ func (s *Service) semanticCandidates(ctx context.Context, tx pgx.Tx, id, princip
 	}
 	rows, err := tx.Query(ctx, `WITH source AS (
  SELECT CASE WHEN r.embedding_profile_hash=$2 THEN r.embedding END AS embedding,
- COALESCE(NULLIF(r.document->>'public_summary',''),r.document->>'objective','') AS query
+ CASE WHEN i.visibility='redacted_public' THEN r.public_projection->>'public_summary'
+ ELSE COALESCE(r.document#>>'{private_semantic_query,projection}','') END AS query
  FROM intents i JOIN intent_revisions r ON r.intent_id=i.id AND r.revision=i.current_revision WHERE i.id=$1
  ), eligible AS (
  SELECT p.id,p.projection,p.content_hash,r.embedding,r.embedding_profile_hash,r.embedding_projection_hash,r.search_vector FROM public_intents() p

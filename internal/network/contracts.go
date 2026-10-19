@@ -72,19 +72,25 @@ type Watch struct {
 	Channels []string `json:"channels"`
 }
 type IntentInput struct {
-	SemanticMinimumSimilarity *float64          `json:"semantic_minimum_similarity,omitempty"`
-	Objective                 string            `json:"objective"`
-	Output                    Output            `json:"output"`
-	HardConstraints           Constraints       `json:"hard_constraints"`
-	Preferences               map[string]string `json:"preferences,omitempty"`
-	Visibility                string            `json:"visibility"`
-	PublicSummary             string            `json:"public_summary,omitempty"`
-	Budget                    *json.RawMessage  `json:"budget"`
-	Watch                     Watch             `json:"watch"`
-	ExpiresAt                 time.Time         `json:"expires_at"`
+	PrivateSemanticQuery      *PrivateSemanticQuery `json:"private_semantic_query,omitempty"`
+	SemanticMinimumSimilarity *float64              `json:"semantic_minimum_similarity,omitempty"`
+	Objective                 string                `json:"objective"`
+	Output                    Output                `json:"output"`
+	HardConstraints           Constraints           `json:"hard_constraints"`
+	Preferences               map[string]string     `json:"preferences,omitempty"`
+	Visibility                string                `json:"visibility"`
+	PublicSummary             string                `json:"public_summary,omitempty"`
+	Budget                    *json.RawMessage      `json:"budget"`
+	Watch                     Watch                 `json:"watch"`
+	ExpiresAt                 time.Time             `json:"expires_at"`
 }
 
 func (i IntentInput) validate() error {
+	if i.PrivateSemanticQuery != nil {
+		if err := i.PrivateSemanticQuery.validate(i.Visibility); err != nil {
+			return err
+		}
+	}
 	if v := i.SemanticMinimumSimilarity; v != nil && (math.IsNaN(*v) || math.IsInf(*v, 0) || *v < 0 || *v > 1) {
 		return fail(422, "invalid_semantic_threshold")
 	}
