@@ -245,3 +245,49 @@ test("agent removal clears private draft and disables submission", async () => {
   ).toBe(true);
   expect(fetch).not.toHaveBeenCalled();
 });
+
+test("private remains the initial default and restricted needs an explicit choice", async () => {
+  const fetch = vi.fn(
+    async () =>
+      new Response(
+        JSON.stringify({
+          id: "room",
+          visibility: "restricted",
+          history_policy: "full",
+          version: 1,
+          etag: '"1"',
+        }),
+        { status: 201 },
+      ),
+  );
+  vi.stubGlobal("fetch", fetch);
+  render(
+    <CreateSwarm
+      agents={agents}
+      csrf="private-default"
+      onUnauthorized={vi.fn()}
+    />,
+  );
+  const visibility = screen.getByLabelText(
+    "Swarm visibility",
+  ) as HTMLSelectElement;
+  expect(visibility.value).toBe("private");
+  await userEvent.selectOptions(
+    screen.getByLabelText("Responsible agent"),
+    "a",
+  );
+  expect(visibility.value).toBe("private");
+  await userEvent.selectOptions(visibility, "restricted");
+  await userEvent.type(
+    screen.getByLabelText("Swarm objective"),
+    "Explicit restricted research room",
+  );
+  await userEvent.click(
+    screen.getByLabelText(/I understand.*full room history/i),
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Create swarm" }));
+  await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+  const [, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];
+  expect(JSON.parse(init.body as string).visibility).toBe("restricted");
+  expect(await screen.findByText(/Swarm room created/)).toBeTruthy();
+});

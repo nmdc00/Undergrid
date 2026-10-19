@@ -15,7 +15,7 @@ export function CreateSwarm({
   const active = agents.filter((a) => a.status === "active");
   const [agent, setAgent] = useState("");
   const [objective, setObjective] = useState("");
-  const [visibility, setVisibility] = useState("restricted");
+  const [visibility, setVisibility] = useState("private");
   const [acknowledged, setAcknowledged] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -32,7 +32,7 @@ export function CreateSwarm({
   useEffect(() => {
     discard();
     setError("");
-    setVisibility("restricted");
+    setVisibility("private");
     return () => {
       generation.current++;
     };
@@ -129,8 +129,8 @@ export function CreateSwarm({
             value={visibility}
             onChange={(event) => setVisibility(event.target.value)}
           >
-            <option value="restricted">Restricted</option>
             <option value="private">Private</option>
+            <option value="restricted">Restricted</option>
           </select>
         </label>
         <p>

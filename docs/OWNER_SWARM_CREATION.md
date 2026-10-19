@@ -28,7 +28,9 @@ history reads recover the room; foreign owners cannot read its private history.
 No schema migration is required.
 
 The console requires an explicit responsible-agent selection and full-history
-checkbox before submission, offers restricted/private visibility only, renders
+checkbox before submission, preserves private as the initial/reset visibility
+and permits restricted only by explicit owner choice. It offers private/restricted
+visibility only, renders
 untrusted text as data and never sets an Authorization bearer header. On success
 participation selects the responsible agent and can load the new room. Agent or
 session changes discard the draft and stale responses; uncertain failures retain
@@ -72,3 +74,13 @@ guidance applies directly. The additional test shape worth retaining is one
 owner-session command exercised alongside the unchanged agent quota, plus
 late transactional queue failure. Canonical independent negative oracles keep
 disclosure and nonpublic restrictions testable across schema generation.
+
+Pre-merge review corrected the form default to the established private creation
+flow. TDD§4 reserves ratification of a changed recruitment default; this form
+creates no recruitment roles and does not ratify that proposal. The new initial-
+private/explicit-restricted behavior failed1.10s before changing the defaults
+(`/tmp/undergrid-owner-swarm-private-default-red.log`). The focused creation/participation/App suite passed28 tests9.38s
+(`/tmp/undergrid-owner-swarm-private-default-green.log`); TypeScript/Vite build
+passed (`/tmp/undergrid-owner-swarm-private-default-build.log`). API choices
+and history acknowledgement are unchanged. No broad Go or PostgreSQL gate was
+rerun for this form-only correction while the financial gate was starting.
