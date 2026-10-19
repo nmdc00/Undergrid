@@ -59,6 +59,15 @@ if (process.argv.includes('--semantic-discovery')) {
  for (const leaked of ['candidate_revision_hash','source_revision_hash','confidence']) {
   if (compatibility({...proof,[leaked]:leaked==='confidence'?0.99:'a'.repeat(64)})) throw Error('Semantic private fingerprint/confidence leak permitted: '+leaked);
  }
+ for (const minimum_similarity of [-0.01, 1.01]) {
+  if (compatibility({...proof,minimum_similarity})) throw Error('Out-of-range semantic threshold evidence permitted');
+ }
+ const intentInput=validateSchema({$ref:'#/components/schemas/IntentInput'});
+ const request=cases.find(c=>c.method==='POST'&&c.path==='/v1/intents'&&c.request?.semantic_minimum_similarity!==undefined)?.request;
+ if (!request) throw Error('Missing actual user-selected threshold request');
+ for (const semantic_minimum_similarity of [-0.01,1.01]) {
+  if (intentInput({...request,semantic_minimum_similarity})) throw Error('Out-of-range intention threshold permitted');
+ }
  const {semantic_profile_hash,...missingPin}=proof;
  if (compatibility(missingPin)) throw Error('Semantic result without profile pin permitted');
  console.log(`Validated ${cases.length} actual semantic HTTP cases and independent projection/pinning denials`);

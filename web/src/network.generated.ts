@@ -1804,6 +1804,7 @@ export interface components {
             watch: components["schemas"]["Watch"];
             /** Format: date-time */
             expires_at: string;
+            semantic_minimum_similarity?: number | null;
         };
         OwnerIntentInput: {
             /** Format: uuid */
@@ -1840,6 +1841,7 @@ export interface components {
             version: number;
             etag: string;
             state: string;
+            semantic_minimum_similarity?: number | null;
         };
         PublicIntent: {
             /** Format: uuid */
@@ -1904,6 +1906,8 @@ export interface components {
             text_rank?: number;
             constraint_evidence?: components["schemas"]["ConstraintAssessment"][];
             readonly combined_constraints?: components["schemas"]["CombinedDemandConstraints"];
+            /** @description Effective source-intention cosine cutoff used for this semantic match; not a probability. */
+            minimum_similarity?: number;
         } & unknown;
         DemandOpportunity: {
             /** Format: uuid */

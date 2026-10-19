@@ -70,10 +70,14 @@ func mutateIntentOnce(r *http.Request, tx pgx.Tx, a actor, environment string) (
 	var id string
 	var version int64
 	var eventType string
+	facts := map[string]any{}
 	if r.Method == "POST" {
 		var input IntentInput
 		if err = decode(r, &input); err != nil {
 			return 0, nil, err
+		}
+		if input.SemanticMinimumSimilarity != nil {
+			facts["semantic_minimum_similarity"] = *input.SemanticMinimumSimilarity
 		}
 		if err = input.validate(); err != nil {
 			return 0, nil, err
@@ -154,6 +158,9 @@ func mutateIntentOnce(r *http.Request, tx pgx.Tx, a actor, environment string) (
 			if err = decodeIntentJSON(mutation.Revision, &input); err != nil {
 				return 0, nil, err
 			}
+			if input.SemanticMinimumSimilarity != nil {
+				facts["semantic_minimum_similarity"] = *input.SemanticMinimumSimilarity
+			}
 			if err = input.validate(); err != nil {
 				return 0, nil, err
 			}
@@ -192,7 +199,7 @@ func mutateIntentOnce(r *http.Request, tx pgx.Tx, a actor, environment string) (
 		origin = "release_test"
 	}
 	eventID := NewID()
-	if _, err = tx.Exec(ctx, "INSERT INTO events(id,aggregate_kind,aggregate_id,version,principal_id,agent_id,type,facts,origin) VALUES($1,'intent',$2,$3,$4,$5,$6,'{}',$7)", eventID, id, version, a.PrincipalID, a.AgentID, eventType, origin); err != nil {
+	if _, err = tx.Exec(ctx, "INSERT INTO events(id,aggregate_kind,aggregate_id,version,principal_id,agent_id,type,facts,origin) VALUES($1,'intent',$2,$3,$4,$5,$6,$8,$7)", eventID, id, version, a.PrincipalID, a.AgentID, eventType, origin, canonical(facts)); err != nil {
 		return 0, nil, err
 	}
 	var sequence int64

@@ -69,3 +69,14 @@ restricted-role race results, retained-queue failure and scan-cost tradeoff.
 Private selected-query consent, user thresholds, compatible groups, complementary
 discovery and broad queue/load/provider qualification remain unfinished. This
 feature branch remains unmerged.
+
+## User threshold checkpoint
+
+Optional per-intention semantic cutoffs0–1 now have actual restricted-role worker,
+HTTP/Ajv, audit, privacy, revision and owner-console proof. Empty/default selection
+uses the operator cutoff; explicit choices may be stricter or looser. New semantic
+evidence names the effective cutoff. See the evidence checkpoint for measured
+RED/green results and the controlled-vector/provider distinction. Private query
+consent, computed groups, complementary discovery and broader queue/load/provider
+qualification remain unfinished; user thresholds are no longer an open runtime
+implementation item.

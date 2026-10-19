@@ -54,6 +54,7 @@ export function App() {
     ]);
   const [selectedAgent, setSelectedAgent] = useState(""),
     [objective, setObjective] = useState(""),
+    [semanticThreshold, setSemanticThreshold] = useState(""),
     [intentVisibility, setIntentVisibility] =
       useState<components["schemas"]["IntentInput"]["visibility"]>("private"),
     [watch, setWatch] = useState(true),
@@ -65,7 +66,8 @@ export function App() {
     [grantExpiry, setGrantExpiry] = useState("");
   const [editingRevision, setEditingRevision] = useState(false),
     [revisionObjective, setRevisionObjective] = useState(""),
-    [revisionExpiry, setRevisionExpiry] = useState("");
+    [revisionExpiry, setRevisionExpiry] = useState(""),
+    [revisionSemanticThreshold, setRevisionSemanticThreshold] = useState("");
   const generation = useRef(0);
   const [intentionExpiry, setIntentionExpiry] = useState(() =>
     new Date(Date.now() + 30 * 86400000).toISOString(),
@@ -397,6 +399,12 @@ export function App() {
                           ]);
                           setDetail(record);
                           setRevisionObjective(text(record.objective));
+                          setRevisionSemanticThreshold(
+                            typeof record.semantic_minimum_similarity ===
+                              "number"
+                              ? String(record.semantic_minimum_similarity)
+                              : "",
+                          );
                           setRevisionExpiry(
                             localDateTime(text(record.expires_at)),
                           );
@@ -462,6 +470,13 @@ export function App() {
                             submit(e, async () => {
                               const revision = {
                                 objective: revisionObjective,
+                                ...(revisionSemanticThreshold === ""
+                                  ? {}
+                                  : {
+                                      semantic_minimum_similarity: Number(
+                                        revisionSemanticThreshold,
+                                      ),
+                                    }),
                                 output: detail.output,
                                 hard_constraints: detail.hard_constraints,
                                 ...(detail.preferences === undefined
@@ -487,6 +502,12 @@ export function App() {
                               setDetail(out);
                               setEditingRevision(false);
                               setRevisionObjective(text(out.objective));
+                              setRevisionSemanticThreshold(
+                                typeof out.semantic_minimum_similarity ===
+                                  "number"
+                                  ? String(out.semantic_minimum_similarity)
+                                  : "",
+                              );
                               setRevisionExpiry(
                                 localDateTime(text(out.expires_at)),
                               );
@@ -521,6 +542,25 @@ export function App() {
                               }
                             />
                           </label>
+                          <label>
+                            Minimum semantic similarity for this intention (0–1)
+                            <input
+                              type="number"
+                              min="0"
+                              max="1"
+                              step="any"
+                              value={revisionSemanticThreshold}
+                              aria-describedby="revision-semantic-threshold-help"
+                              onChange={(e) =>
+                                setRevisionSemanticThreshold(e.target.value)
+                              }
+                            />
+                          </label>
+                          <p id="revision-semantic-threshold-help">
+                            Optional. Leave blank to use the service default.
+                            Applies when semantic matching is enabled; the score
+                            is not a probability.
+                          </p>
                           <label>
                             Expires at (local time)
                             <input
@@ -733,6 +773,12 @@ export function App() {
                       agent_id: selectedAgent,
                       intent: {
                         objective,
+                        ...(semanticThreshold === ""
+                          ? {}
+                          : {
+                              semantic_minimum_similarity:
+                                Number(semanticThreshold),
+                            }),
                         output: {
                           kind: "json_dataset",
                           schema_family: "source_catalog_v1",
@@ -747,6 +793,7 @@ export function App() {
                       },
                     } satisfies components["schemas"]["OwnerIntentInput"]);
                     setObjective("");
+                    setSemanticThreshold("");
                     setIntentVisibility("private");
                     setIntentionExpiry(
                       new Date(Date.now() + 30 * 86400000).toISOString(),
@@ -803,6 +850,22 @@ export function App() {
                     onChange={(e) => setObjective(e.target.value)}
                   />
                 </label>
+                <label>
+                  Minimum semantic similarity (0–1)
+                  <input
+                    type="number"
+                    min="0"
+                    max="1"
+                    step="any"
+                    value={semanticThreshold}
+                    aria-describedby="create-semantic-threshold-help"
+                    onChange={(e) => setSemanticThreshold(e.target.value)}
+                  />
+                </label>
+                <p id="create-semantic-threshold-help">
+                  Optional. Leave blank to use the service default. Applies when
+                  semantic matching is enabled; the score is not a probability.
+                </p>
                 <label className="check">
                   <input
                     type="checkbox"

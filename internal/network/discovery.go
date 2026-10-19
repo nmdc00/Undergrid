@@ -155,12 +155,14 @@ func (s *Service) scanIntentCandidate(ctx context.Context, db *pgx.Conn, id, can
 	}
 	for _, c := range candidates {
 		evidence := CompareDemand(input, c.input)
-		if !evidence.Compatible && s.semantic != nil && c.cosine != nil && *c.cosine >= *s.semantic.config.MinimumSimilarity {
+		if !evidence.Compatible && s.semantic != nil && c.cosine != nil && *c.cosine >= s.semantic.minimumSimilarity(input) {
 			evidence = compareDemandConstraints(input, c.input)
 			if evidence.Compatible {
 				evidence.Algorithm = "hard-constraints-hybrid-cosine-v1"
 				evidence.Reasons = append(evidence.Reasons, "similar_approved_projections")
 				evidence.Similarity = c.cosine
+				threshold := s.semantic.minimumSimilarity(input)
+				evidence.MinimumSimilarity = &threshold
 				evidence.TextRank = c.lexical
 				evidence.SemanticProfileHash = s.semantic.hash
 				evidence.Model = s.semantic.config.Model

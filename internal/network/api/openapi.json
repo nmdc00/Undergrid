@@ -7688,6 +7688,19 @@
           "expires_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "semantic_minimum_similarity": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "Selected cosine similarity cutoff for this intention; overrides the operator default. Not a probability. Changes require an audited intention revision."
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -7842,6 +7855,19 @@
           },
           "state": {
             "type": "string"
+          },
+          "semantic_minimum_similarity": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "Selected cosine similarity cutoff for this intention; overrides the operator default. Not a probability. Changes require an audited intention revision."
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -8101,6 +8127,12 @@
           "combined_constraints": {
             "$ref": "#/components/schemas/CombinedDemandConstraints",
             "readOnly": true
+          },
+          "minimum_similarity": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Effective source-intention cosine cutoff used for this semantic match; not a probability."
           }
         },
         "required": [

@@ -7,6 +7,7 @@ function fixture(
   registered = true,
   intentState = "active",
   intentVisibility = "private",
+  semanticThreshold?: number,
 ) {
   const requests: { path: string; init: RequestInit | undefined }[] = [];
   vi.stubGlobal(
@@ -61,6 +62,9 @@ function fixture(
           version: 1,
           state: intentState,
           objective: "Private catalog",
+          ...(semanticThreshold === undefined
+            ? {}
+            : { semantic_minimum_similarity: semanticThreshold }),
           output: { kind: "json_dataset", schema_family: "source_catalog_v1" },
           hard_constraints: {
             required_fields: ["source_id", "source_url"],
@@ -194,7 +198,7 @@ test("shows owner records, renders untrusted names as text, logs out with CSRF",
   );
 });
 test("owner can append a revision or renew while preserving typed fields and ETag", async () => {
-  const requests = fixture(true, "expired");
+  const requests = fixture(true, "expired", "private", 0.99);
   render(<App />);
   await userEvent.click(
     await screen.findByRole("button", { name: "Review intention" }),
@@ -229,6 +233,7 @@ test("owner can append a revision or renew while preserving typed fields and ETa
   expect(JSON.parse(sent.init!.body as string)).toEqual({
     revision: {
       objective: "Renewed private catalog",
+      semantic_minimum_similarity: 0.99,
       output: { kind: "json_dataset", schema_family: "source_catalog_v1" },
       hard_constraints: {
         required_fields: ["source_id", "source_url"],
@@ -295,6 +300,9 @@ test("new intention defaults to private and can explicitly choose restricted vis
   });
   expect((visibility as HTMLSelectElement).value).toBe("private");
   await userEvent.selectOptions(visibility, "restricted");
+  const threshold = screen.getByLabelText("Minimum semantic similarity (0–1)");
+  expect((threshold as HTMLInputElement).value).toBe("");
+  fireEvent.change(threshold, { target: { value: "0.91" } });
   await userEvent.type(
     screen.getByRole("textbox", { name: "Objective" }),
     "Shareable catalog request",
@@ -315,6 +323,9 @@ test("new intention defaults to private and can explicitly choose restricted vis
   expect(JSON.parse(sent.init!.body as string).intent.visibility).toBe(
     "restricted",
   );
+  expect(
+    JSON.parse(sent.init!.body as string).intent.semantic_minimum_similarity,
+  ).toBe(0.91);
   expect(new Headers(sent.init?.headers).get("X-CSRF-Token")).toBe(
     "session-csrf",
   );

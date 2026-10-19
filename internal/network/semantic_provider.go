@@ -173,3 +173,11 @@ func (p *semanticProvider) embed(ctx context.Context, projection string) ([]floa
 	}
 	return vector, nil
 }
+
+// Explicit revision policy overrides the operator default for this source only.
+func (p *semanticProvider) minimumSimilarity(input IntentInput) float64 {
+	if input.SemanticMinimumSimilarity != nil {
+		return *input.SemanticMinimumSimilarity
+	}
+	return *p.config.MinimumSimilarity
+}

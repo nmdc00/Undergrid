@@ -86,7 +86,7 @@ func TestSemanticParaphraseDiscoveryThroughConfiguredWorker(t *testing.T) {
 	if err = os.WriteFile(ca, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: provider.Certificate().Raw}), 0600); err != nil {
 		t.Fatal(err)
 	}
-	config := map[string]any{"endpoint": provider.URL, "provider_id": "controlled-fixture", "model": "controlled-fixture", "model_revision": "fixture-revision-1", "dimensions": 3, "permission_evidence": "controlled TLS fixture, not provider qualification", "privacy_policy_sha256": strings.Repeat("d", 64), "allow_public_projections": true, "allow_private_projections": false, "test_only": true, "tls_root_ca_file": ca}
+	config := map[string]any{"endpoint": provider.URL, "provider_id": "controlled-fixture", "model": "controlled-fixture", "model_revision": "fixture-revision-1", "dimensions": 3, "permission_evidence": "controlled TLS fixture, not provider qualification", "privacy_policy_sha256": strings.Repeat("d", 64), "allow_public_projections": true, "allow_private_projections": false, "minimum_similarity": 0.9999, "test_only": true, "tls_root_ca_file": ca}
 	path := filepath.Join(dir, "semantic.json")
 	if err = os.WriteFile(path, canonical(config), 0600); err != nil {
 		t.Fatal(err)
@@ -98,7 +98,12 @@ func TestSemanticParaphraseDiscoveryThroughConfiguredWorker(t *testing.T) {
 	input.PublicSummary = summaries[0]
 	input.Objective = "PRIVATE OBJECTIVE NEVER EMBED"
 	input.Budget = rawJSON([]byte(`{"amount_minor":73519,"currency":"EUR","kind":"stated_budget"}`))
-	code, first := a.call("POST", "/v1/intents", "semantic-first", input)
+	firstInput := map[string]any{}
+	if err := json.Unmarshal(canonical(input), &firstInput); err != nil {
+		t.Fatal(err)
+	}
+	firstInput["semantic_minimum_similarity"] = 0.99
+	code, first := a.call("POST", "/v1/intents", "semantic-first", firstInput)
 	if code != 201 {
 		t.Fatal(code, first)
 	}
@@ -154,6 +159,9 @@ func TestSemanticParaphraseDiscoveryThroughConfiguredWorker(t *testing.T) {
 			item := raw.(map[string]any)
 			if item["candidate_intent_id"] == second["id"] {
 				evidence := item["evidence"].(map[string]any)
+				if evidence["minimum_similarity"] != 0.99 {
+					t.Fatalf("selected semantic threshold absent from evidence: %v", evidence)
+				}
 				if evidence["algorithm"] != "hard-constraints-hybrid-cosine-v1" {
 					t.Fatalf("semantic result has no pinned algorithm: %v", evidence)
 				}
@@ -189,6 +197,71 @@ func TestSemanticParaphraseDiscoveryThroughConfiguredWorker(t *testing.T) {
 				writer.Close(context.Background())
 				if err == nil {
 					t.Fatal("worker overwrote completed embedding evidence")
+				}
+				strict := client(t, s)
+				strict.observe = observe
+				strictBody := map[string]any{}
+				if err := json.Unmarshal(canonical(firstInput), &strictBody); err != nil {
+					t.Fatal(err)
+				}
+				strictBody["semantic_minimum_similarity"] = 1.0
+				code, strictCreated := strict.call("POST", "/v1/intents", "semantic-strict", strictBody)
+				if code != 201 {
+					t.Fatal(code, strictCreated)
+				}
+				runner := New(workerDSN, "development", nil)
+				runner.semantic, err = semanticConfiguration("development")
+				if err != nil {
+					t.Fatal(err)
+				}
+				strictID := strictCreated["id"].(string)
+				if err := runner.scanIntentions(context.Background(), strictID); err != nil {
+					t.Fatal(err)
+				}
+				code, strictResult := strict.call("GET", "/v1/intents/"+strictID+"/opportunities", "", nil)
+				if code != 200 {
+					t.Fatal(code, strictResult)
+				}
+				for _, value := range strictResult["items"].([]any) {
+					if value.(map[string]any)["candidate_intent_id"] == second["id"] {
+						t.Fatal("operator default overrode stricter user threshold", value)
+					}
+				}
+				relaxedBody := map[string]any{}
+				if err := json.Unmarshal(canonical(strictBody), &relaxedBody); err != nil {
+					t.Fatal(err)
+				}
+				relaxedBody["semantic_minimum_similarity"] = 0.9
+				code, relaxed := strict.versioned("PATCH", "/v1/intents/"+strictID, "semantic-relaxed", strictCreated["etag"].(string), map[string]any{"revision": relaxedBody})
+				if code != 200 {
+					t.Fatal(code, relaxed)
+				}
+				if err := runner.scanIntentions(context.Background(), strictID); err != nil {
+					t.Fatal(err)
+				}
+				code, strictResult = strict.call("GET", "/v1/intents/"+strictID+"/opportunities", "", nil)
+				if code != 200 {
+					t.Fatal(code, strictResult)
+				}
+				matched := false
+				for _, value := range strictResult["items"].([]any) {
+					row := value.(map[string]any)
+					if row["candidate_intent_id"] == second["id"] {
+						matched = true
+						if row["evidence"].(map[string]any)["minimum_similarity"] != 0.9 {
+							t.Fatal(row)
+						}
+					}
+				}
+				if !matched {
+					t.Fatal("relaxed user threshold did not discover paraphrase", strictResult)
+				}
+				var logged float64
+				if err := db.QueryRow(context.Background(), "SELECT (facts->>'semantic_minimum_similarity')::double precision FROM undergrid.events WHERE aggregate_id=$1 AND type='intent.revised'", strictID).Scan(&logged); err != nil {
+					t.Fatal(err)
+				}
+				if logged != 0.9 {
+					t.Fatal("threshold change not audited", logged)
 				}
 				// A new revision is still public, but its changed license is
 				// incompatible. Old semantic evidence must not be re-presented

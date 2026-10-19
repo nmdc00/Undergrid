@@ -11,6 +11,7 @@ type ConstraintAssessment struct {
 }
 
 type Compatibility struct {
+	MinimumSimilarity       *float64               `json:"minimum_similarity,omitempty"`
 	Compatible              bool                   `json:"compatible"`
 	Status                  string                 `json:"status"`
 	Reasons                 []string               `json:"reasons"`
