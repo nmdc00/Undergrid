@@ -189,8 +189,9 @@ func (s *Store) PrepareRenewal(ctx context.Context, id string) (Payment, error) 
 		if !sub.Consent.ExpiresAt.After(now) || !permits(policy, sub.Offer) {
 			return ErrUnauthorized
 		}
+		// A due renewal can wait behind actor authority until its credential expires.
 		var valid bool
-		if err = tx.QueryRow(ctx, "SELECT revoked_at IS NULL AND expires_at>now() AND 'payments:authorize'=ANY(scopes) FROM sandbox_credentials WHERE id=$1", sub.Consent.CredentialID).Scan(&valid); err != nil {
+		if err = tx.QueryRow(ctx, "SELECT revoked_at IS NULL AND expires_at>clock_timestamp() AND 'payments:authorize'=ANY(scopes) FROM sandbox_credentials WHERE id=$1", sub.Consent.CredentialID).Scan(&valid); err != nil {
 			return err
 		}
 		if !valid {

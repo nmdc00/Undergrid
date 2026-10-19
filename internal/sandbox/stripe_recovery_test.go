@@ -29,6 +29,7 @@ type stripeRecoveryFixture struct {
 	refundMode                                                      atomic.Int32 // 0 pending, 1 succeeded, 2 canceled, 3 wrong consent
 	lost                                                            atomic.Bool
 	posts                                                           atomic.Int32
+	refundPosts                                                     atomic.Int32
 	sessionGets                                                     atomic.Int32
 	chargeBinding                                                   atomic.Int32 // 0 exact PI, 1 absent, 2 unrelated
 	wrongRetrievedSession                                           atomic.Bool
@@ -136,6 +137,9 @@ func newStripeRecoveryFixture(t *testing.T) *stripeRecoveryFixture {
 		case "/v1/charges/" + f.chargeID:
 			write(charge)
 		case "/v1/refunds":
+			if r.Method == "POST" {
+				f.refundPosts.Add(1)
+			}
 			write(refund())
 		case "/v1/refunds/" + f.refundID:
 			write(refund())
