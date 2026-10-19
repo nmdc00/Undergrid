@@ -32,5 +32,30 @@ read, grant and verification authority remains unchanged.
 
 Focused actual-login lifecycle GREEN passed4.054s, including atomic denial,
 restoring the current pointer, retry with the same key after denial and repeated
-successful receipt replay with exactly one completion event. Affected broader
-artifact race regression remains pending; this checkpoint is not a release claim.
+successful receipt replay with exactly one completion event.
+
+At source `e3d3261`, six affected actual-PostgreSQL96 lifecycle tests passed
+with race detection in62.810s: the recovery fault, canonical publication through
+the executable verifier worker, exact private-input publication consent,
+immutable progress-input audiences, archived public licensed reuse and failed
+fixed-check denial. Log: `/tmp/undergrid-current-artifact-acceptance-affected96.log`.
+This is scoped local evidence, not provider or production qualification.
+
+Release dependency-blocking integration `135b3fe` was reconciled cleanly in
+`a1e5c5a`. The acceptance guard remains specific to acceptance; shared artifact
+reads, verification history, publication rights and dependency authority keep
+their existing owners. The task is locked before the acceptance transaction,
+and the checked state/version/submission update prevents a false completion
+event. No schema migration is introduced by this fix.
+
+On integrated source `a1e5c5a`, the seven-case actual-PostgreSQL96 race gate
+passed98.995s with no skips. It additionally covers preserved verified evidence
+after dependency withdrawal; normal migration applied029 before the tests.
+Log: `/tmp/undergrid-current-artifact-acceptance-integrated96.log`. Network and
+executable vet and diff checks passed. These checks do not establish whole
+release coverage or a production deployment.
+
+Post-deployment qualification must repeat the denied-current-pointer recovery
+scenario in an authorized fixture and verify normalized task state/version,
+approval counts and exactly one `task.output_accepted` event after restoration.
+Do not inject administrative faults into a live collaboration.
