@@ -336,11 +336,21 @@ func (f *renewalProviderFixture) serve(t *testing.T, w http.ResponseWriter, r *h
 		}
 		for _, invoice := range f.invoices {
 			if r.URL.Path == "/v1/payment_intents/"+invoice.intent {
-				write(map[string]any{"id": invoice.intent, "object": "payment_intent", "livemode": false, "status": "succeeded", "amount": 100, "amount_received": 100, "currency": "usd", "customer": f.customer, "payment_method": f.method, "latest_charge": invoice.charge})
+				write(map[string]any{"id": invoice.intent, "object": "payment_intent", "livemode": false, "status": "succeeded", "amount": 100, "amount_received": 100, "currency": "usd", "customer": func() string {
+					if f.fault.Load().(string) == "intent_customer" {
+						return "cus_unrelated"
+					}
+					return f.customer
+				}(), "payment_method": f.method, "latest_charge": invoice.charge})
 				return
 			}
 			if r.URL.Path == "/v1/charges/"+invoice.charge {
-				write(map[string]any{"id": invoice.charge, "object": "charge", "livemode": false, "status": "succeeded", "amount": 100, "amount_captured": 100, "currency": "usd", "paid": true, "captured": true, "customer": f.customer, "payment_intent": invoice.intent, "payment_method": f.method})
+				write(map[string]any{"id": invoice.charge, "object": "charge", "livemode": f.fault.Load().(string) == "charge_live", "status": "succeeded", "amount": func() int {
+					if f.fault.Load().(string) == "charge_amount" {
+						return 101
+					}
+					return 100
+				}(), "amount_captured": 100, "currency": "usd", "paid": true, "captured": true, "customer": f.customer, "payment_intent": invoice.intent, "payment_method": f.method})
 				return
 			}
 		}
@@ -363,5 +373,34 @@ func (f *renewalProviderFixture) invoiceObject(i *renewalInvoiceFixture) any {
 		remaining = 0
 		payments = append(payments, map[string]any{"id": "inpay_" + i.id, "object": "invoice_payment", "livemode": false, "status": "paid", "invoice": i.id, "amount_requested": 100, "amount_paid": 100, "currency": "usd", "payment": map[string]any{"type": "payment_intent", "payment_intent": i.intent}})
 	}
-	return map[string]any{"id": i.id, "object": "invoice", "livemode": false, "customer": f.customer, "currency": "usd", "auto_advance": false, "collection_method": "charge_automatically", "metadata": i.metadata, "status": i.state, "amount_due": amount, "total": amount, "amount_paid": paid, "amount_remaining": remaining, "lines": map[string]any{"object": "list", "has_more": false, "data": lines}, "payments": map[string]any{"object": "list", "has_more": false, "data": payments}}
+	result := map[string]any{"id": i.id, "object": "invoice", "livemode": false, "customer": f.customer, "currency": "usd", "auto_advance": false, "collection_method": "charge_automatically", "metadata": i.metadata, "status": i.state, "amount_due": amount, "total": amount, "amount_paid": paid, "amount_remaining": remaining, "lines": map[string]any{"object": "list", "has_more": false, "data": lines}, "payments": map[string]any{"object": "list", "has_more": false, "data": payments}}
+	switch f.fault.Load().(string) {
+	case "invoice_customer":
+		result["customer"] = "cus_unrelated"
+	case "invoice_automatic":
+		result["auto_advance"] = true
+	case "invoice_consent":
+		result["metadata"] = map[string]string{"undergrid_consent_hash": hash([]byte("unrelated"))}
+	case "line_price":
+		if len(lines) > 0 {
+			lines[0].(map[string]any)["pricing"] = map[string]any{"price_details": map[string]any{"price": "price_other", "product": "prod_fixture"}}
+		}
+	case "line_proration":
+		if len(lines) > 0 {
+			lines[0].(map[string]any)["parent"] = map[string]any{"type": "invoice_item_details", "invoice_item_details": map[string]any{"invoice_item": i.item, "proration": true}}
+		}
+	case "extra_line":
+		if len(lines) > 0 {
+			result["lines"] = map[string]any{"object": "list", "has_more": false, "data": append(lines, lines[0])}
+		}
+	case "invoice_credit":
+		result["starting_balance"] = -10
+	case "invoice_tax":
+		result["total_taxes"] = []any{map[string]any{"amount": 1}}
+	case "paid_invoice_binding":
+		if len(payments) > 0 {
+			payments[0].(map[string]any)["invoice"] = "in_unrelated"
+		}
+	}
+	return result
 }

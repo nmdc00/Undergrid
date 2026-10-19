@@ -209,6 +209,8 @@ func (s *StripeService) unexpectedCharge(ctx context.Context, id, event, kind, o
 }
 func (s *StripeService) reconcileEvent(ctx context.Context, e stripeInboxEvent) error {
 	switch e.Type {
+	case "invoice.paid", "invoice.payment_succeeded", "invoice.payment_failed", "invoice.finalized", "invoice.voided":
+		return s.reconcileRenewalInvoiceEvent(ctx, e.ObjectID)
 	case "charge.succeeded":
 		_, _, err := s.verifyCharge(ctx, e.ObjectID, e.ID)
 		return err
@@ -269,6 +271,9 @@ func (s *StripeService) reconcileEvent(ctx context.Context, e stripeInboxEvent) 
 		session, err := s.client.V1CheckoutSessions.Retrieve(ctx, e.ObjectID, &stripe.CheckoutSessionRetrieveParams{Expand: []*string{stripe.String("payment_intent.latest_charge")}})
 		if err != nil {
 			return err
+		}
+		if session.Mode == "setup" {
+			return s.reconcileBillingSessionEvent(ctx, session)
 		}
 		if !validUUID(session.ClientReferenceID) {
 			return ErrConflict

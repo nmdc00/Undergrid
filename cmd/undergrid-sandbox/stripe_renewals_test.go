@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"context"
+	"testing"
+)
 
 func TestStripeRenewalCollectionRequiresExplicitWorkerOptIn(t *testing.T) {
 	for _, tc := range []struct {
@@ -14,5 +17,13 @@ func TestStripeRenewalCollectionRequiresExplicitWorkerOptIn(t *testing.T) {
 				t.Fatalf("renewal opt-in %q enabled=%v err=%v", tc.value, c.RenewalsEnabled, err)
 			}
 		})
+	}
+}
+
+func TestStripeRenewalRuntimeRejectsUnsupportedCollectionMode(t *testing.T) {
+	t.Setenv("UNDERGRID_SANDBOX_STRIPE_RENEWALS", "automatic")
+	err := runStripe(context.Background(), "unavailable fixture database")
+	if err == nil || err.Error() != "explicit manual TEST renewal configuration required" {
+		t.Fatalf("runtime did not enforce manual collection mode before provider IO: %v", err)
 	}
 }

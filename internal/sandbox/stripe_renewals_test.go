@@ -1,9 +1,15 @@
 package sandbox
 
 import (
+	"bytes"
 	"context"
+	"github.com/jackc/pgx/v5"
+	stripe "github.com/stripe/stripe-go/v87"
+	"github.com/stripe/stripe-go/v87/webhook"
 	"net/http"
+	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -345,5 +351,163 @@ func TestStripeRenewalCanonicalInvoiceChargeSupportsRefund(t *testing.T) {
 	}
 	if state != "succeeded" || charges != 1 || refunds != 1 || f.posts("/v1/refunds") != 1 {
 		t.Fatalf("invoice refund effects state=%s charges=%d refunds=%d posts=%d", state, charges, refunds, f.posts("/v1/refunds"))
+	}
+}
+
+func TestStripeRenewalSignedSetupAndInvoiceEventsReconcileCanonicalObjects(t *testing.T) {
+	f := newRenewalProviderFixture(t)
+	ctx := context.Background()
+	if err := f.service.tick(ctx); err != nil {
+		t.Fatal(err)
+	}
+	f.complete.Store(true)
+	sendRenewalStripeEvent(t, f, "checkout.session.completed", f.session, "evt_setup_"+randomID())
+	if err := f.service.ProcessEvents(ctx); err != nil {
+		t.Fatal(err)
+	}
+	b, err := f.app.StripeBillingSetup(ctx, f.base.owner, f.sub.ID)
+	if err != nil || b.State != "ready" {
+		t.Fatalf("setup event did not bind canonical payer: state=%s err=%v", b.State, err)
+	}
+	p := f.prepare(t)
+	f.loseOperation.Store("pay")
+	if err = f.service.tick(ctx); err != nil {
+		t.Fatal(err)
+	}
+	invoice := ""
+	for id := range f.invoices {
+		invoice = id
+	}
+	eventID := "evt_invoice_" + randomID()
+	sendRenewalStripeEvent(t, f, "invoice.paid", invoice, eventID)
+	sendRenewalStripeEvent(t, f, "invoice.paid", invoice, eventID)
+	if err = f.service.ProcessEvents(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var state string
+	var facts, events int
+	if err = f.base.db.QueryRow(ctx, `SELECT state,(SELECT count(*) FROM undergrid_sandbox.sandbox_effects WHERE payment_id=p.id AND kind='charge'),(SELECT count(*) FROM undergrid_sandbox.sandbox_stripe_inbox WHERE event_id=$2 AND state='processed') FROM undergrid_sandbox.sandbox_payments p WHERE id=$1`, p.ID, eventID).Scan(&state, &facts, &events); err != nil {
+		t.Fatal(err)
+	}
+	if state != "settled" || facts != 1 || events != 1 {
+		t.Fatalf("canonical invoice event state=%s facts=%d events=%d", state, facts, events)
+	}
+}
+func sendRenewalStripeEvent(t *testing.T, f *renewalProviderFixture, kind, object, id string) {
+	t.Helper()
+	raw := encode(map[string]any{"id": id, "object": "event", "api_version": stripe.APIVersion, "type": kind, "livemode": false, "data": map[string]any{"object": map[string]any{"id": object, "amount": 99999999, "customer": "cus_untrusted_payload"}}})
+	signed := webhook.GenerateTestSignedPayload(&webhook.UnsignedPayload{Payload: raw, Secret: f.service.config.WebhookSecret})
+	req := httptest.NewRequest("POST", "/v1/provider/stripe/events", bytes.NewReader(raw))
+	req.Header.Set("Stripe-Signature", signed.Header)
+	w := httptest.NewRecorder()
+	f.service.ServeHTTP(w, req)
+	if w.Code != 200 {
+		t.Fatalf("signed invoice event intake %d %s", w.Code, w.Body.String())
+	}
+}
+
+func TestStripeBillingAppCannotInsertProviderReadiness(t *testing.T) {
+	f := newRenewalProviderFixture(t)
+	ctx := context.Background()
+	var protected bool
+	err := f.app.transaction(ctx, "undergrid_sandbox_app", func(tx pgx.Tx) error {
+		var state, customer, proof bool
+		if err := tx.QueryRow(ctx, `SELECT has_column_privilege(current_user,'undergrid_sandbox.sandbox_stripe_billing_setups','state','INSERT'),has_column_privilege(current_user,'undergrid_sandbox.sandbox_stripe_billing_setups','customer_id','INSERT'),has_column_privilege(current_user,'undergrid_sandbox.sandbox_stripe_billing_setups','evidence','INSERT')`).Scan(&state, &customer, &proof); err != nil {
+			return err
+		}
+		protected = !state && !customer && !proof
+		return nil
+	})
+	if err != nil || !protected {
+		t.Fatalf("app can insert worker-only payer evidence protected=%v err=%v", protected, err)
+	}
+}
+
+func TestStripeRenewalRejectsMismatchedCanonicalInvoiceEvidence(t *testing.T) {
+	for _, fault := range []string{"invoice_customer", "invoice_automatic", "invoice_consent", "line_price", "line_proration", "extra_line", "invoice_tax", "invoice_credit", "paid_invoice_binding", "intent_customer", "charge_live", "charge_amount"} {
+		t.Run(fault, func(t *testing.T) {
+			f := newRenewalProviderFixture(t)
+			p := f.prepare(t)
+			f.fault.Store(fault)
+			if err := f.service.tick(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			var state string
+			var facts int
+			if err := f.base.db.QueryRow(context.Background(), "SELECT state,(SELECT count(*) FROM undergrid_sandbox.sandbox_effects WHERE payment_id=p.id) FROM undergrid_sandbox.sandbox_payments p WHERE id=$1", p.ID).Scan(&state, &facts); err != nil {
+				t.Fatal(err)
+			}
+			if state != "unknown" || facts != 0 || f.posts("/v1/invoices") != 1 {
+				t.Fatalf("unrelated %s accepted state=%s facts=%d invoices=%d", fault, state, facts, f.posts("/v1/invoices"))
+			}
+		})
+	}
+}
+func TestStripeRenewalConcurrentTicksCollectOnce(t *testing.T) {
+	f := newRenewalProviderFixture(t)
+	p := f.prepare(t)
+	var wg sync.WaitGroup
+	errs := make(chan error, 2)
+	for range 2 {
+		wg.Add(1)
+		go func() { defer wg.Done(); errs <- f.service.tick(context.Background()) }()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := f.service.tick(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	var state string
+	var facts int
+	if err := f.base.db.QueryRow(context.Background(), "SELECT state,(SELECT count(*) FROM undergrid_sandbox.sandbox_effects WHERE payment_id=p.id AND kind='charge') FROM undergrid_sandbox.sandbox_payments p WHERE id=$1", p.ID).Scan(&state, &facts); err != nil {
+		t.Fatal(err)
+	}
+	pay := 0
+	f.mu.Lock()
+	for path, n := range f.counts {
+		if strings.HasSuffix(path, "/pay") {
+			pay += n
+		}
+	}
+	f.mu.Unlock()
+	if state != "settled" || facts != 1 || f.posts("/v1/invoices") != 1 || f.posts("/v1/invoiceitems") != 1 || pay != 1 {
+		t.Fatalf("concurrent invoice duplicated: state=%s facts=%d invoices=%d items=%d pays=%d", state, facts, f.posts("/v1/invoices"), f.posts("/v1/invoiceitems"), pay)
+	}
+}
+
+func TestStripeBillingSetupRejectsOtherOwnerAndCanceledReplay(t *testing.T) {
+	f := newRenewalProviderFixture(t)
+	ctx := context.Background()
+	other := Owner{Issuer: f.base.owner.Issuer, Subject: "other-billing-owner-" + randomID()}
+	if _, err := f.app.Enroll(ctx, other); err != nil {
+		t.Fatal(err)
+	}
+	h := mustWalletHandler(t, f.app, func(r *http.Request) (Owner, error) {
+		subject := r.Header.Get("X-Fixture-Owner")
+		if subject == "" {
+			return Owner{}, ErrUnauthorized
+		}
+		return Owner{Issuer: f.base.owner.Issuer, Subject: subject}, nil
+	}, map[string]Quote{"platform-test": f.base.p.Quote})
+	path := "/v1/owner/subscriptions/" + f.sub.ID + "/billing-setup"
+	body := map[string]any{"consent_hash": f.sub.Hash}
+	for _, method := range []string{"GET", "POST"} {
+		if status, _ := refundCall(t, h, "", other.Subject, method, path, "other-owner", body); status != 401 {
+			t.Fatalf("other owner %s billing setup: %d", method, status)
+		}
+	}
+	if err := f.app.CancelSubscription(ctx, f.base.owner, f.sub.ID, f.sub.Hash); err != nil {
+		t.Fatal(err)
+	}
+	if status, _ := refundCall(t, h, "", f.base.owner.Subject, "POST", path, "owner-payer-setup", body); status != 401 {
+		t.Fatalf("canceled consent setup replay: %d", status)
+	}
+	if f.posts("/v1/customers") != 0 || f.posts("/v1/checkout/sessions") != 0 {
+		t.Fatal("denied setup caused provider work")
 	}
 }
