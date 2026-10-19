@@ -35,8 +35,8 @@ Archival grants no consent or completion and preserves acknowledged verification
 current-authorized history and licensed exports under [explicit archive](SWARM_ARCHIVE.md).
 Legal retention approval, erasure and deployment remain separate gates.
 
-Normal migrations030/031 were applied after029 on the preserved isolated96
-cluster; applied migration bytes are frozen. Semantic discovery now reserves032.
+Normal migrations030/031/032 were applied after029 on the preserved isolated96
+cluster; applied migration bytes are frozen. Migration032 explicitly places temporary schemas after trusted schemas for both privileged helpers; applied030/031 bytes remain unchanged. Semantic discovery now reserves033.
 [Evidence](evidence/swarm-inactivity.md) records the actual missing-policy RED,
 proven deadlock/terminal-timer RED, fixture corrections and focused GREEN55.516s.
-The affected race gate and exact release integration remain pending.
+The affected race gate passed266.968s; later scoped fanout, temporary-relation isolation and owner-contract checks are recorded separately with their failures preserved. Exact-release promotion and production qualification remain pending.
