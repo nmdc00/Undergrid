@@ -85,7 +85,7 @@ func (s *Service) blockWithdrawnDependents(ctx context.Context, tx pgx.Tx, a act
 		blocked        bool
 		spec           TaskSpec
 	}
-	rows, err := tx.Query(ctx, `SELECT id,task_key,state,version,dependency_blocked,specification FROM tasks WHERE plan_id=$1 ORDER BY id LIMIT 51 FOR UPDATE`, plan)
+	rows, err := tx.Query(ctx, `SELECT id,task_key,state,version,dependency_blocked,specification FROM tasks WHERE plan_id=$1 ORDER BY id LIMIT $2 FOR UPDATE`, plan, maxPlanTasks+1)
 	if err != nil {
 		return err
 	}
@@ -110,10 +110,10 @@ func (s *Service) blockWithdrawnDependents(ctx context.Context, tx pgx.Tx, a act
 	if err != nil {
 		return err
 	}
-	if len(nodes) > 50 {
+	if len(nodes) > maxPlanTasks {
 		return fail(409, "dependency_graph_limit")
 	}
-	// Reverse adjacency is bounded by the sealed plan's 50 tasks / 100 edges.
+	// Reverse adjacency uses the same bounds as sealed plan validation.
 	dependents := map[string][]string{}
 	edges := 0
 	for _, n := range nodes {
@@ -126,7 +126,7 @@ func (s *Service) blockWithdrawnDependents(ctx context.Context, tx pgx.Tx, a act
 			edges++
 		}
 	}
-	if edges > 100 {
+	if edges > maxPlanEdges {
 		return fail(409, "dependency_graph_limit")
 	}
 	causes := map[string][]withdrawnTaskRoot{}
