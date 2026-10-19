@@ -8,16 +8,22 @@ export type PrivateQuery = NonNullable<
 export function PrivateSemanticQuery({
   csrf,
   onChange,
+  initialProjection = "",
 }: {
   csrf: string;
+  initialProjection?: string;
   onChange: (value: PrivateQuery | undefined) => void;
 }) {
   const [policy, setPolicy] = useState<ObjectValue | null>(null);
-  const [projection, setProjection] = useState("");
+  const [projection, setProjection] = useState(initialProjection);
+  const [needsReview, setNeedsReview] = useState(Boolean(initialProjection));
   const [accepted, setAccepted] = useState(false);
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
   const generation = useRef(0);
+  const queryValid =
+    [...projection.trim()].length >= 3 &&
+    new TextEncoder().encode(projection).length <= 1000;
   useEffect(
     () => () => {
       generation.current++;
@@ -70,6 +76,36 @@ export function PrivateSemanticQuery({
         Review private matching policy
       </button>
       {status && <p role="status">{status}</p>}
+      {needsReview && !policy && (
+        <>
+          <p>Existing selected query: {projection}</p>
+          <label>
+            <input
+              type="checkbox"
+              required
+              checked={false}
+              onChange={() => void review()}
+            />
+            Review current provider policy before keeping this query
+          </label>
+        </>
+      )}
+      {(policy || needsReview) && (
+        <button
+          type="button"
+          onClick={() => {
+            generation.current++;
+            setBusy(false);
+            setPolicy(null);
+            setProjection("");
+            setAccepted(false);
+            setNeedsReview(false);
+            onChange(undefined);
+          }}
+        >
+          Remove private matching query
+        </button>
+      )}
       {policy && (
         <>
           <p>
@@ -87,6 +123,13 @@ export function PrivateSemanticQuery({
             Selected private matching query
             <textarea
               required
+              ref={(node) =>
+                node?.setCustomValidity(
+                  queryValid
+                    ? ""
+                    : "Enter at least three non-whitespace characters within 1000 UTF-8 bytes.",
+                )
+              }
               minLength={3}
               maxLength={1000}
               value={projection}
@@ -102,10 +145,7 @@ export function PrivateSemanticQuery({
               type="checkbox"
               required
               checked={accepted}
-              disabled={
-                projection.trim().length < 3 ||
-                new TextEncoder().encode(projection).length > 1000
-              }
+              disabled={!queryValid}
               onChange={(e) => {
                 setAccepted(e.target.checked);
                 onChange(
@@ -121,18 +161,6 @@ export function PrivateSemanticQuery({
             />
             Allow this selected query to be processed by this provider profile
           </label>
-          <button
-            type="button"
-            onClick={() => {
-              generation.current++;
-              setPolicy(null);
-              setProjection("");
-              setAccepted(false);
-              onChange(undefined);
-            }}
-          >
-            Remove private matching query
-          </button>
         </>
       )}
     </fieldset>

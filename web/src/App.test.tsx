@@ -14,6 +14,7 @@ function fixture(
   intentState = "active",
   intentVisibility = "private",
   semanticThreshold?: number,
+  privateQuery?: Record<string, unknown>,
 ) {
   const requests: { path: string; init: RequestInit | undefined }[] = [];
   vi.stubGlobal(
@@ -78,6 +79,7 @@ function fixture(
           version: 1,
           state: intentState,
           objective: "Private catalog",
+          ...(privateQuery ? { private_semantic_query: privateQuery } : {}),
           ...(semanticThreshold === undefined
             ? {}
             : { semantic_minimum_similarity: semanticThreshold }),
@@ -581,3 +583,93 @@ test("selected query cannot be submitted before disclosure consent", async () =>
     JSON.parse(sent.init!.body as string).intent.private_semantic_query,
   ).toBeUndefined();
 });
+
+test.each(["keep", "change", "remove"])(
+  "revision must explicitly %s existing private query",
+  async (decision) => {
+    const query = {
+      projection: "Existing selected query",
+      profile_hash: "a".repeat(64),
+      acknowledge_external_processing: true,
+    };
+    const requests = fixture(true, "active", "private", undefined, query);
+    render(<App />);
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Review intention" }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Edit intention" }),
+    );
+    const form = screen
+      .getByRole("button", { name: "Save new revision" })
+      .closest("form")!;
+    await userEvent.click(
+      within(form).getByRole("button", { name: "Save new revision" }),
+    );
+    expect(
+      requests.some(
+        (r) =>
+          r.path === "/v1/owner/intents/intent" && r.init?.method === "PATCH",
+      ),
+    ).toBe(false);
+    if (decision !== "remove") {
+      await userEvent.click(
+        within(form).getByRole("button", {
+          name: "Review private matching policy",
+        }),
+      );
+      await within(form).findByText("selected-provider / selected-model / r1");
+      expect(
+        (
+          within(form).getByLabelText(
+            "Selected private matching query",
+          ) as HTMLTextAreaElement
+        ).value,
+      ).toBe(query.projection);
+      if (decision === "change")
+        fireEvent.change(
+          within(form).getByLabelText("Selected private matching query"),
+          { target: { value: "Changed selected query" } },
+        );
+      await userEvent.click(
+        within(form).getByLabelText(
+          "Allow this selected query to be processed by this provider profile",
+        ),
+      );
+    } else {
+      await userEvent.click(
+        within(form).getByRole("button", {
+          name: "Remove private matching query",
+        }),
+      );
+    }
+    await userEvent.click(
+      within(form).getByRole("button", { name: "Save new revision" }),
+    );
+    await waitFor(() =>
+      expect(
+        requests.some(
+          (r) =>
+            r.path === "/v1/owner/intents/intent" && r.init?.method === "PATCH",
+        ),
+      ).toBe(true),
+    );
+    const sent = requests.find(
+      (r) =>
+        r.path === "/v1/owner/intents/intent" && r.init?.method === "PATCH",
+    )!;
+    expect(
+      JSON.parse(sent.init!.body as string).revision.private_semantic_query,
+    ).toEqual(
+      decision === "remove"
+        ? undefined
+        : {
+            ...query,
+            projection:
+              decision === "change"
+                ? "Changed selected query"
+                : query.projection,
+          },
+    );
+  },
+);

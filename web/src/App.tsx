@@ -72,6 +72,8 @@ export function App() {
     [revisionObjective, setRevisionObjective] = useState(""),
     [revisionExpiry, setRevisionExpiry] = useState(""),
     [revisionSemanticThreshold, setRevisionSemanticThreshold] = useState("");
+  const [revisionPrivateQuery, setRevisionPrivateQuery] =
+    useState<PrivateQuery>();
   const [privateQuery, setPrivateQuery] = useState<PrivateQuery>();
   const [queryGeneration, setQueryGeneration] = useState(0);
   const generation = useRef(0);
@@ -464,7 +466,10 @@ export function App() {
                       {!editingRevision ? (
                         <button
                           disabled={busy}
-                          onClick={() => setEditingRevision(true)}
+                          onClick={() => {
+                            setRevisionPrivateQuery(undefined);
+                            setEditingRevision(true);
+                          }}
                         >
                           {detail.state === "expired"
                             ? "Renew intention"
@@ -476,6 +481,12 @@ export function App() {
                             submit(e, async () => {
                               const revision = {
                                 objective: revisionObjective,
+                                ...(revisionPrivateQuery
+                                  ? {
+                                      private_semantic_query:
+                                        revisionPrivateQuery,
+                                    }
+                                  : {}),
                                 ...(revisionSemanticThreshold === ""
                                   ? {}
                                   : {
@@ -562,6 +573,18 @@ export function App() {
                               }
                             />
                           </label>
+                          <PrivateSemanticQuery
+                            csrf={csrf}
+                            onChange={setRevisionPrivateQuery}
+                            initialProjection={
+                              detail.private_semantic_query == null
+                                ? ""
+                                : text(
+                                    object(detail.private_semantic_query)
+                                      .projection,
+                                  )
+                            }
+                          />
                           <p id="revision-semantic-threshold-help">
                             Optional. Leave blank to use the service default.
                             Applies when semantic matching is enabled; the score

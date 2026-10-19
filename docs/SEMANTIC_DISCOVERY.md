@@ -171,3 +171,34 @@ define the grant; existing shared request code owns cookies/CSRF/retry identity.
 No provider secret or bearer credential is introduced. Existing revision-edit
 query review/preservation/removal controls remain pending; this checkpoint
 completes create-flow controls only and does not complete the discovery vertical.
+
+## Owner revision-query console checkpoint
+
+Revision editing now displays an existing selected query and requires a conscious
+choice before save: review the current provider profile and explicitly consent
+for the new revision (with the existing or edited selected text), or remove the
+query. An unrelated objective edit cannot silently omit existing disclosure
+selection. Failed/disabled policy review leaves that decision required; explicit
+removal remains available. Canceling/unmounting invalidates pending policy reads.
+The shared component keeps new-query consent unchecked and clears it after edits.
+Current API/domain profile checks remain authoritative, including stale-profile
+rejection after the policy read. No private objective auto-populates the query.
+
+Actual App RED reproduced both keep/remove cases sending a revision before any
+query decision (`/tmp/undergrid-private-query-revision-red.log`,2 failed cases).
+Focused initial correction passed26 tests7.89s. Further behavioral review
+reproduced whitespace-only and1200-byte UTF-8 selection silently passing native
+form validation when the required consent checkbox was disabled
+(`/tmp/undergrid-private-query-input-validity-red.log`,2 failed cases; also
+preserved in the intermediate full UI log). The query field now owns custom
+validity matching the shared Unicode/byte predicate, so invalid selections cannot
+be submitted as an implicit removal. Final full UI suite passed65 tests across
+8 files19.16s (`/tmp/undergrid-private-query-revision-final-ui.log`); TypeScript
+and production build passed (`/tmp/undergrid-private-query-revision-final-build.log`).
+
+Quality review: create/edit share the same policy/consent component and generated
+wire grant; existing owner versioned PATCH retains ETag/CSRF/retry behavior. The
+new revision gets an explicit grant choice rather than a carried checkbox. The
+UTF-8 check is a user-facing guard; server validation remains independent. This
+closes the recorded create/edit console gap locally, not compatible groups,
+complementary discovery, provider qualification or full-release integration.

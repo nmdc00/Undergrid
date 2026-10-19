@@ -77,3 +77,71 @@ test.each([
   expect(screen.queryByLabelText("Selected private matching query")).toBeNull();
   expect(changed).toHaveBeenLastCalledWith(undefined);
 });
+
+test("failed policy review cannot silently discard an existing revision query", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => new Response(JSON.stringify({ enabled: false }))),
+  );
+  const submit = vi.fn();
+  const changed = vi.fn();
+  render(
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        submit();
+      }}
+    >
+      <PrivateSemanticQuery
+        csrf="csrf"
+        initialProjection="Existing selected query"
+        onChange={changed}
+      />
+      <button>Save revision</button>
+    </form>,
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "Review private matching policy" }),
+  );
+  await screen.findByRole("status");
+  await userEvent.click(screen.getByRole("button", { name: "Save revision" }));
+  expect(submit).not.toHaveBeenCalled();
+  await userEvent.click(
+    screen.getByRole("button", { name: "Remove private matching query" }),
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Save revision" }));
+  expect(submit).toHaveBeenCalledOnce();
+  expect(changed).toHaveBeenLastCalledWith(undefined);
+});
+test.each(["   ", "€".repeat(400)])(
+  "invalid selected query cannot silently submit without processing",
+  async (projection) => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify(policy))),
+    );
+    const submit = vi.fn();
+    render(
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          submit();
+        }}
+      >
+        <PrivateSemanticQuery csrf="csrf" onChange={() => {}} />
+        <button>Save revision</button>
+      </form>,
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Review private matching policy" }),
+    );
+    await screen.findByLabelText("Selected private matching query");
+    fireEvent.change(screen.getByLabelText("Selected private matching query"), {
+      target: { value: projection },
+    });
+    await userEvent.click(
+      screen.getByRole("button", { name: "Save revision" }),
+    );
+    expect(submit).not.toHaveBeenCalled();
+  },
+);
