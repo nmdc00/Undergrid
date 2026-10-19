@@ -1774,6 +1774,10 @@ export interface components {
         Constraints: {
             required_fields: string[] | null;
             license_ids: string[] | null;
+            coverage?: components["schemas"]["CoverageConstraint"] | null;
+            freshness?: components["schemas"]["FreshnessConstraint"] | null;
+            delivery?: components["schemas"]["DeliveryConstraint"] | null;
+            input_schema_families?: string[] | null;
         };
         Watch: {
             enabled: boolean;
@@ -1898,6 +1902,8 @@ export interface components {
             candidate_projection_hash?: string;
             /** @description PostgreSQL full-text rank, not a probability. */
             text_rank?: number;
+            constraint_evidence?: components["schemas"]["ConstraintAssessment"][];
+            readonly combined_constraints?: components["schemas"]["CombinedDemandConstraints"];
         } & unknown;
         DemandOpportunity: {
             /** Format: uuid */
@@ -2732,7 +2738,7 @@ export interface components {
         };
         DeclaredExternalConstraint: {
             /** @enum {string} */
-            constraint: "output_kind" | "schema_family" | "required_field" | "license_ids";
+            constraint: "output_kind" | "schema_family" | "required_field" | "license_ids" | "coverage" | "freshness" | "delivery" | "input_schema_families";
             requested: string[];
             declared: string[];
             /** @enum {string} */
@@ -2782,6 +2788,42 @@ export interface components {
             next_after: string;
             /** @constant */
             limit: 100;
+        };
+        /** @description Exact declared scope identifiers; no geographic containment or factual coverage is inferred. */
+        CoverageConstraint: {
+            required: string[];
+            excluded: string[];
+        };
+        /** @description Exact declared scope identifiers; no geographic containment or factual coverage is inferred. */
+        CombinedCoverageConstraint: {
+            required: string[];
+            excluded: string[];
+        };
+        FreshnessConstraint: {
+            max_age_seconds: number;
+        };
+        /** @description Declared delivery window; no automatic commitment. A supplied end must be in the future and no earlier than the start. */
+        DeliveryConstraint: {
+            /** Format: date-time */
+            not_before?: string;
+            /** Format: date-time */
+            deliver_by?: string;
+        } | unknown | unknown;
+        /** @description Read-only combination of declared requirements, not verified capability, accepted work, rights or spending authority. */
+        CombinedDemandConstraints: {
+            required_fields: string[] | null;
+            license_ids: string[] | null;
+            coverage?: components["schemas"]["CombinedCoverageConstraint"] | null;
+            freshness?: components["schemas"]["FreshnessConstraint"] | null;
+            delivery?: components["schemas"]["DeliveryConstraint"] | null;
+            input_schema_families?: string[] | null;
+        };
+        ConstraintAssessment: {
+            /** @enum {string} */
+            dimension: "output" | "license_ids" | "required_fields" | "coverage" | "freshness" | "delivery" | "input_schema_families";
+            /** @enum {string} */
+            status: "aligned" | "incompatible" | "unknown";
+            reason: string;
         };
     };
     responses: never;

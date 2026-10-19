@@ -59,8 +59,12 @@ type Output struct {
 	SchemaFamily string `json:"schema_family"`
 }
 type Constraints struct {
-	RequiredFields []string `json:"required_fields"`
-	LicenseIDs     []string `json:"license_ids"`
+	RequiredFields      []string             `json:"required_fields"`
+	LicenseIDs          []string             `json:"license_ids"`
+	Coverage            *CoverageConstraint  `json:"coverage,omitempty"`
+	Freshness           *FreshnessConstraint `json:"freshness,omitempty"`
+	Delivery            *DeliveryConstraint  `json:"delivery,omitempty"`
+	InputSchemaFamilies *[]string            `json:"input_schema_families,omitempty"`
 }
 type Watch struct {
 	Enabled  bool     `json:"enabled"`
@@ -96,8 +100,8 @@ func (i IntentInput) validate() error {
 	if i.Visibility == "redacted_public" && (len(i.PublicSummary) < 3 || len(i.PublicSummary) > 1000) {
 		return fail(422, "public_summary_required")
 	}
-	if len(i.HardConstraints.RequiredFields) > 50 || len(i.HardConstraints.LicenseIDs) > 20 {
-		return fail(422, "constraint_limit")
+	if err := i.HardConstraints.validate(time.Now()); err != nil {
+		return err
 	}
 	if len(i.Watch.Channels) != 1 || i.Watch.Channels[0] != "inbox" {
 		return fail(422, "unsupported_channel")

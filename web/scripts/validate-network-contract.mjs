@@ -43,6 +43,15 @@ const baseline={id:'a8391ea6-5003-401e-85e1-47c116fe3da0',version:1,etag:'"1"',s
 if (!publicIntent(baseline)) throw Error('Independent public fixture invalid');
 if (publicIntent({...baseline,budget:{amount_minor:100,currency:'EUR',kind:'stated_budget'}})) throw Error('Public budget leak permitted');
 if (publicIntent({...baseline,version:'1'})) throw Error('String version permitted');
+if (process.argv.includes('--typed-demand-constraints')) {
+ const proof=cases.flatMap(c=>Array.isArray(c.response?.items)?c.response.items:[]).map(x=>x.evidence).find(x=>x?.combined_constraints);
+ if (!proof) throw Error('Missing actual combined typed demand lifecycle');
+ const validate=validateSchema({$ref:'#/components/schemas/Compatibility'});
+ if (validate({...proof,combined_constraints:{...proof.combined_constraints,freshness:{max_age_seconds:0}}})) throw Error('Invalid freshness evidence permitted');
+ if (validate({...proof,constraint_evidence:[{dimension:'coverage',status:'verified',reason:'unsupported assurance'}]})) throw Error('Declared coverage mislabeled verified');
+ console.log(`Validated ${cases.length} actual typed demand HTTP cases and independent range/assurance denials`);
+ process.exit(0);
+}
 if (process.argv.includes('--semantic-discovery')) {
  const proof=cases.flatMap(c=>Array.isArray(c.response?.items)?c.response.items:[]).map(x=>x.evidence).find(x=>x?.algorithm==='hard-constraints-hybrid-cosine-v1');
  if (!proof) throw Error('Missing actual semantic opportunity lifecycle');

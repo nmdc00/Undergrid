@@ -76,7 +76,7 @@ func client(t *testing.T, s *Service) testClient {
 	return c
 }
 func intentFixture() IntentInput {
-	return IntentInput{Objective: "European source catalog", Output: Output{"json_dataset", "source_catalog_v1"}, HardConstraints: Constraints{[]string{"source_id", "source_url"}, []string{"CC0-1.0"}}, Visibility: "private", Watch: Watch{true, []string{"inbox"}}, ExpiresAt: time.Now().Add(24 * time.Hour)}
+	return IntentInput{Objective: "European source catalog", Output: Output{"json_dataset", "source_catalog_v1"}, HardConstraints: Constraints{RequiredFields: []string{"source_id", "source_url"}, LicenseIDs: []string{"CC0-1.0"}}, Visibility: "private", Watch: Watch{true, []string{"inbox"}}, ExpiresAt: time.Now().Add(24 * time.Hour)}
 }
 
 func TestInboxReceiptAndRecovery(t *testing.T) {

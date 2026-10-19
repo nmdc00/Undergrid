@@ -239,6 +239,7 @@ func listOpportunities(r *http.Request, tx pgx.Tx, a actor) (int, any, error) {
  AND (o.evidence->>'algorithm'<>'hard-constraints-hybrid-cosine-v1' OR (
  o.evidence->>'source_projection_hash'=sr.embedding_projection_hash AND o.evidence->>'candidate_projection_hash'=cm.projection_hash
  AND o.evidence->>'semantic_profile_hash'=sr.embedding_profile_hash AND o.evidence->>'semantic_profile_hash'=cm.profile_hash))
+ AND ((o.evidence#>>'{combined_constraints,delivery,deliver_by}') IS NULL OR (o.evidence#>>'{combined_constraints,delivery,deliver_by}')::timestamptz>clock_timestamp())
  AND ($2='' OR CASE WHEN $3 THEN o.id::text=$2 ELSE o.source_intent_id::text=$2 END) ORDER BY o.created_at,o.id LIMIT 100`, a.AgentID, id, single)
 	if err != nil {
 		return 0, nil, err

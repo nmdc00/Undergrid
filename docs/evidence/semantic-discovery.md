@@ -141,3 +141,11 @@ requires the app-role forged insertion to fail specifically with42501 and also
 runs normal API creation/revision, semantic HTTP/Ajv evidence, withdrawal during
 provider I/O, exact standing-demand fallback and provider validation. These are
 still scoped feature proofs, not full semantic, release or provider qualification.
+
+### Typed demand constraint checkpoint (2026-10-19)
+
+Typed coverage labels, freshness, delivery windows and accepted input-schema families now pass through the canonical request contract, shared hard-constraint evaluator and combined opportunity evidence. Labels are exact declarations, not verified geographic or provider claims. Capability-claim-v1 reports requested unsupported dimensions as unknown. An explicitly unrestricted coverage declaration adds no missing requirement.
+
+Test-first evidence: `/tmp/undergrid-typed-constraints-red97.log` captured ignored/conflicting typed constraints and HTTP rejection before implementation; `/tmp/undergrid-typed-constraints-contract-red97.log` captured the closed-schema mismatch. Additional boundary RED `/tmp/undergrid-typed-constraints-boundaries-red97.log` reproduced elapsed deadlines, blank license agreement, unrestricted-coverage false blockers and an expired delivery opportunity remaining visible without a worker sweep. Corrections filter blank license declarations, intersect declared requirements, reject elapsed delivery and exclude expired combined delivery evidence before the opportunity page limit.
+
+Focused actual PostgreSQL restricted-role lifecycle and contract tests passed with race detection: `/tmp/undergrid-typed-constraints-boundaries-green97.log`, 5.967s, selector `Test(Typed|ExplicitUnrestricted|ExternalDeclarationCannot)`. Canonical generation/parity (135 schemas) and TypeScript/Vite build passed in the typed-constraints types/schema/UI-build logs. This is scoped local evidence; full semantic discovery, broader regression, provider qualification and release/promotion remain incomplete. No applied migration was changed.
