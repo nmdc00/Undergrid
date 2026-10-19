@@ -42,3 +42,14 @@ RED, not a vector/provider/relevance pass. The assigned agent then stopped at a
 usage limit; root preserved this test-only checkpoint before implementation.
 Inactivity migration032 was subsequently reserved/applied for proven privileged
 helper hardening, so this feature owns033. No semantic SQL has been applied.
+
+## Current public pipeline checkpoint
+
+Public projection embedding, immutable evidence, actual full-text/pgvector
+retrieval and current-projection HTTP reads now have scoped local proof on
+source5bcd158. See [actual evidence and preserved failures](evidence/semantic-discovery.md).
+Migrations033 and034 are applied/frozen on qualified97 only;034 is the narrow
+public metadata/RLS correction. Earlier “not written/applied” statements describe
+the initial design checkpoint. Private query consent, user thresholds, richer
+typed constraints, compatible groups and broad qualification remain open. This
+branch is unmerged and does not complete §5.4 or the full TDD.
