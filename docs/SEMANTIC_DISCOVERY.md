@@ -266,3 +266,29 @@ Already-observed vectors scheduled by later repair, as well as very large queue
 and model-cutover workloads, still require additional fairness qualification;
 this checkpoint specifically proves promotion when the observation completes
 after repair scheduling. No passing whole-feature/release claim follows.
+
+## Observation-before-scheduling recovery checkpoint
+
+The lifecycle oracle now stops the actual worker after healthy completion,
+requests another explicit refresh, and inspects the newly durable current
+revision/profile repair jobs. The coordinator must make zero provider calls
+and assign priority1 to already-observed vectors. Actual RED3.067s found zero
+ready-priority jobs (`/tmp/undergrid-semantic-already-ready-red98.log`).
+
+The coordinator now reads exact-profile vector readiness with the immutable
+revision and selects priority1 immediately when shared projection policy permits
+it. Pending selected queries remain2 and exact-only watches4. A revision FOR SHARE
+lock spans selection and insertion, so a concurrent observation either precedes
+the readiness read or waits until insertion and promotes the job in its own
+transaction. No transaction includes provider I/O. Both lifecycle oracles passed
+package9.907s (`/tmp/undergrid-semantic-already-ready-green98.jsonl`), including
+actual post-stop rescheduling; no queue deletion or deadline change.
+Vet passed. Affected semantic/private-consent gate passed20.583s,
+11 top-level tests with zero failures/skips
+(`/tmp/undergrid-semantic-already-ready-affected98.jsonl`).
+
+This closes the previously recorded observation-before-scheduling priority gap.
+The share-lock ordering is an implementation argument supported by affected
+race tests, not a claim of exhaustive schedule/model-cutover qualification.
+Full load, in-flight provider deduplication, groups, complementary discovery and
+release/provider qualification remain open.

@@ -143,8 +143,12 @@ func semanticRepairLifecycle(t *testing.T, refresh bool) {
 	}
 	workerCtx, cancel := context.WithCancel(ctx)
 	done := make(chan error, 1)
+	stopped := false
 	go func() { done <- RunWorker(workerCtx, workerDSN, "development") }()
 	defer func() {
+		if stopped {
+			return
+		}
 		cancel()
 		select {
 		case err := <-done:
@@ -172,6 +176,30 @@ func semanticRepairLifecycle(t *testing.T, refresh bool) {
 			t.Fatal(err)
 		}
 		if found && completed == 2 {
+			cancel()
+			select {
+			case err := <-done:
+				stopped = true
+				if err != nil {
+					t.Fatal(err)
+				}
+			case <-time.After(15 * time.Second):
+				t.Fatal("stop worker before ready repair rescheduling")
+			}
+			before := requests.Load()
+			if err := runner.scanIntentions(ctx, "refresh"); err != nil {
+				t.Fatal(err)
+			}
+			if requests.Load() != before {
+				t.Fatal("already observed repair coordinator called provider")
+			}
+			var readyJobs int
+			if err := db.QueryRow(ctx, `SELECT count(*) FROM undergrid_queue.river_job WHERE kind='semantic_repair_v1' AND state='available' AND priority=1 AND args->>'profile_hash'=$3 AND ((args->>'intent_id'=$1 AND args->>'revision'='2') OR (args->>'intent_id'=$2 AND args->>'revision'='1'))`, first["id"], second["id"], runner.semantic.hash).Scan(&readyJobs); err != nil {
+				t.Fatal(err)
+			}
+			if readyJobs != 2 {
+				t.Fatalf("already observed vectors lost ready repair priority: %d", readyJobs)
+			}
 			return
 		}
 		time.Sleep(25 * time.Millisecond)

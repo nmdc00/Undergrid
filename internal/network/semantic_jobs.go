@@ -153,6 +153,8 @@ func (w *semanticRepairWorker) Work(ctx context.Context, job *river.Job[semantic
 
 // Commit bounded independent work without provider I/O. Pending/retrying work is
 // excluded before LIMIT so poison projections cannot monopolize each sweep.
+// Revision share locks bridge readiness selection and insertion: observation
+// either commits first (ready priority here), or promotes the inserted job later.
 func (s *Service) enqueueSemanticRepairs(ctx context.Context, refresh bool) error {
 	db, err := pgx.Connect(ctx, s.dsn)
 	if err != nil {
@@ -167,7 +169,7 @@ func (s *Service) enqueueSemanticRepairs(ctx context.Context, refresh bool) erro
 		return err
 	}
 	defer tx.Rollback(ctx)
-	rows, err := tx.Query(ctx, `SELECT i.id,i.current_revision,r.document FROM intents i JOIN intent_revisions r ON r.intent_id=i.id AND r.revision=i.current_revision WHERE i.state='active' AND i.watch_enabled AND ($2 OR i.next_scan<=now()) AND NOT EXISTS (SELECT 1 FROM undergrid_queue.river_job j WHERE j.kind='semantic_repair_v1' AND j.args->>'intent_id'=i.id::text AND j.args->>'revision'=i.current_revision::text AND j.args->>'profile_hash'=$1 AND j.state IN ('available','pending','running','scheduled','retryable')) ORDER BY i.next_scan,i.id LIMIT 1000`, s.semantic.hash, refresh)
+	rows, err := tx.Query(ctx, `SELECT i.id,i.current_revision,r.document,COALESCE(r.embedding_profile_hash=$1 AND r.embedding IS NOT NULL,false) FROM intents i JOIN intent_revisions r ON r.intent_id=i.id AND r.revision=i.current_revision WHERE i.state='active' AND i.watch_enabled AND ($2 OR i.next_scan<=now()) AND NOT EXISTS (SELECT 1 FROM undergrid_queue.river_job j WHERE j.kind='semantic_repair_v1' AND j.args->>'intent_id'=i.id::text AND j.args->>'revision'=i.current_revision::text AND j.args->>'profile_hash'=$1 AND j.state IN ('available','pending','running','scheduled','retryable')) ORDER BY i.next_scan,i.id LIMIT 1000 FOR SHARE OF r`, s.semantic.hash, refresh)
 	if err != nil {
 		return err
 	}
@@ -179,7 +181,8 @@ func (s *Service) enqueueSemanticRepairs(ctx context.Context, refresh bool) erro
 	for rows.Next() {
 		a := semanticRepairArgs{ProfileHash: s.semantic.hash}
 		var raw []byte
-		if err = rows.Scan(&a.IntentID, &a.Revision, &raw); err != nil {
+		var ready bool
+		if err = rows.Scan(&a.IntentID, &a.Revision, &raw, &ready); err != nil {
 			rows.Close()
 			return err
 		}
@@ -193,6 +196,9 @@ func (s *Service) enqueueSemanticRepairs(ctx context.Context, refresh bool) erro
 		// repair and explicit refresh; exact-only watches remain background.
 		if _, _, eligible := s.semantic.selectedProjection(input, ""); eligible {
 			priority = 2
+			if ready {
+				priority = 1
+			}
 		}
 
 		jobs = append(jobs, repairJob{a, priority})
