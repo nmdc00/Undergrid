@@ -163,7 +163,20 @@ func (f *renewalProviderFixture) serve(t *testing.T, w http.ResponseWriter, r *h
 		if f.complete.Load() {
 			status = "complete"
 		}
-		return map[string]any{"id": f.session, "object": "checkout.session", "livemode": false, "mode": "setup", "status": status, "customer": f.customer, "setup_intent": f.intent, "client_reference_id": f.billing.ID, "metadata": f.sessionMeta, "url": "https://checkout.stripe.com/c/pay/test_setup"}
+		result := map[string]any{"id": f.session, "object": "checkout.session", "livemode": false, "mode": "setup", "status": status, "customer": f.customer, "setup_intent": f.intent, "client_reference_id": f.billing.ID, "metadata": f.sessionMeta, "url": "https://checkout.stripe.com/c/pay/test_setup"}
+		switch f.fault.Load().(string) {
+		case "completed_session_no_url":
+			if status == "complete" {
+				result["url"] = nil
+			}
+		case "open_session_no_url":
+			result["url"] = nil
+		case "completed_session_unsafe_url":
+			if status == "complete" {
+				result["url"] = "https://unrelated.invalid/setup"
+			}
+		}
+		return result
 	}
 	switch r.URL.Path {
 	case "/v1/account":
@@ -392,6 +405,19 @@ func (f *renewalProviderFixture) invoiceObject(i *renewalInvoiceFixture) any {
 	case "extra_line":
 		if len(lines) > 0 {
 			result["lines"] = map[string]any{"object": "list", "has_more": false, "data": append(lines, lines[0])}
+		}
+	case "open_invoice_partial_paid":
+		if i.state == "open" {
+			result["amount_paid"] = 50
+			result["amount_remaining"] = 50
+		}
+	case "open_invoice_short_remaining":
+		if i.state == "open" {
+			result["amount_remaining"] = 99
+		}
+	case "open_invoice_zero_remaining":
+		if i.state == "open" {
+			result["amount_remaining"] = 0
 		}
 	case "invoice_credit":
 		result["starting_balance"] = -10

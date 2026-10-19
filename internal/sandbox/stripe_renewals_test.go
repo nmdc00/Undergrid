@@ -511,3 +511,87 @@ func TestStripeBillingSetupRejectsOtherOwnerAndCanceledReplay(t *testing.T) {
 		t.Fatal("denied setup caused provider work")
 	}
 }
+
+func TestStripeRenewalRecoveredCompletedSetupCanHaveNoURL(t *testing.T) {
+	f := newRenewalProviderFixture(t)
+	ctx := context.Background()
+	f.loseSession.Store(true)
+	if err := f.service.tick(ctx); err != nil {
+		t.Fatal(err)
+	}
+	f.complete.Store(true)
+	f.fault.Store("completed_session_no_url")
+	for range 2 {
+		if err := f.service.tick(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	b, err := f.app.StripeBillingSetup(ctx, f.base.owner, f.sub.ID)
+	if err != nil || b.State != "ready" || b.URL != "" {
+		t.Fatalf("completed setup without URL not recovered: %+v %v", b, err)
+	}
+	if f.posts("/v1/customers") != 1 || f.posts("/v1/checkout/sessions") != 1 {
+		t.Fatal("recovery repeated payer creation")
+	}
+}
+func TestStripeRenewalRecoveryStillRejectsMissingOpenOrUnsafeCompletedURL(t *testing.T) {
+	for _, fault := range []string{"open_session_no_url", "completed_session_unsafe_url"} {
+		t.Run(fault, func(t *testing.T) {
+			f := newRenewalProviderFixture(t)
+			ctx := context.Background()
+			f.loseSession.Store(true)
+			if err := f.service.tick(ctx); err != nil {
+				t.Fatal(err)
+			}
+			f.complete.Store(fault == "completed_session_unsafe_url")
+			f.fault.Store(fault)
+			for range 2 {
+				if err := f.service.tick(ctx); err != nil {
+					t.Fatal(err)
+				}
+			}
+			b, err := f.app.StripeBillingSetup(ctx, f.base.owner, f.sub.ID)
+			if err != nil || b.State != "session_unknown" {
+				t.Fatal("invalid setup URL accepted", b, err)
+			}
+			if f.posts("/v1/checkout/sessions") != 1 {
+				t.Fatal("unknown setup URL caused another creation")
+			}
+		})
+	}
+}
+func TestStripeRenewalDoesNotPayUnexpectedOpenInvoiceBalance(t *testing.T) {
+	for _, fault := range []string{"open_invoice_partial_paid", "open_invoice_short_remaining", "open_invoice_zero_remaining"} {
+		t.Run(fault, func(t *testing.T) {
+			f := newRenewalProviderFixture(t)
+			ctx := context.Background()
+			p := f.prepare(t)
+			var period string
+			if err := f.base.db.QueryRow(ctx, "SELECT reservation_period::text FROM undergrid_sandbox.sandbox_payments WHERE id=$1", p.ID).Scan(&period); err != nil {
+				t.Fatal(err)
+			}
+			f.fault.Store(fault)
+			for range 2 {
+				if err := f.service.tick(ctx); err != nil {
+					t.Fatal(err)
+				}
+			}
+			var state, key, afterPeriod string
+			var facts int
+			if err := f.base.db.QueryRow(ctx, `SELECT state,provider_key,reservation_period::text,(SELECT count(*) FROM undergrid_sandbox.sandbox_effects WHERE payment_id=p.id) FROM undergrid_sandbox.sandbox_payments p WHERE id=$1`, p.ID).Scan(&state, &key, &afterPeriod, &facts); err != nil {
+				t.Fatal(err)
+			}
+			pay := 0
+			f.mu.Lock()
+			for path, n := range f.counts {
+				if strings.HasSuffix(path, "/pay") {
+					pay += n
+				}
+			}
+			f.mu.Unlock()
+			if pay != 0 || state != "unknown" || facts != 0 || key != p.ProviderKey || period != afterPeriod {
+				t.Fatalf("unexpected balance reached pay: posts=%d state=%s facts=%d sameKey=%v samePeriod=%v", pay, state, facts, key == p.ProviderKey, period == afterPeriod)
+			}
+		})
+	}
+}

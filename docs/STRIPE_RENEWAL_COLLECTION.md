@@ -74,3 +74,36 @@ remain explicitly unproven. No real provider operation or release promotion was
 performed. Quality: FK and worker checks protect different trust boundaries;
 request ownership, consent and provider proof remain distinct and financial
 credentials/databases remain separate from network discovery.
+
+## Completed-session recovery and unpaid-balance review correction
+
+Stripe's [Checkout Session object](https://docs.stripe.com/api/checkout/sessions/object)
+defines its URL as nullable and present only while active. Recovery now accepts a
+missing URL only for a completed, otherwise exactly bound setup session. Any
+supplied URL still requires the configured hosted Stripe origin; an open session
+with no URL and a completed session with an unrelated URL remain unknown. Session,
+customer, SetupIntent and attached-method retrieval still establish readiness;
+URL availability alone grants no payment authority. Lost creation responses
+recover the same session without another customer/session POST.
+
+Stripe's [Invoice object](https://docs.stripe.com/api/invoices/object) distinguishes
+amount due, already paid and remaining. Under this bounded manual test product's
+contract, an unpaid invoice must have zero already paid and the exact expected
+remaining amount before advancement/payment. Empty draft invoices require zero
+paid/remaining. Partial payment, reduced balance and zero remaining on an open
+invoice fail closed with no pay POST, no monetary fact, and the same unknown
+payment/provider key/reservation period. Already-paid invoices still follow the
+separate canonical historical fact path, including recovery after credential
+revocation; this check does not request a replacement debit.
+
+Actual test-first RED11.180s captured completed null-URL recovery remaining
+unknown and all three unexpected open balances incorrectly reaching one pay POST
+and a settled fact (`/tmp/undergrid-renewal-url-balance-red95.log`). After correction,
+focused actual financial95 race tests passed34.824s with no failures/skips
+(`/tmp/undergrid-renewal-url-balance-green95.jsonl`). The selector includes lost
+invoice/item/finalize/pay response recovery (including known paid proof after
+revocation), current revocation/expiry/cancellation before pay, completed-null URL
+recovery and open/unsafe URL denials. The nullable URL and unpaid-balance review
+items above are now implemented locally; the exact current full financial gate
+remains required. No migration changed and no actual provider account action,
+qualification, deployment or release promotion is claimed.

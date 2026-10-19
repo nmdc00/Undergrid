@@ -235,9 +235,17 @@ func (s *StripeService) attachBillingSession(ctx context.Context, b StripeBillin
 	if !validSetupSession(b, session) {
 		return ErrConflict
 	}
-	u, err := url.Parse(session.URL)
-	if err != nil || u.Scheme != "https" || u.Host != "checkout.stripe.com" || u.User != nil {
-		return ErrConflict
+	// Completed sessions may no longer have an active hosted URL. The exact
+	// customer/session/SetupIntent graph, not a redirect link, proves setup.
+	if session.URL == "" {
+		if session.Status != "complete" {
+			return ErrConflict
+		}
+	} else {
+		u, err := url.Parse(session.URL)
+		if err != nil || u.Scheme != "https" || u.Host != "checkout.stripe.com" || u.User != nil {
+			return ErrConflict
+		}
 	}
 	return s.billingMutation(ctx, b, false, func(tx pgx.Tx, _ StripeBillingSetup) error {
 		_, err := tx.Exec(ctx, "UPDATE sandbox_stripe_billing_setups SET session_id=$2,setup_url=$3,state='pending',updated_at=clock_timestamp() WHERE id=$1 AND session_id IS NULL", b.ID, session.ID, session.URL)

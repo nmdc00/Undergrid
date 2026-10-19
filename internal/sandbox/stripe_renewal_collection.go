@@ -218,7 +218,7 @@ func (s *StripeService) verifyRenewalInvoice(p Payment, b StripeBillingSetup, c 
 		return "", ErrInvalid
 	}
 	if len(i.Lines.Data) == 0 {
-		if i.Status != "draft" || i.Total != 0 || i.AmountDue != 0 || c.state != "invoice_unknown" && c.state != "draft" && c.state != "item_unknown" {
+		if i.Status != "draft" || i.Total != 0 || i.AmountDue != 0 || i.AmountPaid != 0 || i.AmountRemaining != 0 || c.state != "invoice_unknown" && c.state != "draft" && c.state != "item_unknown" {
 			return "", ErrConflict
 		}
 		return "", nil
@@ -229,6 +229,11 @@ func (s *StripeService) verifyRenewalInvoice(p Payment, b StripeBillingSetup, c 
 	}
 	item := line.Parent.InvoiceItemDetails.InvoiceItem
 	if c.item != "" && item != c.item || i.Total != amount || i.AmountDue != amount {
+		return "", ErrConflict
+	}
+	// An existing partial payment/credit cannot authorize another full debit.
+	// Paid invoices continue through their separate canonical historical proof.
+	if i.Status != "paid" && (i.AmountPaid != 0 || i.AmountRemaining != amount) {
 		return "", ErrConflict
 	}
 	return item, nil
