@@ -405,8 +405,28 @@ func TestWalletPayerAuthorizationRebindingBeforeCommandAndDispatch(t *testing.T)
 				t.Fatalf("stale payer authority accepted: %d %s", r.Code, r.Body.String())
 			}
 		} else {
-			if canceled, err := f.store.BeginDispatch(context.Background(), p.ID); !errors.Is(err, ErrUnauthorized) || canceled.State != "canceled" {
-				t.Fatalf("stale payer dispatch: %s %v", canceled.State, err)
+			var key, period, proof string
+			if err := f.db.QueryRow(context.Background(), "SELECT provider_key,reservation_period::text,payer_authorization_hash FROM undergrid_sandbox.sandbox_payments WHERE id=$1", p.ID).Scan(&key, &period, &proof); err != nil {
+				t.Fatal(err)
+			}
+			// Rebinding denies new dispatch but cannot revoke the accepted proof
+			// held by its original payer. Retain historical-only reconciliation.
+			if retained, err := f.store.BeginDispatch(context.Background(), p.ID); !errors.Is(err, ErrUnauthorized) || retained.State != "unknown" {
+				t.Fatalf("stale payer dispatch: %s %v", retained.State, err)
+			}
+			var retained bool
+			var effects int
+			if err := f.db.QueryRow(context.Background(), `SELECT p.state='unknown' AND p.provider_key=$2 AND p.reservation_period::text=$3 AND p.payer_authorization_hash=$4 AND c.start_block IS NULL AND c.authorization_hash=$4 AND c.provider_key=$2 FROM undergrid_sandbox.sandbox_payments p JOIN undergrid_sandbox.sandbox_usdc_claims c ON c.payment_id=p.id WHERE p.id=$1`, p.ID, key, period, proof).Scan(&retained); err != nil {
+				t.Fatal(err)
+			}
+			if err := f.db.QueryRow(context.Background(), "SELECT count(*) FROM undergrid_sandbox.sandbox_effects WHERE payment_id=$1", p.ID).Scan(&effects); err != nil {
+				t.Fatal(err)
+			}
+			if !retained || effects != 0 {
+				t.Fatalf("historical proof retained=%v effects=%d", retained, effects)
+			}
+			if _, err := f.store.BeginDispatch(context.Background(), p.ID); !errors.Is(err, ErrConflict) {
+				t.Fatalf("historical claim redispatched: %v", err)
 			}
 		}
 	}
