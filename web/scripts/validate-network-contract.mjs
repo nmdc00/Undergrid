@@ -43,6 +43,18 @@ const baseline={id:'a8391ea6-5003-401e-85e1-47c116fe3da0',version:1,etag:'"1"',s
 if (!publicIntent(baseline)) throw Error('Independent public fixture invalid');
 if (publicIntent({...baseline,budget:{amount_minor:100,currency:'EUR',kind:'stated_budget'}})) throw Error('Public budget leak permitted');
 if (publicIntent({...baseline,version:'1'})) throw Error('String version permitted');
+if (process.argv.includes('--semantic-discovery')) {
+ const proof=cases.flatMap(c=>Array.isArray(c.response?.items)?c.response.items:[]).map(x=>x.evidence).find(x=>x?.algorithm==='hard-constraints-hybrid-cosine-v1');
+ if (!proof) throw Error('Missing actual semantic opportunity lifecycle');
+ const compatibility=validateSchema({$ref:'#/components/schemas/Compatibility'});
+ for (const leaked of ['candidate_revision_hash','source_revision_hash','confidence']) {
+  if (compatibility({...proof,[leaked]:leaked==='confidence'?0.99:'a'.repeat(64)})) throw Error('Semantic private fingerprint/confidence leak permitted: '+leaked);
+ }
+ const {semantic_profile_hash,...missingPin}=proof;
+ if (compatibility(missingPin)) throw Error('Semantic result without profile pin permitted');
+ console.log(`Validated ${cases.length} actual semantic HTTP cases and independent projection/pinning denials`);
+ process.exit(0);
+}
 if (process.argv.includes('--owner-participation')) {
  const page=cases.find(c=>c.path.endsWith('/participation')&&c.method==='GET'&&c.status===200);
  const invitation=cases.find(c=>c.path.includes('/invitations/')&&c.status===200);

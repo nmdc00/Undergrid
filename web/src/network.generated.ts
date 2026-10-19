@@ -1887,8 +1887,18 @@ export interface components {
             compatible: boolean;
             status: string;
             reasons: string[];
-            algorithm: string;
-        };
+            /** @enum {string} */
+            algorithm: "hard-constraints-exact-v1" | "hard-constraints-hybrid-cosine-v1";
+            /** @description Cosine similarity of the pinned approved projections; not a confidence probability, truth claim or delivery assurance. */
+            similarity?: number;
+            semantic_profile_hash?: string;
+            model?: string;
+            model_revision?: string;
+            source_projection_hash?: string;
+            candidate_projection_hash?: string;
+            /** @description PostgreSQL full-text rank, not a probability. */
+            text_rank?: number;
+        } & unknown;
         DemandOpportunity: {
             /** Format: uuid */
             id: string;

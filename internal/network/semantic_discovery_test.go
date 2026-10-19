@@ -1,6 +1,7 @@
 package network
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -9,11 +10,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // This first oracle uses only existing runtime entrypoints: a configured worker
@@ -96,6 +100,28 @@ func TestSemanticParaphraseDiscoveryThroughConfiguredWorker(t *testing.T) {
 	if code != 201 {
 		t.Fatal(code, second)
 	}
+
+	var cases []map[string]any
+	observe := func(r *http.Request, w *httptest.ResponseRecorder, body any) {
+		var response any
+		if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+			t.Fatal(err)
+		}
+		cases = append(cases, map[string]any{"method": r.Method, "path": r.URL.String(), "request": body, "response": response, "status": w.Code, "request_id": w.Header().Get("X-Request-ID"), "etag": w.Header().Get("ETag")})
+	}
+	a.observe, b.observe = observe, observe
+	defer func() {
+		raw, err := json.Marshal(cases)
+		if err != nil {
+			t.Fatal(err)
+		}
+		cmd := exec.Command("node", "../../web/scripts/validate-network-contract.mjs", "--semantic-discovery")
+		cmd.Stdin = bytes.NewReader(raw)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Errorf("actual semantic HTTP contract: %v %s", err, out)
+		}
+	}()
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- RunWorker(ctx, workerDSN, "development") }()
@@ -123,14 +149,55 @@ func TestSemanticParaphraseDiscoveryThroughConfiguredWorker(t *testing.T) {
 				if evidence["algorithm"] != "hard-constraints-hybrid-cosine-v1" {
 					t.Fatalf("semantic result has no pinned algorithm: %v", evidence)
 				}
-				mu.Lock()
-				defer mu.Unlock()
-				if len(inputs) < 2 {
-					t.Fatalf("no actual configured embeddings: %v", inputs)
+
+				if evidence["candidate_revision_hash"] != nil || evidence["candidate_projection_hash"] == nil {
+					t.Fatalf("semantic evidence exposes a private document fingerprint instead of approved projection identity: %v", evidence)
 				}
-				for _, text := range inputs {
+				mu.Lock()
+				observedInputs := append([]string(nil), inputs...)
+				mu.Unlock()
+				if len(observedInputs) < 2 {
+					t.Fatalf("no actual configured embeddings: %v", observedInputs)
+				}
+				for _, text := range observedInputs {
 					if strings.Contains(text, "PRIVATE") || strings.Contains(text, "73519") {
 						t.Fatalf("private content embedded: %q", text)
+					}
+				}
+
+				var model, profile, inputHash string
+				var dimensions int
+				if err = db.QueryRow(context.Background(), "SELECT embedding_model,embedding_profile_hash,embedding_input_hash,embedding_dimensions FROM undergrid.intent_revisions WHERE intent_id=$1 AND revision=1", first["id"]).Scan(&model, &profile, &inputHash, &dimensions); err != nil {
+					t.Fatal(err)
+				}
+				if model != "controlled-fixture" || len(profile) != 64 || inputHash != digest([]byte(summaries[0])) || dimensions != 3 {
+					t.Fatal(model, profile, inputHash, dimensions)
+				}
+				writer, err := pgx.Connect(context.Background(), workerDSN)
+				if err != nil {
+					t.Fatal(err)
+				}
+				_, err = writer.Exec(context.Background(), "UPDATE undergrid.intent_revisions SET embedding_model='forged' WHERE intent_id=$1 AND revision=1", first["id"])
+				writer.Close(context.Background())
+				if err == nil {
+					t.Fatal("worker overwrote completed embedding evidence")
+				}
+				// A new revision is still public, but its changed license is
+				// incompatible. Old semantic evidence must not be re-presented
+				// against the replacement projection, even before jobs catch up.
+				next := input
+				next.HardConstraints.LicenseIDs = []string{"proprietary"}
+				code, changed := b.versioned("PATCH", "/v1/intents/"+second["id"].(string), "semantic-conflicting-revision", second["etag"].(string), map[string]any{"revision": next})
+				if code != 200 {
+					t.Fatal(code, changed)
+				}
+				code, current := a.call("GET", "/v1/intents/"+first["id"].(string)+"/opportunities", "", nil)
+				if code != 200 {
+					t.Fatal(code, current)
+				}
+				for _, raw := range current["items"].([]any) {
+					if raw.(map[string]any)["candidate_intent_id"] == second["id"] {
+						t.Fatalf("stale semantic evidence survived conflicting revision: %v", raw)
 					}
 				}
 				return

@@ -8002,7 +8002,44 @@
             }
           },
           "algorithm": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "hard-constraints-exact-v1",
+              "hard-constraints-hybrid-cosine-v1"
+            ]
+          },
+          "similarity": {
+            "type": "number",
+            "minimum": -1,
+            "maximum": 1,
+            "description": "Cosine similarity of the pinned approved projections; not a confidence probability, truth claim or delivery assurance."
+          },
+          "semantic_profile_hash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "model": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "model_revision": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "source_projection_hash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "candidate_projection_hash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "text_rank": {
+            "type": "number",
+            "minimum": 0,
+            "description": "PostgreSQL full-text rank, not a probability."
           }
         },
         "required": [
@@ -8011,7 +8048,31 @@
           "reasons",
           "algorithm"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "algorithm": {
+                  "const": "hard-constraints-hybrid-cosine-v1"
+                }
+              },
+              "required": [
+                "algorithm"
+              ]
+            },
+            "then": {
+              "required": [
+                "similarity",
+                "semantic_profile_hash",
+                "model",
+                "model_revision",
+                "source_projection_hash",
+                "candidate_projection_hash"
+              ]
+            }
+          }
+        ]
       },
       "DemandOpportunity": {
         "type": "object",

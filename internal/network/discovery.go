@@ -97,10 +97,11 @@ func (s *Service) scanIntentCandidate(ctx context.Context, db *pgx.Conn, id, can
 	}
 	var raw []byte
 	var inputHash, state string
+	var sourceProjectionHash *string
 	var expires time.Time
 	var watching bool
 	var version int64
-	err = tx.QueryRow(ctx, `SELECT r.document,r.content_hash,i.state,i.expires_at,i.watch_enabled,i.version FROM intents i JOIN intent_revisions r ON r.intent_id=i.id AND r.revision=i.current_revision WHERE i.id=$1`+intentLock, id).Scan(&raw, &inputHash, &state, &expires, &watching, &version)
+	err = tx.QueryRow(ctx, `SELECT r.document,r.content_hash,i.state,i.expires_at,i.watch_enabled,i.version,r.embedding_projection_hash FROM intents i JOIN intent_revisions r ON r.intent_id=i.id AND r.revision=i.current_revision WHERE i.id=$1`+intentLock, id).Scan(&raw, &inputHash, &state, &expires, &watching, &version, &sourceProjectionHash)
 	if err != nil {
 		return err
 	}
@@ -164,8 +165,10 @@ func (s *Service) scanIntentCandidate(ctx context.Context, db *pgx.Conn, id, can
 				evidence.SemanticProfileHash = s.semantic.hash
 				evidence.Model = s.semantic.config.Model
 				evidence.ModelRevision = s.semantic.config.ModelRevision
-				evidence.SourceRevisionHash = inputHash
-				evidence.CandidateRevisionHash = c.hash
+				if sourceProjectionHash != nil {
+					evidence.SourceProjectionHash = *sourceProjectionHash
+				}
+				evidence.CandidateProjectionHash = c.projectionHash
 			}
 		}
 		if !evidence.Compatible {
@@ -232,7 +235,11 @@ func listOpportunities(r *http.Request, tx pgx.Tx, a actor) (int, any, error) {
 			return 0, nil, fail(404, "not_found")
 		}
 	}
-	rows, err := tx.Query(r.Context(), `SELECT o.id,o.source_intent_id,o.candidate_intent_id,o.evidence FROM opportunities o JOIN public_intents() p ON p.id=o.candidate_intent_id JOIN intents i ON i.id=o.source_intent_id WHERE o.recipient_agent_id=$1 AND o.state='suggested' AND i.state='active' AND i.expires_at>now() AND ($2='' OR CASE WHEN $3 THEN o.id::text=$2 ELSE o.source_intent_id::text=$2 END) ORDER BY o.created_at LIMIT 100`, a.AgentID, id, single)
+	rows, err := tx.Query(r.Context(), `SELECT o.id,o.source_intent_id,o.candidate_intent_id,o.evidence,o.input_hash,sr.content_hash,p.content_hash,COALESCE(sr.embedding_projection_hash,''),COALESCE(cm.projection_hash,''),COALESCE(sr.embedding_profile_hash,''),COALESCE(cm.profile_hash,'') FROM opportunities o JOIN public_intents() p ON p.id=o.candidate_intent_id JOIN intents i ON i.id=o.source_intent_id JOIN intent_revisions sr ON sr.intent_id=i.id AND sr.revision=i.current_revision LEFT JOIN public_semantic_metadata() cm ON cm.id=p.id WHERE o.recipient_agent_id=$1 AND o.state='suggested' AND i.state='active' AND i.expires_at>now() AND o.input_hash=encode(sha256(convert_to(array_to_json(ARRAY[o.source_intent_id::text,sr.content_hash,o.candidate_intent_id::text,p.content_hash,o.evidence->>'algorithm'])::text,'UTF8')),'hex')
+ AND (o.evidence->>'algorithm'<>'hard-constraints-hybrid-cosine-v1' OR (
+ o.evidence->>'source_projection_hash'=sr.embedding_projection_hash AND o.evidence->>'candidate_projection_hash'=cm.projection_hash
+ AND o.evidence->>'semantic_profile_hash'=sr.embedding_profile_hash AND o.evidence->>'semantic_profile_hash'=cm.profile_hash))
+ AND ($2='' OR CASE WHEN $3 THEN o.id::text=$2 ELSE o.source_intent_id::text=$2 END) ORDER BY o.created_at,o.id LIMIT 100`, a.AgentID, id, single)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -240,9 +247,21 @@ func listOpportunities(r *http.Request, tx pgx.Tx, a actor) (int, any, error) {
 	items := []any{}
 	for rows.Next() {
 		var oid, source, candidate string
+		var storedHash, sourceHash, candidateHash, sourceProjection, candidateProjection, sourceProfile, candidateProfile string
 		var evidence []byte
-		if err = rows.Scan(&oid, &source, &candidate, &evidence); err != nil {
+		if err = rows.Scan(&oid, &source, &candidate, &evidence, &storedHash, &sourceHash, &candidateHash, &sourceProjection, &candidateProjection, &sourceProfile, &candidateProfile); err != nil {
 			return 0, nil, err
+		}
+
+		var proof Compatibility
+		if err = json.Unmarshal(evidence, &proof); err != nil {
+			return 0, nil, err
+		}
+		if storedHash != digest(canonical([]string{source, sourceHash, candidate, candidateHash, proof.Algorithm})) {
+			continue
+		}
+		if proof.Algorithm == "hard-constraints-hybrid-cosine-v1" && (proof.SourceProjectionHash == "" || proof.SourceProjectionHash != sourceProjection || proof.CandidateProjectionHash != candidateProjection || proof.SemanticProfileHash != sourceProfile || proof.SemanticProfileHash != candidateProfile) {
+			continue
 		}
 		items = append(items, map[string]any{"id": oid, "source_intent_id": source, "candidate_intent_id": candidate, "origin": "registered_intent", "kind": "shared_demand", "evidence": json.RawMessage(evidence)})
 	}

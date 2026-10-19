@@ -6,17 +6,17 @@ import (
 )
 
 type Compatibility struct {
-	Compatible            bool     `json:"compatible"`
-	Status                string   `json:"status"`
-	Reasons               []string `json:"reasons"`
-	Algorithm             string   `json:"algorithm"`
-	Similarity            *float64 `json:"similarity,omitempty"`
-	SemanticProfileHash   string   `json:"semantic_profile_hash,omitempty"`
-	Model                 string   `json:"model,omitempty"`
-	ModelRevision         string   `json:"model_revision,omitempty"`
-	SourceRevisionHash    string   `json:"source_revision_hash,omitempty"`
-	CandidateRevisionHash string   `json:"candidate_revision_hash,omitempty"`
-	TextRank              float64  `json:"text_rank,omitempty"`
+	Compatible              bool     `json:"compatible"`
+	Status                  string   `json:"status"`
+	Reasons                 []string `json:"reasons"`
+	Algorithm               string   `json:"algorithm"`
+	Similarity              *float64 `json:"similarity,omitempty"`
+	SemanticProfileHash     string   `json:"semantic_profile_hash,omitempty"`
+	Model                   string   `json:"model,omitempty"`
+	ModelRevision           string   `json:"model_revision,omitempty"`
+	SourceProjectionHash    string   `json:"source_projection_hash,omitempty"`
+	CandidateProjectionHash string   `json:"candidate_projection_hash,omitempty"`
+	TextRank                float64  `json:"text_rank,omitempty"`
 }
 
 func compareDemandConstraints(a, b IntentInput) Compatibility {

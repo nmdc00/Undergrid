@@ -8,10 +8,11 @@ import (
 )
 
 type demandCandidate struct {
-	id, hash string
-	input    IntentInput
-	cosine   *float64
-	lexical  float64
+	id, hash       string
+	projectionHash string
+	input          IntentInput
+	cosine         *float64
+	lexical        float64
 }
 
 // Three bounded candidate sets retain exact demand while combining PostgreSQL
@@ -23,7 +24,7 @@ func (s *Service) semanticCandidates(ctx context.Context, tx pgx.Tx, id, princip
  COALESCE(NULLIF(r.document->>'public_summary',''),r.document->>'objective','') AS query
  FROM intents i JOIN intent_revisions r ON r.intent_id=i.id AND r.revision=i.current_revision WHERE i.id=$1
  ), eligible AS (
- SELECT p.id,p.projection,p.content_hash,r.embedding,r.embedding_profile_hash,r.search_vector FROM public_intents() p
+ SELECT p.id,p.projection,p.content_hash,r.embedding,r.embedding_profile_hash,r.embedding_projection_hash,r.search_vector FROM public_intents() p
  JOIN intents i ON i.id=p.id JOIN intent_revisions r ON r.intent_id=i.id AND r.revision=i.current_revision
  WHERE p.principal_id<>$3 AND i.expires_at>clock_timestamp() AND ($4='' OR p.id::text=$4)
  ), exact_set AS (
@@ -40,7 +41,7 @@ func (s *Service) semanticCandidates(ctx context.Context, tx pgx.Tx, id, princip
  ORDER BY s.embedding OPERATOR(public.<=>) e.embedding,e.id LIMIT 20
  ), ranked AS (
  SELECT id,max(lexical) AS lexical,max(cosine) AS cosine FROM (SELECT * FROM exact_set UNION ALL SELECT * FROM text_set UNION ALL SELECT * FROM vector_set) all_candidates GROUP BY id
- ) SELECT e.id::text,e.projection,e.content_hash,r.cosine,r.lexical FROM ranked r JOIN eligible e ON e.id=r.id
+ ) SELECT e.id::text,e.projection,e.content_hash,r.cosine,r.lexical,COALESCE(e.embedding_projection_hash,'') FROM ranked r JOIN eligible e ON e.id=r.id
  ORDER BY (COALESCE(r.cosine,0)*0.9+r.lexical/(1+r.lexical)*0.1) DESC,e.id LIMIT 60`, id, s.semantic.hash, principal, candidateID)
 	if err != nil {
 		return nil, err
@@ -50,7 +51,7 @@ func (s *Service) semanticCandidates(ctx context.Context, tx pgx.Tx, id, princip
 	for rows.Next() {
 		var c demandCandidate
 		var raw []byte
-		if err = rows.Scan(&c.id, &raw, &c.hash, &c.cosine, &c.lexical); err != nil {
+		if err = rows.Scan(&c.id, &raw, &c.hash, &c.cosine, &c.lexical, &c.projectionHash); err != nil {
 			return nil, err
 		}
 		if err = json.Unmarshal(raw, &c.input); err != nil {
