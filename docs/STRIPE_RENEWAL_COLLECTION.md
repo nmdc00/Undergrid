@@ -37,3 +37,40 @@ Privilege review found table-level app INSERT could provide worker-owned readine
 The focused race gate for eleven canonical invoice/line/price/proration/tax/payment/customer/LIVE/amount mismatches and concurrent collection passed27.359s. A further invoice-credit mismatch, cross-owner/canceled replay and actual `runStripe` unsupported-opt-in check are included in the final whole financial gate. The command opt-in/runtime rejection checks pass0.006s; vet and diff checks pass before the final gate. New monetary behavior remains confined to explicitly opted-in TEST worker execution.
 
 Quality assessment: public owner setup requests cannot supply provider identities or insert provider-ready fields. Actor locks serialize immutable consent, setup and invoice stage transitions. One shared payment-authority function owns initial and later-stage dispatch checks; canonical provider observations remain outside database transactions. Complete invoice/payment/charge graph checks own settlement; receipt replay and unknown operation stages never mint a new provider key or release allowance. Refund validation reuses that graph without requiring metadata Stripe does not inherit onto invoice charges. Lookup and per-tick batches are bounded; unresolved/mismatched observations remain explicit unknown states. The remaining full financial race and independent review are required before merge.
+
+## Independent actor-binding correction checkpoint
+
+The initial exact candidate `0a28c78` completed the full isolated financial race
+checkpoint: sandbox192.535s, command2.213s,83 top-level tests with zero failures or
+skips (`/tmp/undergrid-renewal-full-financial-race95.jsonl`). This was before the
+following independent review correction and is not a pass for later source.
+
+A genuine non-superuser/non-bypass app LOGIN could insert its own actor ID with a
+different owner's subscription UUID and arbitrary consent hash, consuming that
+subscription's unique billing-setup slot. The owner HTTP route already rejects
+foreign subscriptions; this is a database-role boundary defect, not a claim of
+ordinary HTTP SQL reachability. A separately controlled worker snapshot could
+also reach the billing transition callback with the wrong actor. Both new
+behavioral oracles failed2.225s before correction
+(`/tmp/undergrid-renewal-actor-binding-red95.log`). The insertion oracle always
+rolls back its attempted attack and never corrupts retained data.
+
+Normal additive financial migration014 now enforces the composite
+(subscription_id,actor_id) relationship against the existing subscription owner
+key. The worker independently compares the stored setup, supplied snapshot and
+subscription actors and consent before its transition callback. Normal owner
+setup still succeeds after a rejected foreign insertion; no provider call is
+made for the invalid worker snapshot. Applied012/013 were not edited or replayed.
+Applied014 is frozen at SHA256
+`1b1d00062ab418533ce850dfecc6551b63afa49f0d2eaf29e9c7830a886b9c04`.
+
+Focused real financial95 billing/renewal tests passed with race detection79.942s
+(`/tmp/undergrid-renewal-actor-binding-green95.log`, selector
+`^TestStripe(Billing|Renewal)`). This is scoped local evidence. Remaining review
+items include completed Checkout sessions with nullable URL and exact unpaid
+invoice balance before pay; the whole financial gate must be rerun after those
+corrections. Provider/test-clock/account, legal and deployment qualifications
+remain explicitly unproven. No real provider operation or release promotion was
+performed. Quality: FK and worker checks protect different trust boundaries;
+request ownership, consent and provider proof remain distinct and financial
+credentials/databases remain separate from network discovery.

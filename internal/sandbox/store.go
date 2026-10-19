@@ -65,6 +65,9 @@ var stripeRenewalMigration string
 //go:embed migrations/013_billing_setup_insert_privileges.sql
 var billingSetupPrivilegesMigration string
 
+//go:embed migrations/014_billing_setup_subscription_actor.sql
+var billingSetupActorMigration string
+
 func Migrate(ctx context.Context, c *pgx.Conn) error {
 	tx, err := c.Begin(ctx)
 	if err != nil {
@@ -87,7 +90,7 @@ func Migrate(ctx context.Context, c *pgx.Conn) error {
 	for _, step := range []struct {
 		version int
 		sql     string
-	}{{1, migration}, {2, refundMigration}, {3, refundRetryMigration}, {4, subscriptionMigration}, {5, stripeMigration}, {6, anomalyMigration}, {7, ownerSubscriptionRetryMigration}, {8, walletControlMigration}, {9, signedUSDCMigration}, {10, walletPaymentMigration}, {11, usdcSettlementMigration}, {12, stripeRenewalMigration}, {13, billingSetupPrivilegesMigration}} {
+	}{{1, migration}, {2, refundMigration}, {3, refundRetryMigration}, {4, subscriptionMigration}, {5, stripeMigration}, {6, anomalyMigration}, {7, ownerSubscriptionRetryMigration}, {8, walletControlMigration}, {9, signedUSDCMigration}, {10, walletPaymentMigration}, {11, usdcSettlementMigration}, {12, stripeRenewalMigration}, {13, billingSetupPrivilegesMigration}, {14, billingSetupActorMigration}} {
 		var checksum string
 		err = tx.QueryRow(ctx, "SELECT checksum FROM public.undergrid_sandbox_migrations WHERE version=$1", step.version).Scan(&checksum)
 		switch {

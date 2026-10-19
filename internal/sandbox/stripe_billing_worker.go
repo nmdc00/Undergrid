@@ -34,7 +34,11 @@ func (s *StripeService) billingMutation(ctx context.Context, b StripeBillingSetu
 		if err != nil {
 			return err
 		}
-		if actual.ID != b.ID || actual.consent != sub.Hash || actual.State != b.State {
+		var subscriptionActor string
+		if err = tx.QueryRow(ctx, "SELECT actor_id::text FROM sandbox_subscriptions WHERE id=$1", sub.ID).Scan(&subscriptionActor); err != nil {
+			return err
+		}
+		if actual.ID != b.ID || actual.actor != b.actor || actual.actor != subscriptionActor || actual.consent != b.consent || actual.consent != sub.Hash || actual.State != b.State {
 			return ErrConflict
 		}
 		if current {
