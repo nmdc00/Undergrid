@@ -22,6 +22,16 @@ function fixture(
       requests.push({ path, init });
       const values: Record<string, unknown> = {
         "/auth/session": { csrf_token: "session-csrf" },
+        "/v1/owner/matching-policy": {
+          enabled: true,
+          allow_private_projections: true,
+          profile_hash: "a".repeat(64),
+          provider_id: "selected-provider",
+          model: "selected-model",
+          model_revision: "r1",
+          privacy_policy_sha256: "b".repeat(64),
+          permission_evidence: "operator approval",
+        },
         "/v1/owner/config": {
           terms_version: "explicit-test-terms",
           contribution_templates: { templates: [] },
@@ -483,4 +493,91 @@ test("the signed-in console exposes private swarm creation alongside participati
   const creation = within(screen.getByRole("region", { name: "Create swarm" }));
   expect(creation.getByLabelText("Responsible agent")).toBeTruthy();
   expect(creation.queryByRole("option", { name: "Public" })).toBeNull();
+});
+
+test("create intention sends only explicitly selected private query with reviewed profile", async () => {
+  const requests = fixture();
+  render(<App />);
+  await userEvent.click(
+    await screen.findByRole("button", {
+      name: "Review private matching policy",
+    }),
+  );
+  await screen.findByText("selected-provider / selected-model / r1");
+  fireEvent.change(screen.getByLabelText("Selected private matching query"), {
+    target: { value: "Selected public citations" },
+  });
+  await userEvent.click(
+    screen.getByLabelText(
+      "Allow this selected query to be processed by this provider profile",
+    ),
+  );
+  await userEvent.type(
+    screen.getByRole("textbox", { name: "Objective" }),
+    "Secret private objective",
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "Create intention" }),
+  );
+  await waitFor(() =>
+    expect(
+      requests.some(
+        (r) => r.path === "/v1/owner/intents" && r.init?.method === "POST",
+      ),
+    ).toBe(true),
+  );
+  const sent = requests.find(
+    (r) => r.path === "/v1/owner/intents" && r.init?.method === "POST",
+  )!;
+  expect(
+    JSON.parse(sent.init!.body as string).intent.private_semantic_query,
+  ).toEqual({
+    projection: "Selected public citations",
+    profile_hash: "a".repeat(64),
+    acknowledge_external_processing: true,
+  });
+});
+test("selected query cannot be submitted before disclosure consent", async () => {
+  const requests = fixture();
+  render(<App />);
+  await userEvent.click(
+    await screen.findByRole("button", {
+      name: "Review private matching policy",
+    }),
+  );
+  await screen.findByLabelText("Selected private matching query");
+  fireEvent.change(screen.getByLabelText("Selected private matching query"), {
+    target: { value: "Selected citations" },
+  });
+  await userEvent.type(
+    screen.getByRole("textbox", { name: "Objective" }),
+    "Private objective",
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "Create intention" }),
+  );
+  expect(
+    requests.some(
+      (r) => r.path === "/v1/owner/intents" && r.init?.method === "POST",
+    ),
+  ).toBe(false);
+  await userEvent.click(
+    screen.getByRole("button", { name: "Remove private matching query" }),
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "Create intention" }),
+  );
+  await waitFor(() =>
+    expect(
+      requests.some(
+        (r) => r.path === "/v1/owner/intents" && r.init?.method === "POST",
+      ),
+    ).toBe(true),
+  );
+  const sent = requests.find(
+    (r) => r.path === "/v1/owner/intents" && r.init?.method === "POST",
+  )!;
+  expect(
+    JSON.parse(sent.init!.body as string).intent.private_semantic_query,
+  ).toBeUndefined();
 });

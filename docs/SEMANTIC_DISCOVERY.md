@@ -144,3 +144,30 @@ later due intentions behind already active repairs. This is local fixture
 evidence, not provider relevance or full load qualification. The legacy explicit
 refresh sweep and in-flight provider request deduplication still need review.
 Private-query UI, groups, complementary discovery and release gates remain open.
+
+## Owner create-query console checkpoint
+
+The create-intention console now offers an optional explicit policy review. It
+fetches current owner-authorized matching metadata, validates provider/model and
+exact profile/privacy hashes, displays the selected provider and policy evidence,
+and accepts a separately entered query with an unchecked disclosure consent.
+Editing the query clears consent. Required form controls block an incomplete
+selection; removing it allows an ordinary private intention with no query grant.
+The private objective never populates this external query automatically. Successful
+creation clears the query component and consent. Disabled/malformed/unavailable
+policy cannot grant processing, and unmounted requests cannot update the view.
+API/domain validation still decides current-profile authority at commit.
+
+Actual App behavioral RED: absent policy-review control
+(`/tmp/undergrid-private-query-app-red.log`). The earlier component import
+failure (`/tmp/undergrid-private-query-ui-red.log`) is scaffolding failure, not
+a behavioral RED. Focused App/component tests passed23 cases7.01s, then the
+full UI suite with the no-consent submission/removal oracle passed59 tests
+across8 files18.20s (`/tmp/undergrid-private-query-full-ui.log`). TypeScript and
+production build passed (`/tmp/undergrid-private-query-ui-build.log`).
+
+Quality: one component owns review/disclosure controls; generated wire types
+define the grant; existing shared request code owns cookies/CSRF/retry identity.
+No provider secret or bearer credential is introduced. Existing revision-edit
+query review/preservation/removal controls remain pending; this checkpoint
+completes create-flow controls only and does not complete the discovery vertical.

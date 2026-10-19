@@ -1,5 +1,9 @@
 import type { components } from "./network.generated";
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  PrivateSemanticQuery,
+  type PrivateQuery,
+} from "./PrivateSemanticQuery";
 import { Participation } from "./Participation";
 import { AgentAuthority } from "./AgentAuthority";
 import { OwnerPolicy } from "./OwnerPolicy";
@@ -68,6 +72,8 @@ export function App() {
     [revisionObjective, setRevisionObjective] = useState(""),
     [revisionExpiry, setRevisionExpiry] = useState(""),
     [revisionSemanticThreshold, setRevisionSemanticThreshold] = useState("");
+  const [privateQuery, setPrivateQuery] = useState<PrivateQuery>();
+  const [queryGeneration, setQueryGeneration] = useState(0);
   const generation = useRef(0);
   const [intentionExpiry, setIntentionExpiry] = useState(() =>
     new Date(Date.now() + 30 * 86400000).toISOString(),
@@ -773,6 +779,9 @@ export function App() {
                       agent_id: selectedAgent,
                       intent: {
                         objective,
+                        ...(privateQuery
+                          ? { private_semantic_query: privateQuery }
+                          : {}),
                         ...(semanticThreshold === ""
                           ? {}
                           : {
@@ -793,6 +802,8 @@ export function App() {
                       },
                     } satisfies components["schemas"]["OwnerIntentInput"]);
                     setObjective("");
+                    setPrivateQuery(undefined);
+                    setQueryGeneration((n) => n + 1);
                     setSemanticThreshold("");
                     setIntentVisibility("private");
                     setIntentionExpiry(
@@ -862,6 +873,11 @@ export function App() {
                     onChange={(e) => setSemanticThreshold(e.target.value)}
                   />
                 </label>
+                <PrivateSemanticQuery
+                  key={queryGeneration}
+                  csrf={csrf}
+                  onChange={setPrivateQuery}
+                />
                 <p id="create-semantic-threshold-help">
                   Optional. Leave blank to use the service default. Applies when
                   semantic matching is enabled; the score is not a probability.
