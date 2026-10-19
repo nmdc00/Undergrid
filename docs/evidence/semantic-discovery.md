@@ -66,7 +66,7 @@ Final public-slice race gate on the bytes committed as5bcd158 passed6.861s,
 `/tmp/undergrid-semantic-final-public-slice97.jsonl`. It includes that withdrawal
 race and the explicitly named existing exact standing-demand lifecycle. Final
 network/command vet, diff checks,129-schema validation/generated-type parity and
-TypeScript/Vite build passed. A provider unit-test float32/float64 mismatch and
+TypeScript/Vite build passed. The fixed artifact verifier subprocess already uses an explicit image-hash-only environment; the new operator embedding secret is not inherited by that subprocess. A provider unit-test float32/float64 mismatch and
 an early undefined worker-receiver identifier failed compilation before tests;
 those are setup/build failures, not behavioral RED or passing gates. All prior
 logs remain separate; no all-package or release coverage percentage is claimed.
@@ -97,8 +97,8 @@ share deterministic hard-constraint knowledge; semantic score cannot bypass it.
 Network migrations033/034 were applied by the normal migrator on the separate
 qualified pgvector97 fixture. Applied bytes are frozen:
 
--033 `9d3a33f0f5add520deed4d9eb6768d0eee0f6f0490730bf24a56727830b0d3df`
--034 `ec7ae88a40bfebc93420d326c2e2b77d3094de0d2cc895a1aa301cc35c60517c`
+- 033 `9d3a33f0f5add520deed4d9eb6768d0eee0f6f0490730bf24a56727830b0d3df`
+- 034 `ec7ae88a40bfebc93420d326c2e2b77d3094de0d2cc895a1aa301cc35c60517c`
 
 No extension catalog, migration ledger or prior SQL was replayed/faked. The
 older94/96 fixtures have not been advanced to033/034; their original server
