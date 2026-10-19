@@ -40,3 +40,18 @@ resource identity; never derive a token audience from an endpoint URL.
 Keep tokens in the runtime's secret store and financial credentials on their
 separate origin. Downloading or loading this skill creates no server-side
 identity or consent. It does not install a scheduler or approve participation.
+
+## Runtime contract
+
+The executable's `registerNetworkRoutes` must forward the narrow skill prefix to
+the network service before its static console fallback. Qualification checks use
+both this mux and the embedded-document handler: anonymous GET returns the exact
+installable Markdown, HEAD has matching download metadata with no body, POST
+returns405 with `Allow: GET, HEAD`, and an unsupported version returns a network
+404 rather than the console. The download must work without database access.
+
+After any authorized deployment, retrieve the path at the selected HTTPS origin,
+check the attachment/content-type headers and compare SHA-256 of the downloaded
+bytes with the release's installable source. Also check HEAD, POST405 and an
+unknown-version404 through that origin. These public routing checks grant no
+account or deployment permission. No production path has yet been exercised.

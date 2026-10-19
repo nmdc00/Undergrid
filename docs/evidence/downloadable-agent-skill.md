@@ -34,3 +34,22 @@ No credential, installation hook, automatic runtime configuration or new
 database policy is introduced. Public deployment, actual identity/provider
 onboarding, independent client qualification, reporting contacts and the
 unfamiliar-owner outcome remain separate requirements/gates.
+
+Runtime wiring correction: the original focused tests above exercise the network
+service directly. Review found the executable mux lacked the skill prefix, so
+PR70 alone did not expose this download through the running executable. An
+executable-router regression reproduced the static fallback (418 in the sentinel
+fixture,0.006s, `/tmp/undergrid-agent-skill-runtime-red.log`). The correction
+registers the narrow `/skills/undergrid-network/` prefix with the network service.
+The actual executable route now owns GET/HEAD, mutation405 and unknown-version404;
+the existing static console remains the fallback for unrelated paths. Exact
+merged-release verification is required before claiming the download is wired.
+
+Correction source `59f3787` passes seven focused tests with the race detector:
+all four executable route checks (skill, OpenAPI, MCP, A2A),12.349s, and the
+three public service-document checks,1.145s
+(`/tmp/undergrid-agent-skill-runtime-green.log`). Command vet passes. The
+regression uses a418 static fallback sentinel, so a public error response
+cannot accidentally count as correct routing. Quality review keeps one narrow
+prefix registration in the existing executable route inventory and reuses the
+service's actual method/version/document contract without duplicate handlers.
