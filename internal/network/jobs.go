@@ -160,6 +160,10 @@ func RunWorker(ctx context.Context, dsn, environment string) error {
 	workers := river.NewWorkers()
 	river.AddWorker(workers, &sourceRefreshWorker{refresher: sources})
 	service := New(dsn, environment, nil)
+	service.semantic, err = semanticConfiguration(environment)
+	if err != nil {
+		return err
+	}
 	if err = service.ConfigureArtifactsFromEnvironment(); err != nil {
 		return err
 	}

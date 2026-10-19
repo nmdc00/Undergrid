@@ -57,6 +57,9 @@ func (s *Service) scanIntentions(ctx context.Context, cause string) error {
 	return nil
 }
 func (s *Service) scanIntent(ctx context.Context, db *pgx.Conn, id string) error {
+	if err := s.ensureSemanticEmbedding(ctx, db, id); err != nil {
+		return err
+	}
 	return s.scanIntentCandidate(ctx, db, id, "", false)
 }
 func (s *Service) scanIntentCandidate(ctx context.Context, db *pgx.Conn, id, candidateID string, urgent bool) error {
@@ -117,35 +120,54 @@ func (s *Service) scanIntentCandidate(ctx context.Context, db *pgx.Conn, id, can
 	if err = json.Unmarshal(raw, &input); err != nil {
 		return err
 	}
-	rows, err := tx.Query(ctx, "SELECT id,projection,content_hash FROM public_intents() WHERE principal_id<>$1 AND ($2='' OR id::text=$2) ORDER BY id", principal, candidateID)
-	if err != nil {
-		return err
-	}
-	type candidate struct {
-		id, hash string
-		input    IntentInput
-	}
-	candidates := []candidate{}
-	for rows.Next() {
-		var c candidate
-		var data []byte
-		if err = rows.Scan(&c.id, &data, &c.hash); err != nil {
-			rows.Close()
+	var candidates []demandCandidate
+	if s.semantic != nil {
+		candidates, err = s.semanticCandidates(ctx, tx, id, principal, candidateID)
+		if err != nil {
 			return err
 		}
-		if err = json.Unmarshal(data, &c.input); err != nil {
-			rows.Close()
+	} else {
+		rows, err := tx.Query(ctx, "SELECT id,projection,content_hash FROM public_intents() WHERE principal_id<>$1 AND ($2='' OR id::text=$2) ORDER BY id", principal, candidateID)
+		if err != nil {
 			return err
 		}
-		candidates = append(candidates, c)
-	}
-	err = rows.Err()
-	rows.Close()
-	if err != nil {
-		return err
+
+		candidates = []demandCandidate{}
+		for rows.Next() {
+			var c demandCandidate
+			var data []byte
+			if err = rows.Scan(&c.id, &data, &c.hash); err != nil {
+				rows.Close()
+				return err
+			}
+			if err = json.Unmarshal(data, &c.input); err != nil {
+				rows.Close()
+				return err
+			}
+			candidates = append(candidates, c)
+		}
+		err = rows.Err()
+		rows.Close()
+		if err != nil {
+			return err
+		}
 	}
 	for _, c := range candidates {
 		evidence := CompareDemand(input, c.input)
+		if !evidence.Compatible && s.semantic != nil && c.cosine != nil && *c.cosine >= *s.semantic.config.MinimumSimilarity {
+			evidence = compareDemandConstraints(input, c.input)
+			if evidence.Compatible {
+				evidence.Algorithm = "hard-constraints-hybrid-cosine-v1"
+				evidence.Reasons = append(evidence.Reasons, "similar_approved_projections")
+				evidence.Similarity = c.cosine
+				evidence.TextRank = c.lexical
+				evidence.SemanticProfileHash = s.semantic.hash
+				evidence.Model = s.semantic.config.Model
+				evidence.ModelRevision = s.semantic.config.ModelRevision
+				evidence.SourceRevisionHash = inputHash
+				evidence.CandidateRevisionHash = c.hash
+			}
+		}
 		if !evidence.Compatible {
 			continue
 		}

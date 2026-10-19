@@ -19,6 +19,7 @@ import (
 
 type OwnerAuthenticator func(*http.Request) (Owner, error)
 type Service struct {
+	semantic           *semanticProvider
 	a2a                *networkA2A
 	mcpHandler         http.Handler
 	mcpOrigin          string
