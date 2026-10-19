@@ -432,6 +432,8 @@ Payment: `quoted → authorized → submitting → pending|unknown → settled|f
 
 Hosted Checkout test mode, server-selected fixed prices, raw-body signature verification, deduped webhook ingestion, object reconciliation for unordered/replayed events and stable provider idempotency keys. Success redirect is not settlement; unknown creation response is reconciled before retrying. Provider key expiry does not justify a new charge. Demonstrate real test checkout, failure, replay/reorder and partial/full refund. [Stripe webhooks](https://docs.stripe.com/webhooks), [idempotency](https://docs.stripe.com/api/idempotent_requests)
 
+Local hosted payer setup and manual invoice collection are implemented through the financial worker; scoped fixture proof and remaining actual provider gates are recorded in `STRIPE_RENEWAL_COLLECTION.md`.
+
 Billing demonstration includes at most two approved test renewals; manual finalization/collection must allow reservation before every debit. Disable unbounded usage/proration changes and test cancellation/revocation using provider test clocks. If the provider configuration cannot enforce this boundary, block that subgate and revise the design explicitly; do not claim a generic autonomous subscription implementation. Invoice/subscription events update only sandbox records. [Stripe subscription webhooks](https://docs.stripe.com/billing/subscriptions/webhooks)
 
 ### 11.4 USDC/x402 qualification

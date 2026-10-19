@@ -28,6 +28,14 @@ func (s *StripeService) RunWorker(ctx context.Context) error {
 	}
 }
 func (s *StripeService) tick(ctx context.Context) error {
+	if s.config.RenewalsEnabled {
+		if err := s.processBillingSetups(ctx); err != nil {
+			return err
+		}
+		if err := s.tickRenewalCollections(ctx); err != nil {
+			return err
+		}
+	}
 	if err := s.ProcessEvents(ctx); err != nil {
 		return err
 	}
