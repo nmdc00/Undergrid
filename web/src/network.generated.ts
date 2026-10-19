@@ -1970,6 +1970,8 @@ export interface components {
             visibility: string;
             /** @enum {string} */
             history_policy: "full";
+            /** @enum {string} */
+            state: "active" | "archived";
         };
         SwarmContext: {
             swarm: components["schemas"]["SwarmSummary"];
@@ -2022,6 +2024,8 @@ export interface components {
             response_deadline: string;
             progress_deadline: string | null;
             cure_deadline: string | null;
+            /** @description Durable dependency impediment after an upstream withdrawal; assignment state and claim epoch remain separate. Only a newly approved plan establishes replacement work. */
+            dependency_blocked: boolean;
         };
         Task: {
             /** Format: uuid */
@@ -2041,6 +2045,8 @@ export interface components {
             specification: components["schemas"]["TaskSpec"];
             submitted_artifact_id: string | null;
             credited_progress_evidence_id: string | null;
+            /** @description Durable dependency impediment after an upstream withdrawal; assignment state and claim epoch remain separate. Only a newly approved plan establishes replacement work. */
+            dependency_blocked: boolean;
         };
         Plan: {
             /** Format: uuid */
@@ -2346,6 +2352,8 @@ export interface components {
             cure_deadline: string | null;
             plan_hash: string;
             context_path: string;
+            /** @description Durable dependency impediment after an upstream withdrawal; assignment state and claim epoch remain separate. Only a newly approved plan establishes replacement work. */
+            dependency_blocked: boolean;
         };
         InputGrantRef: {
             /** Format: uuid */

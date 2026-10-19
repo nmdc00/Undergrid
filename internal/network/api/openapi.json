@@ -8254,6 +8254,13 @@
             "enum": [
               "full"
             ]
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "active",
+              "archived"
+            ]
           }
         },
         "required": [
@@ -8262,7 +8269,8 @@
           "etag",
           "objective",
           "visibility",
-          "history_policy"
+          "history_policy",
+          "state"
         ],
         "additionalProperties": false
       },
@@ -8508,6 +8516,10 @@
                 "type": "null"
               }
             ]
+          },
+          "dependency_blocked": {
+            "type": "boolean",
+            "description": "Durable dependency impediment after an upstream withdrawal; assignment state and claim epoch remain separate. Only a newly approved plan establishes replacement work."
           }
         },
         "required": [
@@ -8518,7 +8530,8 @@
           "claim_epoch",
           "response_deadline",
           "progress_deadline",
-          "cure_deadline"
+          "cure_deadline",
+          "dependency_blocked"
         ],
         "additionalProperties": false
       },
@@ -8600,6 +8613,10 @@
                 "type": "null"
               }
             ]
+          },
+          "dependency_blocked": {
+            "type": "boolean",
+            "description": "Durable dependency impediment after an upstream withdrawal; assignment state and claim epoch remain separate. Only a newly approved plan establishes replacement work."
           }
         },
         "required": [
@@ -8615,7 +8632,8 @@
           "assigned_agent_id",
           "specification",
           "submitted_artifact_id",
-          "credited_progress_evidence_id"
+          "credited_progress_evidence_id",
+          "dependency_blocked"
         ],
         "additionalProperties": false
       },
@@ -9783,6 +9801,10 @@
           },
           "context_path": {
             "type": "string"
+          },
+          "dependency_blocked": {
+            "type": "boolean",
+            "description": "Durable dependency impediment after an upstream withdrawal; assignment state and claim epoch remain separate. Only a newly approved plan establishes replacement work."
           }
         },
         "required": [
@@ -9795,7 +9817,8 @@
           "progress_deadline",
           "cure_deadline",
           "plan_hash",
-          "context_path"
+          "context_path",
+          "dependency_blocked"
         ],
         "additionalProperties": false
       },
