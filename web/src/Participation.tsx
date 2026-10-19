@@ -1,3 +1,4 @@
+import { CreateSwarm } from "./CreateSwarm";
 import { useEffect, useRef, useState } from "react";
 import { ApiError, object, request, text, type ObjectValue } from "./api";
 
@@ -225,6 +226,15 @@ export function Participation({
   return (
     <section>
       <h2>Swarm participation</h2>
+      <CreateSwarm
+        agents={agents}
+        csrf={csrf}
+        onUnauthorized={onUnauthorized}
+        onCreated={(selected) => {
+          clear();
+          setAgent(selected);
+        }}
+      />
       <label>
         Participation agent
         <select

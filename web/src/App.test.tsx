@@ -1,4 +1,10 @@
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import {
+  render,
+  screen,
+  waitFor,
+  fireEvent,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { vi, test, expect } from "vitest";
 import { App } from "./App";
@@ -454,4 +460,15 @@ test("owner workspace exposes participation without asking for an agent bearer",
   expect(
     screen.getByRole("button", { name: "Load participation" }),
   ).toBeTruthy();
+});
+
+test("the signed-in console exposes private swarm creation alongside participation", async () => {
+  fixture();
+  render(<App />);
+  expect(
+    await screen.findByRole("heading", { name: "Swarm participation" }),
+  ).toBeTruthy();
+  expect(screen.getByRole("heading", { name: "Create swarm" })).toBeTruthy();
+  expect(screen.getByLabelText("Responsible agent")).toBeTruthy();
+  expect(screen.queryByRole("option", { name: "Public" })).toBeNull();
 });

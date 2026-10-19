@@ -1,0 +1,247 @@
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { test, expect, vi } from "vitest";
+import { CreateSwarm } from "./CreateSwarm";
+const agents = [
+  { id: "a", name: "My agent", status: "active" },
+  { id: "b", name: "Other active agent", status: "active" },
+  { id: "revoked", name: "Revoked agent", status: "revoked" },
+];
+function mock(status = 201) {
+  const fetch = vi.fn(
+    async () =>
+      new Response(
+        JSON.stringify(
+          status === 201
+            ? {
+                id: "room",
+                visibility: "private",
+                history_policy: "full",
+                version: 1,
+                etag: '"1"',
+              }
+            : { error: { code: "denied" } },
+        ),
+        { status },
+      ),
+  );
+  vi.stubGlobal("fetch", fetch);
+  return fetch;
+}
+test("owner explicitly selects a responsible active agent and acknowledges full history without bearer or public option", async () => {
+  const fetch = mock(),
+    created = vi.fn();
+  render(
+    <CreateSwarm
+      agents={agents}
+      csrf="csrf"
+      onUnauthorized={vi.fn()}
+      onCreated={created}
+    />,
+  );
+  expect(
+    (screen.getByRole("button", { name: "Create swarm" }) as HTMLButtonElement)
+      .disabled,
+  ).toBe(true);
+  expect(screen.queryByRole("option", { name: /public|revoked/i })).toBeNull();
+  await userEvent.selectOptions(
+    screen.getByLabelText("Responsible agent"),
+    "b",
+  );
+  await userEvent.type(
+    screen.getByLabelText("Swarm objective"),
+    "<script>private research</script>",
+  );
+  await userEvent.selectOptions(
+    screen.getByLabelText("Swarm visibility"),
+    "private",
+  );
+  expect(
+    screen.getByText(
+      /Admitted members can read the full room history, including/i,
+    ),
+  ).toBeTruthy();
+  await userEvent.click(
+    screen.getByLabelText(/I understand.*full room history/i),
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Create swarm" }));
+  await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+  const [path, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];
+  expect(path).toBe("/v1/owner/agents/b/swarms");
+  expect(JSON.parse(init.body as string)).toEqual({
+    objective: "<script>private research</script>",
+    visibility: "private",
+    history_policy: "full",
+    recruitment_roles: [],
+  });
+  expect(new Headers(init.headers).get("Authorization")).toBeNull();
+  expect(new Headers(init.headers).get("X-CSRF-Token")).toBe("csrf");
+  expect(new Headers(init.headers).get("Idempotency-Key")).toBeTruthy();
+  await waitFor(() => expect(created).toHaveBeenCalledWith("b", "room"));
+  expect(document.querySelector("script")).toBeNull();
+});
+test("changing selected agent suppresses a late create response and clears private form data", async () => {
+  let finish!: (response: Response) => void;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          finish = resolve;
+        }),
+    ),
+  );
+  const created = vi.fn();
+  render(
+    <CreateSwarm
+      agents={agents}
+      csrf="csrf"
+      onUnauthorized={vi.fn()}
+      onCreated={created}
+    />,
+  );
+  await userEvent.selectOptions(
+    screen.getByLabelText("Responsible agent"),
+    "a",
+  );
+  await userEvent.type(
+    screen.getByLabelText("Swarm objective"),
+    "Private old objective",
+  );
+  await userEvent.click(
+    screen.getByLabelText(/I understand.*full room history/i),
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Create swarm" }));
+  await userEvent.selectOptions(
+    screen.getByLabelText("Responsible agent"),
+    "b",
+  );
+  finish(
+    new Response(
+      JSON.stringify({
+        id: "old-room",
+        visibility: "restricted",
+        history_policy: "full",
+        version: 1,
+        etag: '"1"',
+      }),
+      { status: 201 },
+    ),
+  );
+  await waitFor(() =>
+    expect(
+      (screen.getByLabelText("Swarm objective") as HTMLTextAreaElement).value,
+    ).toBe(""),
+  );
+  expect(created).not.toHaveBeenCalled();
+  expect(screen.queryByText(/old-room/)).toBeNull();
+});
+test("session loss clears the creation data and returns owner control", async () => {
+  mock(401);
+  const denied = vi.fn();
+  render(<CreateSwarm agents={agents} csrf="csrf" onUnauthorized={denied} />);
+  await userEvent.selectOptions(
+    screen.getByLabelText("Responsible agent"),
+    "a",
+  );
+  await userEvent.type(
+    screen.getByLabelText("Swarm objective"),
+    "Secret room objective",
+  );
+  await userEvent.click(
+    screen.getByLabelText(/I understand.*full room history/i),
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Create swarm" }));
+  await waitFor(() => expect(denied).toHaveBeenCalledTimes(1));
+  expect(
+    (screen.getByLabelText("Swarm objective") as HTMLTextAreaElement).value,
+  ).toBe("");
+});
+
+test("uncertain creation retries preserve the command identity", async () => {
+  const calls: RequestInit[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (_path: string, init: RequestInit) => {
+      calls.push(init);
+      return new Response(
+        JSON.stringify(
+          calls.length === 1
+            ? { error: { code: "unavailable" } }
+            : {
+                id: "room",
+                visibility: "private",
+                history_policy: "full",
+                version: 1,
+                etag: '"1"',
+              },
+        ),
+        { status: calls.length === 1 ? 500 : 201 },
+      );
+    }),
+  );
+  render(
+    <CreateSwarm
+      agents={agents}
+      csrf="retry-session"
+      onUnauthorized={vi.fn()}
+    />,
+  );
+  await userEvent.selectOptions(
+    screen.getByLabelText("Responsible agent"),
+    "a",
+  );
+  await userEvent.type(
+    screen.getByLabelText("Swarm objective"),
+    "Uncertain private creation",
+  );
+  await userEvent.selectOptions(
+    screen.getByLabelText("Swarm visibility"),
+    "private",
+  );
+  await userEvent.click(
+    screen.getByLabelText(/I understand.*full room history/i),
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Create swarm" }));
+  await screen.findByRole("alert");
+  await userEvent.click(screen.getByRole("button", { name: "Create swarm" }));
+  await waitFor(() => expect(calls.length).toBe(2));
+  expect(new Headers(calls[0].headers).get("Idempotency-Key")).toBe(
+    new Headers(calls[1].headers).get("Idempotency-Key"),
+  );
+  expect(await screen.findByText(/Swarm room created/)).toBeTruthy();
+});
+test("agent removal clears private draft and disables submission", async () => {
+  const fetch = mock();
+  const view = render(
+    <CreateSwarm agents={agents} csrf="csrf" onUnauthorized={vi.fn()} />,
+  );
+  await userEvent.selectOptions(
+    screen.getByLabelText("Responsible agent"),
+    "a",
+  );
+  await userEvent.type(
+    screen.getByLabelText("Swarm objective"),
+    "Revoked draft",
+  );
+  await userEvent.click(
+    screen.getByLabelText(/I understand.*full room history/i),
+  );
+  view.rerender(
+    <CreateSwarm
+      agents={agents.filter((a) => a.id !== "a")}
+      csrf="csrf"
+      onUnauthorized={vi.fn()}
+    />,
+  );
+  await waitFor(() =>
+    expect(
+      (screen.getByLabelText("Swarm objective") as HTMLTextAreaElement).value,
+    ).toBe(""),
+  );
+  expect(
+    (screen.getByRole("button", { name: "Create swarm" }) as HTMLButtonElement)
+      .disabled,
+  ).toBe(true);
+  expect(fetch).not.toHaveBeenCalled();
+});
