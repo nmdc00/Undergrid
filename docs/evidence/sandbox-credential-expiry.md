@@ -37,3 +37,8 @@ Sandbox163.624s; command2.246s. Log
 administrative/runtime DSNs were financial-only; no migration or provider
 configuration was changed. Earlier actual RED and focused GREEN logs remain
 separate. These are local fixture tests, not actual provider qualification.
+
+Reconciled release `e5d68d0` at `483ec8e`; financial source under
+`internal/sandbox` and `cmd/undergrid-sandbox` is byte-identical to the full
+passing candidate. Final financial vet and diff checks passed. No full network
+or promotion-SHA coverage claim is made.
