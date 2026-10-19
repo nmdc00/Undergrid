@@ -1,44 +1,42 @@
 # Swarm inactivity lifecycle
 
-Task: TDD §7.3 long inactivity, one feature branch
-`feat/v0.1-swarm-inactivity`, originally based on release `a5cbfea`, reconciled with explicit archive release `0126c25`.
+TDD §7.3: the persisted coordination-deadline worker warns once after30 days
+without accepted progress and terminally archives after45 days. The periodic
+job runs at startup and each minute; its restart sweep uses persisted state.
+Creation is the initial clock. Accepted private progress reviews and correctly
+room-linked completed output acceptance can advance it. Messages, heartbeats,
+pending/rejected evidence, verification outcomes, partial approvals and
+assignment acceptance cannot. Historical accepted progress remains evidence
+across later plan or claim changes; no heartbeat manufactures completion.
 
-Observable behavior: warn once after 30 days without accepted progress and
-terminally archive after 45 days. Creation time is the initial baseline;
-explicitly accepted progress evidence or accepted output can advance it.
-Messages, heartbeats, pending evidence, verifier outcomes, votes and assignment
-acceptance do not advance it. Recheck the baseline and active state under the
-same room lock used by commands, so racing acceptance and archival serialize.
+Discovery considers at most100 currently due active rooms per sweep. A warning
+already emitted for the current episode is excluded until the archive deadline
+or fresh accepted progress, so a bounded drain reaches later rooms. The episode
+key is the accepted-progress instant as integer Unix microseconds, independent
+of timezone or JSON timestamp formatting. A restart beyond45 days can archive
+immediately without an earlier warning run.
 
-Entrypoint: the persisted coordination-deadline worker and its restart sweep.
-Persist warning/archive events and fanout atomically with versioned state.
-Use bounded fair discovery and durable warning deduplication per inactivity
-episode. An offline restart already past day 45 may archive immediately; it
-must not require an operator to run a day-30 sweep first. Archive grants no
-new consent and preserves acknowledged verification/history and authorized
-exports under the existing explicit archival contract.
+Under the room lock, the worker rechecks activity and terminal state. Migration031
+acquires coordinator principal/agent key-share locks before the room to match
+command lock order and event foreign-key attribution. A coordinator change while
+waiting skips that candidate for safe rediscovery. Archived rooms admit no later
+deadline-driven task, membership or plan mutation. Explicit and automatic archive
+share one terminal transition; human scope/ETag checks remain in the command.
 
-Worker events must say they were initiated by the inactivity policy; attribution
-to a room's owner must not imply that owner explicitly requested archival.
-Reuse the explicit archive transition after its feature is merged, keeping
-coordinator scope/ETag checks confined to the human command.
+Warning/archive events and fanout jobs commit atomically with versioned state.
+Their principal identifies the accountable room coordinator, while
+`initiated_by: inactivity_policy` explicitly identifies the worker policy as
+initiator. Facts contain the room resource and episode clock, never private
+evidence IDs, task IDs, hashes, audiences or report text. Migration030 gives the
+worker a timestamp-only SECURITY DEFINER projection; it grants no raw private
+progress reads and is unavailable to the application role.
 
-Test-first checkpoint: boundary/restart, fresh-message/first-overdue sweep,
-and pending/rejected/accepted private progress lifecycle tests are authored
-and compile. Actual PostgreSQL RED remains pending; compilation exercises no
-behavior. Concurrency, fanout recovery and output acceptance linkage still
-need proving scenarios. No runtime behavior or migration has changed.
-Network migration029 belongs exclusively to downstream dependency blocking.
-Do not edit applied migrations.
+Archival grants no consent or completion and preserves acknowledged verification,
+current-authorized history and licensed exports under [explicit archive](SWARM_ARCHIVE.md).
+Legal retention approval, erasure and deployment remain separate gates.
 
-Review identified a prerequisite: output acceptance currently emits an event
-after a guarded task UPDATE without checking its affected-row count. Prove
-and correct stale-candidate acceptance separately before treating those events
-alone as an accepted-progress clock. Pending tests are not passing evidence.
-
-Required evidence before merge: actual app-only/worker-only LOGIN lifecycle
-tests, reviewed accepted-progress boundary, repeated/restarted sweeps, atomic
-event/job effects, affected archive/progress/deadline race regression and
-TDD/evidence reconciliation. Legal retention approval remains a separate gate.
-
-Locked policy contract before runtime implementation: the warning episode key is the accepted-progress baseline instant as integer Unix microseconds, independent of timezone/JSON timestamp rendering. Policy warning/archive facts contain the room resource, `initiated_by: inactivity_policy` and the episode clock only; no private evidence IDs, task IDs, artifact hashes, audience lists or reports. Worker-only progress projection may return a timestamp but must not grant raw private evidence reads. Discovery excludes already-warned rooms until their archive deadline or a newly accepted-progress episode, so a bounded batch can reach other due rooms. Network030 is reserved if these least-privilege worker grants require migration; Network029 remains exclusively dependency blocking.
+Normal migrations030/031 were applied after029 on the preserved isolated96
+cluster; applied migration bytes are frozen. Semantic discovery now reserves032.
+[Evidence](evidence/swarm-inactivity.md) records the actual missing-policy RED,
+proven deadlock/terminal-timer RED, fixture corrections and focused GREEN55.516s.
+The affected race gate and exact release integration remain pending.
