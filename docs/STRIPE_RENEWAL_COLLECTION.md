@@ -107,3 +107,14 @@ recovery and open/unsafe URL denials. The nullable URL and unpaid-balance review
 items above are now implemented locally; the exact current full financial gate
 remains required. No migration changed and no actual provider account action,
 qualification, deployment or release promotion is claimed.
+
+## Exact reconciled financial gate
+
+Source `4e0431ab6f3c189be1a1a23006b21dbf23dce70c` (including release
+`7e5ba0f`) passed the full separate financial95 race gate:
+`go test -json -race -p 1 ./internal/sandbox ./cmd/undergrid-sandbox -count=1 -timeout=20m`.
+Sandbox244.170s and command2.219s;88 top-level tests, zero failures/skips.
+Evidence: `/tmp/undergrid-renewal-full-financial-4e0431a95.jsonl`. This supersedes
+the pending full-gate statement above. Provider fixtures remain controlled local
+evidence; actual Stripe qualification, release review/promotion and deployment
+are not established by this result.
