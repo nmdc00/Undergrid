@@ -469,6 +469,7 @@ test("the signed-in console exposes private swarm creation alongside participati
     await screen.findByRole("heading", { name: "Swarm participation" }),
   ).toBeTruthy();
   expect(screen.getByRole("heading", { name: "Create swarm" })).toBeTruthy();
-  expect(screen.getByLabelText("Responsible agent")).toBeTruthy();
-  expect(screen.queryByRole("option", { name: "Public" })).toBeNull();
+  const creation = within(screen.getByRole("region", { name: "Create swarm" }));
+  expect(creation.getByLabelText("Responsible agent")).toBeTruthy();
+  expect(creation.queryByRole("option", { name: "Public" })).toBeNull();
 });
