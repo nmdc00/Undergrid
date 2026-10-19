@@ -112,3 +112,35 @@ The earlier statement that the primary retained-queue deadline still fails is
 historical at its recorded checkpoint. Serial repair error isolation, broader
 queue/load/provider qualification, private query controls, computed groups and
 complementary discovery remain incomplete; this is still an unmerged feature.
+
+## Independent semantic repair checkpoint
+
+Configured `ScanDueIntentions` now commits up to1000 per-intention durable
+repair jobs without provider I/O. Job identity includes intention revision and
+profile; pending/running/retryable work is excluded before the batch limit and
+River uniqueness also closes concurrent coordinator insertion races. A later
+revision has a separate wakeup. A dedicated two-worker repair queue keeps
+provider failures separate from fresh embeddings and ready matching. Existing
+configured-off exact sweeps retain their behavior. Each repair reuses current
+domain eligibility and observation guards; stale revision/profile jobs finish
+without starting work. No new table or migration is needed.
+
+Actual restricted-role HTTP/PostgreSQL RED0.951s reproduced one provider
+rejection aborting the coordinator (`/tmp/undergrid-semantic-repair-red98.log`).
+The first implementation then failed the unchanged eight-second recovery
+deadline behind retained jobs (`/tmp/undergrid-semantic-repair-green98.log`).
+Reducing active fetch cooldown, while retaining two effect slots and100ms idle
+polling, passed6.829s (`/tmp/undergrid-semantic-repair-green-throughput98.log`).
+The oracle checks no coordinator HTTP calls, durable replay deduplication,
+distinct revision wakeups and completed healthy repairs/opportunity despite a
+controlled rejected projection. No retained queue/data was deleted. Vet passed;
+the affected race gate passed13 top-level tests23.078s with zero failures/skips
+(`/tmp/undergrid-semantic-repair-affected98.jsonl`).
+
+Quality review: repair scheduling owns queue effects, while existing domain
+commands own authority/matching and provider observation policy. Retry state
+remains durable; failure affects one job. The bounded batch avoids excluding
+later due intentions behind already active repairs. This is local fixture
+evidence, not provider relevance or full load qualification. The legacy explicit
+refresh sweep and in-flight provider request deduplication still need review.
+Private-query UI, groups, complementary discovery and release gates remain open.

@@ -14,6 +14,9 @@ import (
 // ScanDueIntentions is the durable queue worker's repair sweep. Each intention
 // commits independently; a crash can retry without losing or duplicating output.
 func (s *Service) ScanDueIntentions(ctx context.Context) error {
+	if s.semantic != nil {
+		return s.enqueueSemanticRepairs(ctx)
+	}
 	return s.scanIntentions(ctx, "")
 }
 

@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
+	"github.com/riverqueue/river/rivertype"
 )
 
 const semanticEmbeddingQueue = "semantic_embedding"
@@ -102,4 +103,89 @@ func enqueueSemanticReady(ctx context.Context, tx pgx.Tx, id string, revision in
 	}
 	_, err = client.InsertTx(ctx, tx, watchRefreshArgs{CandidateID: id, ReadyProfileHash: profile, ReadyRevision: revision}, &river.InsertOpts{Queue: semanticFanoutQueue, Priority: 1, MaxAttempts: 10})
 	return err
+}
+
+const semanticRepairQueue = "semantic_repair"
+
+type semanticRepairArgs struct {
+	IntentID    string `json:"intent_id"`
+	Revision    int    `json:"revision"`
+	ProfileHash string `json:"profile_hash"`
+}
+
+func (semanticRepairArgs) Kind() string { return "semantic_repair_v1" }
+
+type semanticRepairWorker struct {
+	river.WorkerDefaults[semanticRepairArgs]
+	service *Service
+}
+
+func (w *semanticRepairWorker) Work(ctx context.Context, job *river.Job[semanticRepairArgs]) error {
+	a := job.Args
+	if !validID(a.IntentID) || a.Revision < 1 {
+		return errors.New("invalid repair intention")
+	}
+	if w.service.semantic == nil || a.ProfileHash != w.service.semantic.hash {
+		return nil
+	}
+	db, err := pgx.Connect(ctx, w.service.dsn)
+	if err != nil {
+		return err
+	}
+	defer db.Close(ctx)
+	if _, err = db.Exec(ctx, "SET ROLE undergrid_worker; SET search_path=undergrid,pg_catalog"); err != nil {
+		return err
+	}
+	var current bool
+	if err = db.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM intents WHERE id=$1 AND current_revision=$2 AND state='active' AND watch_enabled)`, a.IntentID, a.Revision).Scan(&current); err != nil || !current {
+		return err
+	}
+	return retryDiscoveryLock(w.service.scanIntent(ctx, db, a.IntentID))
+}
+
+// Commit bounded independent work without provider I/O. Pending/retrying work is
+// excluded before LIMIT so poison projections cannot monopolize each sweep.
+func (s *Service) enqueueSemanticRepairs(ctx context.Context) error {
+	db, err := pgx.Connect(ctx, s.dsn)
+	if err != nil {
+		return err
+	}
+	defer db.Close(ctx)
+	if _, err = db.Exec(ctx, "SET ROLE undergrid_worker; SET search_path=undergrid,pg_catalog"); err != nil {
+		return err
+	}
+	tx, err := db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	rows, err := tx.Query(ctx, `SELECT i.id,i.current_revision FROM intents i WHERE i.state='active' AND i.watch_enabled AND i.next_scan<=now() AND NOT EXISTS (SELECT 1 FROM undergrid_queue.river_job j WHERE j.kind='semantic_repair_v1' AND j.args->>'intent_id'=i.id::text AND j.args->>'revision'=i.current_revision::text AND j.args->>'profile_hash'=$1 AND j.state IN ('available','pending','running','scheduled','retryable')) ORDER BY i.next_scan,i.id LIMIT 1000`, s.semantic.hash)
+	if err != nil {
+		return err
+	}
+	jobs := []semanticRepairArgs{}
+	for rows.Next() {
+		a := semanticRepairArgs{ProfileHash: s.semantic.hash}
+		if err = rows.Scan(&a.IntentID, &a.Revision); err != nil {
+			rows.Close()
+			return err
+		}
+		jobs = append(jobs, a)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return err
+	}
+	client, err := river.NewClient(riverpgxv5.New(nil), &river.Config{Schema: "undergrid_queue"})
+	if err != nil {
+		return err
+	}
+	for _, a := range jobs {
+		_, err = client.InsertTx(ctx, tx, a, &river.InsertOpts{Queue: semanticRepairQueue, Priority: 4, MaxAttempts: 10, UniqueOpts: river.UniqueOpts{ByArgs: true, ByState: []rivertype.JobState{rivertype.JobStateAvailable, rivertype.JobStatePending, rivertype.JobStateRunning, rivertype.JobStateScheduled, rivertype.JobStateRetryable}}})
+		if err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
 }

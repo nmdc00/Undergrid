@@ -153,7 +153,7 @@ func RunWorker(ctx context.Context, dsn, environment string) error {
 	if err != nil {
 		return err
 	}
-	// Thirteen queue fetchers, completion and periodic/leader maintenance must
+	// Fourteen queue fetchers, completion and periodic/leader maintenance must
 	// retain pool capacity even while another queue has a backlog.
 	config.MaxConns = 20
 	config.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
@@ -181,6 +181,7 @@ func RunWorker(ctx context.Context, dsn, environment string) error {
 	river.AddWorker(workers, &scanWorker{service: service})
 	river.AddWorker(workers, &semanticEmbeddingWorker{service: service})
 	river.AddWorker(workers, &semanticReadyWorker{service: service})
+	river.AddWorker(workers, &semanticRepairWorker{service: service})
 	river.AddWorker(workers, &watchRefreshWorker{service: service})
 	river.AddWorker(workers, &fanoutWorker{dsn: dsn})
 	river.AddWorker(workers, &recruitWorker{service: New(dsn, environment, nil)})
@@ -192,6 +193,7 @@ func RunWorker(ctx context.Context, dsn, environment string) error {
 		"coordination_deadlines": {MaxWorkers: 2},
 		discoveryQueue:           {MaxWorkers: 2},
 		discoveryRepairQueue:     {MaxWorkers: 1},
+		semanticRepairQueue:      {MaxWorkers: 2, FetchCooldown: time.Millisecond, FetchPollInterval: 100 * time.Millisecond},
 		semanticEmbeddingQueue:   {MaxWorkers: 2, FetchPollInterval: 100 * time.Millisecond},
 		semanticReadyQueue:       {MaxWorkers: 2, FetchPollInterval: 100 * time.Millisecond},
 		semanticFanoutQueue:      {MaxWorkers: 2, FetchPollInterval: 100 * time.Millisecond},
