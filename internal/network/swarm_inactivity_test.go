@@ -135,6 +135,20 @@ func TestSwarmInactivityOnlyReviewedAcceptedEvidenceRenewsClock(t *testing.T) {
 			if code != 201 {
 				t.Fatal(code, evidence)
 			}
+			if decision == "accept" {
+				// A warning for old inactivity must not suppress a later episode
+				// after actual accepted progress renews the baseline.
+				if _, err := x.db.Exec(ctx, "UPDATE undergrid.swarms SET created_at=clock_timestamp()-interval '31 days' WHERE id=$1", id); err != nil {
+					t.Fatal(err)
+				}
+				if err := New(x.workerDSN, "development", nil).SweepCoordinationDeadlines(ctx, time.Now().UTC()); err != nil {
+					t.Fatal(err)
+				}
+				var prior int
+				if err := x.db.QueryRow(ctx, "SELECT count(*) FROM undergrid.events WHERE aggregate_id=$1 AND type='swarm.inactivity_warning'", id).Scan(&prior); err != nil || prior != 1 {
+					t.Fatalf("old episode warning=%d err=%v", prior, err)
+				}
+			}
 			if decision != "pending" {
 				code, out = x.actors[0].call("POST", taskPath+"/progress-evidence-review", "clock-review", map[string]any{
 					"evidence_id": evidence["id"], "decision": decision, "report_sha256": evidence["report_sha256"],
@@ -191,7 +205,7 @@ func TestSwarmInactivityOnlyReviewedAcceptedEvidenceRenewsClock(t *testing.T) {
 					t.Fatal(err)
 				}
 				var warnings int
-				if err := x.db.QueryRow(ctx, "SELECT count(*) FROM undergrid.events WHERE aggregate_id=$1 AND type='swarm.inactivity_warning'", id).Scan(&warnings); err != nil || warnings != 1 {
+				if err := x.db.QueryRow(ctx, "SELECT count(*) FROM undergrid.events WHERE aggregate_id=$1 AND type='swarm.inactivity_warning'", id).Scan(&warnings); err != nil || warnings != 2 {
 					t.Fatalf("accepted progress did not start a new warning clock: warnings=%d err=%v", warnings, err)
 				}
 			}
