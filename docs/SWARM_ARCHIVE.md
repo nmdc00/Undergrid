@@ -1,6 +1,6 @@
 # Explicit terminal swarm archive
 
-TDD §7.3 permits stalled collaboration to be archived without manufacturing acceptance or losing permitted history. This vertical adds an explicit current-coordinator command and safe archived-member exit. Automatic30-day warnings and45-day inactivity archival are a separate next vertical.
+TDD §7.3 permits stalled collaboration to be archived without manufacturing acceptance or losing permitted history. This vertical adds an explicit current-coordinator command and safe archived-member exit. Automatic30-day warnings and45-day inactivity archival have a separate [inactivity lifecycle contract](SWARM_INACTIVITY.md).
 
 A current coordinator with explicit `swarms:archive` scope can POST `/v1/swarms/{id}/archive` with the reviewed room ETag and Idempotency-Key. Archive is terminal. The command serializes current coordinator principal and agent authority before room state, compatible with recruitment and succession. Same-command replay must preserve one transition/event; stale versions, missing scope and foreign/revoked authority cannot change the room.
 
