@@ -2981,8 +2981,8 @@ export interface components {
         CompatibleGroup: {
             members: components["schemas"]["CompatibleGroupMember"][];
             common_license_ids: string[];
-            /** @constant */
-            comparison_mode: "exact_declared_outcome";
+            /** @enum {string} */
+            comparison_mode: "exact_declared_outcome" | "pairwise_semantic_and_hard_constraints";
             /** @constant */
             identity_assurance: "common_control_unknown";
         };
@@ -2993,7 +2993,7 @@ export interface components {
             /** @constant */
             group_limit: 10;
             truncated: boolean;
-            limitations: ("bounded_nonexhaustive_views" | "semantic_cross_member_evidence_pending" | "principal_ids_do_not_prove_independent_owners")[];
+            limitations: ("bounded_nonexhaustive_views" | "principal_ids_do_not_prove_independent_owners")[];
         };
     };
     responses: never;

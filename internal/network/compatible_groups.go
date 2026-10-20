@@ -98,9 +98,9 @@ func computeCompatibleGroups(source groupCandidate, candidates []groupCandidate,
 }
 
 // A view is derived from current, revision-bound opportunities, never stored as
-// membership or used to grant room/task authority. Semantic cross-member proof
-// remains unavailable until the public pair-score projection is implemented.
-func compatibleGroups(r *http.Request, tx pgx.Tx, a actor, id string) (int, any, error) {
+// membership or used to grant room/task authority. Semantic edges require current
+// profile-bound source evidence and current public cross-member cosine scores.
+func (s *Service) compatibleGroups(r *http.Request, tx pgx.Tx, a actor, id string) (int, any, error) {
 	if !validID(id) {
 		return 0, nil, fail(404, "not_found")
 	}
@@ -125,16 +125,19 @@ func compatibleGroups(r *http.Request, tx pgx.Tx, a actor, id string) (int, any,
 	if err != nil {
 		return 0, nil, err
 	}
-	ids := groupOpportunityIDs(page.(map[string]any)["items"].([]any))
-	rows, err := tx.Query(r.Context(), `SELECT id::text,principal_id::text,projection FROM public_intents() WHERE id=ANY($1::uuid[]) ORDER BY id LIMIT 21`, ids)
+	opportunities := page.(map[string]any)["items"].([]any)
+	ids := groupOpportunityIDs(opportunities)
+	rows, err := tx.Query(r.Context(), `SELECT p.id::text,p.principal_id::text,p.projection,COALESCE(m.projection_hash,'') FROM public_intents() p LEFT JOIN public_semantic_metadata() m ON m.id=p.id WHERE p.id=ANY($1::uuid[]) ORDER BY p.id LIMIT 21`, ids)
 	if err != nil {
 		return 0, nil, err
 	}
 	candidates := []groupCandidate{}
+	projectionHashes := map[string]string{}
 	for rows.Next() {
 		var candidate groupCandidate
 		var document []byte
-		if err = rows.Scan(&candidate.ID, &candidate.PrincipalID, &document); err != nil {
+		var projectionHash string
+		if err = rows.Scan(&candidate.ID, &candidate.PrincipalID, &document, &projectionHash); err != nil {
 			rows.Close()
 			return 0, nil, err
 		}
@@ -142,6 +145,7 @@ func compatibleGroups(r *http.Request, tx pgx.Tx, a actor, id string) (int, any,
 			rows.Close()
 			return 0, nil, err
 		}
+		projectionHashes[candidate.ID] = projectionHash
 		candidates = append(candidates, candidate)
 	}
 	err = rows.Err()
@@ -149,7 +153,82 @@ func compatibleGroups(r *http.Request, tx pgx.Tx, a actor, id string) (int, any,
 	if err != nil {
 		return 0, nil, err
 	}
-	groups := computeCompatibleGroups(source, candidates, func(a, b groupCandidate) bool { return CompareDemand(a.Input, b.Input).Compatible })
+	truncated := len(candidates) > 20
+	if truncated {
+		candidates = candidates[:20]
+	}
+	// Read the current operator profile without a provider request. Configuration
+	// changes cannot reuse old evidence or a private disclosure acknowledgement.
+	provider, err := semanticConfiguration(s.environment)
+	if err != nil {
+		return 0, nil, err
+	}
+	scores := map[string]float64{}
+	key := func(a, b string) string {
+		if a > b {
+			a, b = b, a
+		}
+		return a + ":" + b
+	}
+	threshold := 1.0
+	if provider != nil {
+		_, _, allowed := provider.selectedProjection(input, string(canonical(intentPublicProjection(input))))
+		if allowed {
+			threshold = provider.minimumSimilarity(input)
+			for _, value := range opportunities {
+				item := value.(map[string]any)
+				if item["kind"] != "shared_demand" {
+					continue
+				}
+				var proof Compatibility
+				data, marshalErr := json.Marshal(item["evidence"])
+				if marshalErr != nil {
+					return 0, nil, marshalErr
+				}
+				if err = json.Unmarshal(data, &proof); err != nil {
+					return 0, nil, err
+				}
+				if proof.Compatible && proof.SemanticProfileHash == provider.hash && proof.Similarity != nil {
+					candidate, ok := item["candidate_intent_id"].(string)
+					if ok && proof.CandidateProjectionHash == projectionHashes[candidate] && proof.CandidateProjectionHash != "" {
+						scores[key(id, candidate)] = *proof.Similarity
+					}
+				}
+			}
+			publicIDs := []string{}
+			for _, candidate := range candidates {
+				publicIDs = append(publicIDs, candidate.ID)
+			}
+			pairs, queryErr := tx.Query(r.Context(), "SELECT left_id::text,right_id::text,similarity,left_projection_hash,right_projection_hash FROM public_semantic_pair_scores($1::uuid[],$2)", publicIDs, provider.hash)
+			if queryErr != nil {
+				return 0, nil, queryErr
+			}
+			for pairs.Next() {
+				var left, right, leftHash, rightHash string
+				var score float64
+				if err = pairs.Scan(&left, &right, &score, &leftHash, &rightHash); err != nil {
+					pairs.Close()
+					return 0, nil, err
+				}
+				if projectionHashes[left] == leftHash && projectionHashes[right] == rightHash {
+					scores[key(left, right)] = score
+				}
+			}
+			err = pairs.Err()
+			pairs.Close()
+			if err != nil {
+				return 0, nil, err
+			}
+		}
+	}
+	pairCompatible := func(a, b groupCandidate) bool {
+		if CompareDemand(a.Input, b.Input).Compatible {
+			return true
+		}
+		score, exists := scores[key(a.ID, b.ID)]
+		return exists && score >= threshold
+	}
+	groups := computeCompatibleGroups(source, candidates, pairCompatible)
 	items := []any{}
 	for _, group := range groups {
 		members := []any{}
@@ -158,9 +237,17 @@ func compatibleGroups(r *http.Request, tx pgx.Tx, a actor, id string) (int, any,
 			members = append(members, map[string]any{"intent_id": member.ID, "principal_id": member.PrincipalID, "hard_constraints": member.Input.HardConstraints})
 			common = intersectLabels(common, declaredLicenses(member.Input.HardConstraints.LicenseIDs))
 		}
-		items = append(items, map[string]any{"members": members, "common_license_ids": common, "comparison_mode": "exact_declared_outcome", "identity_assurance": "common_control_unknown"})
+		mode := "exact_declared_outcome"
+		for i, left := range group {
+			for _, right := range group[i+1:] {
+				if !CompareDemand(left.Input, right.Input).Compatible {
+					mode = "pairwise_semantic_and_hard_constraints"
+				}
+			}
+		}
+		items = append(items, map[string]any{"members": members, "common_license_ids": common, "comparison_mode": mode, "identity_assurance": "common_control_unknown"})
 	}
-	return 200, map[string]any{"items": items, "candidate_limit": 20, "group_limit": 10, "truncated": len(candidates) > 20 || len(groups) == 10, "limitations": []string{"bounded_nonexhaustive_views", "semantic_cross_member_evidence_pending", "principal_ids_do_not_prove_independent_owners"}}, nil
+	return 200, map[string]any{"items": items, "candidate_limit": 20, "group_limit": 10, "truncated": truncated || len(groups) == 10, "limitations": []string{"bounded_nonexhaustive_views", "principal_ids_do_not_prove_independent_owners"}}, nil
 }
 
 func groupOpportunityIDs(items []any) []string {

@@ -364,3 +364,49 @@ independent review otherwise found no material authority/public-projection leak.
 Exact-group code is a checkpoint of the still-unmerged full discovery branch;
 semantic cross-member evidence, group display and broad qualification remain
 explicitly pending as described above.
+
+## Pairwise semantic group work in progress (20 October)
+
+The next group oracle traverses actual restricted API/worker logins and the
+controlled trusted HTTPS embedding adapter. Four nonlexical public summaries have
+numeric vectors where the source matches two peers but those peers do not match
+each other; a fourth member matches both. The existing exact-only endpoint
+returned zero instead of two three-member views (3.502s,
+`/tmp/undergrid-semantic-groups-red98.log`). These are controlled numeric fixtures,
+not model relevance or provider verification.
+
+The pending implementation evaluates each pair independently and still requires
+typed hard-constraint aggregation and a common license intersection. Network037
+adds a bounded public pair-score projection: at most20 explicitly named current
+public active intentions, live principals/agents and one exact profile; no raw
+vector, private document or participant preference crosses the helper. Current
+source-to-candidate opportunity proof and both current public projection hashes
+bind the computed view. A changed operator profile cannot reuse old source
+proof. Exact groups retain their exact label; semantic views have a distinct
+`pairwise_semantic_and_hard_constraints` contract value. Identity remains
+`common_control_unknown`; views grant no membership or assignment authority.
+
+Independent review identified and corrected the closed-schema enum and potential
+mixed-revision projection evidence before qualification. The first green attempt
+found SQL parameter/column ambiguity (migration transaction rolled back); the
+second applied normal037, passed original pairwise group assertions, then exposed
+an invalid revision-PATCH test fixture (400). The fixture is corrected to use the
+published revision envelope; final lifecycle/schema/vet qualification remains
+pending. Applied037 is frozen at
+`3fb1eb8d5064b9a95726bbab5873c0a4f2c8b812c7ef3ceb446f9ddbcc6141a8`.
+The behavior is uncommitted/unmerged and does not complete the semantic vertical.
+
+
+Final corrected scoped qualification passed six top-level PostgreSQL/race cases,
+zero failures/skips,20.779s (`/tmp/undergrid-semantic-groups-final98.jsonl`),
+including the actual semantic HTTP/schema oracle, nontransitivity, changed
+candidate revision and changed operator profile. `go vet ./internal/network`
+passed (`/tmp/undergrid-semantic-groups-final-vet.log`); canonical lint,142 schemas
+and generated-type parity passed
+(`/tmp/undergrid-semantic-groups-final-contract.log`). Subsequent route-description
+wording was reconciled with the already-tested semantic mode; no behavior changed.
+Quality review corrected duplicated evidence assumptions by binding the narrow
+public score projection to both loaded public hashes. Candidate preference
+thresholds remain private; only the requesting source threshold is evaluated.
+Group UI, complementary capability discovery and full release/provider/load
+qualification remain open. This checkpoint does not claim complete TDD delivery.

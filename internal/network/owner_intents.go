@@ -125,7 +125,7 @@ func (s *Service) ownerIntents(r *http.Request, tx pgx.Tx, principal string) (in
 		return 0, nil, err
 	}
 	if groups {
-		return compatibleGroups(command, tx, a, id)
+		return s.compatibleGroups(command, tx, a, id)
 	}
 	if externalFit {
 		return s.externalFitReport(command, tx, a, id)

@@ -7033,7 +7033,7 @@
       "get": {
         "operationId": "get__v1_intents_id_compatible-groups",
         "summary": "Read bounded current compatible demand groups",
-        "description": "Read-only, current owned active monitored intention required. Revalidates current revision-bound opportunities and public candidate eligibility. Every pair must have exact declared-outcome and hard-constraint compatibility; all members share a declared license option. Principal IDs count once but do not prove independent beneficial owners. Greedy bounded nonexhaustive views; no persisted membership, invitation, rights, provider verification or funding claim. Semantic cross-member evidence is explicitly pending. No provider I/O or writes.",
+        "description": "Read-only, current owned active monitored intention required. Revalidates current revision-bound opportunities and public candidate eligibility. Every pair must satisfy declared hard constraints and either exact declared-outcome comparison or current profile-bound semantic similarity at the source threshold; all members share a declared license option. Principal IDs count once but do not prove independent beneficial owners. Greedy bounded nonexhaustive views; no persisted membership, invitation, rights, provider verification or funding claim. Semantic views are labeled separately and use current approved public pair scores; private selected source queries remain owner-authorized only. No provider I/O or writes.",
         "responses": {
           "200": {
             "description": "Success",
@@ -7096,7 +7096,7 @@
       "get": {
         "operationId": "get__v1_owner_intents_id_compatible-groups",
         "summary": "Read bounded current compatible demand groups",
-        "description": "Read-only, current owned active monitored intention required. Revalidates current revision-bound opportunities and public candidate eligibility. Every pair must have exact declared-outcome and hard-constraint compatibility; all members share a declared license option. Principal IDs count once but do not prove independent beneficial owners. Greedy bounded nonexhaustive views; no persisted membership, invitation, rights, provider verification or funding claim. Semantic cross-member evidence is explicitly pending. No provider I/O or writes.",
+        "description": "Read-only, current owned active monitored intention required. Revalidates current revision-bound opportunities and public candidate eligibility. Every pair must satisfy declared hard constraints and either exact declared-outcome comparison or current profile-bound semantic similarity at the source threshold; all members share a declared license option. Principal IDs count once but do not prove independent beneficial owners. Greedy bounded nonexhaustive views; no persisted membership, invitation, rights, provider verification or funding claim. Semantic views are labeled separately and use current approved public pair scores; private selected source queries remain owner-authorized only. No provider I/O or writes.",
         "responses": {
           "200": {
             "description": "Success",
@@ -12509,7 +12509,11 @@
             }
           },
           "comparison_mode": {
-            "const": "exact_declared_outcome"
+            "type": "string",
+            "enum": [
+              "exact_declared_outcome",
+              "pairwise_semantic_and_hard_constraints"
+            ]
           },
           "identity_assurance": {
             "const": "common_control_unknown"
@@ -12548,7 +12552,6 @@
               "type": "string",
               "enum": [
                 "bounded_nonexhaustive_views",
-                "semantic_cross_member_evidence_pending",
                 "principal_ids_do_not_prove_independent_owners"
               ]
             },
