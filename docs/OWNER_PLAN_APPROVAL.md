@@ -2,9 +2,10 @@
 
 Implements the owner-console portion of TDD §9 and SW-04: an authenticated
 owner selects an active agent they own, reviews a sealed plan and its contribution
-terms, and records an exact version/hash decision. This feature is on
-`feat/v0.1-owner-plan-approval`, based on `release/v0.1`; it is not yet merged,
-promoted or deployed.
+terms, and records an exact version/hash decision. The console vertical merged
+into `release/v0.1` through PR84 (`cf4a510`). The additional policy-lock correction
+below remains on its separate fix branch pending review. No deployment or full
+release qualification is claimed.
 
 The feature reconciles release `548b59d` (renewal collection and owner invitations).
 The only source conflict was the participation panel import; both invitation and
@@ -140,3 +141,54 @@ and Vite build passed (Vite 1.33s,
 changed in the recovery correction; Go and OpenAPI match the exact-backend-tested
 source above. The release flow still requires PR review/merge; this is not a
 deployment or full TDD completion claim.
+
+## Plan-wide policy locks for owner decisions
+
+A controlled HTTP/PostgreSQL race reproduced a missing authority lock in the
+owner adapter. Agent plan/task mutations already call `lock_plan_authorities`
+before their individual actor locks. Owner decisions instead locked only the
+owner principal and agent before entering the shared plan transaction. A final
+owner vote could count another principal's current policy grant, pause before
+accepting the plan, and then commit an accepted head after that other owner had
+already committed a policy revocation.
+
+Actual RED: `TestOwnerPlanFinalApprovalSerializesPeerPolicyRevocation` failed in
+3.078s (`/tmp/undergrid-owner-plan-authority-red96.log`). The peer's real owner
+policy HTTP command returned 200 before final acceptance; independent persistence
+reads found an accepted plan and active head with the peer's recorded approval at
+policy version 2 while its current policy was version 3. A fixture-only trigger
+pauses the plan transition after policy counting to make the ordering deterministic.
+It is a controlled timing seam, not a public API capability or a provider result.
+
+Only exact owner plan-decision POSTs now resolve verified owner identity and an
+owned active agent without taking row locks, install that proven attribution,
+and acquire the existing canonical sorted required-principal lock set. They then
+recheck the current owner under lock and continue through the existing locked
+agent, room, exact-plan and rights-policy checks. Foreign attribution is rejected
+before invoking the privileged lock helper. Unsupported routes and other owner
+commands retain their prior locking path. Calling the helper later, after locking
+one owner, would invert the agent path's lock order and risk deadlock; the fix is
+at the authentication/transaction boundary instead.
+
+The same race oracle then passed with race detection in 2.883s
+(`/tmp/undergrid-owner-plan-authority-green96.log`): the peer policy mutation waits
+until the accepted-plan transaction commits. A later policy revocation remains
+possible; this fix serializes acceptance against revocation rather than erasing
+historical approvals. The controlled trigger, advisory lock and HTTP contexts are
+bounded and cleaned up on failure/cancellation.
+
+The affected race gate passed **6 top-level cases and 2 post-wait subcases** in
+12.959s, zero failures/skips
+(`/tmp/undergrid-owner-plan-authority-affected96.jsonl`). It includes loss of the
+attributed agent or owner while the real HTTP request waits on the canonical lock
+set; both deny with 403 and leave zero votes and idempotency rows. Existing owner
+plan, invitation/participation and independent agent assignment/plan lifecycle
+tests also pass. `go vet ./internal/network` passed
+(`/tmp/undergrid-owner-plan-authority-vet.log`).
+
+No migration or wire response changes. DRY: both owner and agent adapters
+use the same canonical authority-lock function and shared domain command; no new
+policy evaluator is introduced. Orthogonality: only owner plan-decision routing
+changes, and all effects remain in its existing network transaction. This
+checkpoint is on `fix/v0.1-owner-plan-authority-locks`; it is not yet merged or
+deployed and does not complete the TDD.
