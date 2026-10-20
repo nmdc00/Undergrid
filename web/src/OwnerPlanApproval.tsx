@@ -6,13 +6,15 @@ type Summary = {
   state: string;
   content_hash: string;
 };
-type Review = Summary & {
+type Plan = Summary & {
   swarm_id: string;
   canonical_json: string;
-  contribution_template_hash: string;
-  terms_url: string;
   specification: ObjectValue;
   tasks: ObjectValue[];
+};
+type Review = Plan & {
+  contribution_template_hash: string;
+  terms_url: string;
 };
 function integer(x: unknown) {
   if (typeof x !== "number" || !Number.isSafeInteger(x) || x < 1)
@@ -34,7 +36,7 @@ function strings(x: unknown): string[] {
   if (!Array.isArray(x)) throw Error("Invalid plan details");
   return x.map(text);
 }
-function reviewed(raw: unknown): Review {
+function planDetails(raw: unknown): Plan {
   const x = object(raw),
     spec = object(x.specification),
     rights = object(spec.rights);
@@ -64,16 +66,22 @@ function reviewed(raw: unknown): Review {
     integer(t.progress_interval_seconds);
     if (t.deadline != null) text(t.deadline);
   }
-  const hash = text(x.contribution_template_hash);
-  if (!/^[a-f0-9]{64}$/.test(hash)) throw Error("Invalid terms hash");
   return {
     ...summary(x),
     swarm_id: text(x.swarm_id),
     canonical_json: text(x.canonical_json),
-    contribution_template_hash: hash,
-    terms_url: text(x.terms_url),
     specification: spec,
     tasks: x.tasks.map(object),
+  };
+}
+function reviewed(raw: unknown): Review {
+  const x = object(raw);
+  const hash = text(x.contribution_template_hash);
+  if (!/^[a-f0-9]{64}$/.test(hash)) throw Error("Invalid terms hash");
+  return {
+    ...planDetails(x),
+    contribution_template_hash: hash,
+    terms_url: text(x.terms_url),
   };
 }
 export function OwnerPlanApproval({
@@ -194,13 +202,36 @@ export function OwnerPlanApproval({
             ? { acknowledge_contribution_terms: true }
             : {}),
         },
+        undefined,
+        (raw) => {
+          const result = planDetails(raw);
+          if (
+            result.id !== p.id ||
+            result.swarm_id !== p.swarm_id ||
+            result.version !== p.version ||
+            result.content_hash !== p.content_hash ||
+            result.canonical_json !== p.canonical_json ||
+            (decision === "reject"
+              ? result.state !== "rejected"
+              : !["proposed", "accepted"].includes(result.state))
+          )
+            throw new Error("Invalid plan decision response");
+        },
       );
       if (mine === generation.current) {
         setSaved(decision);
         setAck(false);
       }
     } catch (e) {
-      failed(e, mine);
+      if (e instanceof ApiError && e.status < 500) failed(e, mine);
+      else if (mine === generation.current) {
+        // The vote may already be committed. Retain its reviewed authority and
+        // request identity, but require approval acknowledgement again.
+        setAck(false);
+        setError(
+          "Decision could not be confirmed. Retry the same decision or review the plan again.",
+        );
+      }
     } finally {
       if (mine === generation.current) setBusy(false);
     }

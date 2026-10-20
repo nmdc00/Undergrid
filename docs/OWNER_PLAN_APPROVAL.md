@@ -15,8 +15,8 @@ The integrated full UI suite passed **66 tests across 9 files** in 18.78s
 (`/tmp/undergrid-owner-plan-merge-ui.log`); TypeScript/Vite passed (Vite 1.24s,
 `/tmp/undergrid-owner-plan-merge-build.log`), and the combined contract passed
 Redocly, compilation of 135 JSON Schema components and generated-type parity
-(`/tmp/undergrid-owner-plan-merge-contract.log`). A root-coordinated exact-state
-PostgreSQL integration gate is still pending before the PR can merge.
+(`/tmp/undergrid-owner-plan-merge-contract.log`). The subsequent root-coordinated
+exact-state PostgreSQL integration gate is recorded below.
 
 ## Runtime contract
 
@@ -99,3 +99,44 @@ the evidence for those unchanged paths.
 
 Plan creation and revision editing, assignment decisions and publication review
 remain separate work. Full TDD and release/provider/deployment gates remain open.
+
+## Confirmed decision response and recovery
+
+The branch reconciles release `110e26f`, including the shared owner-command
+response-recovery helper. A reviewer found that the plan control treated any
+successful JSON object as confirmation; `200 {}` therefore falsely reported an
+approval or rejection. Two actual UI oracles failed before correction (2 failed,
+7 passed in 4.67s; `/tmp/undergrid-owner-plan-malformed-red.log`).
+
+Review and decision responses now share a base-plan parser. The decision response
+must contain usable plan/specification/task structure, the exact reviewed plan ID,
+room, version, hash and sealed canonical document, plus a decision-consistent state.
+The existing `approvePlan` command unconditionally sets a rejected plan to
+`rejected`; approval may leave it `proposed` while other votes or assignment
+acceptances remain outstanding, or return `accepted`. These are the actual command
+states, not a new inference of assignment or publication approval. The base Plan
+response contains no vote ledger: confirmation relies on the successful exact
+command contract; separate PostgreSQL lifecycle proof observes its persisted votes.
+
+Validation runs inside the request helper before the idempotency key is released.
+An unusable success, network error or server failure leaves the reviewed projection
+available for an exact retry with its original key/body, but clears contribution
+acknowledgement so approval must be reaffirmed. A definitive stale/current-authority
+denial still discards the review. A further 500-response oracle reproduced the old
+review-clearing recovery gap before its correction (2 failed in 1.48s,
+`/tmp/undergrid-owner-plan-unknown-red.log`; other tests were intentionally excluded
+from that RED run). The combined focused GREEN passed all 11 UI cases in 2.33s
+(`/tmp/undergrid-owner-plan-recovery-focused-green.log`).
+
+The unchanged Go implementation on source `2dc9b41` also passed the root-coordinated
+exact PostgreSQL integration gate: 3 top-level owner-plan/invitation lifecycle cases,
+zero failures/skips, package elapsed 6.537s
+(`/tmp/undergrid-owner-plan-exact-integration96.jsonl`). This is prior exact-backend
+evidence, not a claim that the new UI changes have a new backend test result.
+Final integrated full UI suite: **78 tests across 9 files passed in 20.12s**
+(`/tmp/undergrid-owner-plan-recovery-full-ui.log`). Final TypeScript (`tsc --noEmit`)
+and Vite build passed (Vite 1.33s,
+`/tmp/undergrid-owner-plan-recovery-build.log`). No migration or backend contract
+changed in the recovery correction; Go and OpenAPI match the exact-backend-tested
+source above. The release flow still requires PR review/merge; this is not a
+deployment or full TDD completion claim.

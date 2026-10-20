@@ -57,7 +57,10 @@ function setup(status = 200) {
                   ],
                   next_before_version: "",
                 }
-              : plan,
+              : init?.method === "POST" &&
+                  JSON.parse(String(init.body)).decision === "reject"
+                ? { ...plan, state: "rejected" }
+                : plan,
         ),
         { status: init?.method === "POST" ? status : 200 },
       ),
@@ -65,6 +68,78 @@ function setup(status = 200) {
   vi.stubGlobal("fetch", fetch);
   return fetch;
 }
+test.each([
+  ["approve", 200],
+  ["reject", 200],
+  ["approve", 500],
+  ["reject", 500],
+])(
+  "unconfirmed %s response %s retries the exact command",
+  async (decision, status) => {
+    let posts = 0;
+    const fetch = setup();
+    fetch.mockImplementation(async (url, init) => {
+      if (init?.method === "POST") {
+        const first = posts++ === 0;
+        return new Response(
+          JSON.stringify(
+            first
+              ? {}
+              : {
+                  ...plan,
+                  state: decision === "reject" ? "rejected" : "proposed",
+                },
+          ),
+          { status: first ? Number(status) : 200 },
+        );
+      }
+      return new Response(
+        JSON.stringify(
+          String(url).endsWith("/plans")
+            ? { items: [plan], next_before_version: "" }
+            : plan,
+        ),
+      );
+    });
+    render(
+      <OwnerPlanApproval
+        agent="agent"
+        swarm="room"
+        csrf={`malformed-${decision}-${status}`}
+        onUnauthorized={vi.fn()}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Load plans" }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Review plan 3" }),
+    );
+    const name =
+      decision === "approve"
+        ? "Approve exact plan and contribution terms"
+        : "Reject exact reviewed plan";
+    if (decision === "approve")
+      await userEvent.click(
+        screen.getByLabelText(/I approve the contribution terms/),
+      );
+    await userEvent.click(screen.getByRole("button", { name }));
+    expect(await screen.findByRole("alert")).toBeTruthy();
+    expect(screen.queryByRole("status")).toBeNull();
+    if (decision === "approve")
+      await userEvent.click(
+        screen.getByLabelText(/I approve the contribution terms/),
+      );
+    await userEvent.click(screen.getByRole("button", { name }));
+    await screen.findByRole("status");
+    const calls = fetch.mock.calls.filter(
+      ([, init]) => init?.method === "POST",
+    );
+    expect(calls).toHaveLength(2);
+    expect(calls[0][1]?.body).toBe(calls[1][1]?.body);
+    expect(new Headers(calls[0][1]?.headers).get("Idempotency-Key")).toBe(
+      new Headers(calls[1][1]?.headers).get("Idempotency-Key"),
+    );
+  },
+);
 test("reviews exact plan and terms before explicit rights acknowledgement and approval", async () => {
   const fetch = setup();
   render(
