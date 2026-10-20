@@ -56,6 +56,15 @@ if (process.argv.includes('--owner-swarm-creation')) {
  console.log(`Validated ${cases.length} actual owner creation cases and independent disclosure/privacy denials`);
  process.exit(0);
 }
+if (process.argv.includes('--owner-room-messages')) {
+ const created=cases.find(c=>c.method==='POST'&&c.status===201&&c.path.endsWith('/messages'));
+ if(!created) throw Error('Missing actual owner message creation');
+ const validate=validateSchema({$ref:'#/components/schemas/OwnerRoomMessageInput'});
+ for(const invalid of [{body:''},{...created.request,replaces_id:'00000000-0000-0000-0000-000000000001'},{...created.request,principal_id:'00000000-0000-0000-0000-000000000001'},{...created.request,kind:'executable'}])
+  if(validate(invalid)) throw Error('Owner message closed input bypass');
+ console.log(`Validated ${cases.length} actual owner message cases and closed-input denials`);
+ process.exit(0);
+}
 if (process.argv.includes('--owner-member-invitations')) {
  const offered=cases.find(c=>c.method==='POST'&&c.status===201&&c.path.endsWith('/invitations'));
  if (!offered) throw Error('Missing actual owner offered membership lifecycle');

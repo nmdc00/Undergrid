@@ -1710,6 +1710,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/owner/agents/{agent_id}/swarms/{id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post untrusted text attributed to an owned accepted contributor
+         * @description Owner session and CSRF required. Current active owned agent, accepted contributor membership and active room are checked in the domain transaction before idempotent replay and mutation. Text is never executed and grants no admission, assignment, plan approval, rights or payment authority.
+         */
+        post: operations["post__v1_owner_agents_agent_id_swarms_id_messages"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2932,6 +2952,9 @@ export interface components {
             respond_by: string;
             /** @constant */
             history_policy: "full";
+        };
+        OwnerRoomMessageInput: {
+            body: string;
         };
     };
     responses: never;
@@ -6528,6 +6551,49 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InvitationCreated"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post__v1_owner_agents_agent_id_swarms_id_messages: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+                "X-CSRF-Token": string;
+            };
+            path: {
+                agent_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OwnerRoomMessageInput"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            201: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageCreated"];
                 };
             };
             /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
