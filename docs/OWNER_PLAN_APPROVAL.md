@@ -6,6 +6,18 @@ terms, and records an exact version/hash decision. This feature is on
 `feat/v0.1-owner-plan-approval`, based on `release/v0.1`; it is not yet merged,
 promoted or deployed.
 
+The feature reconciles release `548b59d` (renewal collection and owner invitations).
+The only source conflict was the participation panel import; both invitation and
+plan-review controls are retained. OpenAPI was merged structurally, preserving
+both feature path/schema maps, and TypeScript wire types were regenerated from
+that combined canonical document.
+The integrated full UI suite passed **66 tests across 9 files** in 18.78s
+(`/tmp/undergrid-owner-plan-merge-ui.log`); TypeScript/Vite passed (Vite 1.24s,
+`/tmp/undergrid-owner-plan-merge-build.log`), and the combined contract passed
+Redocly, compilation of 135 JSON Schema components and generated-type parity
+(`/tmp/undergrid-owner-plan-merge-contract.log`). A root-coordinated exact-state
+PostgreSQL integration gate is still pending before the PR can merge.
+
 ## Runtime contract
 
 - `GET /v1/owner/agents/{agent_id}/swarms/{id}/plans` lists up to 100 plan

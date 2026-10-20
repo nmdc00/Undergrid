@@ -18,30 +18,8 @@ import (
 
 func TestOwnerParticipationInvitationLifecycleWithoutAgentCredential(t *testing.T) {
 	s, db := fixture(t)
+	useOwnerParticipationLogin(t, s, db)
 	ctx := context.Background()
-	if _, err := db.Exec(ctx, `DO $$ BEGIN
- IF NOT EXISTS(SELECT FROM pg_roles WHERE rolname='undergrid_owner_participation_runner') THEN CREATE ROLE undergrid_owner_participation_runner LOGIN NOSUPERUSER NOBYPASSRLS; END IF;
- END $$; GRANT undergrid_app TO undergrid_owner_participation_runner;`); err != nil {
-		t.Fatal(err)
-	}
-	cfg, err := pgx.ParseConfig(s.dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cfg.User, cfg.Password = "undergrid_owner_participation_runner", ""
-	runtimeURL := url.URL{Scheme: "postgres", User: url.User(cfg.User), Path: "/" + cfg.Database, RawQuery: url.Values{"host": {cfg.Host}, "port": {strconv.Itoa(int(cfg.Port))}, "sslmode": {"disable"}}.Encode()}
-	s.dsn = runtimeURL.String()
-	check, err := pgx.Connect(ctx, s.dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var login string
-	var unsafe bool
-	err = check.QueryRow(ctx, "SELECT session_user,rolsuper OR rolbypassrls OR pg_has_role(current_user,'undergrid_worker','MEMBER') FROM pg_roles WHERE rolname=session_user").Scan(&login, &unsafe)
-	check.Close(ctx)
-	if err != nil || login != cfg.User || unsafe {
-		t.Fatalf("unsafe runtime login: %s %v %v", login, unsafe, err)
-	}
 	a, b, foreign := collaborationClient(t, s), collaborationClient(t, s), collaborationClient(t, s)
 	_, identity := b.call("GET", "/v1/me", "", nil)
 	agent := identity["agent_id"].(string)
@@ -164,4 +142,32 @@ func TestOwnerParticipationInvitationLifecycleWithoutAgentCredential(t *testing.
 		t.Fatalf("revoked attribution agent accepted: %d %v", code, out)
 	}
 
+}
+
+func useOwnerParticipationLogin(t *testing.T, s *Service, db *pgx.Conn) {
+	t.Helper()
+	ctx := context.Background()
+	if _, err := db.Exec(ctx, `DO $$ BEGIN
+ IF NOT EXISTS(SELECT FROM pg_roles WHERE rolname='undergrid_owner_participation_runner') THEN CREATE ROLE undergrid_owner_participation_runner LOGIN NOSUPERUSER NOBYPASSRLS; END IF;
+ END $$; GRANT undergrid_app TO undergrid_owner_participation_runner;`); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := pgx.ParseConfig(s.dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.User, cfg.Password = "undergrid_owner_participation_runner", ""
+	runtimeURL := url.URL{Scheme: "postgres", User: url.User(cfg.User), Path: "/" + cfg.Database, RawQuery: url.Values{"host": {cfg.Host}, "port": {strconv.Itoa(int(cfg.Port))}, "sslmode": {"disable"}}.Encode()}
+	s.dsn = runtimeURL.String()
+	check, err := pgx.Connect(ctx, s.dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var login string
+	var unsafe bool
+	err = check.QueryRow(ctx, "SELECT session_user,rolsuper OR rolbypassrls OR pg_has_role(current_user,'undergrid_worker','MEMBER') FROM pg_roles WHERE rolname=session_user").Scan(&login, &unsafe)
+	check.Close(ctx)
+	if err != nil || login != cfg.User || unsafe {
+		t.Fatalf("unsafe runtime login: %s %v %v", login, unsafe, err)
+	}
 }

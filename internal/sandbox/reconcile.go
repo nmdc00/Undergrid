@@ -41,32 +41,11 @@ func (s *Store) beginDispatch(ctx context.Context, id string, startBlock *big.In
 		if p.State != "authorized" {
 			return ErrConflict
 		}
-		// Credential expiry is evaluated after the actor wait, not at transaction start.
-		var valid bool
-		err = tx.QueryRow(ctx, `SELECT p.policy_version=$2 AND p.reservation_period=(now() AT TIME ZONE 'UTC')::date AND c.revoked_at IS NULL AND c.expires_at>clock_timestamp() FROM sandbox_payments p JOIN sandbox_credentials c ON c.id=p.credential_id WHERE p.id=$1`, id, version).Scan(&valid)
+		allowed, err := s.currentPaymentAuthority(ctx, tx, p, policy, version)
 		if err != nil {
 			return err
 		}
-		var consentValid bool
-		if err = tx.QueryRow(ctx, "SELECT subscription_id IS NULL OR EXISTS(SELECT FROM sandbox_subscriptions s WHERE s.id=p.subscription_id AND s.state<>'canceled' AND s.expires_at>now()) FROM sandbox_payments p WHERE p.id=$1", id).Scan(&consentValid); err != nil {
-			return err
-		}
-		walletErr := s.checkUSDCQuote(ctx, tx, p, true)
-		if walletErr != nil && !errors.Is(walletErr, ErrConflict) && !errors.Is(walletErr, ErrUnauthorized) {
-			return walletErr
-		}
-		walletValid := walletErr == nil
-		if walletValid && p.Quote.Asset == "USDC" && p.walletAuthorization == nil {
-			return ErrUnauthorized
-		}
-		if walletValid {
-			payerErr := s.checkPayerAuthorization(ctx, tx, p)
-			if payerErr != nil && !errors.Is(payerErr, ErrConflict) && !errors.Is(payerErr, ErrUnauthorized) && !errors.Is(payerErr, ErrInvalid) {
-				return payerErr
-			}
-			walletValid = payerErr == nil
-		}
-		if !walletValid || !consentValid || !valid || !permits(policy, p.Quote) || !p.Quote.ExpiresAt.After(time.Now()) {
+		if !allowed {
 			blocked = true
 			p.State = "canceled"
 			if p.Quote.Asset == "USDC" && p.walletAuthorization != nil {
@@ -82,6 +61,11 @@ func (s *Store) beginDispatch(ctx context.Context, id string, startBlock *big.In
 			p.State = "submitting"
 			if p.Quote.Asset == "USDC" {
 				if err = s.claimUSDCDispatch(ctx, tx, p, startBlock); err != nil {
+					return err
+				}
+			}
+			if p.Quote.Rail == "stripe_test" {
+				if err = s.claimStripeRenewal(ctx, tx, p); err != nil {
 					return err
 				}
 			}
@@ -240,4 +224,36 @@ func (s *Store) recordUnexpectedCharge(ctx context.Context, e VerifiedEffect, ki
 		_, err := tx.Exec(ctx, "INSERT INTO sandbox_anomalies(payment_id,kind,object_id,evidence_class) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING", e.PaymentID, kind, object, evidenceClass)
 		return err
 	})
+}
+
+// currentPaymentAuthority is evaluated inside the actor-locked transaction both
+// before initial disclosure and before each manually controlled invoice debit step.
+func (s *Store) currentPaymentAuthority(ctx context.Context, tx pgx.Tx, p Payment, policy Policy, version int64) (bool, error) {
+	// Credential expiry is evaluated after the actor wait, not at transaction start.
+	var valid bool
+	err := tx.QueryRow(ctx, `SELECT p.policy_version=$2 AND p.reservation_period=(now() AT TIME ZONE 'UTC')::date AND c.revoked_at IS NULL AND c.expires_at>clock_timestamp() FROM sandbox_payments p JOIN sandbox_credentials c ON c.id=p.credential_id WHERE p.id=$1`, p.ID, version).Scan(&valid)
+	if err != nil {
+		return false, err
+	}
+	var consentValid bool
+	if err = tx.QueryRow(ctx, "SELECT subscription_id IS NULL OR EXISTS(SELECT FROM sandbox_subscriptions s WHERE s.id=p.subscription_id AND s.state<>'canceled' AND s.expires_at>now()) FROM sandbox_payments p WHERE p.id=$1", p.ID).Scan(&consentValid); err != nil {
+		return false, err
+	}
+	walletErr := s.checkUSDCQuote(ctx, tx, p, true)
+	if walletErr != nil && !errors.Is(walletErr, ErrConflict) && !errors.Is(walletErr, ErrUnauthorized) {
+		return false, walletErr
+	}
+	walletValid := walletErr == nil
+	if walletValid && p.Quote.Asset == "USDC" && p.walletAuthorization == nil {
+		return false, ErrUnauthorized
+	}
+	if walletValid {
+		payerErr := s.checkPayerAuthorization(ctx, tx, p)
+		if payerErr != nil && !errors.Is(payerErr, ErrConflict) && !errors.Is(payerErr, ErrUnauthorized) && !errors.Is(payerErr, ErrInvalid) {
+			return false, payerErr
+		}
+		walletValid = payerErr == nil
+	}
+
+	return walletValid && consentValid && valid && permits(policy, p.Quote) && p.Quote.ExpiresAt.After(time.Now()), nil
 }

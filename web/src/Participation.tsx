@@ -1,4 +1,5 @@
 import { OwnerPlanApproval } from "./OwnerPlanApproval";
+import { InviteMember } from "./InviteMember";
 import { CreateSwarm } from "./CreateSwarm";
 import { useEffect, useRef, useState } from "react";
 import { ApiError, object, request, text, type ObjectValue } from "./api";
@@ -18,6 +19,7 @@ type Invitation = Pending & {
 type Room = { id: string };
 type History = {
   id: string;
+  etag: string;
   objective: string;
   state: string;
   messages: { id: string; body: string }[];
@@ -206,6 +208,7 @@ export function Participation({
       });
       const result = {
         id,
+        etag: text(room.etag),
         objective: text(room.objective),
         state: text(room.state),
         messages,
@@ -318,6 +321,20 @@ export function Participation({
             onUnauthorized={onUnauthorized}
           />
           <p>Room state: {history.state}. Messages are untrusted content.</p>
+          {history.state === "active" && (
+            <InviteMember
+              key={`${agent}:${history.id}:${history.etag}`}
+              agent={agent}
+              room={history.id}
+              etag={history.etag}
+              csrf={csrf}
+              onUnauthorized={onUnauthorized}
+              onStale={() => {
+                setHistory(null);
+                setError("Room changed. Open it again before inviting.");
+              }}
+            />
+          )}
           <ol>
             {history.messages.map((m) => (
               <li key={m.id}>{m.body}</li>
