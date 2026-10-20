@@ -7028,6 +7028,132 @@
           }
         }
       }
+    },
+    "/v1/intents/{id}/compatible-groups": {
+      "get": {
+        "operationId": "get__v1_intents_id_compatible-groups",
+        "summary": "Read bounded current compatible demand groups",
+        "description": "Read-only, current owned active monitored intention required. Revalidates current revision-bound opportunities and public candidate eligibility. Every pair must have exact declared-outcome and hard-constraint compatibility; all members share a declared license option. Principal IDs count once but do not prove independent beneficial owners. Greedy bounded nonexhaustive views; no persisted membership, invitation, rights, provider verification or funding claim. Semantic cross-member evidence is explicitly pending. No provider I/O or writes.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompatibleGroups"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; status depends on authentication, visibility, validation, quotas and runtime availability.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "NetworkBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/v1/owner/intents/{id}/compatible-groups": {
+      "get": {
+        "operationId": "get__v1_owner_intents_id_compatible-groups",
+        "summary": "Read bounded current compatible demand groups",
+        "description": "Read-only, current owned active monitored intention required. Revalidates current revision-bound opportunities and public candidate eligibility. Every pair must have exact declared-outcome and hard-constraint compatibility; all members share a declared license option. Principal IDs count once but do not prove independent beneficial owners. Greedy bounded nonexhaustive views; no persisted membership, invitation, rights, provider verification or funding claim. Semantic cross-member evidence is explicitly pending. No provider I/O or writes.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompatibleGroups"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; status depends on authentication, visibility, validation, quotas and runtime availability.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OwnerSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -12337,6 +12463,104 @@
           "etag",
           "visibility",
           "history_policy"
+        ],
+        "additionalProperties": false
+      },
+      "CompatibleGroupMember": {
+        "type": "object",
+        "properties": {
+          "intent_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "principal_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "hard_constraints": {
+            "$ref": "#/components/schemas/Constraints"
+          }
+        },
+        "required": [
+          "intent_id",
+          "principal_id",
+          "hard_constraints"
+        ],
+        "additionalProperties": false
+      },
+      "CompatibleGroup": {
+        "type": "object",
+        "properties": {
+          "members": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 21,
+            "items": {
+              "$ref": "#/components/schemas/CompatibleGroupMember"
+            }
+          },
+          "common_license_ids": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 20,
+            "uniqueItems": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "comparison_mode": {
+            "const": "exact_declared_outcome"
+          },
+          "identity_assurance": {
+            "const": "common_control_unknown"
+          }
+        },
+        "required": [
+          "members",
+          "common_license_ids",
+          "comparison_mode",
+          "identity_assurance"
+        ],
+        "additionalProperties": false
+      },
+      "CompatibleGroups": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "maxItems": 10,
+            "items": {
+              "$ref": "#/components/schemas/CompatibleGroup"
+            }
+          },
+          "candidate_limit": {
+            "const": 20
+          },
+          "group_limit": {
+            "const": 10
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "limitations": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "bounded_nonexhaustive_views",
+                "semantic_cross_member_evidence_pending",
+                "principal_ids_do_not_prove_independent_owners"
+              ]
+            },
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "items",
+          "candidate_limit",
+          "group_limit",
+          "truncated",
+          "limitations"
         ],
         "additionalProperties": false
       }

@@ -20,6 +20,10 @@ import (
 // transactional queue rules; no agent credential is minted for the browser.
 func (s *Service) ownerIntents(r *http.Request, tx pgx.Tx, principal string) (int, any, error) {
 	collection := r.URL.Path == "/v1/owner/intents"
+	groups := strings.HasSuffix(r.URL.Path, "/compatible-groups")
+	if groups && r.Method != "GET" {
+		return 0, nil, fail(405, "method_not_allowed")
+	}
 	opportunities := strings.HasSuffix(r.URL.Path, "/opportunities")
 	externalLeads := strings.HasSuffix(r.URL.Path, "/external-leads")
 	externalFit := strings.HasSuffix(r.URL.Path, "/external-fit-report")
@@ -104,7 +108,7 @@ func (s *Service) ownerIntents(r *http.Request, tx pgx.Tx, principal string) (in
 		}
 		command.Body = io.NopCloser(bytes.NewReader(canonical(in.Intent)))
 	} else {
-		id = strings.TrimSuffix(strings.TrimSuffix(strings.TrimSuffix(strings.TrimPrefix(command.URL.Path, "/v1/intents/"), "/opportunities"), "/external-leads"), "/external-fit-report")
+		id = strings.TrimSuffix(strings.TrimSuffix(strings.TrimSuffix(strings.TrimSuffix(strings.TrimPrefix(command.URL.Path, "/v1/intents/"), "/opportunities"), "/external-leads"), "/external-fit-report"), "/compatible-groups")
 		if !validID(id) {
 			return 0, nil, fail(404, "not_found")
 		}
@@ -119,6 +123,9 @@ func (s *Service) ownerIntents(r *http.Request, tx pgx.Tx, principal string) (in
 	a, err := lockOwnerAgent(ctx, tx, principal, agent)
 	if err != nil {
 		return 0, nil, err
+	}
+	if groups {
+		return compatibleGroups(command, tx, a, id)
 	}
 	if externalFit {
 		return s.externalFitReport(command, tx, a, id)

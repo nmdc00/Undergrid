@@ -292,3 +292,75 @@ The share-lock ordering is an implementation argument supported by affected
 race tests, not a claim of exhaustive schedule/model-cutover qualification.
 Full load, in-flight provider deduplication, groups, complementary discovery and
 release/provider qualification remain open.
+
+## Bounded exact compatible-group checkpoint (2026-10-20)
+
+Owner/agent GET intentions/{id}/compatible-groups plus the shared finite
+intention_compatible_groups MCP/A2A operation derive bounded groups from current
+revision-bound opportunities and current safe public projections. Each group
+contains the current owned active monitored source, checks every member pair's
+exact declared outcome and hard constraints, intersects license options across
+all members, and counts a principal once. At most20 candidate records and10
+deterministic greedy views are returned; this is explicitly nonexhaustive,
+not a persisted/transitive cluster graph or evidence of beneficial-owner
+independence. Public candidates are revalidated at read time. No private query,
+objective or budget enters the group projection; members expose IDs and declared
+constraints only. An owner can inspect only their own source through the same
+owner-session transaction/agent attribution boundary as opportunity reads.
+
+Initial HTTP missing-route RED1.531s is retained at
+/tmp/undergrid-compatible-groups-http-red98.log. Initial policy test compilation
+failed on absent types/functions (scaffolding, not behavioral RED); the policy
+oracles then passed. Initial actual endpoint slice passed2.274s. Extended
+protocol test first failed setup because retained98 postmaster was stopped after
+host interruption; normal pg_ctl restart recovered the same database and logs,
+without data/queue deletion. The next run completed runtime assertions but the
+validator's default artifact fixture requirement failed; a dedicated group mode
+now retains generic request/response validation and adds independent private-
+field, false independence, empty-license and false-semantic-mode denials.
+
+Final real restricted-login race slice passed15.429s
+(/tmp/undergrid-compatible-groups-protocol-final98.log), including group policy,
+principal dedupe, global license versus pairwise overlap, REST/owner/MCP/A2A
+reads, immediate withdrawal and foreign-owner404. Canonical OpenAPI/generated
+types and142 schemas passed before the final dedicated validator correction;
+actual HTTP schemas and negative oracles pass in the final race test.
+
+The response honestly reports exact_declared_outcome and
+semantic_cross_member_evidence_pending. This checkpoint does NOT finish computed
+semantic groups: current public pair-score projection, current-profile numeric
+checks between candidates, richer group/runtime/privacy/load qualification and
+owner group display remain pending. Network037 is reserved for the narrow public
+pair-score helper;038 is independently reserved/applied on the external-
+notification fixture. This feature remains unmerged.
+
+### Independent review corrections and final exact-group proof
+
+Read-only swarm review found a real global-feasibility defect: input families
+{A,B},{B,C},{A,C} pass every pair but have no common group input. A new actual
+policy RED failed0.018s (`/tmp/undergrid-groups-input-alternatives-red.log`).
+The group builder now accumulates typed CombinedConstraints through the existing
+domain evaluator before accepting each member; global input alternatives and
+other typed constraint rules share their policy owner. License intersection
+remains explicit for legacy exact inputs whose public compatibility shape omits
+CombinedConstraints. The policy GREEN passed1.028s.
+
+Review also identified the upcoming external-notification integration seam:
+those opportunities have observation IDs rather than candidate_intent_id.
+The existing extraction loop was characterized/extracted, then an actual mixed
+opportunity oracle reproduced its nil-to-string panic
+(`/tmp/undergrid-groups-external-member-red.log`). Group extraction now accepts
+only shared_demand rows with valid registered candidate IDs. External requests
+and capabilities never become group members or counted registered demand.
+The final independent policy slice passed1.027s
+(`/tmp/undergrid-groups-policy-final.log`).
+
+Final affected real HTTP/protocol/policy race suite passed **5 top-level cases**,
+zero failures/skips, package15.558s
+(`/tmp/undergrid-compatible-groups-final-reviewed98.jsonl`). Vet passed
+(`/tmp/undergrid-groups-reviewed-vet.log`). This includes actual REST, current
+owner-session, MCP and A2A reads and runtime Ajv privacy/evidence denials. The
+independent review otherwise found no material authority/public-projection leak.
+Exact-group code is a checkpoint of the still-unmerged full discovery branch;
+semantic cross-member evidence, group display and broad qualification remain
+explicitly pending as described above.

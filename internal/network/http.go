@@ -396,6 +396,15 @@ func (s *Service) agentCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, e
 		}
 		return s.listExternalLeads(r, tx, a, id, "agent")
 	}
+	if strings.HasPrefix(r.URL.Path, "/v1/intents/") && strings.HasSuffix(r.URL.Path, "/compatible-groups") {
+		if r.Method != "GET" {
+			return 0, nil, fail(405, "method_not_allowed")
+		}
+		if !slices.Contains(a.Scopes, "intents:read") {
+			return 0, nil, insufficientScope(a, "intents:read")
+		}
+		return compatibleGroups(r, tx, a, strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/v1/intents/"), "/compatible-groups"))
+	}
 	if r.Method == "GET" && (r.URL.Path == "/v1/opportunities" || strings.HasPrefix(r.URL.Path, "/v1/opportunities/") || (strings.HasPrefix(r.URL.Path, "/v1/intents/") && strings.HasSuffix(r.URL.Path, "/opportunities"))) {
 		if !slices.Contains(a.Scopes, "intents:read") {
 			return 0, nil, insufficientScope(a, "intents:read")

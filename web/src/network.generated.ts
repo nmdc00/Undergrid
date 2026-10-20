@@ -1670,6 +1670,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/intents/{id}/compatible-groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read bounded current compatible demand groups
+         * @description Read-only, current owned active monitored intention required. Revalidates current revision-bound opportunities and public candidate eligibility. Every pair must have exact declared-outcome and hard-constraint compatibility; all members share a declared license option. Principal IDs count once but do not prove independent beneficial owners. Greedy bounded nonexhaustive views; no persisted membership, invitation, rights, provider verification or funding claim. Semantic cross-member evidence is explicitly pending. No provider I/O or writes.
+         */
+        get: operations["get__v1_intents_id_compatible-groups"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/intents/{id}/compatible-groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read bounded current compatible demand groups
+         * @description Read-only, current owned active monitored intention required. Revalidates current revision-bound opportunities and public candidate eligibility. Every pair must have exact declared-outcome and hard-constraint compatibility; all members share a declared license option. Principal IDs count once but do not prove independent beneficial owners. Greedy bounded nonexhaustive views; no persisted membership, invitation, rights, provider verification or funding claim. Semantic cross-member evidence is explicitly pending. No provider I/O or writes.
+         */
+        get: operations["get__v1_owner_intents_id_compatible-groups"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2930,6 +2970,30 @@ export interface components {
             visibility: "private" | "restricted";
             /** @enum {string} */
             history_policy: "full";
+        };
+        CompatibleGroupMember: {
+            /** Format: uuid */
+            intent_id: string;
+            /** Format: uuid */
+            principal_id: string;
+            hard_constraints: components["schemas"]["Constraints"];
+        };
+        CompatibleGroup: {
+            members: components["schemas"]["CompatibleGroupMember"][];
+            common_license_ids: string[];
+            /** @constant */
+            comparison_mode: "exact_declared_outcome";
+            /** @constant */
+            identity_assurance: "common_control_unknown";
+        };
+        CompatibleGroups: {
+            items: components["schemas"]["CompatibleGroup"][];
+            /** @constant */
+            candidate_limit: 20;
+            /** @constant */
+            group_limit: 10;
+            truncated: boolean;
+            limitations: ("bounded_nonexhaustive_views" | "semantic_cross_member_evidence_pending" | "principal_ids_do_not_prove_independent_owners")[];
         };
     };
     responses: never;
@@ -6429,6 +6493,76 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OwnerSwarmCreated"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get__v1_intents_id_compatible-groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompatibleGroups"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get__v1_owner_intents_id_compatible-groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompatibleGroups"];
                 };
             };
             /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */

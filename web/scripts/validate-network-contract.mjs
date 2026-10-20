@@ -43,6 +43,22 @@ const baseline={id:'a8391ea6-5003-401e-85e1-47c116fe3da0',version:1,etag:'"1"',s
 if (!publicIntent(baseline)) throw Error('Independent public fixture invalid');
 if (publicIntent({...baseline,budget:{amount_minor:100,currency:'EUR',kind:'stated_budget'}})) throw Error('Public budget leak permitted');
 if (publicIntent({...baseline,version:'1'})) throw Error('String version permitted');
+if (process.argv.includes('--compatible-groups')) {
+ const actual=cases.find(c=>c.path.endsWith('/compatible-groups')&&c.status===200&&c.response.items?.length);
+ if (!actual) throw Error('Missing actual compatible-group response');
+ const validate=validateSchema({$ref:'#/components/schemas/CompatibleGroups'});
+ for (const mutate of [
+  x=>x.items[0].members[0].private_objective='forbidden',
+  x=>x.items[0].identity_assurance='verified_independent_owners',
+  x=>x.items[0].common_license_ids=[],
+  x=>x.items[0].comparison_mode='verified_semantic_group'
+ ]) {
+  const invalid=structuredClone(actual.response);mutate(invalid);
+  if (validate(invalid)) throw Error('Group privacy/evidence negative oracle accepted');
+ }
+ console.log(`Validated ${cases.length} actual group HTTP cases and privacy/evidence denials`);
+ process.exit(0);
+}
 if (process.argv.includes('--typed-demand-constraints')) {
  const proof=cases.flatMap(c=>Array.isArray(c.response?.items)?c.response.items:[]).map(x=>x.evidence).find(x=>x?.combined_constraints);
  if (!proof) throw Error('Missing actual combined typed demand lifecycle');
