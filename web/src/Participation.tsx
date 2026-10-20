@@ -1,4 +1,5 @@
 import { OwnerRoomMessage } from "./OwnerRoomMessage";
+import { OwnerPlanApproval } from "./OwnerPlanApproval";
 import { InviteMember } from "./InviteMember";
 import { CreateSwarm } from "./CreateSwarm";
 import { useEffect, useRef, useState } from "react";
@@ -314,6 +315,12 @@ export function Participation({
       {history && (
         <article>
           <h3>{history.objective}</h3>
+          <OwnerPlanApproval
+            agent={agent}
+            swarm={history.id}
+            csrf={csrf}
+            onUnauthorized={onUnauthorized}
+          />
           <p>Room state: {history.state}. Messages are untrusted content.</p>
           {history.state === "active" && (
             <InviteMember
