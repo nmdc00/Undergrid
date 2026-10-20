@@ -11,7 +11,11 @@ import (
 )
 
 func runStripe(ctx context.Context, dsn string) error {
-	service, err := sandbox.NewStripeService(sandbox.New(dsn), sandbox.StripeConfig{SecretKey: os.Getenv("UNDERGRID_SANDBOX_STRIPE_SECRET_KEY"), WebhookSecret: os.Getenv("UNDERGRID_SANDBOX_STRIPE_WEBHOOK_SECRET"), AccountID: os.Getenv("UNDERGRID_SANDBOX_STRIPE_ACCOUNT_ID"), Product: os.Getenv("UNDERGRID_SANDBOX_STRIPE_PRODUCT"), PriceID: os.Getenv("UNDERGRID_SANDBOX_STRIPE_PRICE_ID"), StripeProductID: os.Getenv("UNDERGRID_SANDBOX_STRIPE_PROVIDER_PRODUCT_ID"), SuccessURL: os.Getenv("UNDERGRID_SANDBOX_STRIPE_SUCCESS_URL"), CancelURL: os.Getenv("UNDERGRID_SANDBOX_STRIPE_CANCEL_URL")})
+	config, err := stripeConfigFromEnvironment()
+	if err != nil {
+		return err
+	}
+	service, err := sandbox.NewStripeService(sandbox.New(dsn), config)
 	if err != nil {
 		return errors.New("invalid isolated Stripe TEST worker configuration")
 	}
@@ -43,4 +47,14 @@ func runStripe(ctx context.Context, dsn string) error {
 		err = nil
 	}
 	return errors.Join(err, shutdownErr)
+}
+
+func stripeConfigFromEnvironment() (sandbox.StripeConfig, error) {
+	mode := os.Getenv("UNDERGRID_SANDBOX_STRIPE_RENEWALS")
+	if mode != "" && mode != "manual_test_v1" {
+		return sandbox.StripeConfig{}, errors.New("explicit manual TEST renewal configuration required")
+	}
+	config := sandbox.StripeConfig{SecretKey: os.Getenv("UNDERGRID_SANDBOX_STRIPE_SECRET_KEY"), WebhookSecret: os.Getenv("UNDERGRID_SANDBOX_STRIPE_WEBHOOK_SECRET"), AccountID: os.Getenv("UNDERGRID_SANDBOX_STRIPE_ACCOUNT_ID"), Product: os.Getenv("UNDERGRID_SANDBOX_STRIPE_PRODUCT"), PriceID: os.Getenv("UNDERGRID_SANDBOX_STRIPE_PRICE_ID"), StripeProductID: os.Getenv("UNDERGRID_SANDBOX_STRIPE_PROVIDER_PRODUCT_ID"), SuccessURL: os.Getenv("UNDERGRID_SANDBOX_STRIPE_SUCCESS_URL"), CancelURL: os.Getenv("UNDERGRID_SANDBOX_STRIPE_CANCEL_URL")}
+	config.RenewalsEnabled = mode == "manual_test_v1"
+	return config, nil
 }

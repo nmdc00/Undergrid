@@ -1630,6 +1630,106 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/owner/agents/{agent_id}/swarms/{id}/plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * GET /v1/owner/agents/{agent_id}/swarms/{id}/plans
+         * @description Verified current owner selects an owned active attribution agent. Shared domain membership, rights policy, exact plan hash/version and deadline checks apply. Approval records explicit plan and contribution rights votes; assignment acceptance, publication and spending remain separate. Authorization precedes retained command recovery.
+         */
+        get: operations["owner_plan_get_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/agents/{agent_id}/plans/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * GET /v1/owner/agents/{agent_id}/plans/{id}
+         * @description Verified current owner selects an owned active attribution agent. Shared domain membership, rights policy, exact plan hash/version and deadline checks apply. Approval records explicit plan and contribution rights votes; assignment acceptance, publication and spending remain separate. Authorization precedes retained command recovery.
+         */
+        get: operations["owner_plan_get_review"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/agents/{agent_id}/plans/{id}/approvals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * POST /v1/owner/agents/{agent_id}/plans/{id}/approvals
+         * @description Verified current owner selects an owned active attribution agent. Shared domain membership, rights policy, exact plan hash/version and deadline checks apply. Approval records explicit plan and contribution rights votes; assignment acceptance, publication and spending remain separate. Authorization precedes retained command recovery.
+         */
+        post: operations["owner_plan_post_approval"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/agents/{agent_id}/swarms/{id}/invitations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Offer a membership from an owned current coordinator after reviewing room version
+         * @description Owner session, CSRF and exact reviewed room If-Match required. Current accepted coordinator and active room are locked in the domain transaction before replay and mutation. Full prior-history acknowledgment is explicit. Offering does not admit, assign work or grant rights/payment authority. Target must be currently eligible and opted in.
+         */
+        post: operations["post__v1_owner_agents_agent_id_swarms_id_invitations"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/agents/{agent_id}/swarms/{id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post untrusted text attributed to an owned accepted contributor
+         * @description Owner session and CSRF required. Current active owned agent, accepted contributor membership and active room are checked in the domain transaction before idempotent replay and mutation. Text is never executed and grants no admission, assignment, plan approval, rights or payment authority.
+         */
+        post: operations["post__v1_owner_agents_agent_id_swarms_id_messages"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2848,6 +2948,50 @@ export interface components {
             /** @constant */
             origin?: "external_capability";
         });
+        OwnerPlanReview: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            swarm_id: string;
+            state: string;
+            version: number;
+            content_hash: string;
+            canonical_json: string;
+            specification: components["schemas"]["PlanSpec"];
+            tasks: components["schemas"]["TaskSummary"][];
+            contribution_template_hash: string;
+            terms_url: string;
+        };
+        OwnerPlanPage: {
+            items: {
+                /** Format: uuid */
+                id: string;
+                state: string;
+                version: number;
+                content_hash: string;
+            }[];
+            next_before_version: string;
+        };
+        OwnerPlanApproval: {
+            /** @enum {string} */
+            decision: "approve" | "reject";
+            content_hash: string;
+            version: number;
+            acknowledge_contribution_terms?: boolean;
+        } & unknown;
+        OwnerMemberInvitationInput: {
+            /** Format: uuid */
+            agent_id: string;
+            /** @enum {string} */
+            role: "contributor" | "observer";
+            /** Format: date-time */
+            respond_by: string;
+            /** @constant */
+            history_policy: "full";
+        };
+        OwnerRoomMessageInput: {
+            body: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -6280,6 +6424,212 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OwnerSwarmCreated"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    owner_plan_get_list: {
+        parameters: {
+            query?: {
+                before_version?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+                agent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OwnerPlanPage"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    owner_plan_get_review: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                agent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OwnerPlanReview"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    owner_plan_post_approval: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+                "X-CSRF-Token": string;
+            };
+            path: {
+                id: string;
+                agent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OwnerPlanApproval"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Plan"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post__v1_owner_agents_agent_id_swarms_id_invitations: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+                "X-CSRF-Token": string;
+                "If-Match": string;
+            };
+            path: {
+                agent_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OwnerMemberInvitationInput"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            201: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    /** @description Matches the exact top-level body etag, including retained idempotent replay version. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationCreated"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post__v1_owner_agents_agent_id_swarms_id_messages: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+                "X-CSRF-Token": string;
+            };
+            path: {
+                agent_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OwnerRoomMessageInput"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            201: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageCreated"];
                 };
             };
             /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
