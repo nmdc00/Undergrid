@@ -139,6 +139,9 @@ func (s *Service) ownerCommand(r *http.Request, tx pgx.Tx) (int, any, error) {
 	if r.URL.Path == "/v1/owner/intents" || strings.HasPrefix(r.URL.Path, "/v1/owner/intents/") {
 		return s.ownerIntents(r, tx, principal)
 	}
+	if strings.HasPrefix(r.URL.Path, "/v1/owner/agents/") && strings.Contains(r.URL.Path, "/plans") {
+		return s.ownerPlanApproval(r, tx, principal)
+	}
 	if strings.HasPrefix(r.URL.Path, "/v1/owner/agents/") && (strings.Contains(r.URL.Path, "/participation") || strings.Contains(r.URL.Path, "/invitations/") || strings.HasSuffix(r.URL.Path, "/swarms") || strings.Contains(r.URL.Path, "/swarms/")) {
 		return s.ownerParticipation(r, tx, principal)
 	}

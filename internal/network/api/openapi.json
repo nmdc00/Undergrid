@@ -6925,6 +6925,260 @@
         }
       }
     },
+    "/v1/owner/agents/{agent_id}/swarms/{id}/plans": {
+      "get": {
+        "operationId": "owner_plan_get_list",
+        "summary": "GET /v1/owner/agents/{agent_id}/swarms/{id}/plans",
+        "description": "Verified current owner selects an owned active attribution agent. Shared domain membership, rights policy, exact plan hash/version and deadline checks apply. Approval records explicit plan and contribution rights votes; assignment acceptance, publication and spending remain separate. Authorization precedes retained command recovery.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerPlanPage"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; status depends on authentication, visibility, validation, quotas and runtime availability.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OwnerSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "before_version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ]
+      }
+    },
+    "/v1/owner/agents/{agent_id}/plans/{id}": {
+      "get": {
+        "operationId": "owner_plan_get_review",
+        "summary": "GET /v1/owner/agents/{agent_id}/plans/{id}",
+        "description": "Verified current owner selects an owned active attribution agent. Shared domain membership, rights policy, exact plan hash/version and deadline checks apply. Approval records explicit plan and contribution rights votes; assignment acceptance, publication and spending remain separate. Authorization precedes retained command recovery.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerPlanReview"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; status depends on authentication, visibility, validation, quotas and runtime availability.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OwnerSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/v1/owner/agents/{agent_id}/plans/{id}/approvals": {
+      "post": {
+        "operationId": "owner_plan_post_approval",
+        "summary": "POST /v1/owner/agents/{agent_id}/plans/{id}/approvals",
+        "description": "Verified current owner selects an owned active attribution agent. Shared domain membership, rights policy, exact plan hash/version and deadline checks apply. Approval records explicit plan and contribution rights votes; assignment acceptance, publication and spending remain separate. Authorization precedes retained command recovery.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Plan"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; status depends on authentication, visibility, validation, quotas and runtime availability.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OwnerSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OwnerPlanApproval"
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/owner/agents/{agent_id}/swarms/{id}/invitations": {
       "post": {
         "operationId": "post__v1_owner_agents_agent_id_swarms_id_invitations",
@@ -11847,6 +12101,155 @@
           "history_policy"
         ],
         "additionalProperties": false
+      },
+      "OwnerPlanReview": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "swarm_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "content_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "canonical_json": {
+            "type": "string"
+          },
+          "specification": {
+            "$ref": "#/components/schemas/PlanSpec"
+          },
+          "tasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskSummary"
+            }
+          },
+          "contribution_template_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "terms_url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "swarm_id",
+          "state",
+          "version",
+          "content_hash",
+          "canonical_json",
+          "specification",
+          "tasks",
+          "contribution_template_hash",
+          "terms_url"
+        ],
+        "additionalProperties": false
+      },
+      "OwnerPlanPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "state": {
+                  "type": "string"
+                },
+                "version": {
+                  "type": "integer"
+                },
+                "content_hash": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              },
+              "required": [
+                "id",
+                "state",
+                "version",
+                "content_hash"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "next_before_version": {
+            "type": "string",
+            "pattern": "^$|^[1-9][0-9]*$"
+          }
+        },
+        "required": [
+          "items",
+          "next_before_version"
+        ],
+        "additionalProperties": false
+      },
+      "OwnerPlanApproval": {
+        "type": "object",
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": [
+              "approve",
+              "reject"
+            ]
+          },
+          "content_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "acknowledge_contribution_terms": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "decision",
+          "content_hash",
+          "version"
+        ],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "decision": {
+                  "const": "approve"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "acknowledge_contribution_terms"
+              ],
+              "properties": {
+                "acknowledge_contribution_terms": {
+                  "const": true
+                }
+              }
+            }
+          }
+        ]
       },
       "OwnerMemberInvitationInput": {
         "type": "object",
