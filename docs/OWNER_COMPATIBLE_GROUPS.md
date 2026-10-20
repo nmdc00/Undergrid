@@ -1,0 +1,27 @@
+# Owner compatible group views
+
+Scoped TDD §5.4/§9 and INT-02 owner-console implementation: an owner reviewing an active monitored intention can explicitly load or refresh its compatible group views. The same-origin owner-session `GET /v1/owner/intents/{id}/compatible-groups` remains the authorization and current-evidence boundary. This viewer introduces no server mutation, persisted group graph, membership, invitation, rights or spending authority.
+
+The branch was created from release `d1e866d`, then explicitly integrated semantic dependency `f5f691d34c3b47c4291597483eb8f52f6f09c61b`. That dependency supplies the canonical exact/pairwise-semantic read contract; it must merge into release before this UI PR. The feature itself changes only its component, behavioral tests, a small intention-review mount and this evidence document. It does not qualify the underlying semantic provider or complete the full TDD.
+
+## Owner behavior and boundaries
+
+The owner explicitly chooses **View compatible groups** or **Refresh compatible groups**. Separate server-provided views remain separate; the browser never infers a transitive group. Each view presents its comparison mode, member intention and principal IDs, declared hard constraints and common declared license options. Pairwise semantic similarity is labeled separately from exact declared outcomes. Bounded, nonexhaustive results and unknown common control are disclosed; IDs establish neither independent beneficial owners nor funded demand. License options are not rights consent. Truncation displays the 20-candidate/10-view limits. An empty result is a discovery gap.
+
+The parser checks the closed finite response shape, exact limits, bounded member/view arrays, supported modes, required source inclusion and distinct member/principal IDs. It accepts only the declared hard-constraint fields and validates their structural bounds. Unknown member/private fields fail closed. Display is escaped text: content never becomes HTML, executable instructions, fetched links or external callbacks. Group membership, constraint compatibility, thresholds and provider proof remain server-owned decisions; the browser does not recalculate them or grant authority.
+
+A refresh clears prior views while fetching. Missing current authority (403/404), session expiry (401), runtime failure or malformed responses clear earlier results. Session expiry invokes the existing owner sign-out handling. Intention/session changes or unmount invalidate outstanding requests; late successes and authority errors cannot update a different context. The parent keys the viewer by intention ID and version, and mounts it only for active intentions with monitoring enabled. The server additionally checks expiry and current authorization when each read occurs.
+
+## Actual evidence
+
+Behavioral RED exercised the existing app before implementing the viewer: after reviewing an active watched intention, the required **View compatible groups** button was absent (`/tmp/undergrid-owner-group-ui-app-red.log`). One selected case failed at the visible behavior assertion; 23 unrelated app cases were excluded. Duration was 18.32 seconds, including 12.56 seconds of initial DOM-environment startup. This was not an unresolved-import or fixture failure.
+
+Focused GREEN passed 14 selected cases across the app and new component in 3.56 seconds (`/tmp/undergrid-owner-group-ui-first-green.log`), with the unrelated app cases still excluded. The final suite includes 15 component cases and three new app integration cases: explicit owner read, constraints/modes/disclosures, empty/truncated results, all 401/403/404/500 outcomes, malformed/private-field/duplicate-owner/missing-source/bounds responses, session/intention and unmount races, preserved separate views, inert script/link text, and paused/watch-disabled mount exclusion.
+
+Full integrated browser gate passed **115 tests in 12 files**, zero failures, in 27.86 seconds (`/tmp/undergrid-owner-group-ui-full.log`). TypeScript and Vite build passed, with build duration 1.33 seconds (`/tmp/undergrid-owner-group-ui-build.log`). Canonical OpenAPI lint, **147 compiled schemas** and generated-type parity passed (`/tmp/undergrid-owner-group-ui-contract.log`). No production provider request, PostgreSQL gate or deployment was performed by this UI task; underlying semantic runtime evidence remains in `SEMANTIC_DISCOVERY.md` and its evidence companion.
+
+## Quality review and release status
+
+DRY: use the existing owner GET and request helper; do not duplicate grouping, scoring, hard-constraint combination or authorization logic in the browser. Shape validation independently protects this display boundary. Orthogonality: the component owns loading/parsing/rendering/lifetime state, with a small app mount; no network/financial database coupling or new dependencies. Recovery: previous proof clears on a new read, current-context generations prevent stale completions, and denied authority invalidates displayed views. Contracts/readability: exact versus semantic evidence, declared options, bounded views and unknown ownership remain explicit. Root's independent source review found no material in-scope blocker; no aggregate quality score or full-system completion claim is made.
+
+The feature branch can be pushed for review evidence, but its PR/release integration remains pending the semantic dependency merge. Wider discovery qualification, independent user/provider evidence, promotion and deployment remain separate work.

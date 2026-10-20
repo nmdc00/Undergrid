@@ -1,3 +1,4 @@
+import { CompatibleGroups } from "./CompatibleGroups";
 import type { components } from "./network.generated";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
@@ -447,6 +448,21 @@ export function App() {
                       <pre key={text(r.id)}>{JSON.stringify(r, null, 2)}</pre>
                     ))
                   )}
+                  {detail.state === "active" &&
+                    object(detail.watch).enabled === true && (
+                      <CompatibleGroups
+                        key={`groups:${text(detail.id)}:${String(detail.version)}`}
+                        intentionID={text(detail.id)}
+                        csrf={csrf}
+                        onUnauthorized={() => {
+                          generation.current++;
+                          setSecret("");
+                          setCSRF("");
+                          setDetail(null);
+                          setPhase("signed-out");
+                        }}
+                      />
+                    )}
                   {detail.state === "active" && (
                     <ExternalLeads
                       key={`${text(detail.id)}:${String(detail.version)}`}
