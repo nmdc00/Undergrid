@@ -7,6 +7,50 @@ const agents = [
   { id: "b", name: "Other active agent", status: "active" },
   { id: "revoked", name: "Revoked agent", status: "revoked" },
 ];
+test("successful but unusable creation recovers the original room command", async () => {
+  const fetch = vi
+    .fn()
+    .mockResolvedValueOnce(new Response("{}", { status: 201 }))
+    .mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          id: "recovered-room",
+          visibility: "private",
+          history_policy: "full",
+          version: 1,
+          etag: '"1"',
+        }),
+        { status: 201 },
+      ),
+    );
+  vi.stubGlobal("fetch", fetch);
+  render(
+    <CreateSwarm
+      agents={agents}
+      csrf="malformed-create"
+      onUnauthorized={vi.fn()}
+    />,
+  );
+  await userEvent.selectOptions(
+    screen.getByLabelText("Responsible agent"),
+    "a",
+  );
+  await userEvent.type(
+    screen.getByLabelText("Swarm objective"),
+    "Exact room recovery",
+  );
+  await userEvent.click(
+    screen.getByLabelText(/I understand.*full room history/i),
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Create swarm" }));
+  await screen.findByRole("alert");
+  await userEvent.click(screen.getByRole("button", { name: "Create swarm" }));
+  await screen.findByText(/Swarm recovered-room created/);
+  expect(
+    new Headers(fetch.mock.calls[0][1].headers).get("Idempotency-Key"),
+  ).toBe(new Headers(fetch.mock.calls[1][1].headers).get("Idempotency-Key"));
+  expect(fetch.mock.calls[0][1].body).toBe(fetch.mock.calls[1][1].body);
+});
 function mock(status = 201) {
   const fetch = vi.fn(
     async () =>

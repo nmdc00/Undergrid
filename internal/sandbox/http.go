@@ -265,6 +265,35 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if len(parts) >= 4 && parts[0] == "v1" && parts[1] == "owner" && parts[2] == "subscriptions" && validUUID(parts[3]) {
+			if len(parts) == 5 && parts[4] == "billing-setup" && (r.Method == "GET" || r.Method == "POST") {
+				o, err := owner()
+				if err != nil {
+					fail(ErrUnauthorized)
+					return
+				}
+				if r.Method == "GET" {
+					b, err := h.store.StripeBillingSetup(r.Context(), o, parts[3])
+					if err != nil {
+						fail(err)
+						return
+					}
+					respond(200, b)
+					return
+				}
+				var cmd struct {
+					Hash string `json:"consent_hash"`
+				}
+				if !decode(&cmd) {
+					return
+				}
+				b, err := h.store.RequestStripeBillingSetup(r.Context(), o, parts[3], cmd.Hash, r.Header.Get("Idempotency-Key"))
+				if err != nil {
+					fail(err)
+					return
+				}
+				respond(201, b)
+				return
+			}
 			if r.Method == "GET" && len(parts) == 4 {
 				o, err := owner()
 				if err != nil {
