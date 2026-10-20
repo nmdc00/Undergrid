@@ -186,6 +186,15 @@ plan, invitation/participation and independent agent assignment/plan lifecycle
 tests also pass. `go vet ./internal/network` passed
 (`/tmp/undergrid-owner-plan-authority-vet.log`).
 
+After reconciling release `d1e866d` (owner room messages), the exact runtime source
+`fdeddf265f5bc4e9f8f7c682af24877b33a68199` passed **9 top-level cases and 2
+post-wait subcases** with race detection in 16.263s, zero failures/skips
+(`/tmp/undergrid-owner-plan-authority-reconciled96.jsonl`). This adds all three
+owner-message attribution/current-authority/queue-rollback lifecycles to the
+affected plan/participation/assignment checks. Vet passed again
+(`/tmp/undergrid-owner-plan-authority-reconciled-vet.log`). Subsequent evidence
+recording changes documentation only; no runtime source changes after that gate.
+
 No migration or wire response changes. DRY: both owner and agent adapters
 use the same canonical authority-lock function and shared domain command; no new
 policy evaluator is introduced. Orthogonality: only owner plan-decision routing
