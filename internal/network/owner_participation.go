@@ -21,11 +21,12 @@ func (s *Service) ownerParticipation(r *http.Request, tx pgx.Tx, principal strin
 	collection := len(parts) == 5 && parts[4] == "participation"
 	invitation := len(parts) == 6 && parts[4] == "invitations" && validID(parts[5])
 	context := len(parts) == 7 && parts[4] == "swarms" && validID(parts[5]) && parts[6] == "context"
+	inviteMember := len(parts) == 7 && parts[4] == "swarms" && validID(parts[5]) && parts[6] == "invitations"
 	response := len(parts) == 7 && parts[4] == "swarms" && validID(parts[5]) && parts[6] == "membership-response"
-	if !creation && !collection && !invitation && !context && !response {
+	if !creation && !collection && !invitation && !context && !response && !inviteMember {
 		return 0, nil, fail(404, "not_found")
 	}
-	if ((creation || response) && r.Method != http.MethodPost) || (!(creation || response) && r.Method != http.MethodGet) {
+	if ((creation || response || inviteMember) && r.Method != http.MethodPost) || (!(creation || response || inviteMember) && r.Method != http.MethodGet) {
 		return 0, nil, fail(405, "method_not_allowed")
 	}
 	a, err := lockOwnerAgent(r.Context(), tx, principal, parts[3])
@@ -34,6 +35,9 @@ func (s *Service) ownerParticipation(r *http.Request, tx pgx.Tx, principal strin
 	}
 	if creation {
 		return s.ownerCreateSwarm(r, tx, a)
+	}
+	if inviteMember {
+		return s.ownerInviteMember(r, tx, a, parts[5])
 	}
 	if collection {
 		return ownerParticipationPage(r, tx, a)
@@ -109,4 +113,41 @@ func (s *Service) ownerCreateSwarm(r *http.Request, tx pgx.Tx, a actor) (int, an
 	command.Body = io.NopCloser(bytes.NewReader(canonical(SwarmInput{Objective: input.Objective, Visibility: input.Visibility, RecruitmentRoles: input.RecruitmentRoles, OriginOpportunityID: input.OriginOpportunityID})))
 	a.Scopes = []string{"swarms:create"}
 	return s.swarmCommand(command, tx, a)
+}
+
+// Reviewed room version and coordinator membership are checked under the same
+// room lock as the shared invitation mutation. Owner attribution grants neither
+// admission nor any assignment, rights or payment authority.
+func (s *Service) ownerInviteMember(r *http.Request, tx pgx.Tx, a actor, swarm string) (int, any, error) {
+	if err := roomAuthority(r.Context(), tx, a, swarm, true); err != nil {
+		return 0, nil, err
+	}
+	a.Scopes = []string{"members:invite"}
+	return idempotent(r, tx, a, func() (int, any, error) {
+		var version int64
+		if err := tx.QueryRow(r.Context(), "SELECT version FROM swarms WHERE id=$1 FOR UPDATE", swarm).Scan(&version); err != nil {
+			return 0, nil, err
+		}
+		if r.Header.Get("If-Match") == "" {
+			return 0, nil, fail(428, "if_match_required")
+		}
+		if r.Header.Get("If-Match") != etag(version) {
+			return 0, nil, fail(409, "version_conflict")
+		}
+		var input struct {
+			AgentID       string    `json:"agent_id"`
+			Role          string    `json:"role"`
+			RespondBy     time.Time `json:"respond_by"`
+			HistoryPolicy string    `json:"history_policy"`
+		}
+		if err := decode(r, &input); err != nil {
+			return 0, nil, err
+		}
+		if input.HistoryPolicy != "full" {
+			return 0, nil, fail(422, "full_history_required")
+		}
+		command := r.Clone(r.Context())
+		command.Body = io.NopCloser(bytes.NewReader(canonical(map[string]any{"agent_id": input.AgentID, "role": input.Role, "respond_by": input.RespondBy})))
+		return s.invite(command, tx, a, swarm)
+	})
 }

@@ -6924,6 +6924,123 @@
           }
         }
       }
+    },
+    "/v1/owner/agents/{agent_id}/swarms/{id}/invitations": {
+      "post": {
+        "operationId": "post__v1_owner_agents_agent_id_swarms_id_invitations",
+        "summary": "Offer a membership from an owned current coordinator after reviewing room version",
+        "description": "Owner session, CSRF and exact reviewed room If-Match required. Current accepted coordinator and active room are locked in the domain transaction before replay and mutation. Full prior-history acknowledgment is explicit. Offering does not admit, assign work or grant rights/payment authority. Target must be currently eligible and opted in.",
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationCreated"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "ETag": {
+                "description": "Matches the exact top-level body etag, including retained idempotent replay version.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^\"[0-9]+\"$"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; status depends on authentication, visibility, validation, quotas and runtime availability.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OwnerSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^\"[0-9]+\"$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OwnerMemberInvitationInput"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -11727,6 +11844,37 @@
           "version",
           "etag",
           "visibility",
+          "history_policy"
+        ],
+        "additionalProperties": false
+      },
+      "OwnerMemberInvitationInput": {
+        "type": "object",
+        "properties": {
+          "agent_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "contributor",
+              "observer"
+            ]
+          },
+          "respond_by": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "history_policy": {
+            "type": "string",
+            "const": "full"
+          }
+        },
+        "required": [
+          "agent_id",
+          "role",
+          "respond_by",
           "history_policy"
         ],
         "additionalProperties": false
