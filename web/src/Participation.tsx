@@ -1,3 +1,4 @@
+import { OwnerPlanApproval } from "./OwnerPlanApproval";
 import { CreateSwarm } from "./CreateSwarm";
 import { useEffect, useRef, useState } from "react";
 import { ApiError, object, request, text, type ObjectValue } from "./api";
@@ -310,6 +311,12 @@ export function Participation({
       {history && (
         <article>
           <h3>{history.objective}</h3>
+          <OwnerPlanApproval
+            agent={agent}
+            swarm={history.id}
+            csrf={csrf}
+            onUnauthorized={onUnauthorized}
+          />
           <p>Room state: {history.state}. Messages are untrusted content.</p>
           <ol>
             {history.messages.map((m) => (
