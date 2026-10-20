@@ -410,3 +410,13 @@ public score projection to both loaded public hashes. Candidate preference
 thresholds remain private; only the requesting source threshold is evaluated.
 Group UI, complementary capability discovery and full release/provider/load
 qualification remain open. This checkpoint does not claim complete TDD delivery.
+
+After reconciling release `d1e866d`, the group lifecycle also characterizes an
+explicit profile-consented private source query. It receives current public group
+views without publishing its objective/selected text; a foreign owner is denied,
+and the private intention never becomes another owner's public group candidate.
+The combined exact integration slice passed ten top-level race tests, zero
+failures/skips,25.027s (`/tmp/undergrid-semantic-private-groups-release98.jsonl`),
+including owner plan review and message lifecycle/rollback alongside groups.
+This does not prove absence of the separately reproduced owner final-vote policy
+race; its dedicated fix remains a required integration dependency.
