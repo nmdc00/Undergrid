@@ -56,17 +56,20 @@ export function CreateSwarm({
           history_policy: "full",
           recruitment_roles: [],
         },
+        undefined,
+        (result) => {
+          if (
+            !text(result.id) ||
+            result.history_policy !== "full" ||
+            result.visibility !== visibility ||
+            !Number.isInteger(result.version) ||
+            !/^"[0-9]+"$/.test(text(result.etag))
+          )
+            throw new Error("Invalid creation response");
+        },
       );
       if (mine !== generation.current) return;
       const id = text(result.id);
-      if (
-        !id ||
-        result.history_policy !== "full" ||
-        result.visibility !== visibility ||
-        !Number.isInteger(result.version) ||
-        !/^"[0-9]+"$/.test(text(result.etag))
-      )
-        throw new Error("Invalid creation response");
       setCreated(id);
       setObjective("");
       setAcknowledged(false);
