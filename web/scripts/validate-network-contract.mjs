@@ -56,6 +56,17 @@ if (process.argv.includes('--owner-swarm-creation')) {
  console.log(`Validated ${cases.length} actual owner creation cases and independent disclosure/privacy denials`);
  process.exit(0);
 }
+if (process.argv.includes('--owner-member-invitations')) {
+ const offered=cases.find(c=>c.method==='POST'&&c.status===201&&c.path.endsWith('/invitations'));
+ if (!offered) throw Error('Missing actual owner offered membership lifecycle');
+ const validate=validateSchema({$ref:'#/components/schemas/OwnerMemberInvitationInput'});
+ for (const invalid of [{...offered.request,history_policy:'none'},{...offered.request,admitted:true},{...offered.request,application_id:'00000000-0000-0000-0000-000000000001'}])
+  if (validate(invalid)) throw Error('Owner invitation acknowledgment/closed-input bypass');
+ const missing={...offered.request};delete missing.history_policy;
+ if (validate(missing)) throw Error('Missing full history acknowledgment permitted');
+ console.log(`Validated ${cases.length} actual owner invitation HTTP cases and independent negative oracles`);
+ process.exit(0);
+}
 if (process.argv.includes('--owner-participation')) {
  const page=cases.find(c=>c.path.endsWith('/participation')&&c.method==='GET'&&c.status===200);
  const invitation=cases.find(c=>c.path.includes('/invitations/')&&c.status===200);

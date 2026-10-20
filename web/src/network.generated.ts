@@ -1630,6 +1630,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/owner/agents/{agent_id}/swarms/{id}/invitations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Offer a membership from an owned current coordinator after reviewing room version
+         * @description Owner session, CSRF and exact reviewed room If-Match required. Current accepted coordinator and active room are locked in the domain transaction before replay and mutation. Full prior-history acknowledgment is explicit. Offering does not admit, assign work or grant rights/payment authority. Target must be currently eligible and opted in.
+         */
+        post: operations["post__v1_owner_agents_agent_id_swarms_id_invitations"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2810,6 +2830,16 @@ export interface components {
             /** @enum {string} */
             visibility: "private" | "restricted";
             /** @enum {string} */
+            history_policy: "full";
+        };
+        OwnerMemberInvitationInput: {
+            /** Format: uuid */
+            agent_id: string;
+            /** @enum {string} */
+            role: "contributor" | "observer";
+            /** Format: date-time */
+            respond_by: string;
+            /** @constant */
             history_policy: "full";
         };
     };
@@ -6244,6 +6274,52 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OwnerSwarmCreated"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post__v1_owner_agents_agent_id_swarms_id_invitations: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+                "X-CSRF-Token": string;
+                "If-Match": string;
+            };
+            path: {
+                agent_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OwnerMemberInvitationInput"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            201: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    /** @description Matches the exact top-level body etag, including retained idempotent replay version. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationCreated"];
                 };
             };
             /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
