@@ -115,7 +115,12 @@ func (s *Service) ownerCommand(r *http.Request, tx pgx.Tx) (int, any, error) {
 		return 201, map[string]any{"id": id}, err
 	}
 	var principal string
-	if err = tx.QueryRow(ctx, "SELECT id FROM principals WHERE issuer=$1 AND subject=$2 AND status='active' FOR UPDATE", o.Issuer, o.Subject).Scan(&principal); errors.Is(err, pgx.ErrNoRows) {
+	principalQuery := "SELECT id FROM principals WHERE issuer=$1 AND subject=$2 AND status='active'"
+	agentID, planID, planMutation := ownerPlanApprovalMutation(r)
+	if !planMutation {
+		principalQuery += " FOR UPDATE"
+	}
+	if err = tx.QueryRow(ctx, principalQuery, o.Issuer, o.Subject).Scan(&principal); errors.Is(err, pgx.ErrNoRows) {
 		return 0, nil, fail(403, "registration_required")
 	}
 	if err != nil {
@@ -123,6 +128,21 @@ func (s *Service) ownerCommand(r *http.Request, tx pgx.Tx) (int, any, error) {
 	}
 	if _, err = tx.Exec(ctx, "SELECT set_config('undergrid.principal_id',$1,true)", principal); err != nil {
 		return 0, nil, err
+	}
+	if planMutation {
+		// A final vote can accept a plan using other principals' policy grants.
+		// Acquire their canonical sorted locks before locking this owner alone.
+		if err = prelockOwnerPlanAuthorities(ctx, tx, principal, agentID, planID); err != nil {
+			return 0, nil, err
+		}
+		// Nonlocking identity resolution grants no mutation authority. Recheck
+		// the authenticated owner after all potentially blocking policy locks.
+		if err = tx.QueryRow(ctx, principalQuery+" FOR UPDATE", o.Issuer, o.Subject).Scan(&principal); errors.Is(err, pgx.ErrNoRows) {
+			return 0, nil, fail(403, "registration_required")
+		}
+		if err != nil {
+			return 0, nil, err
+		}
 	}
 	if r.Method == "GET" && r.URL.Path == "/v1/owner/me" {
 		return 200, map[string]any{"id": principal}, nil
