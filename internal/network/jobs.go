@@ -145,9 +145,9 @@ func RunWorker(ctx context.Context, dsn, environment string) error {
 	if err != nil {
 		return err
 	}
-	// Nine queue fetchers, completion and periodic/leader maintenance must
+	// Queue fetchers, completion and periodic/leader maintenance must
 	// retain pool capacity even while another queue has a backlog.
-	config.MaxConns = 16
+	config.MaxConns = 24
 	config.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
 		_, err := conn.Exec(ctx, "SET ROLE undergrid_worker")
 		return err
@@ -168,16 +168,22 @@ func RunWorker(ctx context.Context, dsn, environment string) error {
 	river.AddWorker(workers, &inputGrantDeliveryWorker{dsn: dsn})
 	river.AddWorker(workers, &scanWorker{service: service})
 	river.AddWorker(workers, &watchRefreshWorker{service: service})
+	river.AddWorker(workers, &externalNotificationWorker{service: service})
 	river.AddWorker(workers, &fanoutWorker{dsn: dsn})
 	river.AddWorker(workers, &recruitWorker{service: New(dsn, environment, nil)})
 	client, err := river.NewClient(riverpgxv5.New(pool), &river.Config{Schema: "undergrid_queue", SoftStopTimeout: 5 * time.Second, Workers: workers, Queues: map[string]river.QueueConfig{
-		river.QueueDefault:       {MaxWorkers: 2},
-		sourceRefreshQueue:       {MaxWorkers: 2},
-		"artifact_verification":  {MaxWorkers: 2},
-		"coordination":           {MaxWorkers: 2},
-		"coordination_deadlines": {MaxWorkers: 2},
-		discoveryQueue:           {MaxWorkers: 2},
-		discoveryRepairQueue:     {MaxWorkers: 1},
+		river.QueueDefault:             {MaxWorkers: 2},
+		sourceRefreshQueue:             {MaxWorkers: 2},
+		externalNotificationQueue:      {MaxWorkers: 1},
+		externalFreshNotificationQueue: {MaxWorkers: 2, FetchCooldown: 100 * time.Millisecond, FetchPollInterval: 100 * time.Millisecond},
+		externalFreshMatchQueue:        {MaxWorkers: 4, FetchCooldown: 100 * time.Millisecond, FetchPollInterval: 100 * time.Millisecond},
+		externalReadyMatchQueue:        {MaxWorkers: 2, FetchCooldown: 100 * time.Millisecond, FetchPollInterval: 100 * time.Millisecond},
+		externalNotificationMatchQueue: {MaxWorkers: 4, FetchCooldown: 100 * time.Millisecond, FetchPollInterval: 100 * time.Millisecond},
+		"artifact_verification":        {MaxWorkers: 2},
+		"coordination":                 {MaxWorkers: 2},
+		"coordination_deadlines":       {MaxWorkers: 2},
+		discoveryQueue:                 {MaxWorkers: 2},
+		discoveryRepairQueue:           {MaxWorkers: 1},
 		// Fanout continuations cannot wait behind their own pair jobs. Both
 		// queues bound wakeup latency even when LISTEN/NOTIFY is coalesced.
 		// Eight bounded pair slots amortize durable completion latency under

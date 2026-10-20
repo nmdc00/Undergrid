@@ -127,6 +127,9 @@ func (s *Service) ownerIntents(r *http.Request, tx pgx.Tx, principal string) (in
 		return s.listExternalLeads(command, tx, a, id, "owner")
 	}
 	if r.Method == "GET" && strings.HasSuffix(command.URL.Path, "/opportunities") {
+		// This session has already proved ownership of this intention and agent.
+		// Grant only the read capability needed by the shared domain projection.
+		a.Scopes = []string{"intents:read"}
 		return listOpportunities(command, tx, a)
 	}
 	if r.Method == "GET" {
