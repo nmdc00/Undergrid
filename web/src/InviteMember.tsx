@@ -56,7 +56,7 @@ export function InviteMember({
     setError("");
     setMessage("");
     try {
-      const result = await request(
+      await request(
         `/v1/owner/agents/${encodeURIComponent(agent)}/swarms/${encodeURIComponent(room)}/invitations`,
         csrf,
         "POST",
@@ -67,15 +67,18 @@ export function InviteMember({
           history_policy: "full",
         },
         etag,
+        (result) => {
+          if (
+            result.state !== "offered" ||
+            result.history_policy !== "full" ||
+            typeof result.id !== "string" ||
+            !result.id.length
+          )
+            throw new Error(
+              "Invalid invitation response; review participation before retrying",
+            );
+        },
       );
-      if (
-        result.state !== "offered" ||
-        result.history_policy !== "full" ||
-        typeof result.id !== "string"
-      )
-        throw new Error(
-          "Invalid invitation response; review participation before retrying",
-        );
       if (mine !== generation.current) return;
       setMessage(
         "Invitation offered. The target is not admitted until they explicitly accept; no assignment, rights or payment consent is granted.",

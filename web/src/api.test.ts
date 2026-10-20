@@ -1,5 +1,42 @@
 import { test, expect, vi } from "vitest";
 import { request } from "./api";
+test.each([
+  ["/v1/owner/credentials/credential/rotate", 201],
+  ["/v1/owner/credentials/credential/rotate", 204],
+  ["/v1/owner/agents/agent/recover-credential", 201],
+  ["/v1/owner/agents/agent/recover-credential", 204],
+])(
+  "credential issuance %s keeps its command after unusable %s",
+  async (path, status) => {
+    const keys: string[] = [];
+    let attempt = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_path: string, init?: RequestInit) => {
+        keys.push(new Headers(init?.headers).get("Idempotency-Key")!);
+        return attempt++ === 0
+          ? new Response(status === 204 ? null : "{}", {
+              status: Number(status),
+            })
+          : new Response(
+              JSON.stringify({ id: "credential", token: "ug_recovered" }),
+              { status: 201 },
+            );
+      }),
+    );
+    const send = () =>
+      request(
+        String(path),
+        `credential-recovery-${path}-${status}`,
+        "POST",
+        { scopes: ["intents:read"] },
+        '"1"',
+      );
+    await expect(send()).rejects.toThrow("Invalid server response");
+    expect((await send()).token).toBe("ug_recovered");
+    expect(keys[0]).toBe(keys[1]);
+  },
+);
 test("uncertain intention response retries the same command key", async () => {
   const keys: string[] = [];
   let attempt = 0;
@@ -173,15 +210,54 @@ test.each(["/v1/owner/policy", "/v1/owner/credentials/credential/revoke"])(
   async (path) => {
     const keys: string[] = [];
     let attempts = 0;
-    vi.stubGlobal("fetch", vi.fn(async (_path: string, init?: RequestInit) => {
-      const headers = new Headers(init?.headers);
-      keys.push(headers.get("Idempotency-Key")!);
-      expect(headers.get("If-Match")).toBe('"7"');
-      if (attempts++ === 0) throw new Error("response lost");
-      return new Response('{"version":8}', { status: 200 });
-    }));
-    await expect(request(path, "owner-recovery-"+path, "POST", {}, '"7"')).rejects.toThrow("response lost");
-    await request(path, "owner-recovery-"+path, "POST", {}, '"7"');
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_path: string, init?: RequestInit) => {
+        const headers = new Headers(init?.headers);
+        keys.push(headers.get("Idempotency-Key")!);
+        expect(headers.get("If-Match")).toBe('"7"');
+        if (attempts++ === 0) throw new Error("response lost");
+        return new Response('{"version":8}', { status: 200 });
+      }),
+    );
+    await expect(
+      request(path, "owner-recovery-" + path, "POST", {}, '"7"'),
+    ).rejects.toThrow("response lost");
+    await request(path, "owner-recovery-" + path, "POST", {}, '"7"');
     expect(keys[0]).toBe(keys[1]);
+  },
+);
+
+test.each([201, 204])(
+  "resource validation retains uncertain %s key until usable response",
+  async (status) => {
+    const keys: string[] = [];
+    let attempt = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_path: string, init?: RequestInit) => {
+        keys.push(new Headers(init?.headers).get("Idempotency-Key")!);
+        return attempt++ === 0
+          ? new Response(status === 204 ? null : "{}", { status })
+          : new Response('{"id":"accepted"}', { status: 201 });
+      }),
+    );
+    const validate = (result: Record<string, unknown>) => {
+      if (result.id !== "accepted") throw new Error("unusable result");
+    };
+    const send = () =>
+      request(
+        `/v1/owner/test-validated-${status}`,
+        `validation-${status}`,
+        "POST",
+        { body: "same" },
+        undefined,
+        validate,
+      );
+    await expect(send()).rejects.toThrow("unusable result");
+    await send();
+    await send();
+    expect(keys[0]).toBe(keys[1]);
+    expect(keys[1]).not.toBe(keys[2]);
   },
 );
