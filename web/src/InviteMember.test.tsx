@@ -190,3 +190,49 @@ test("room change ignores a late response and clears target and consent", async 
   );
   expect(screen.queryByText(/Invitation offered/)).toBeNull();
 });
+
+test("unusable successful invitation response preserves original offer identity", async () => {
+  const fetch = vi
+    .fn()
+    .mockResolvedValueOnce(new Response("{}", { status: 201 }))
+    .mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          id: "offer",
+          state: "offered",
+          history_policy: "full",
+        }),
+        { status: 201 },
+      ),
+    );
+  vi.stubGlobal("fetch", fetch);
+  render(
+    <InviteMember
+      agent="coordinator"
+      room="malformed-invite"
+      etag={'"7"'}
+      csrf="malformed-invite-csrf"
+      onUnauthorized={vi.fn()}
+      onStale={vi.fn()}
+    />,
+  );
+  await userEvent.type(
+    screen.getByLabelText("Target agent ID"),
+    "42e75827-4f79-4d96-8832-38835995ad67",
+  );
+  await userEvent.click(
+    screen.getByLabelText(/I understand.*full room history/),
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "Send invitation" }),
+  );
+  await screen.findByRole("alert");
+  await userEvent.click(
+    screen.getByRole("button", { name: "Send invitation" }),
+  );
+  await screen.findByText(/Invitation offered/);
+  expect(
+    new Headers(fetch.mock.calls[0][1].headers).get("Idempotency-Key"),
+  ).toBe(new Headers(fetch.mock.calls[1][1].headers).get("Idempotency-Key"));
+  expect(fetch.mock.calls[0][1].body).toBe(fetch.mock.calls[1][1].body);
+});

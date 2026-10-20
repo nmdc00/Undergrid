@@ -33,6 +33,7 @@ export async function request(
   method = "GET",
   body?: unknown,
   match?: string,
+  validateResult?: (result: ObjectValue) => void,
 ): Promise<ObjectValue> {
   if (!path.startsWith("/v1/") && !path.startsWith("/auth/"))
     throw new Error("Invalid API target");
@@ -91,6 +92,7 @@ export async function request(
   if (!response.ok && response.status < 500) clearRetryKey();
   if (response.status === 204) {
     if (isOwnerAgentCreation) throw new Error("Invalid server response");
+    validateResult?.({});
     clearRetryKey();
     return {};
   }
@@ -125,6 +127,9 @@ export async function request(
       result.token.length === 0)
   )
     throw new Error("Invalid server response");
+  // A committed but unusable response is still uncertain. Resource-specific
+  // validation must succeed before discarding the recoverable command key.
+  validateResult?.(result);
   clearRetryKey();
   return result;
 }
