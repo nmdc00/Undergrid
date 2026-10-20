@@ -50,7 +50,7 @@ func TestSemanticGroupsRequireEveryCurrentPairAboveSourceThreshold(t *testing.T)
 	if err := os.WriteFile(ca, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: provider.Certificate().Raw}), 0600); err != nil {
 		t.Fatal(err)
 	}
-	config := map[string]any{"endpoint": provider.URL, "provider_id": "group-fixture", "model": "group-fixture", "model_revision": "r1", "dimensions": 3, "permission_evidence": "controlled group numeric fixture only", "privacy_policy_sha256": strings.Repeat("a", 64), "allow_public_projections": true, "allow_private_projections": false, "minimum_similarity": 0.9, "test_only": true, "tls_root_ca_file": ca}
+	config := map[string]any{"endpoint": provider.URL, "provider_id": "group-fixture", "model": "group-fixture", "model_revision": "r1", "dimensions": 3, "permission_evidence": "controlled group numeric fixture only", "privacy_policy_sha256": strings.Repeat("a", 64), "allow_public_projections": true, "allow_private_projections": true, "minimum_similarity": 0.9, "test_only": true, "tls_root_ca_file": ca}
 	if err := os.WriteFile(configPath, canonical(config), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -133,6 +133,42 @@ func TestSemanticGroupsRequireEveryCurrentPairAboveSourceThreshold(t *testing.T)
 		if !seen[rows[0]["id"].(string)] || !seen[rows[3]["id"].(string)] || (seen[rows[1]["id"].(string)] && seen[rows[2]["id"].(string)]) {
 			t.Fatal("source-only similarity inferred transitive group", group)
 		}
+	}
+
+	// A private explicitly selected query may inspect public compatible views;
+	// it must never become a public candidate or expose its private objective.
+	privateInput := intentFixture()
+	privateInput.Visibility = "private"
+	privateInput.Objective = "Never disclose this owner objective " + NewID()
+	privateInput.PrivateSemanticQuery = &PrivateSemanticQuery{Projection: summaries[0], ProfileHash: runner.semantic.hash, AcknowledgeExternalProcessing: true}
+	code, private := owners[0].call("POST", "/v1/intents", "private-group-query", privateInput)
+	if code != 201 {
+		t.Fatal(code, private)
+	}
+	t.Cleanup(func() {
+		code, result := owners[0].versioned("PATCH", "/v1/intents/"+private["id"].(string), "retire-private-group", private["etag"].(string), map[string]any{"state": "withdrawn"})
+		if code != 200 {
+			t.Errorf("retire private query %d %v", code, result)
+		}
+	})
+	if err := runner.scanIntentions(context.Background(), private["id"].(string)); err != nil {
+		t.Fatal(err)
+	}
+	privatePath := "/v1/intents/" + private["id"].(string) + "/compatible-groups"
+	code, privatePage := owners[0].call("GET", privatePath, "", nil)
+	if code != 200 || len(privatePage["items"].([]any)) != 2 {
+		t.Fatal("private query lost authorized public groups", code, privatePage)
+	}
+	if bytes.Contains(canonical(privatePage), []byte(privateInput.Objective)) || bytes.Contains(canonical(privatePage), []byte(summaries[0])) {
+		t.Fatal("group view exposed selected text", privatePage)
+	}
+	code, denied := owners[1].call("GET", privatePath, "", nil)
+	if code != 404 {
+		t.Fatal("foreign owner inspected private groups", code, denied)
+	}
+	code, publicGroups := owners[1].call("GET", "/v1/intents/"+rows[1]["id"].(string)+"/compatible-groups", "", nil)
+	if code != 200 || bytes.Contains(canonical(publicGroups), []byte(private["id"].(string))) {
+		t.Fatal("private intention became group candidate", code, publicGroups)
 	}
 
 	// A current revision without its own evidence cannot inherit a previous
