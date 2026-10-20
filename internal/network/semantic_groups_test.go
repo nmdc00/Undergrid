@@ -76,10 +76,12 @@ func TestSemanticGroupsRequireEveryCurrentPairAboveSourceThreshold(t *testing.T)
 	}()
 
 	rows := []map[string]any{}
+	inputs := []IntentInput{}
 	for i, owner := range owners {
 		input := intentFixture()
 		input.Visibility = "redacted_public"
 		input.PublicSummary = summaries[i]
+		inputs = append(inputs, input)
 		code, row := owner.call("POST", "/v1/intents", "group-semantic-create", input)
 		if code != 201 {
 			t.Fatal(code, row)
@@ -193,5 +195,29 @@ func TestSemanticGroupsRequireEveryCurrentPairAboveSourceThreshold(t *testing.T)
 	code, page = owners[0].call("GET", path, "", nil)
 	if code != 200 || len(page["items"].([]any)) != 0 {
 		t.Fatal("old profile survived configuration change", code, page)
+	}
+	// Public model cutover requires new immutable revisions. Identical approved
+	// documents still need fresh profile-bound opportunities, despite unchanged
+	// public content hashes and algorithm name.
+	runner.semantic, err = semanticConfiguration("development")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, original := range inputs {
+		code, current := owners[i].versioned("PATCH", "/v1/intents/"+rows[i]["id"].(string), "group-model-cutover", rows[i]["etag"].(string), map[string]any{"revision": original})
+		if code != 200 {
+			t.Fatal(code, current)
+		}
+		rows[i] = current
+		if err := runner.scanIntentions(context.Background(), current["id"].(string)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := runner.scanIntentions(context.Background(), rows[0]["id"].(string)); err != nil {
+		t.Fatal(err)
+	}
+	code, page = owners[0].call("GET", path, "", nil)
+	if code != 200 || len(page["items"].([]any)) != 2 {
+		t.Fatal("current model cutover failed to rediscover unchanged public documents", code, page)
 	}
 }

@@ -420,3 +420,51 @@ failures/skips,25.027s (`/tmp/undergrid-semantic-private-groups-release98.jsonl`
 including owner plan review and message lifecycle/rollback alongside groups.
 This does not prove absence of the separately reproduced owner final-vote policy
 race; its dedicated fix remains a required integration dependency.
+
+## Remaining code audit, 20 October evening
+
+A fresh independent code/requirement audit leaves these behaviors open before a
+full semantic/discovery-vertical claim. None is replaced by provider qualification:
+
+- Root is adding an actual public model-cutover regression: repeated identical
+  approved documents currently hash opportunities without the profile identity.
+  The assertion later reproduced the failure in4.864s; the corrected six-case race slice passed19.776s.
+- A separate dependent feature is testing current public-profile authority before
+  HTTPS provider I/O and again before persistence. The existing current-policy
+  helper checks private consent but immediately accepts public inputs.
+- Ordinary opportunity reads bind stored evidence to current vectors but still
+  need current operator-profile eligibility, as group reads already enforce.
+- The published dismissed state has no authorized owner/agent mutation entrypoint.
+  Worker uniqueness is not a substitute for an explicit dismissal contract.
+- The hard-constraint evaluator returns needs-clarification correctly, but unknown
+  candidates are filtered before any user-visible clarification report. That
+  distinction from an ordinary no-match remains a missing runtime result.
+- Complementary-capability discovery is still missing beyond builder recruitment
+  and the separate selected external publisher-declaration fit report.
+
+The completed group viewer remains on a separate dependent feature branch with
+115 UI tests/build/147-schema proof; it is not merged. Real model relevance,
+permitted provider/source configuration, representative load/retained queues and
+restart/in-flight-call qualification remain separate release evidence. The full
+TDD also contains other collaboration, artifact, financial UI and operations work.
+
+
+### Public model-cutover identity proof
+
+The actual controlled HTTPS/API/worker regression re-revises the same approved
+public documents under model revision r2 after r1 observations exist. Before the
+fix, all new vectors were current but the group read returned zero groups because
+the unchanged opportunity identity collided with old-profile rows
+(`/tmp/undergrid-semantic-profile-cutover-red98.jsonl`,4.864s). Semantic opportunity
+identity now includes the immutable profile hash, while exact-demand identity is
+unchanged. A single Go hash helper owns writer and read parity; the SQL pre-limit
+filter explicitly uses the same field order. No raw private revision hash is added
+to public output, no migration or provider selection is introduced.
+
+The corrected group/model/private-query integration slice passed six top-level
+race cases, zero failures/skips,19.776s
+(`/tmp/undergrid-semantic-profile-cutover-green98.jsonl`). Current public-policy
+revocation and ordinary opportunity-read eligibility are separate ongoing work;
+this proof covers successful cutover and stale group suppression, not those
+other contracts. Full affected vet/integration remains required after the pending
+profile-authority dependency is reconciled.

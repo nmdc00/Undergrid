@@ -180,7 +180,7 @@ func (s *Service) scanIntentCandidate(ctx context.Context, db *pgx.Conn, id, can
 			continue
 		}
 		opportunityID := NewID()
-		hash := digest(canonical([]string{id, inputHash, c.id, c.hash, evidence.Algorithm}))
+		hash := demandOpportunityHash(id, inputHash, c.id, c.hash, evidence)
 		tag, err := tx.Exec(ctx, "INSERT INTO opportunities(id,recipient_agent_id,source_intent_id,candidate_intent_id,kind,input_hash,evidence) VALUES($1,$2,$3,$4,'shared_demand',$5,$6) ON CONFLICT DO NOTHING", opportunityID, agent, id, c.id, hash, canonical(evidence))
 		if err != nil {
 			return err
@@ -240,7 +240,7 @@ func listOpportunities(r *http.Request, tx pgx.Tx, a actor) (int, any, error) {
 			return 0, nil, fail(404, "not_found")
 		}
 	}
-	rows, err := tx.Query(r.Context(), `SELECT o.id,o.source_intent_id,o.candidate_intent_id,o.evidence,o.input_hash,sr.content_hash,p.content_hash,COALESCE(sr.embedding_projection_hash,''),COALESCE(cm.projection_hash,''),COALESCE(sr.embedding_profile_hash,''),COALESCE(cm.profile_hash,'') FROM opportunities o JOIN public_intents() p ON p.id=o.candidate_intent_id JOIN intents i ON i.id=o.source_intent_id JOIN intent_revisions sr ON sr.intent_id=i.id AND sr.revision=i.current_revision LEFT JOIN public_semantic_metadata() cm ON cm.id=p.id WHERE o.recipient_agent_id=$1 AND o.state='suggested' AND i.state='active' AND i.expires_at>now() AND o.input_hash=encode(sha256(convert_to(array_to_json(ARRAY[o.source_intent_id::text,sr.content_hash,o.candidate_intent_id::text,p.content_hash,o.evidence->>'algorithm'])::text,'UTF8')),'hex')
+	rows, err := tx.Query(r.Context(), `SELECT o.id,o.source_intent_id,o.candidate_intent_id,o.evidence,o.input_hash,sr.content_hash,p.content_hash,COALESCE(sr.embedding_projection_hash,''),COALESCE(cm.projection_hash,''),COALESCE(sr.embedding_profile_hash,''),COALESCE(cm.profile_hash,'') FROM opportunities o JOIN public_intents() p ON p.id=o.candidate_intent_id JOIN intents i ON i.id=o.source_intent_id JOIN intent_revisions sr ON sr.intent_id=i.id AND sr.revision=i.current_revision LEFT JOIN public_semantic_metadata() cm ON cm.id=p.id WHERE o.recipient_agent_id=$1 AND o.state='suggested' AND i.state='active' AND i.expires_at>now() AND o.input_hash=encode(sha256(convert_to(array_to_json(ARRAY[o.source_intent_id::text,sr.content_hash,o.candidate_intent_id::text,p.content_hash,o.evidence->>'algorithm'] || CASE WHEN o.evidence->>'algorithm'='hard-constraints-hybrid-cosine-v1' THEN ARRAY[o.evidence->>'semantic_profile_hash'] ELSE ARRAY[]::text[] END)::text,'UTF8')),'hex')
  AND (o.evidence->>'algorithm'<>'hard-constraints-hybrid-cosine-v1' OR (
  o.evidence->>'source_projection_hash'=sr.embedding_projection_hash AND o.evidence->>'candidate_projection_hash'=cm.projection_hash
  AND o.evidence->>'semantic_profile_hash'=sr.embedding_profile_hash AND o.evidence->>'semantic_profile_hash'=cm.profile_hash))
@@ -263,7 +263,7 @@ func listOpportunities(r *http.Request, tx pgx.Tx, a actor) (int, any, error) {
 		if err = json.Unmarshal(evidence, &proof); err != nil {
 			return 0, nil, err
 		}
-		if storedHash != digest(canonical([]string{source, sourceHash, candidate, candidateHash, proof.Algorithm})) {
+		if storedHash != demandOpportunityHash(source, sourceHash, candidate, candidateHash, proof) {
 			continue
 		}
 		if proof.Algorithm == "hard-constraints-hybrid-cosine-v1" && (proof.SourceProjectionHash == "" || proof.SourceProjectionHash != sourceProjection || proof.CandidateProjectionHash != candidateProjection || proof.SemanticProfileHash != sourceProfile || proof.SemanticProfileHash != candidateProfile) {
@@ -301,4 +301,16 @@ func publicIntent(ctx context.Context, tx pgx.Tx, id string) (int, any, error) {
 	result["etag"] = etag(version)
 	result["state"] = "active"
 	return 200, result, nil
+}
+
+// Opportunity identity preserves exact matching deduplication while distinguishing
+// semantic observations across operator model/policy profiles. Immutable public
+// documents can be intentionally re-revised for a new profile without changing
+// their content hash. The bounded SQL read uses this same field order before LIMIT.
+func demandOpportunityHash(sourceID, sourceHash, candidateID, candidateHash string, evidence Compatibility) string {
+	fields := []string{sourceID, sourceHash, candidateID, candidateHash, evidence.Algorithm}
+	if evidence.Algorithm == "hard-constraints-hybrid-cosine-v1" {
+		fields = append(fields, evidence.SemanticProfileHash)
+	}
+	return digest(canonical(fields))
 }
