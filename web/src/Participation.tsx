@@ -1,3 +1,4 @@
+import { OwnerRoomMessage } from "./OwnerRoomMessage";
 import { OwnerPlanApproval } from "./OwnerPlanApproval";
 import { InviteMember } from "./InviteMember";
 import { CreateSwarm } from "./CreateSwarm";
@@ -333,6 +334,15 @@ export function Participation({
                 setHistory(null);
                 setError("Room changed. Open it again before inviting.");
               }}
+            />
+          )}
+          {history.state === "active" && (
+            <OwnerRoomMessage
+              agent={agent}
+              room={history.id}
+              csrf={csrf}
+              onUnauthorized={onUnauthorized}
+              onSent={() => void readRoom(history.id)}
             />
           )}
           <ol>
