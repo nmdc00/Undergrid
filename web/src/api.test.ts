@@ -1,5 +1,42 @@
 import { test, expect, vi } from "vitest";
 import { request } from "./api";
+test.each([
+  ["/v1/owner/credentials/credential/rotate", 201],
+  ["/v1/owner/credentials/credential/rotate", 204],
+  ["/v1/owner/agents/agent/recover-credential", 201],
+  ["/v1/owner/agents/agent/recover-credential", 204],
+])(
+  "credential issuance %s keeps its command after unusable %s",
+  async (path, status) => {
+    const keys: string[] = [];
+    let attempt = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_path: string, init?: RequestInit) => {
+        keys.push(new Headers(init?.headers).get("Idempotency-Key")!);
+        return attempt++ === 0
+          ? new Response(status === 204 ? null : "{}", {
+              status: Number(status),
+            })
+          : new Response(
+              JSON.stringify({ id: "credential", token: "ug_recovered" }),
+              { status: 201 },
+            );
+      }),
+    );
+    const send = () =>
+      request(
+        String(path),
+        `credential-recovery-${path}-${status}`,
+        "POST",
+        { scopes: ["intents:read"] },
+        '"1"',
+      );
+    await expect(send()).rejects.toThrow("Invalid server response");
+    expect((await send()).token).toBe("ug_recovered");
+    expect(keys[0]).toBe(keys[1]);
+  },
+);
 test("uncertain intention response retries the same command key", async () => {
   const keys: string[] = [];
   let attempt = 0;

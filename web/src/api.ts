@@ -46,6 +46,11 @@ export async function request(
       ? JSON.stringify([csrf, method, path, body, match])
       : "";
   const isOwnerAgentCreation = path === "/v1/agents" && method === "POST";
+  const issuesCredential =
+    isOwnerAgentCreation ||
+    (method === "POST" &&
+      (/^\/v1\/owner\/credentials\/[^/]+\/rotate$/.test(path) ||
+        /^\/v1\/owner\/agents\/[^/]+\/recover-credential$/.test(path)));
   if (isOwnerAgentCreation) {
     const previous = pendingOwnerAgentKeys.get(csrf);
     if (previous && previous.identity !== retryIdentity)
@@ -91,7 +96,7 @@ export async function request(
   };
   if (!response.ok && response.status < 500) clearRetryKey();
   if (response.status === 204) {
-    if (isOwnerAgentCreation) throw new Error("Invalid server response");
+    if (issuesCredential) throw new Error("Invalid server response");
     validateResult?.({});
     clearRetryKey();
     return {};
@@ -120,7 +125,7 @@ export async function request(
     );
   }
   if (
-    isOwnerAgentCreation &&
+    issuesCredential &&
     (typeof result.id !== "string" ||
       result.id.length === 0 ||
       typeof result.token !== "string" ||
