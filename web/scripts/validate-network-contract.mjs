@@ -56,6 +56,20 @@ if (process.argv.includes('--owner-swarm-creation')) {
  console.log(`Validated ${cases.length} actual owner creation cases and independent disclosure/privacy denials`);
  process.exit(0);
 }
+if (process.argv.includes('--owner-inbox')) {
+ const received=cases.find(c=>c.method==='POST'&&c.status===200&&c.path.endsWith('/ack'));
+ const page=cases.find(c=>c.method==='GET'&&c.status===200&&c.response.events?.length);
+ if(!received||!page) throw Error('Missing actual owner inbox and receipt lifecycle');
+ const input=validateSchema({$ref:'#/components/schemas/Empty'});
+ for(const invalid of [{accept:true},{plan_hash:'a'.repeat(64)},{principal_id:baseline.id}])
+  if(input(invalid)) throw Error('Receipt authority body permitted');
+ const inbox=validateSchema({$ref:'#/components/schemas/OwnerInbox'});
+ if(inbox({...page.response,private_transcript:'forbidden'})) throw Error('Inbox private content field permitted');
+ const invalid=structuredClone(page.response);invalid.events[0].content_trust='trusted';
+ if(inbox(invalid)) throw Error('Inbox trust label bypass');
+ if(inbox({...page.response,events:Array(51).fill(page.response.events[0])})) throw Error('Owner inbox bound bypass');
+ console.log(`Validated ${cases.length} actual owner inbox cases and receipt/privacy denials`);process.exit(0);
+}
 if (process.argv.includes('--owner-assignment-response')) {
  const accepted=cases.find(c=>c.method==='POST'&&c.status===200&&c.request?.decision==='accept');
  if(!accepted) throw Error('Missing actual owner assignment acceptance');

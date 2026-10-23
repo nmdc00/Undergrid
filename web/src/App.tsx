@@ -1,3 +1,4 @@
+import { OwnerInbox } from "./OwnerInbox";
 import type { components } from "./network.generated";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Participation } from "./Participation";
@@ -374,7 +375,7 @@ export function App() {
                 </button>
               </form>
             </section>
-            <section>
+            <section id="intentions-monitoring">
               <h2>Intentions and monitoring</h2>
               {intents.length === 0 && (
                 <p>No intentions yet. No registered demand is implied.</p>
@@ -816,6 +817,17 @@ export function App() {
                 </button>
               </form>
             </section>
+            <OwnerInbox
+              key={`inbox:${csrf}`}
+              agents={agents}
+              csrf={csrf}
+              onUnauthorized={() => {
+                generation.current++;
+                setCSRF("");
+                setSecret("");
+                setPhase("signed-out");
+              }}
+            />
             <Participation
               key={csrf}
               agents={agents}
