@@ -2043,7 +2043,7 @@ export interface components {
             objective: string;
             evidence: components["schemas"]["RecruitmentEvidence"];
         };
-        Opportunity: components["schemas"]["DemandOpportunity"] | components["schemas"]["RecruitmentOpportunity"];
+        Opportunity: components["schemas"]["DemandOpportunity"] | components["schemas"]["RecruitmentOpportunity"] | components["schemas"]["ExternalOpportunity"];
         Opportunities: {
             items: components["schemas"]["Opportunity"][];
         };
@@ -2574,6 +2574,7 @@ export interface components {
             pending: components["schemas"]["PendingInvitation"][];
             intent_watches: components["schemas"]["IntentWatch"][];
             swarm_refs: components["schemas"]["SwarmRef"][];
+            external_opportunities: components["schemas"]["ExternalOpportunity"][];
         };
         Health: {
             /** @constant */
@@ -2912,6 +2913,41 @@ export interface components {
             /** @enum {string} */
             history_policy: "full";
         };
+        ExternalOpportunityEvidence: {
+            /** @enum {string} */
+            algorithm: "permitted-text-v1";
+            /** @enum {string} */
+            fit_status: "not_assessed";
+            /** @enum {string} */
+            hard_constraints: "unknown";
+            /** @enum {string} */
+            identity_assurance: "unknown";
+            source_version: string;
+        };
+        ExternalOpportunity: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            source_intent_id: string;
+            /** Format: uuid */
+            observation_id: string;
+            /** @enum {string} */
+            kind: "external_request" | "external_capability";
+            /** @enum {string} */
+            origin: "external_request" | "external_capability";
+            evidence: components["schemas"]["ExternalOpportunityEvidence"];
+            lead: components["schemas"]["ExternalLead"];
+        } & ({
+            /** @constant */
+            kind?: "external_request";
+            /** @constant */
+            origin?: "external_request";
+        } | {
+            /** @constant */
+            kind?: "external_capability";
+            /** @constant */
+            origin?: "external_capability";
+        });
         OwnerPlanReview: {
             /** Format: uuid */
             id: string;
@@ -3929,7 +3965,7 @@ export interface operations {
     get__v1_opportunities: {
         parameters: {
             query?: {
-                /** @description Omit for shared-demand opportunities. */
+                /** @description Omit for shared-demand and external-opportunity suggestions. */
                 kind?: "builder_recruitment";
             };
             header?: never;
