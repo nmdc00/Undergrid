@@ -334,7 +334,13 @@ func TestSemanticWithdrawalDuringProviderIOLeavesNoEmbeddingOrOpportunity(t *tes
 	if err := os.WriteFile(ca, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw}), 0600); err != nil {
 		t.Fatal(err)
 	}
-	profile, err := newSemanticProvider(semanticConfig{Endpoint: server.URL, ProviderID: "controlled-revocation", Model: "controlled", ModelRevision: "1", Dimensions: 3, PermissionEvidence: "controlled fixture only", PrivacyPolicySHA256: strings.Repeat("e", 64), AllowPublicProjections: true, TestOnly: true, TLSRootCAFile: ca}, "development")
+	config := semanticConfig{Endpoint: server.URL, ProviderID: "controlled-revocation", Model: "controlled", ModelRevision: "1", Dimensions: 3, PermissionEvidence: "controlled fixture only", PrivacyPolicySHA256: strings.Repeat("e", 64), AllowPublicProjections: true, TestOnly: true, TLSRootCAFile: ca}
+	configPath := filepath.Join(dir, "semantic.json")
+	if err := os.WriteFile(configPath, canonical(config), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("UNDERGRID_SEMANTIC_CONFIG_FILE", configPath)
+	profile, err := semanticConfiguration("development")
 	if err != nil {
 		t.Fatal(err)
 	}
