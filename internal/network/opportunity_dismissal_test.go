@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"errors"
@@ -234,12 +235,13 @@ func TestOpportunityDismissalExternalKindsAndCurrentSourcePermission(t *testing.
 			if code != 201 {
 				t.Fatal(code, intent)
 			}
+			var phase atomic.Int64
 			publisher := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if sourceKind == "github_requests" {
-					fmt.Fprintf(w, `[{"id":271,"html_url":"https://github.com/fixture/project/issues/271","title":%q,"updated_at":"2026-10-23T00:00:00Z","state":"open","labels":[{"name":"undergrid"}]}]`, marker)
+					fmt.Fprintf(w, `[{"id":271,"html_url":"https://github.com/fixture/project/issues/271","title":%q,"updated_at":"2026-10-23T00:00:%02dZ","state":"open","labels":[{"name":"undergrid"}]}]`, marker, phase.Load())
 					return
 				}
-				fmt.Fprintf(w, `{"items":[{"id":"lead","version":"1","url":"https://publisher.example/lead","title":%q,"status":"active"}],"next_page":0}`, marker)
+				fmt.Fprintf(w, `{"items":[{"id":"lead","version":"%d","url":"https://publisher.example/lead","title":%q,"status":"active"}],"next_page":0}`, phase.Load()+1, marker)
 			}))
 			defer publisher.Close()
 			cfg := SourceConfig{ID: NewID(), Kind: sourceKind, Endpoint: "https://publisher.example/feed", Publisher: "Controlled publisher", AccessBasis: "fixture access", RepublicationBasis: "fixture redistribution", TombstoneBasis: "fixture tombstone", PublicPermissionNotice: "Permitted title and URL", Fields: []string{"canonical_url", "title"}}
@@ -272,6 +274,51 @@ func TestOpportunityDismissalExternalKindsAndCurrentSourcePermission(t *testing.
 				if code != 200 || out["state"] != "dismissed" {
 					t.Fatal(code, out)
 				}
+			}
+			// A fresh worker instance reads persisted dismissal state. An unchanged
+			// source scan cannot reopen it or create another notification.
+			workerDB, err := pgx.Connect(context.Background(), worker.dsn)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer workerDB.Close(context.Background())
+			if _, err = workerDB.Exec(context.Background(), "SET ROLE undergrid_worker; SET search_path=undergrid,pg_catalog"); err != nil {
+				t.Fatal(err)
+			}
+			resumed := New(worker.dsn, "development", nil)
+			if err = resumed.scanExternalIntention(context.Background(), workerDB, externalNotificationArgs{IntentionID: intent["id"].(string)}); err != nil {
+				t.Fatal(err)
+			}
+			var unchanged int
+			if err = db.QueryRow(context.Background(), "SELECT count(*) FROM undergrid.events WHERE aggregate_id=$1 AND type='opportunity.available'", id).Scan(&unchanged); err != nil || unchanged != 1 {
+				t.Fatal("unchanged external evidence notified again", unchanged, err)
+			}
+			phase.Store(1)
+			if _, err = db.Exec(context.Background(), "UPDATE undergrid.external_sources SET next_refresh=now() WHERE id=$1", cfg.ID); err != nil {
+				t.Fatal(err)
+			}
+			if err = refresher.RefreshDue(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			if err = resumed.scanExternalIntention(context.Background(), workerDB, externalNotificationArgs{IntentionID: intent["id"].(string)}); err != nil {
+				t.Fatal(err)
+			}
+			code, out = ownerCallMatch(a, "POST", path, "owner-dismiss", "", map[string]any{})
+			if code != 404 {
+				t.Fatal("stale external receipt replay", code, out)
+			}
+			code, newPage := a.call("GET", "/v1/intents/"+intent["id"].(string)+"/opportunities", "", nil)
+			if code != 200 || len(newPage["items"].([]any)) != 1 {
+				t.Fatal("changed source did not yield new suggestion", code, newPage)
+			}
+			newID := newPage["items"].([]any)[0].(map[string]any)["id"].(string)
+			if newID == id {
+				t.Fatal("dismissed external evidence reopened")
+			}
+			path = "/v1/owner/agents/" + me["agent_id"].(string) + "/opportunities/" + newID + "/dismiss"
+			code, out = ownerCallMatch(a, "POST", path, "owner-dismiss", "", map[string]any{})
+			if code != 200 {
+				t.Fatal(code, out)
 			}
 			if _, err := db.Exec(context.Background(), "UPDATE undergrid.external_sources SET config=jsonb_set(config,'{PublicPermissionNotice}','\"\"') WHERE id=$1", cfg.ID); err != nil {
 				t.Fatal(err)
