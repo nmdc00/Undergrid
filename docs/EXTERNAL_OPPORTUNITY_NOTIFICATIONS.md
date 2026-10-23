@@ -75,6 +75,9 @@ requires SQLSTATE 23514 with the exact new constraint; it is not an HTTP exploit
 | Accepted uppercase source ID | RED 0.802s: no matching opportunity | `undergrid-external-opportunity-uppercase-red96.log` |
 | Prefilter and uppercase fixes with complete lifecycle/tail | 3 cases PASS, 24.680s; zero failures/skips | `undergrid-external-opportunity-prefilter-uppercase-green96.jsonl` |
 | Final network static analysis | PASS | `undergrid-external-opportunity-final-vet.log` |
+| Exact reconciled runtime `b807afcf5d910228c6adbac53bf09d32a15725ea`, external delivery plus owner invitation/plan/message integration | 12 cases PASS, 33.751s; zero failures/skips | `undergrid-external-opportunity-b807-integration96.jsonl` |
+| Reconciled OpenAPI lint, all 138 schemas and generated-type parity (Oct 23) | PASS | `undergrid-external-opportunity-b807-contract.log` |
+| Reconciled TypeScript and production bundle (Oct 23) | PASS, Vite 1.66s | `undergrid-external-opportunity-b807-build.log` |
 | OpenAPI lint, all 133 schemas and generated-type parity | PASS | `undergrid-external-opportunity-final-contract.log` |
 | TypeScript and production bundle | PASS | `undergrid-external-opportunity-web-build.log` |
 
@@ -100,8 +103,13 @@ completed snapshot/revision/keyset job through the normal worker within the
 unchanged eight-second wait. It reads that opportunity and finds its notification
 through actual inbox cursor pages. The final 41-case affected race suite and static analysis passed with migration
 039, the ready lane, the same-policy watch prefilter and source-ID normalization.
-All unchanged eight-second delivery waits and retained jobs remain. Release
-integration still needs validation against its exact merge SHA.
+All unchanged eight-second delivery waits and retained jobs remain. The reconciled branch runtime `b807afcf5d910228c6adbac53bf09d32a15725ea`
+also passed the twelve-case external and owner invitation/plan/message integration
+gate, including owner policy locking from release `648c078`. The recovered JSON
+log has a terminal package PASS; the interruption did not invalidate that result.
+Canonical checks and the production web build were then completed on Oct 23
+without changing runtime source. Release integration still needs validation
+against its exact merge SHA.
 
 ## Quality and limits
 
