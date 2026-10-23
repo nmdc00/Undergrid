@@ -323,6 +323,13 @@ func (r *SourceRefresher) refresh(ctx context.Context, db *pgx.Conn, c SourceCon
 	if _, e = tx.Exec(ctx, `UPDATE undergrid.external_sources SET validators=$2,last_success=now(),next_refresh=now()+interval '6 hours',last_error=NULL WHERE id=$1`, c.ID, v); e != nil {
 		return e
 	}
+	var snapshotHash string
+	if e = tx.QueryRow(ctx, externalSnapshotSQL, c.ID).Scan(&snapshotHash); e != nil {
+		return e
+	}
+	if e = enqueueExternalNotifications(ctx, tx, externalNotificationArgs{SourceID: c.ID, SnapshotHash: snapshotHash}); e != nil {
+		return e
+	}
 	return tx.Commit(ctx)
 }
 

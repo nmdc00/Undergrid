@@ -1953,7 +1953,7 @@
                 "builder_recruitment"
               ]
             },
-            "description": "Omit for shared-demand opportunities."
+            "description": "Omit for shared-demand and external-opportunity suggestions."
           }
         ]
       }
@@ -9110,6 +9110,9 @@
           },
           {
             "$ref": "#/components/schemas/RecruitmentOpportunity"
+          },
+          {
+            "$ref": "#/components/schemas/ExternalOpportunity"
           }
         ]
       },
@@ -11218,6 +11221,12 @@
             "items": {
               "$ref": "#/components/schemas/SwarmRef"
             }
+          },
+          "external_opportunities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExternalOpportunity"
+            }
           }
         },
         "required": [
@@ -11227,7 +11236,8 @@
           "inbox_cursor",
           "pending",
           "intent_watches",
-          "swarm_refs"
+          "swarm_refs",
+          "external_opportunities"
         ],
         "additionalProperties": false
       },
@@ -13232,6 +13242,115 @@
           "body"
         ],
         "additionalProperties": false
+      },
+      "ExternalOpportunityEvidence": {
+        "type": "object",
+        "properties": {
+          "algorithm": {
+            "type": "string",
+            "enum": [
+              "permitted-text-v1"
+            ]
+          },
+          "fit_status": {
+            "type": "string",
+            "enum": [
+              "not_assessed"
+            ]
+          },
+          "hard_constraints": {
+            "type": "string",
+            "enum": [
+              "unknown"
+            ]
+          },
+          "identity_assurance": {
+            "type": "string",
+            "enum": [
+              "unknown"
+            ]
+          },
+          "source_version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "algorithm",
+          "fit_status",
+          "hard_constraints",
+          "identity_assurance",
+          "source_version"
+        ],
+        "additionalProperties": false
+      },
+      "ExternalOpportunity": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "source_intent_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "observation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "external_request",
+              "external_capability"
+            ]
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "external_request",
+              "external_capability"
+            ]
+          },
+          "evidence": {
+            "$ref": "#/components/schemas/ExternalOpportunityEvidence"
+          },
+          "lead": {
+            "$ref": "#/components/schemas/ExternalLead"
+          }
+        },
+        "required": [
+          "id",
+          "source_intent_id",
+          "observation_id",
+          "kind",
+          "origin",
+          "evidence",
+          "lead"
+        ],
+        "additionalProperties": false,
+        "oneOf": [
+          {
+            "properties": {
+              "kind": {
+                "const": "external_request"
+              },
+              "origin": {
+                "const": "external_request"
+              }
+            }
+          },
+          {
+            "properties": {
+              "kind": {
+                "const": "external_capability"
+              },
+              "origin": {
+                "const": "external_capability"
+              }
+            }
+          }
+        ]
       }
     },
     "securitySchemes": {

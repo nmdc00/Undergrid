@@ -192,6 +192,9 @@ func (s *Service) scanIntentCandidate(ctx context.Context, db *pgx.Conn, id, can
 		}
 	}
 	if candidateID == "" {
+		if err = s.scanExternalMatches(ctx, tx, principal, agent, id, input); err != nil {
+			return err
+		}
 		if _, err = tx.Exec(ctx, "UPDATE intents SET last_scan=now(),next_scan=now()+interval '15 minutes' WHERE id=$1", id); err != nil {
 			return err
 		}
@@ -282,6 +285,12 @@ func (s *Service) listOpportunities(r *http.Request, tx pgx.Tx, a actor) (int, a
 	if err = rows.Err(); err != nil {
 		return 0, nil, err
 	}
+	rows.Close()
+	external, err := externalOpportunityItems(r.Context(), tx, a, id, single, 100-len(items))
+	if err != nil {
+		return 0, nil, err
+	}
+	items = append(items, external...)
 	if single {
 		if len(items) == 0 {
 			return 0, nil, fail(404, "not_found")
