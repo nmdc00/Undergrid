@@ -69,10 +69,31 @@ worker restart. Actor/cursor/revision/source freshness are real, not mocked away
 Adjacent guards: private text does not reach publishers; stale/withdrawn leads
 cannot be read; receipt/dismissal grants no work, rights or spending authority.
 
-Current evidence: owner setup/intents/lead browsing and external notification
-pipeline are merged. Owner inbox/dismissal are feature work; partial satisfaction
-and a user-visible unresolved-requirement/clarification experience remain open.
-Do not infer journey completion from backend pieces.
+Current evidence at release `81e4730`: owner setup/intents/lead browsing, external
+notification pipeline, suggestion dismissal (PR91) and owner inbox (PR92) are
+merged. Live Chromium evidence on acceptance branch `5549003` proves real
+sign-in, principal/agent creation, a private active watch, honest empty-source gap,
+scoped bearer read and reload against isolated PostgreSQL. The controlled OIDC
+issuer does not qualify a real provider. The harness is not yet merged, and this
+is not the complete journey. Partial satisfaction and visible unmet requirements
+remain open; continuous source-update/inbox/dismissal/worker-restart proof remains
+pending. Do not infer journey completion from backend pieces.
+
+### Active HP1 swarm assignments
+
+| Responsibility | Branch and isolated worktree | Acceptance and owning documentation |
+| --- | --- | --- |
+| Partial satisfaction implementation (`external_oct23`) | `feat/v0.1-intention-partial-satisfaction`; `/tmp/undergrid-worktrees/partial-satisfaction/feat-v0.1-intention-partial-satisfaction` | TDD §5.3: explicit owner-selected fulfilled fields produce an immutable revision with visible unmet remainder and active watch. Prove authorization, source/version pins, retry/rollback and private audit through real domain transactions. Update feature evidence and this path's status before merge. |
+| Continuous acceptance (`profile_oct23`) | `test/v0.1-hp1-live-journey`; `/tmp/undergrid-worktrees/hp1-live/test-v0.1-hp1-live-journey` | Actual browser/API/PostgreSQL/source refresher/worker journey; no product-row SQL setup. `docs/HP1_ACCEPTANCE.md` owns step-level results and artifacts. Integrate reviewed product changes before full-path proof. |
+| Independent review (`assignment_oct23`) | Read-only inspection of those branches | Review domain authority, immutable revisions, private projections, idempotency and actual harness boundaries. Findings must identify a proving check. |
+| Integration (`root`) | `release/v0.1`; documentation on `docs/v0.1-hp1-progress` | Review scoped PRs, merge dependency order and retain exact test evidence. No production deployment or promotion is implied by a local milestone. |
+
+All feature PRs target `release/v0.1`; release integration PR is
+[PR62](https://github.com/nmdc00/Undergrid/pull/62). On 23 October, fetched
+`main...develop` divergence is `0 1` (develop one commit ahead, no divergent main
+commit). Hosted CI is waived; required local gates remain. Costly Go/PostgreSQL
+and browser suites run serially. External source, provider, legal and deployment
+qualification remains separate from these local implementation tasks.
 
 Public qualification: real usable permitted capability and request sources in the
 chosen niche, plus the no-admin unfamiliar-owner useful result within ten minutes.
