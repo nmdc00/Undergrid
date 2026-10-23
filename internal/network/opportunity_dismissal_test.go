@@ -11,6 +11,7 @@ import (
 	"errors"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // Uses real API and worker LOGINs. Separate fixture principals are not proof of
@@ -95,6 +96,25 @@ func TestOpportunityDismissalHTTPPersistsAndSuppressesUnchangedEvidence(t *testi
 	if code != 200 || replay["id"] != id || replay["state"] != "dismissed" {
 		t.Fatal("lost dismissal receipt", code, replay)
 	}
+	// Both finite transports recover the same domain receipt; neither adapter
+	// synthesizes dismissal authority or mutates the evidence independently.
+	if err = s.ConfigureMCP("https://network.fixture.test"); err != nil {
+		t.Fatal(err)
+	}
+	peer := mcpSDKClient(t, s, a.token)
+	toolResult, err := peer.CallTool(ctx, &mcp.CallToolParams{Name: "opportunity_dismiss", Arguments: map[string]any{"id": id, "body": map[string]any{}, "idempotency_key": "dismiss-current"}})
+	if err != nil || toolResult.IsError || mcpToolData(t, toolResult)["state"] != "dismissed" {
+		t.Fatalf("MCP dismissal recovery: %v %+v", err, toolResult)
+	}
+	if err = s.ConfigureA2ATransport("https://undergrid.test"); err != nil {
+		t.Fatal(err)
+	}
+	command := a2aCommandBody(NewID(), "opportunity_dismiss", "dismiss-current", map[string]any{})
+	commandArgs(command)["id"] = id
+	code, task, _ := a2aCall(a, "POST", "/a2a/message:send", command)
+	if code != 200 || task["task"] == nil || a2aLiveTaskResult(task)["state"] != "dismissed" {
+		t.Fatal("A2A dismissal recovery", code, task)
+	}
 	_, identity := a.call("GET", "/v1/me", "", nil)
 	// The actual application SQL identity cannot reopen or rewrite evidence even
 	// after an authorized command has dismissed the row.
@@ -148,7 +168,7 @@ func TestOpportunityDismissalHTTPPersistsAndSuppressesUnchangedEvidence(t *testi
 	// A new eligible immutable revision creates a new suggestion rather than
 	// resurrecting the dismissed evidence or granting a new receipt for it.
 	input.Objective = "Changed private descriptive detail"
-	code, revised := b.versioned("PATCH", "/v1/intents/"+candidate["id"].(string), "new-candidate-evidence", candidate["etag"].(string), input)
+	code, revised := b.versioned("PATCH", "/v1/intents/"+candidate["id"].(string), "new-candidate-evidence", candidate["etag"].(string), map[string]any{"revision": input})
 	if code != 200 {
 		t.Fatal(code, revised)
 	}
