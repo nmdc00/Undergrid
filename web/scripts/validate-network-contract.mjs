@@ -56,6 +56,15 @@ if (process.argv.includes('--owner-swarm-creation')) {
  console.log(`Validated ${cases.length} actual owner creation cases and independent disclosure/privacy denials`);
  process.exit(0);
 }
+if (process.argv.includes('--owner-assignment-response')) {
+ const accepted=cases.find(c=>c.method==='POST'&&c.status===200&&c.request?.decision==='accept');
+ if(!accepted) throw Error('Missing actual owner assignment acceptance');
+ const validate=validateSchema({$ref:'#/components/schemas/OwnerAssignmentResponseInput'});
+ for(const invalid of [{decision:'accept',plan_hash:accepted.request.plan_hash},{...accepted.request,acknowledge_responsibility_and_terms:false},{...accepted.request,principal_id:baseline.id},{...accepted.request,decision:'approve'},{...accepted.request,plan_hash:'unknown'}])
+  if(validate(invalid)) throw Error('Owner assignment acknowledgement/closed-input bypass');
+ console.log(`Validated ${cases.length} actual owner assignment cases and closed-input denials`);
+ process.exit(0);
+}
 if (process.argv.includes('--owner-room-messages')) {
  const created=cases.find(c=>c.method==='POST'&&c.status===201&&c.path.endsWith('/messages'));
  if(!created) throw Error('Missing actual owner message creation');

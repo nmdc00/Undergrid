@@ -116,7 +116,7 @@ func (s *Service) ownerCommand(r *http.Request, tx pgx.Tx) (int, any, error) {
 	}
 	var principal string
 	principalQuery := "SELECT id FROM principals WHERE issuer=$1 AND subject=$2 AND status='active'"
-	agentID, planID, planMutation := ownerPlanApprovalMutation(r)
+	agentID, planID, taskMutation, planMutation := ownerPlanAuthorityMutation(r)
 	if !planMutation {
 		principalQuery += " FOR UPDATE"
 	}
@@ -132,7 +132,7 @@ func (s *Service) ownerCommand(r *http.Request, tx pgx.Tx) (int, any, error) {
 	if planMutation {
 		// A final vote can accept a plan using other principals' policy grants.
 		// Acquire their canonical sorted locks before locking this owner alone.
-		if err = prelockOwnerPlanAuthorities(ctx, tx, principal, agentID, planID); err != nil {
+		if err = prelockOwnerPlanAuthorities(ctx, tx, principal, agentID, planID, taskMutation); err != nil {
 			return 0, nil, err
 		}
 		// Nonlocking identity resolution grants no mutation authority. Recheck
@@ -158,6 +158,9 @@ func (s *Service) ownerCommand(r *http.Request, tx pgx.Tx) (int, any, error) {
 	}
 	if r.URL.Path == "/v1/owner/intents" || strings.HasPrefix(r.URL.Path, "/v1/owner/intents/") {
 		return s.ownerIntents(r, tx, principal)
+	}
+	if ownerAssignmentRoute(r.URL.Path) {
+		return s.ownerAssignmentResponse(r, tx, principal)
 	}
 	if strings.HasPrefix(r.URL.Path, "/v1/owner/agents/") && strings.Contains(r.URL.Path, "/plans") {
 		return s.ownerPlanApproval(r, tx, principal)

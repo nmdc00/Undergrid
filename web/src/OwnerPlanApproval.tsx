@@ -1,3 +1,4 @@
+import { OwnerAssignmentResponse } from "./OwnerAssignmentResponse";
 import { useEffect, useRef, useState } from "react";
 import { ApiError, object, request, text, type ObjectValue } from "./api";
 type Summary = {
@@ -319,6 +320,14 @@ export function OwnerPlanApproval({
               );
             })}
           </ul>
+          <OwnerAssignmentResponse
+            agent={agent}
+            plan={plan.id}
+            hash={plan.content_hash}
+            termsURL={termsURL}
+            csrf={csrf}
+            onUnauthorized={onUnauthorized}
+          />
           <p>Current task responses and deadlines:</p>
           <pre>{JSON.stringify(plan.tasks, null, 2)}</pre>
           <details>
