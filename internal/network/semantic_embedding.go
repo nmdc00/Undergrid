@@ -37,7 +37,7 @@ func (s *Service) ensureSemanticEmbedding(ctx context.Context, db *pgx.Conn, id 
 	if !eligible {
 		return nil
 	}
-	current, err := s.privateConsentCurrent(input)
+	current, err := s.semanticProjectionCurrent(input)
 	if err != nil || !current {
 		return err
 	}
@@ -81,7 +81,7 @@ func (s *Service) ensureSemanticEmbedding(ctx context.Context, db *pgx.Conn, id 
 	if !currentEligible || currentText != text || currentHash != projectionHash {
 		return nil
 	}
-	current, err = s.privateConsentCurrent(currentInput)
+	current, err = s.semanticProjectionCurrent(currentInput)
 	if err != nil || !current {
 		return err
 	}

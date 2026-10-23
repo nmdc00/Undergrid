@@ -124,8 +124,14 @@ func (s *Service) scanIntentCandidate(ctx context.Context, db *pgx.Conn, id, can
 	if err = json.Unmarshal(raw, &input); err != nil {
 		return err
 	}
+	// Captured vectors do not extend a startup worker's operator authority.
+	// Keep exact comparison available when that profile has been withdrawn.
+	semanticActive, err := s.semanticProjectionCurrent(input)
+	if err != nil {
+		return err
+	}
 	var candidates []demandCandidate
-	if s.semantic != nil {
+	if semanticActive {
 		candidates, err = s.semanticCandidates(ctx, tx, id, principal, candidateID, input)
 		if err != nil {
 			return err
@@ -158,7 +164,7 @@ func (s *Service) scanIntentCandidate(ctx context.Context, db *pgx.Conn, id, can
 	}
 	for _, c := range candidates {
 		evidence := CompareDemand(input, c.input)
-		if !evidence.Compatible && s.semantic != nil && c.cosine != nil && *c.cosine >= s.semantic.minimumSimilarity(input) {
+		if !evidence.Compatible && semanticActive && c.cosine != nil && *c.cosine >= s.semantic.minimumSimilarity(input) {
 			evidence = compareDemandConstraints(input, c.input)
 			if evidence.Compatible {
 				evidence.Algorithm = "hard-constraints-hybrid-cosine-v1"

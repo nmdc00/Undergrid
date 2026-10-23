@@ -2,7 +2,6 @@ package network
 
 import (
 	"encoding/hex"
-	"errors"
 	"strings"
 	"unicode/utf8"
 )
@@ -71,20 +70,21 @@ func intentMatchingFacts(input IntentInput) map[string]any {
 	return map[string]any{"semantic_minimum_similarity": input.SemanticMinimumSimilarity, "private_semantic_profile_hash": profile}
 }
 
-// Workers holding an older startup profile cannot outlive the operator's
-// current private-processing policy. Temporary configuration failures retry;
-// revoked or replaced grants simply decline this observation.
-func (s *Service) privateConsentCurrent(input IntentInput) (bool, error) {
-	if input.PrivateSemanticQuery == nil {
-		return true, nil
-	}
-	err := validateSemanticConsent(input, s.environment)
-	if err == nil {
-		return true, nil
-	}
-	var p problem
-	if errors.As(err, &p) && p.Status != 503 {
+// A startup client is not continuing operator authority. Both public and
+// private observations recheck the current trusted file before disclosure and
+// before persistence. Missing/replaced grants decline old work; configuration
+// read failures stay retryable without sending text or publishing observations.
+func (s *Service) semanticProjectionCurrent(input IntentInput) (bool, error) {
+	if s.semantic == nil {
 		return false, nil
 	}
-	return false, err
+	current, err := semanticConfiguration(s.environment)
+	if err != nil {
+		return false, fail(503, "semantic_policy_unavailable")
+	}
+	if current == nil || current.hash != s.semantic.hash {
+		return false, nil
+	}
+	_, _, allowed := current.selectedProjection(input, "")
+	return allowed, nil
 }
