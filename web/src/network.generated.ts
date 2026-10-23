@@ -1730,6 +1730,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/owner/agents/{agent_id}/plans/{id}/assignments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Review only tasks assigned to the owned attribution agent
+         * @description Current owner, active owned agent and accepted room authority required. Returns at most 50 shared task projections, with audience-filtered evidence references.
+         */
+        get: operations["owner_assignment_review"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/agents/{agent_id}/tasks/{id}/assignment-response": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept or decline own assignment responsibility
+         * @description Verified current owner selects an owned active agent. Canonical policy locks precede owner/agent locks; current authority precedes idempotent recovery. Exact task If-Match and plan hash required. Acceptance requires explicit responsibility/terms acknowledgement and existing rights policy. Creates no plan, rights, publication or spending votes.
+         */
+        post: operations["owner_assignment_response"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2992,6 +3032,15 @@ export interface components {
         OwnerRoomMessageInput: {
             body: string;
         };
+        OwnerAssignmentPage: {
+            items: components["schemas"]["Task"][];
+        };
+        OwnerAssignmentResponseInput: {
+            /** @enum {string} */
+            decision: "accept" | "decline";
+            plan_hash: string;
+            acknowledge_responsibility_and_terms?: boolean;
+        } & unknown;
     };
     responses: never;
     parameters: never;
@@ -6630,6 +6679,87 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MessageCreated"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    owner_assignment_review: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                agent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OwnerAssignmentPage"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    owner_assignment_response: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+                "If-Match": string;
+            };
+            path: {
+                id: string;
+                agent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OwnerAssignmentResponseInput"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    /** @description Matches the exact top-level body etag, including retained idempotent replay version. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Task"];
                 };
             };
             /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
