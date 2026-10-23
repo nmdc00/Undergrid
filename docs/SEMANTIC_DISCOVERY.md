@@ -468,3 +468,21 @@ revocation and ordinary opportunity-read eligibility are separate ongoing work;
 this proof covers successful cutover and stale group suppression, not those
 other contracts. Full affected vet/integration remains required after the pending
 profile-authority dependency is reconciled.
+
+### Current operator profile on ordinary discovery reads (23 October)
+
+The actual owner/agent opportunity read returned r1 semantic suggestions after
+operator configuration changed to r2, even though compatible-group reads hid them
+(`/tmp/undergrid-semantic-current-read-red98.jsonl`,3.405s). Ordinary reads now load
+current trusted profile metadata without provider I/O and filter semantic proof
+against that profile before the bounded SQL result limit. Both owner and shared
+REST/MCP/A2A reads invoke the same service command. Exact-demand reads remain
+available when semantic configuration is disabled. Invalid configured policy
+returns a retryable unavailable error instead of presenting old semantic proof.
+
+The six-case group/private-query/cutover race slice passed21.577s with no failed
+or skipped cases (`/tmp/undergrid-semantic-current-read-green98.jsonl`); vet passed
+(`/tmp/undergrid-semantic-current-read-vet.log`). Applied migrations are unchanged.
+The guard neither overwrites historic observations nor confuses model similarity
+with hard eligibility. A separately reproduced old-worker write/notification gap
+is being fixed in the profile-authority branch before integration.

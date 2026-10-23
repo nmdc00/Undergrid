@@ -121,7 +121,7 @@ func (s *Service) compatibleGroups(r *http.Request, tx pgx.Tx, a actor, id strin
 	target := *r.URL
 	query.URL = &target
 	query.URL.Path = "/v1/intents/" + id + "/opportunities"
-	_, page, err := listOpportunities(query, tx, a)
+	_, page, err := s.listOpportunities(query, tx, a)
 	if err != nil {
 		return 0, nil, err
 	}

@@ -409,7 +409,7 @@ func (s *Service) agentCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, e
 		if !slices.Contains(a.Scopes, "intents:read") {
 			return 0, nil, insufficientScope(a, "intents:read")
 		}
-		return listOpportunities(r, tx, a)
+		return s.listOpportunities(r, tx, a)
 	}
 	if r.URL.Path == "/v1/inbox" || r.URL.Path == "/v1/agent-context" || strings.HasPrefix(r.URL.Path, "/v1/inbox/") {
 		if !slices.Contains(a.Scopes, "inbox:read") {

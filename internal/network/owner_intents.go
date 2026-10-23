@@ -134,7 +134,7 @@ func (s *Service) ownerIntents(r *http.Request, tx pgx.Tx, principal string) (in
 		return s.listExternalLeads(command, tx, a, id, "owner")
 	}
 	if r.Method == "GET" && strings.HasSuffix(command.URL.Path, "/opportunities") {
-		return listOpportunities(command, tx, a)
+		return s.listOpportunities(command, tx, a)
 	}
 	if r.Method == "GET" {
 		return getIntent(ctx, tx, a, id)

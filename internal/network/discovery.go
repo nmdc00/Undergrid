@@ -215,9 +215,17 @@ func (s *Service) notify(ctx context.Context, tx pgx.Tx, principal, agent, aggre
 	_, err := tx.Exec(ctx, "INSERT INTO inbox(agent_id,sequence,event_id,resource_path) VALUES($1,$2,$3,$4)", agent, sequence, eventID, path)
 	return err
 }
-func listOpportunities(r *http.Request, tx pgx.Tx, a actor) (int, any, error) {
+func (s *Service) listOpportunities(r *http.Request, tx pgx.Tx, a actor) (int, any, error) {
 	if handled, status, result, err := recruitmentRoute(r, tx, a); handled {
 		return status, result, err
+	}
+	provider, policyErr := semanticConfiguration(s.environment)
+	if policyErr != nil {
+		return 0, nil, fail(503, "semantic_policy_unavailable")
+	}
+	profile := ""
+	if provider != nil {
+		profile = provider.hash
 	}
 	id := ""
 	single := false
@@ -243,9 +251,9 @@ func listOpportunities(r *http.Request, tx pgx.Tx, a actor) (int, any, error) {
 	rows, err := tx.Query(r.Context(), `SELECT o.id,o.source_intent_id,o.candidate_intent_id,o.evidence,o.input_hash,sr.content_hash,p.content_hash,COALESCE(sr.embedding_projection_hash,''),COALESCE(cm.projection_hash,''),COALESCE(sr.embedding_profile_hash,''),COALESCE(cm.profile_hash,'') FROM opportunities o JOIN public_intents() p ON p.id=o.candidate_intent_id JOIN intents i ON i.id=o.source_intent_id JOIN intent_revisions sr ON sr.intent_id=i.id AND sr.revision=i.current_revision LEFT JOIN public_semantic_metadata() cm ON cm.id=p.id WHERE o.recipient_agent_id=$1 AND o.state='suggested' AND i.state='active' AND i.expires_at>now() AND o.input_hash=encode(sha256(convert_to(array_to_json(ARRAY[o.source_intent_id::text,sr.content_hash,o.candidate_intent_id::text,p.content_hash,o.evidence->>'algorithm'] || CASE WHEN o.evidence->>'algorithm'='hard-constraints-hybrid-cosine-v1' THEN ARRAY[o.evidence->>'semantic_profile_hash'] ELSE ARRAY[]::text[] END)::text,'UTF8')),'hex')
  AND (o.evidence->>'algorithm'<>'hard-constraints-hybrid-cosine-v1' OR (
  o.evidence->>'source_projection_hash'=sr.embedding_projection_hash AND o.evidence->>'candidate_projection_hash'=cm.projection_hash
- AND o.evidence->>'semantic_profile_hash'=sr.embedding_profile_hash AND o.evidence->>'semantic_profile_hash'=cm.profile_hash))
+ AND o.evidence->>'semantic_profile_hash'=sr.embedding_profile_hash AND o.evidence->>'semantic_profile_hash'=cm.profile_hash AND o.evidence->>'semantic_profile_hash'=$4))
  AND ((o.evidence#>>'{combined_constraints,delivery,deliver_by}') IS NULL OR (o.evidence#>>'{combined_constraints,delivery,deliver_by}')::timestamptz>clock_timestamp())
- AND ($2='' OR CASE WHEN $3 THEN o.id::text=$2 ELSE o.source_intent_id::text=$2 END) ORDER BY o.created_at,o.id LIMIT 100`, a.AgentID, id, single)
+ AND ($2='' OR CASE WHEN $3 THEN o.id::text=$2 ELSE o.source_intent_id::text=$2 END) ORDER BY o.created_at,o.id LIMIT 100`, a.AgentID, id, single, profile)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -266,7 +274,7 @@ func listOpportunities(r *http.Request, tx pgx.Tx, a actor) (int, any, error) {
 		if storedHash != demandOpportunityHash(source, sourceHash, candidate, candidateHash, proof) {
 			continue
 		}
-		if proof.Algorithm == "hard-constraints-hybrid-cosine-v1" && (proof.SourceProjectionHash == "" || proof.SourceProjectionHash != sourceProjection || proof.CandidateProjectionHash != candidateProjection || proof.SemanticProfileHash != sourceProfile || proof.SemanticProfileHash != candidateProfile) {
+		if proof.Algorithm == "hard-constraints-hybrid-cosine-v1" && (proof.SemanticProfileHash != profile || proof.SourceProjectionHash == "" || proof.SourceProjectionHash != sourceProjection || proof.CandidateProjectionHash != candidateProjection || proof.SemanticProfileHash != sourceProfile || proof.SemanticProfileHash != candidateProfile) {
 			continue
 		}
 		items = append(items, map[string]any{"id": oid, "source_intent_id": source, "candidate_intent_id": candidate, "origin": "registered_intent", "kind": "shared_demand", "evidence": json.RawMessage(evidence)})

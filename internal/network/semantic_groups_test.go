@@ -196,6 +196,10 @@ func TestSemanticGroupsRequireEveryCurrentPairAboveSourceThreshold(t *testing.T)
 	if code != 200 || len(page["items"].([]any)) != 0 {
 		t.Fatal("old profile survived configuration change", code, page)
 	}
+	code, oldOpportunities := owners[0].call("GET", "/v1/intents/"+rows[0]["id"].(string)+"/opportunities", "", nil)
+	if code != 200 || len(oldOpportunities["items"].([]any)) != 0 {
+		t.Fatal("ordinary discovery reused revoked operator profile", code, oldOpportunities)
+	}
 	// Public model cutover requires new immutable revisions. Identical approved
 	// documents still need fresh profile-bound opportunities, despite unchanged
 	// public content hashes and algorithm name.
