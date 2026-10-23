@@ -73,3 +73,11 @@ suppression/recovery and current-authority replay. Its owning artifact is
 `OPPORTUNITY_DISMISSAL.md`; network040 is reserved. No dismissal behavior or
 migration has been implemented at this checkpoint; the actual HTTP oracle is
 unrun. Existing038/039 remain frozen.
+
+Combined semantic/external source `d735921` passed37/38 top-level race cases;
+initial watcher scan missed its five-second deadline behind349 retained FIFO
+jobs. No deadline or fixture was weakened. A dedicated dependent
+`feat/v0.1-fresh-discovery-capacity` worktree now owns the reproducer and queue
+fairness repair; profile_oct23 owns that task. See `SEMANTIC_DISCOVERY.md` for
+actual job timing and scope. Its owning document is `FRESH_DISCOVERY_CAPACITY.md`.
+The unchanged full TDD objective remains active.

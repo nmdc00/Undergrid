@@ -486,3 +486,29 @@ or skipped cases (`/tmp/undergrid-semantic-current-read-green98.jsonl`); vet pas
 The guard neither overwrites historic observations nor confuses model similarity
 with hard eligibility. A separately reproduced old-worker write/notification gap
 is being fixed in the profile-authority branch before integration.
+
+## Combined release integration checkpoint (23 October)
+
+Root reconciled release `ab330e3` (external notification PR88 and owner lock PR87)
+and the reviewed public profile-authority fix into `d735921`. The worker retains
+all19 independent semantic/external/core queues with29 pooled connections,
+preserving ten nonfetcher slots. Owner opportunity reads retain their narrow
+intents:read scope and the shared current-profile command; canonical schema maps
+were reconciled structurally and types regenerated.
+
+The actual combined race gate ran38 top-level cases:37 passed, one failed, no
+skips,94.519s (`/tmp/undergrid-semantic-combined-d73598.jsonl`). The failure is
+`TestCommittedDiscoveryRefreshesExistingWatcher` before candidate arrival:
+the first two watches did not scan within the unchanged five-second bound.
+Actual retained database evidence shows their discovery jobs10136/10138 and
+fanout10137/10139 unattempted at the deadline.349 older eligible priority1 jobs
+were ahead;58 older jobs progressed during the window,293 remained ahead.
+Subsequent suite workers scanned these intentions about26s after creation.
+This is FIFO backlog starvation, not an observed profile rejection or pool
+exhaustion. Neither jobs nor data were removed and no deadline was extended.
+
+The separate fresh-discovery capacity vertical will prove stable fresh/background
+routing and aged pending-work recovery, preserving row identity, arguments,
+attempts, ordering evidence and independent retained progress. This feature stays
+unmerged until its combined worker gate is green. Passing individual semantic,
+private/group, external and owner tests does not satisfy that failed invariant.
