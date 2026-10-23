@@ -3,7 +3,10 @@ package network
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
@@ -54,7 +57,17 @@ func TestSemanticRetrievalFiltersHardConstraintsBeforeCandidateLimit(t *testing.
 	}
 	candidates[eligible] = row
 	threshold := 0.8
-	s.semantic = &semanticProvider{hash: "constraint-retrieval-fixture", config: semanticConfig{MinimumSimilarity: &threshold}}
+	config := semanticConfig{Endpoint: "https://semantic.invalid", ProviderID: "constraint-retrieval-fixture", Model: "controlled", ModelRevision: "1", Dimensions: 3, PermissionEvidence: "retrieval fixture only; no provider request", PrivacyPolicySHA256: strings.Repeat("e", 64), AllowPublicProjections: true, MinimumSimilarity: &threshold, TestOnly: true}
+	path := filepath.Join(t.TempDir(), "semantic.json")
+	if err := os.WriteFile(path, canonical(config), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("UNDERGRID_SEMANTIC_CONFIG_FILE", path)
+	var err error
+	s.semantic, err = semanticConfiguration("development")
+	if err != nil {
+		t.Fatal(err)
+	}
 	worker, err := pgx.Connect(context.Background(), workerDSN)
 	if err != nil {
 		t.Fatal(err)
