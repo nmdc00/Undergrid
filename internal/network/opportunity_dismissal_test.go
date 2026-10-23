@@ -111,6 +111,27 @@ func TestOpportunityDismissalHTTPPersistsAndSuppressesUnchangedEvidence(t *testi
 	}
 	command := a2aCommandBody(NewID(), "opportunity_dismiss", "dismiss-current", map[string]any{})
 	commandArgs(command)["id"] = id
+	// A foreign policy lock returns a transport error rather than a committed
+	// command_rejected receipt. The exact same A2A message/key remains retryable.
+	barrier, err := db.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer barrier.Rollback(ctx)
+	if _, err = barrier.Exec(ctx, "SELECT p.id FROM undergrid.principals p JOIN undergrid.intents i ON i.principal_id=p.id WHERE i.id=$1 FOR UPDATE OF p", candidate["id"]); err != nil {
+		t.Fatal(err)
+	}
+	failedCode, failedTransport, _ := a2aCall(a, "POST", "/a2a/message:send", command)
+	if failedCode != 500 || failedTransport["task"] != nil {
+		t.Fatal("NOWAIT transport error", failedCode, failedTransport)
+	}
+	var transportReceipts int
+	if err = db.QueryRow(ctx, "SELECT count(*) FROM undergrid.a2a_command_receipts WHERE message_id=$1", command["message"].(map[string]any)["messageId"]).Scan(&transportReceipts); err != nil || transportReceipts != 0 {
+		t.Fatal("contention stored receipt", transportReceipts, err)
+	}
+	if err = barrier.Rollback(ctx); err != nil {
+		t.Fatal(err)
+	}
 	code, task, _ := a2aCall(a, "POST", "/a2a/message:send", command)
 	if code != 200 || task["task"] == nil || a2aLiveTaskResult(task)["state"] != "dismissed" {
 		t.Fatal("A2A dismissal recovery", code, task)
