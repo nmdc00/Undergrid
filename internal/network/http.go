@@ -356,6 +356,9 @@ func networkOAuthScopes() []string {
 	return []string{"intents:read", "intents:write", "inbox:read", "swarms:read", "swarms:create", "swarms:archive", "swarms:apply", "members:invite", "members:respond", "members:withdraw", "coordinator:propose", "coordinator:approve", "coordinator:accept", "messages:write", "plans:propose", "plans:approve", "tasks:progress", "tasks:accept", "artifacts:submit", "artifacts:read", "artifacts:accept", "artifacts:reuse", "artifacts:grant", "rights:accept", "publication:approve", "reports:read", "reports:write"}
 }
 func (s *Service) agentCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, error) {
+	if id, ok := opportunityDismissalID(r.URL.Path); ok {
+		return s.dismissOpportunity(r, tx, a, id)
+	}
 	if _, _, _, ok := coordinatorRequest(r.URL.Path); ok {
 		return s.coordinatorCommand(r, tx, a)
 	}
