@@ -27,6 +27,7 @@ var networkOperations = []networkOperation{
 	{"contribution_templates", "GET", "/v1/policies/contribution-templates"},
 	{"opportunities_list", "GET", "/v1/opportunities"},
 	{"opportunity_read", "GET", "/v1/opportunities/{id}"},
+	{"opportunity_dismiss", "POST", "/v1/opportunities/{id}/dismiss"},
 	{"invitation_read", "GET", "/v1/invitations/{id}"},
 	{"artifacts_list", "GET", "/v1/artifacts"},
 	{"artifact_input_grant_read", "GET", "/v1/artifact-input-grants/{id}"},
