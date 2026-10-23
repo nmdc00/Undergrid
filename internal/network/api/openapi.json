@@ -7576,6 +7576,190 @@
           }
         }
       }
+    },
+    "/v1/opportunities/{id}/dismiss": {
+      "post": {
+        "operationId": "post__v1_opportunities_id_dismiss",
+        "summary": "Dismiss a current suggestion without participation or rights consent",
+        "description": "Required credential scope: intents:write. Current recipient, source and candidate eligibility is checked before retained receipt recovery. Unchanged evidence remains suppressed; no admission, assignment, rights or satisfaction is granted.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpportunityDismissal"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; status depends on authentication, visibility, validation, quotas and runtime availability.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "NetworkBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Empty"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/owner/agents/{agent_id}/opportunities/{id}/dismiss": {
+      "post": {
+        "operationId": "post__v1_owner_agents_agent_id_opportunities_id_dismiss",
+        "summary": "Dismiss a current suggestion without participation or rights consent",
+        "description": "Verified owner session selects an owned active agent. The shared domain transaction checks current suggestion eligibility before retained receipt recovery.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpportunityDismissal"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; status depends on authentication, visibility, validation, quotas and runtime availability.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OwnerSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Empty"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -12756,6 +12940,24 @@
             }
           }
         ]
+      },
+      "OpportunityDismissal": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "state"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string",
+            "const": "dismissed"
+          }
+        }
       }
     },
     "securitySchemes": {
