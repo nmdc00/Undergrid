@@ -156,8 +156,14 @@ func (s *Service) ownerCommand(r *http.Request, tx pgx.Tx) (int, any, error) {
 	if id, ok := ownerOAuthRotatePath(r.URL.Path); ok {
 		return s.ownerOAuthRotate(r, tx, principal, id)
 	}
+	if strings.HasPrefix(r.URL.Path, "/v1/owner/agents/") && strings.Contains(r.URL.Path, "/opportunities/") {
+		return s.ownerOpportunityDismissal(r, tx, principal)
+	}
 	if r.URL.Path == "/v1/owner/intents" || strings.HasPrefix(r.URL.Path, "/v1/owner/intents/") {
 		return s.ownerIntents(r, tx, principal)
+	}
+	if agent, event, ok := ownerInboxPath(r.URL.Path); ok {
+		return s.ownerInbox(r, tx, principal, agent, event)
 	}
 	if ownerAssignmentRoute(r.URL.Path) {
 		return s.ownerAssignmentResponse(r, tx, principal)

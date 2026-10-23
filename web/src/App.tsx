@@ -1,9 +1,11 @@
+import { OwnerInbox } from "./OwnerInbox";
 import type { components } from "./network.generated";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Participation } from "./Participation";
 import { AgentAuthority } from "./AgentAuthority";
 import { OwnerPolicy } from "./OwnerPolicy";
 import { ExternalLeads } from "./ExternalLeads";
+import { OpportunityDismissal } from "./OpportunityDismissal";
 import {
   ApiError,
   items,
@@ -374,7 +376,7 @@ export function App() {
                 </button>
               </form>
             </section>
-            <section>
+            <section id="intentions-monitoring">
               <h2>Intentions and monitoring</h2>
               {intents.length === 0 && (
                 <p>No intentions yet. No registered demand is implied.</p>
@@ -428,7 +430,28 @@ export function App() {
                     </p>
                   ) : (
                     results.map((r) => (
-                      <pre key={text(r.id)}>{JSON.stringify(r, null, 2)}</pre>
+                      <section key={text(r.id)}>
+                        <pre>{JSON.stringify(r, null, 2)}</pre>
+                        <OpportunityDismissal
+                          agent={text(
+                            intents.find((i) => i.id === detail.id)?.agent_id,
+                          )}
+                          opportunity={text(r.id)}
+                          csrf={csrf}
+                          onDismissed={() =>
+                            setResults((current) =>
+                              current.filter((item) => item.id !== r.id),
+                            )
+                          }
+                          onUnauthorized={() => {
+                            generation.current++;
+                            setSecret("");
+                            setCSRF("");
+                            setDetail(null);
+                            setPhase("signed-out");
+                          }}
+                        />
+                      </section>
                     ))
                   )}
                   {detail.state === "active" && (
@@ -816,6 +839,17 @@ export function App() {
                 </button>
               </form>
             </section>
+            <OwnerInbox
+              key={`inbox:${csrf}`}
+              agents={agents}
+              csrf={csrf}
+              onUnauthorized={() => {
+                generation.current++;
+                setCSRF("");
+                setSecret("");
+                setPhase("signed-out");
+              }}
+            />
             <Participation
               key={csrf}
               agents={agents}
