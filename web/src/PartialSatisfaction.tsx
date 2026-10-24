@@ -105,8 +105,9 @@ export function PartialSatisfaction({
             !Number.isFinite(Date.parse(out.expires_at)) ||
             output.kind !== "json_dataset" ||
             output.schema_family !== "source_catalog_v1" ||
+            typeof out.visibility !== "string" ||
             !["private", "restricted", "redacted_public"].includes(
-              String(out.visibility),
+              out.visibility,
             ) ||
             (out.public_summary !== undefined &&
               typeof out.public_summary !== "string") ||

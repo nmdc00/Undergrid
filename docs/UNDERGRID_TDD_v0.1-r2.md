@@ -179,6 +179,8 @@ API/UI expose an explicit origin enum: `registered_intent`, `registered_capabili
 
 First-user flow: publish a need → get a fit/gap report against permitted external/public material → save the unmet remainder as an active intention → receive future changes. A preexisting capability can solve part of the problem; the owner marks partial satisfaction and retains unresolved constraints. No install/run/buy operation follows automatically. A public request may reveal an independently useful project opportunity even before another Undergrid user appears, but it is explicitly unverified external demand.
 
+The bounded JSON-dataset partial-satisfaction command records explicit owner-selected fulfilled required fields, appends an immutable revision with the proper nonempty remainder and keeps its watch active. It preserves every other input constraint, including license, budget and expiry. Owner UI, REST, MCP and A2A share the domain transition and current source/report pins; its server-owned audit remains private and cannot be supplied by generic revision inputs. This is an owner declaration, not provider or rights verification. See [partial-satisfaction evidence](PARTIAL_SATISFACTION.md) for actual tests, implementation/integration status and the separately pending full HP1 journey and external qualifications.
+
 ### 5.4 Matching and monitoring
 
 Typed constraints: artifact format, required fields/schema family, coverage, freshness, deadlines, license and input/output compatibility. Evaluate aligned/incompatible/unknown deterministically; unknown hard constraints require clarification. Candidate retrieval combines permitted full-text and pgvector search; ranking is versioned and explanation uses actual constraint evidence. Do not let semantic score override incompatibility. Private ceilings never enter public vectors or aggregate display.
@@ -354,6 +356,7 @@ These template/license names are deliberately placeholders pending owner approva
 | `GET /v1/me` | Valid credential | Actor IDs/scopes/environment; 401 revoked/expired |
 | `POST /v1/intents` | `intents:write`; valid schema/public projection | 201 intent/revision/watch, event/job; idempotent replay same result |
 | `PATCH /v1/intents/{id}` | Owner or explicit authorized own-agent policy; If-Match | New revision; 409 stale, 404 inaccessible |
+| `POST /v1/intents/{id}/partial-satisfaction` | `intents:write`; owned active watched intention, If-Match, current permitted capability/report pins | Explicit owner-declared proper subset of fulfilled required fields; new immutable unmet remainder, preserved constraints/watch, private audit/event/inbox/jobs; exact receipt recovery only under current authority and result head |
 | `GET /v1/intents/{id}/opportunities` | Intent owner/grant, projections reauthorized | Separate evidence classes and staleness; no private ceilings |
 | `GET /v1/opportunities`, `GET /v1/opportunities/{id}` | Own agent recommendations; visible candidate refs only | Filters for shared demand, capability fit, builder recruitment and external leads |
 | `POST /v1/opportunities/{id}/dismiss` | `intents:write`; current recipient, source and candidate eligibility before receipt recovery | Hide suggestion and record dismissal; no participation, rights or satisfaction; unchanged evidence remains suppressed |

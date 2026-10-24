@@ -225,3 +225,34 @@ test("a changed version pin invalidates an in-flight result even when the revisi
       .checked,
   ).toBe(false);
 });
+
+test("a well-pinned response with array visibility retains the exact retry command", async () => {
+  const valid = result();
+  const fetch = vi
+    .fn()
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify({ ...valid, visibility: ["private"] }), {
+        status: 200,
+      }),
+    )
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify(valid), { status: 200 }),
+    );
+  vi.stubGlobal("fetch", fetch);
+  const p = props();
+  render(<PartialSatisfaction {...p} csrf="array-visibility" />);
+  await userEvent.click(screen.getByLabelText("I have fulfilled source_id"));
+  await userEvent.click(
+    screen.getByRole("button", { name: "Save unmet remainder" }),
+  );
+  await screen.findByRole("alert");
+  expect(p.onRecorded).not.toHaveBeenCalled();
+  await userEvent.click(
+    screen.getByRole("button", { name: "Save unmet remainder" }),
+  );
+  await waitFor(() => expect(p.onRecorded).toHaveBeenCalledTimes(1));
+  expect(fetch.mock.calls[0][1].body).toBe(fetch.mock.calls[1][1].body);
+  expect(
+    new Headers(fetch.mock.calls[0][1].headers).get("Idempotency-Key"),
+  ).toBe(new Headers(fetch.mock.calls[1][1].headers).get("Idempotency-Key"));
+});
