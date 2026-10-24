@@ -4,17 +4,18 @@ This ledger tracks the five steps in `HAPPY_PATH_EXECUTION.md`. Implementation,
 local proof, release integration and external qualification are separate facts.
 The complete local journey passed on 24 October at tested candidate
 `037410e2ade0099099ba418386e816ac1bc3ded1`, integrating release `6b7fa91`
-(PR96). All five steps are implemented and continuously proven. The new acceptance
-changes remain pending reviewed PR merge; HP1 is not yet declared locally closed.
+(PR96). All five steps are implemented and continuously proven. The reviewed
+acceptance extension merged in [PR97](https://github.com/nmdc00/Undergrid/pull/97)
+at release `1f14d909e3b679cd55e5c770296abc7046d02a45`. HP1 is locally closed.
 External qualification remains unproven.
 
 | Step and exact acceptance criterion | Implemented | Local continuous proof | Merged | External qualification |
 | --- | --- | --- | --- | --- |
-| 1. Previously unregistered owner signs in, registers, receives one scoped agent credential and creates an explicitly private structured intention with active watch and visible expiry. | Product routes/UI and real live harness implemented. | PASS: same actual Chromium/OIDC/API/PostgreSQL journey; scoped bearer read and reload. | Product and initial harness merged (PR94); complete-path extension pending. | Controlled issuer does not qualify the chosen provider or unfamiliar-owner usability. |
-| 2. Owner inspects permitted lead provenance and declared fit, or an explicit honest gap without false independence/provider claims. | Lead browsing, declared constraint report and honest gap implemented. | PASS: initial empty gap, controlled populated capability, loaded revision-one mismatch and later revision-two alignment. | Product merged; complete-path proof pending acceptance PR merge. | Real approved capability/request material and useful unfamiliar-owner outcome remain unproven. |
-| 3. Owner declares only part of the need satisfied and sees the exact unresolved requirements preserved under an active watch. | Explicit owner partial-satisfaction command, immutable audit/revision and visible remainder merged in PR96. | PASS: unchecked fields → owner selects `source_id` → revision two retains `source_url`; constraints/watch/expiry preserved, reload and scoped bearer read confirm persistence. | Product merged (PR96); complete-path proof pending acceptance PR merge. | Owner declaration does not qualify publisher claims, legal rights or real usefulness. |
-| 4. A later permitted source update produces one durable opportunity and one notification; owner returns to inbox. | Source-refresh/notification and owner inbox implemented. | PASS: actual HTTPS GET and workers create exactly one opportunity/event/inbox for each source/intention input pair; version-two result uses revision-two remainder. | Product and initial harness merged; full extension pending acceptance PR merge. | Controlled publisher is a local fixture, not source approval or relevance qualification. |
-| 5. Owner reviews result, acknowledges receipt and dismisses; reconnect and worker restart do not renotify unchanged evidence, but genuinely changed evidence may generate a new suggestion. | Owner inbox/dismissal implemented. | PASS: exact revision-two/version-two discovery ack/dismiss, actual stop/restart and completed downstream matching preserve counts/receipt timestamp; version three yields a different suggestion. | Product and initial harness merged; full extension pending acceptance PR merge. | No public qualification follows from local success. |
+| 1. Previously unregistered owner signs in, registers, receives one scoped agent credential and creates an explicitly private structured intention with active watch and visible expiry. | Product routes/UI and real live harness implemented. | PASS: same actual Chromium/OIDC/API/PostgreSQL journey; scoped bearer read and reload. | Product and complete-path proof merged (PR94/97). | Controlled issuer does not qualify the chosen provider or unfamiliar-owner usability. |
+| 2. Owner inspects permitted lead provenance and declared fit, or an explicit honest gap without false independence/provider claims. | Lead browsing, declared constraint report and honest gap implemented. | PASS: initial empty gap, controlled populated capability, loaded revision-one mismatch and later revision-two alignment. | Product and complete-path proof merged (PR97). | Real approved capability/request material and useful unfamiliar-owner outcome remain unproven. |
+| 3. Owner declares only part of the need satisfied and sees the exact unresolved requirements preserved under an active watch. | Explicit owner partial-satisfaction command, immutable audit/revision and visible remainder merged in PR96. | PASS: unchecked fields → owner selects `source_id` → revision two retains `source_url`; constraints/watch/expiry preserved, reload and scoped bearer read confirm persistence. | Product merged (PR96); complete-path proof merged (PR97). | Owner declaration does not qualify publisher claims, legal rights or real usefulness. |
+| 4. A later permitted source update produces one durable opportunity and one notification; owner returns to inbox. | Source-refresh/notification and owner inbox implemented. | PASS: actual HTTPS GET and workers create exactly one opportunity/event/inbox for each source/intention input pair; version-two result uses revision-two remainder. | Product and complete-path proof merged (PR94/97). | Controlled publisher is a local fixture, not source approval or relevance qualification. |
+| 5. Owner reviews result, acknowledges receipt and dismisses; reconnect and worker restart do not renotify unchanged evidence, but genuinely changed evidence may generate a new suggestion. | Owner inbox/dismissal implemented. | PASS: exact revision-two/version-two discovery ack/dismiss, actual stop/restart and completed downstream matching preserve counts/receipt timestamp; version three yields a different suggestion. | Product and complete-path proof merged (PR94/97). | No public qualification follows from local success. |
 
 ## Harness boundaries
 
@@ -231,8 +232,8 @@ are expected; rooms, tasks and approvals remain absent.
 
 This remains controlled local OIDC/HTTPS/scheduling acceptance. Actual provider,
 permitted real capability/request source, legal and unfamiliar-owner qualification
-remain external gates. The passing proof does not close HP1 before its reviewed
-acceptance PR is merged.
+remain external gates. The reviewed acceptance proof is now merged in PR97;
+this closes the local path without qualifying those external gates.
 
 
 ## Complete local journey and current guards — 24 October 2026
@@ -283,6 +284,21 @@ preserves normal due/approval checks. Snapshot/revision-specific completion
 barriers prevent unprocessed restart work from masquerading as deduplication.
 Per-input accounting distinguishes legitimate revision changes from duplicate
 notifications. No arbitrary content execution, rights grant, financial identity
-or financial database participates. This local proof remains pending reviewed
-acceptance integration and does not qualify real sources/providers, legal rights,
+or financial database participates. This local proof is reviewed and merged in
+PR97. It does not qualify real sources/providers, legal rights,
 deployment or the unfamiliar-owner useful result within ten minutes.
+
+## Merged release check and local closure
+
+After PR97, exact release `1f14d909e3b679cd55e5c770296abc7046d02a45` passed
+four focused PostgreSQL race integration tests with zero failures/skips, package
+5.576 seconds: owner partial-remainder/exact retry, source locks through commit,
+lead cursor authority/revision binding and owner inbox receipt/bounded cursor.
+Output: `/tmp/undergrid-hp1-release-1f14d90-postmerge96.jsonl`. The TypeScript/Vite
+production build also passed, Vite 1.30 seconds;
+`/tmp/undergrid-hp1-release-1f14d90-web-build.log`.
+
+All five HP1 acceptance steps are implemented, continuously proven and reviewed
+into release. The next active local path is HP2. Actual provider, real permitted
+capability/request sources, legal, deployment and unfamiliar-owner usefulness
+remain unqualified; full Undergrid v0.1 completion is not claimed.
