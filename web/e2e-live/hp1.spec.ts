@@ -1,7 +1,8 @@
 import { test, expect } from "@playwright/test";
 
 // Real HTTPS API, cookie/CSRF, PostgreSQL and signed OIDC fixture. This milestone
-// proves setup and an honest empty-source gap, not the complete HP1 journey.
+// preserves setup/gap and watch milestones; the explicit partial mode exercises
+// the complete local HP1 journey without qualifying external sources/providers.
 test("first owner signs in, creates a private watch and inspects an honest gap", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("link", { name: "Sign in", exact: true }).click();
@@ -60,15 +61,70 @@ test("first owner signs in, creates a private watch and inspects an honest gap",
       return (await result.json()).items as { id: string }[];
     };
     await expect.poll(async () => (await opportunities()).length, { timeout: 8_000 }).toBe(1);
-    const first = (await opportunities())[0].id;
+    let first = (await opportunities())[0].id;
+    const partialJourney = process.env.UNDERGRID_HP1_PARTIAL_JOURNEY === "1";
     await page.getByRole("button", { name: "Review intention", exact: true }).click();
     await expect(page.getByText("Controlled fixture metadata; not a qualified real source", { exact: false }).first()).toBeVisible();
     await page.getByRole("button", { name: "Find external leads", exact: true }).click();
     await page.getByRole("button", { name: "Review declared fit", exact: true }).click();
     await expect(page.getByText("Assessment uses unverified publisher declarations. Identity, rights and availability are unverified.", { exact: true })).toBeVisible();
-    // Partial satisfaction is intentionally not substituted with terminal
-    // satisfaction or a hidden revision. Its future owner control is a missing
-    // full-HP1 step, separately recorded in the acceptance ledger.
+    if (partialJourney) {
+      // Wait for the loaded assessment, rather than its always-visible disclaimer.
+      const assessment = page.getByRole("region", { name: "Selected lead assessment", exact: true });
+      await expect(assessment.getByRole("table", { name: "Declared constraints", exact: true })).toBeVisible();
+      await expect(assessment.getByText("Intention revision 1", { exact: true })).toBeVisible();
+      await expect(assessment.getByRole("heading", { name: "Declared mismatch", exact: true })).toBeVisible();
+      const fulfillment = page.getByRole("region", { name: "Record partial fulfillment", exact: true });
+      await expect(fulfillment.getByLabel("I have fulfilled source_id", { exact: true })).not.toBeChecked();
+      await expect(fulfillment.getByLabel("I have fulfilled source_url", { exact: true })).not.toBeChecked();
+      await fulfillment.getByLabel("I have fulfilled source_id", { exact: true }).check();
+      await expect(fulfillment.getByLabel("Unmet required fields", { exact: true })).toHaveText("source_url");
+      const partialResponse = page.waitForResponse(r => new URL(r.url()).pathname === `/v1/owner/intents/${intention.id}/partial-satisfaction` && r.request().method() === "POST");
+      await fulfillment.getByRole("button", { name: "Save unmet remainder", exact: true }).click();
+      const recorded = await partialResponse;
+      expect(recorded.status()).toBe(200);
+      const remainder = await recorded.json();
+      expect(remainder.current_revision).toBe(2);
+      expect(remainder.state).toBe("active");
+      expect(remainder.watch.enabled).toBe(true);
+      expect(remainder.hard_constraints.required_fields).toEqual(["source_url"]);
+      for (const field of ["objective", "visibility", "output", "preferences", "budget", "watch", "expires_at", "public_summary"]) {
+        expect(remainder[field]).toEqual(intentions[field]);
+      }
+      expect(remainder.hard_constraints.license_ids).toEqual(intentions.hard_constraints.license_ids);
+      expect(remainder.partial_satisfaction.evidence_class).toBe("owner_declared_partial_satisfaction");
+      expect(remainder.partial_satisfaction.fulfilled_required_fields).toEqual(["source_id"]);
+      expect(remainder.partial_satisfaction.remaining_required_fields).toEqual(["source_url"]);
+      await expect(page.getByRole("region", { name: "Current unmet requirements", exact: true }).getByRole("listitem")).toHaveText(["source_url"]);
+      await page.reload();
+      await page.getByRole("button", { name: "Review intention", exact: true }).click();
+      await expect(page.getByRole("region", { name: "Current unmet requirements", exact: true }).getByRole("listitem")).toHaveText(["source_url"]);
+      const recovered = await page.request.get(`/v1/intents/${encodeURIComponent(intention.id)}`, { headers: { Authorization: `Bearer ${credential.token}` } });
+      expect(recovered.status()).toBe(200);
+      expect((await recovered.json()).hard_constraints.required_fields).toEqual(["source_url"]);
+      // A changed intention revision is genuinely different matching input.
+      // Settle that result before a later publisher change, accounting for both.
+      const beforePartial = first;
+      await expect.poll(async () => {
+        const current = await opportunities();
+        return current.length === 1 && current[0].id !== beforePartial;
+      }, { timeout: 8_000 }).toBe(true);
+      first = (await opportunities())[0].id;
+      await control("/publish/2");
+      const beforeUpdate = first;
+      await expect.poll(async () => {
+        const current = await opportunities();
+        return current.length === 1 && current[0].id !== beforeUpdate;
+      }, { timeout: 8_000 }).toBe(true);
+      first = (await opportunities())[0].id;
+      await page.getByRole("button", { name: "Review intention", exact: true }).click();
+      await page.getByRole("button", { name: "Find external leads", exact: true }).click();
+      await page.getByRole("button", { name: "Review declared fit", exact: true }).click();
+      await expect(assessment.getByRole("table", { name: "Declared constraints", exact: true })).toBeVisible();
+      await expect(assessment.getByText("Intention revision 2", { exact: true })).toBeVisible();
+      await expect(assessment.getByRole("heading", { name: "Declared alignment", exact: true })).toBeVisible();
+      await expect(assessment.getByRole("row").filter({ hasText: "source_url" })).toContainText("Declared alignment");
+    }
     await page.getByRole("combobox", { name: "Inbox agent", exact: true }).selectOption(credential.id);
     await page.getByRole("button", { name: "Refresh inbox", exact: true }).click();
     const notification = page.getByRole("listitem").filter({ hasText: `/v1/opportunities/${first}` });
@@ -83,7 +139,7 @@ test("first owner signs in, creates a private watch and inspects an honest gap",
     await page.getByRole("button", { name: "Review intention", exact: true }).click();
     await expect(page.getByRole("button", { name: "Dismiss suggestion", exact: true })).toHaveCount(0);
     expect(await opportunities()).toHaveLength(0);
-    await control("/publish/2");
+    await control(partialJourney ? "/publish/3" : "/publish/2");
     await expect.poll(async () => (await opportunities()).length, { timeout: 8_000 }).toBe(1);
     expect((await opportunities())[0].id).not.toBe(first);
     const retired = await page.request.get(`/v1/opportunities/${first}`, { headers: { Authorization: `Bearer ${credential.token}` } });

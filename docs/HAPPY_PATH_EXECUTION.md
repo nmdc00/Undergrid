@@ -69,24 +69,28 @@ worker restart. Actor/cursor/revision/source freshness are real, not mocked away
 Adjacent guards: private text does not reach publishers; stale/withdrawn leads
 cannot be read; receipt/dismissal grants no work, rights or spending authority.
 
-Current evidence at release `81e4730`: owner setup/intents/lead browsing, external
-notification pipeline, suggestion dismissal (PR91) and owner inbox (PR92) are
-merged. Live Chromium evidence on acceptance branch `5549003` proves real
-sign-in, principal/agent creation, a private active watch, honest empty-source gap,
-scoped bearer read and reload against isolated PostgreSQL. The controlled OIDC
-issuer does not qualify a real provider. The harness is not yet merged, and this
-is not the complete journey. Partial satisfaction and visible unmet requirements
-remain open; continuous source-update/inbox/dismissal/worker-restart proof remains
-pending. Do not infer journey completion from backend pieces.
+Current evidence at release `6b7fa91`: owner setup/intents/lead browsing,
+external notifications, dismissal (PR91), owner inbox (PR92), the initial live
+acceptance harness (PR94) and partial satisfaction with visible unmet requirements
+(PR96) are merged. Candidate `037410e` integrates those product changes and proves
+all five steps in one real Chromium/API/PostgreSQL/source/worker journey, including
+partial satisfaction, a later source update, the precise inbox receipt, dismissal,
+actual worker restart and unchanged/changed-evidence behavior. The three-case live
+race gate passed 74.847 seconds; eleven top-level integrated guard tests plus eleven
+subcases passed 43.410 seconds. See `HP1_ACCEPTANCE.md` for exact commands, retained
+databases, artifacts and limits. The complete acceptance extension still awaits
+reviewed PR merge, so HP1 is not yet declared locally closed. Real source/provider,
+legal, deployment and unfamiliar-owner qualification remain separate open gates.
 
-### Active HP1 swarm assignments
+### HP1 swarm assignments and merge status
 
 | Responsibility | Branch and isolated worktree | Acceptance and owning documentation |
 | --- | --- | --- |
-| Partial satisfaction implementation (`external_oct23`) | `feat/v0.1-intention-partial-satisfaction`; `/tmp/undergrid-worktrees/partial-satisfaction/feat-v0.1-intention-partial-satisfaction` | TDD §5.3: explicit owner-selected fulfilled fields produce an immutable revision with visible unmet remainder and active watch. Prove authorization, source/version pins, retry/rollback and private audit through real domain transactions. Update feature evidence and this path's status before merge. |
-| Continuous acceptance (`profile_oct23`) | `test/v0.1-hp1-live-journey`; `/tmp/undergrid-worktrees/hp1-live/test-v0.1-hp1-live-journey` | Actual browser/API/PostgreSQL/source refresher/worker journey; no product-row SQL setup. `docs/HP1_ACCEPTANCE.md` owns step-level results and artifacts. Integrate reviewed product changes before full-path proof. |
-| Independent review (`assignment_oct23`) | Read-only inspection of those branches | Review domain authority, immutable revisions, private projections, idempotency and actual harness boundaries. Findings must identify a proving check. |
-| Integration (`root`) | `release/v0.1`; documentation on `docs/v0.1-hp1-progress` | Review scoped PRs, merge dependency order and retain exact test evidence. No production deployment or promotion is implied by a local milestone. |
+| Partial satisfaction implementation (`partial_resume_oct24`) | `feat/v0.1-intention-partial-satisfaction`; `/tmp/undergrid-worktrees/partial-satisfaction/feat-v0.1-intention-partial-satisfaction` | Completed and reviewed in PR96. TDD §5.3 and `PARTIAL_SATISFACTION.md` record explicit proper subsets, immutable private audit/remainder, authority, source/version pins, response retry and rollback. |
+| Initial continuous acceptance | `test/v0.1-hp1-live-journey`; `/tmp/undergrid-worktrees/hp1-live/test-v0.1-hp1-live-journey` | Completed and reviewed in PR94; bounded setup/watch/receipt/restart milestone preserved. |
+| Complete continuous acceptance (`live_resume_oct24`) | `test/v0.1-hp1-partial-live`; `/tmp/undergrid-worktrees/hp1-partial-live/test-v0.1-hp1-partial-live` | All five steps continuously proven on `037410e`; current negative guards also pass. `HP1_ACCEPTANCE.md` reconciles the proof and limits; acceptance PR review/merge remains pending. |
+| Independent review (`review_resume_oct24`) | Read-only inspection of feature/acceptance branches | Review authority, immutable revisions, private projections, response recovery and real harness boundaries; acceptance approval/merge follows actual final evidence. |
+| Integration (`root`) | `release/v0.1` | Review scoped PRs, merge dependencies, validate integration and record final local closure only after reviewed acceptance merge. No production deployment or promotion is implied by local proof. |
 
 All feature PRs target `release/v0.1`; release integration PR is
 [PR62](https://github.com/nmdc00/Undergrid/pull/62). On 23 October, fetched
