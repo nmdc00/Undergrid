@@ -69,7 +69,7 @@ worker restart. Actor/cursor/revision/source freshness are real, not mocked away
 Adjacent guards: private text does not reach publishers; stale/withdrawn leads
 cannot be read; receipt/dismissal grants no work, rights or spending authority.
 
-Current evidence at release `6b7fa91`: owner setup/intents/lead browsing,
+Current evidence at release `1f14d90`: owner setup/intents/lead browsing,
 external notifications, dismissal (PR91), owner inbox (PR92), the initial live
 acceptance harness (PR94) and partial satisfaction with visible unmet requirements
 (PR96) are merged. Candidate `037410e` integrates those product changes and proves
@@ -78,8 +78,9 @@ partial satisfaction, a later source update, the precise inbox receipt, dismissa
 actual worker restart and unchanged/changed-evidence behavior. The three-case live
 race gate passed 74.847 seconds; eleven top-level integrated guard tests plus eleven
 subcases passed 43.410 seconds. See `HP1_ACCEPTANCE.md` for exact commands, retained
-databases, artifacts and limits. The complete acceptance extension still awaits
-reviewed PR merge, so HP1 is not yet declared locally closed. Real source/provider,
+databases, artifacts and limits. The complete acceptance extension merged after
+independent review in PR97; focused post-merge race checks and the console build
+also pass. HP1 is locally closed. HP2 is the next active local path. Real source/provider,
 legal, deployment and unfamiliar-owner qualification remain separate open gates.
 
 ### HP1 swarm assignments and merge status
@@ -88,7 +89,7 @@ legal, deployment and unfamiliar-owner qualification remain separate open gates.
 | --- | --- | --- |
 | Partial satisfaction implementation (`partial_resume_oct24`) | `feat/v0.1-intention-partial-satisfaction`; `/tmp/undergrid-worktrees/partial-satisfaction/feat-v0.1-intention-partial-satisfaction` | Completed and reviewed in PR96. TDD §5.3 and `PARTIAL_SATISFACTION.md` record explicit proper subsets, immutable private audit/remainder, authority, source/version pins, response retry and rollback. |
 | Initial continuous acceptance | `test/v0.1-hp1-live-journey`; `/tmp/undergrid-worktrees/hp1-live/test-v0.1-hp1-live-journey` | Completed and reviewed in PR94; bounded setup/watch/receipt/restart milestone preserved. |
-| Complete continuous acceptance (`live_resume_oct24`) | `test/v0.1-hp1-partial-live`; `/tmp/undergrid-worktrees/hp1-partial-live/test-v0.1-hp1-partial-live` | All five steps continuously proven on `037410e`; current negative guards also pass. `HP1_ACCEPTANCE.md` reconciles the proof and limits; acceptance PR review/merge remains pending. |
+| Complete continuous acceptance (`live_resume_oct24`) | `test/v0.1-hp1-partial-live`; `/tmp/undergrid-worktrees/hp1-partial-live/test-v0.1-hp1-partial-live` | Completed and reviewed in PR97. All five steps continuously proven on `037410e`; current negative guards also pass. `HP1_ACCEPTANCE.md` reconciles proof, post-merge checks and limits. |
 | Independent review (`review_resume_oct24`) | Read-only inspection of feature/acceptance branches | Review authority, immutable revisions, private projections, response recovery and real harness boundaries; acceptance approval/merge follows actual final evidence. |
 | Integration (`root`) | `release/v0.1` | Review scoped PRs, merge dependencies, validate integration and record final local closure only after reviewed acceptance merge. No production deployment or promotion is implied by local proof. |
 
