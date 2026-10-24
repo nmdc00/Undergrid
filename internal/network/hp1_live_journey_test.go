@@ -35,14 +35,18 @@ import (
 // qualification. Setup creates schema/LOGINs only; all product rows come from
 // Chromium commands through the real encrypted session and domain transactions.
 func TestHP1LiveOwnerSetupAndHonestGap(t *testing.T) {
-	hp1LiveOwnerJourney(t, false)
+	hp1LiveOwnerJourney(t, false, false)
 }
 
 func TestHP1LiveOwnerSourceNotificationReceiptDismissalAndRestart(t *testing.T) {
-	hp1LiveOwnerJourney(t, true)
+	hp1LiveOwnerJourney(t, true, false)
 }
 
-func hp1LiveOwnerJourney(t *testing.T, withWatch bool) {
+func TestHP1LiveOwnerPartialRemainderNotificationReceiptDismissalAndRestart(t *testing.T) {
+	hp1LiveOwnerJourney(t, true, true)
+}
+
+func hp1LiveOwnerJourney(t *testing.T, withWatch, withPartial bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	adminDSN := hp1RunDatabase(t, ctx)
@@ -129,10 +133,13 @@ func hp1LiveOwnerJourney(t *testing.T, withWatch bool) {
 	command.Env = append(os.Environ(), "UNDERGRID_HP1_BASE_URL="+app.URL, "UNDERGRID_TEST_CHROMIUM="+chromium, "UNDERGRID_HP1_BROWSER_ARTIFACTS="+artifacts)
 	var settleWorker func()
 	if withWatch {
-		controller, settle := hp1SourceWorkerController(t, ctx, admin)
+		controller, settle := hp1SourceWorkerController(t, ctx, admin, withPartial)
 		settleWorker = settle
 		defer controller.Close()
 		command.Env = append(command.Env, "UNDERGRID_HP1_WATCH_CONTROL_URL="+controller.URL)
+		if withPartial {
+			command.Env = append(command.Env, "UNDERGRID_HP1_PARTIAL_JOURNEY=1")
+		}
 	}
 	output, err := command.CombinedOutput()
 	t.Logf("Live Chromium output:\n%s", output)
@@ -168,8 +175,59 @@ func hp1LiveOwnerJourney(t *testing.T, withWatch bool) {
  ((SELECT count(*) FROM undergrid.tasks)+(SELECT count(*) FROM undergrid.approvals)+(SELECT count(*) FROM undergrid.swarms))`).Scan(&opportunities, &events, &inbox, &dismissed, &receipts, &authorityEffects); err != nil {
 			t.Fatal(err)
 		}
-		if opportunities != 2 || events != 2 || inbox != 2 || dismissed != 1 || receipts != 1 || authorityEffects != 0 {
+		expected := 2
+		if withPartial {
+			expected = 4
+		}
+		if opportunities != expected || events != expected || inbox != expected || dismissed != 1 || receipts != 1 || authorityEffects != 0 {
 			t.Fatalf("source/receipt/dismissal effects: opportunities=%d events=%d inbox=%d dismissed=%d receipts=%d task/right/room-effects=%d", opportunities, events, inbox, dismissed, receipts, authorityEffects)
+		}
+	}
+	if withPartial {
+		// Each legitimate input change has exactly one normalized recommendation,
+		// event and inbox row; changing requirements is not a duplicate source scan.
+		rows, err := admin.Query(ctx, `SELECT o.external_intent_revision,o.evidence->>'source_version',count(DISTINCT o.id),count(DISTINCT e.id),count(DISTINCT b.event_id)
+ FROM undergrid.opportunities o JOIN undergrid.events e ON e.aggregate_id=o.id AND e.type='opportunity.available'
+ JOIN undergrid.inbox b ON b.event_id=e.id GROUP BY 1,2 ORDER BY 1,2`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		seen := map[string]bool{}
+		for rows.Next() {
+			var revision, opportunities, events, inbox int
+			var sourceVersion string
+			if err = rows.Scan(&revision, &sourceVersion, &opportunities, &events, &inbox); err != nil {
+				rows.Close()
+				t.Fatal(err)
+			}
+			key := fmt.Sprintf("%d/%s", revision, sourceVersion)
+			if opportunities != 1 || events != 1 || inbox != 1 {
+				rows.Close()
+				t.Fatalf("duplicate effects for %s: %d/%d/%d", key, opportunities, events, inbox)
+			}
+			seen[key] = true
+		}
+		if err = rows.Err(); err != nil {
+			rows.Close()
+			t.Fatal(err)
+		}
+		rows.Close()
+		if len(seen) != 4 || !seen["1/1"] || !seen["2/1"] || !seen["2/2"] || !seen["2/3"] {
+			t.Fatalf("missing revision/source outcomes: %v", seen)
+		}
+		var revision, partialEvents int
+		var document []byte
+		if err = admin.QueryRow(ctx, `SELECT i.current_revision,r.document,(SELECT count(*) FROM undergrid.events WHERE type='intent.partially_satisfied') FROM undergrid.intents i JOIN undergrid.intent_revisions r ON r.intent_id=i.id AND r.revision=i.current_revision`).Scan(&revision, &document, &partialEvents); err != nil {
+			t.Fatal(err)
+		}
+		var current map[string]any
+		if err = json.Unmarshal(document, &current); err != nil {
+			t.Fatal(err)
+		}
+		fields := current["hard_constraints"].(map[string]any)["required_fields"].([]any)
+		audit := current["partial_satisfaction"].(map[string]any)
+		if revision != 2 || partialEvents != 1 || len(fields) != 1 || fields[0] != "source_url" || audit["evidence_class"] != "owner_declared_partial_satisfaction" {
+			t.Fatalf("wrong immutable partial remainder: rev=%d events=%d doc=%s", revision, partialEvents, document)
 		}
 	}
 }
@@ -313,7 +371,7 @@ func hp1RunDatabase(t *testing.T, ctx context.Context) string {
 
 // The controller is a separate test-only listener, never a product route. It
 // changes publisher input or worker lifecycle; it cannot write product rows.
-func hp1SourceWorkerController(t *testing.T, ctx context.Context, admin *pgx.Conn) (*httptest.Server, func()) {
+func hp1SourceWorkerController(t *testing.T, ctx context.Context, admin *pgx.Conn, withPartial bool) (*httptest.Server, func()) {
 	t.Helper()
 	role := "hp1_worker_" + strings.ReplaceAll(NewID(), "-", "")
 	if _, err := admin.Exec(ctx, "CREATE ROLE "+pgx.Identifier{role}.Sanitize()+" LOGIN NOSUPERUSER NOBYPASSRLS; GRANT undergrid_worker TO "+pgx.Identifier{role}.Sanitize()); err != nil {
@@ -335,7 +393,11 @@ func hp1SourceWorkerController(t *testing.T, ctx context.Context, admin *pgx.Con
 			_, _ = w.Write([]byte(`{"items":[],"next_page":0}`))
 			return
 		}
-		_ = json.NewEncoder(w).Encode(map[string]any{"items": []any{map[string]any{"id": "environmental-catalogue", "version": fmt.Sprint(version.Load()), "url": "https://publisher.example/environmental-catalogue", "title": "Environmental source catalogue", "status": "active", "capability_claim": map[string]any{"version": "capability-claim-v1", "output": map[string]any{"kind": "json_dataset", "schema_family": "source_catalog_v1"}, "provided_fields": []string{"source_id"}, "fields_complete": true, "license_ids": []string{"CC0-1.0"}}}}, "next_page": 0})
+		providedFields := []string{"source_id"}
+		if withPartial && version.Load() >= 2 {
+			providedFields = []string{"source_url"}
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"items": []any{map[string]any{"id": "environmental-catalogue", "version": fmt.Sprint(version.Load()), "url": "https://publisher.example/environmental-catalogue", "title": "Environmental source catalogue", "status": "active", "capability_claim": map[string]any{"version": "capability-claim-v1", "output": map[string]any{"kind": "json_dataset", "schema_family": "source_catalog_v1"}, "provided_fields": providedFields, "fields_complete": true, "license_ids": []string{"CC0-1.0"}}}}, "next_page": 0})
 	}))
 	t.Cleanup(publisher.Close)
 	cfg := SourceConfig{ID: NewID(), Kind: "capability_manifest", Endpoint: "https://publisher.example/capabilities", Publisher: "HP1 controlled publisher", AccessBasis: "LOCAL FIXTURE permission only", RepublicationBasis: "LOCAL FIXTURE metadata permission only", TombstoneBasis: "LOCAL FIXTURE provenance retention only", PublicPermissionNotice: "Controlled fixture metadata; not a qualified real source", Fields: []string{"canonical_url", "title", "capability_claim"}}
@@ -413,11 +475,13 @@ func hp1SourceWorkerController(t *testing.T, ctx context.Context, admin *pgx.Con
 			if stop == nil {
 				startWorker()
 			}
-		case "/publish/1", "/publish/2":
+		case "/publish/1", "/publish/2", "/publish/3":
 			if strings.HasSuffix(r.URL.Path, "/1") {
 				version.Store(1)
-			} else {
+			} else if strings.HasSuffix(r.URL.Path, "/2") {
 				version.Store(2)
+			} else {
+				version.Store(3)
 			}
 			beforeGETs := publisherCalls.Load()
 			// Initial configuration comes from the worker's normal startup approval
@@ -450,12 +514,12 @@ func hp1SourceWorkerController(t *testing.T, ctx context.Context, admin *pgx.Con
 					var pending, failed int
 					err = admin.QueryRow(ctx, `SELECT
  EXISTS(SELECT 1 FROM undergrid_queue.river_job WHERE kind='permissioned_source_refresh_v1' AND args->>'source_id'=$1 AND state='completed' AND attempted_at>=$2),
- EXISTS(SELECT 1 FROM undergrid_queue.river_job WHERE kind='external_notification_scan_v1' AND args->>'source_id'=$1 AND args->>'snapshot_hash'=$3 AND COALESCE(args->>'intention_id','')<>'' AND state='completed' AND attempted_at>=$2),
+ EXISTS(SELECT 1 FROM undergrid_queue.river_job WHERE kind='external_notification_scan_v1' AND args->>'source_id'=$1 AND args->>'snapshot_hash'=$3 AND COALESCE(args->>'intention_id','')<>'' AND (NOT $4::boolean OR args->>'revision'='2') AND state='completed' AND attempted_at>=$2),
  (SELECT count(*) FROM undergrid_queue.river_job WHERE state NOT IN('completed','cancelled','discarded') AND (
  (kind='external_notification_scan_v1' AND args->>'source_id'=$1 AND args->>'snapshot_hash'=$3) OR
  (kind='permissioned_source_refresh_v1' AND args->>'source_id'=$1) OR
  (kind='intention_scan_v1' AND args->>'cause_id' IN(SELECT id::text FROM undergrid.intents)))),
- (SELECT count(*) FROM undergrid_queue.river_job WHERE state IN('cancelled','discarded') AND ((kind='external_notification_scan_v1' AND args->>'source_id'=$1 AND args->>'snapshot_hash'=$3) OR (kind='permissioned_source_refresh_v1' AND args->>'source_id'=$1)))`, cfg.ID, restartedAt, snapshot).Scan(&fetched, &matched, &pending, &failed)
+ (SELECT count(*) FROM undergrid_queue.river_job WHERE state IN('cancelled','discarded') AND ((kind='external_notification_scan_v1' AND args->>'source_id'=$1 AND args->>'snapshot_hash'=$3) OR (kind='permissioned_source_refresh_v1' AND args->>'source_id'=$1)))`, cfg.ID, restartedAt, snapshot, withPartial).Scan(&fetched, &matched, &pending, &failed)
 					if err != nil {
 						break
 					}
@@ -476,7 +540,11 @@ func hp1SourceWorkerController(t *testing.T, ctx context.Context, admin *pgx.Con
 			if err == nil {
 				var opportunities, events, inbox int
 				err = admin.QueryRow(ctx, `SELECT (SELECT count(*) FROM undergrid.opportunities),(SELECT count(*) FROM undergrid.events WHERE type='opportunity.available'),(SELECT count(*) FROM undergrid.inbox b JOIN undergrid.events e ON e.id=b.event_id WHERE e.type='opportunity.available')`).Scan(&opportunities, &events, &inbox)
-				if err == nil && (opportunities != 1 || events != 1 || inbox != 1) {
+				expected := 1
+				if withPartial {
+					expected = 3
+				}
+				if err == nil && (opportunities != expected || events != expected || inbox != expected) {
 					err = fmt.Errorf("unchanged restart duplicated effects: %d/%d/%d", opportunities, events, inbox)
 				}
 			}
@@ -484,7 +552,7 @@ func hp1SourceWorkerController(t *testing.T, ctx context.Context, admin *pgx.Con
 				err = assertReceipt()
 			}
 			if err == nil {
-				t.Logf("Unchanged source refresh completed after actual worker restart: exactly one opportunity/event/inbox; receipt timestamp preserved for %s", firstOpportunity)
+				t.Logf("Unchanged source refresh completed after actual worker restart; normalized recommendation/event/inbox counts and receipt timestamp preserved for %s", firstOpportunity)
 			}
 		default:
 			http.Error(w, "unknown test control", 404)
