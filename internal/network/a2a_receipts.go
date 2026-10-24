@@ -244,7 +244,7 @@ func a2aResourcePath(op networkOperation, r *http.Request, result any) string {
 		}
 		return path
 	}
-	if op.name == "intention_create" && validID(id) {
+	if (op.name == "intention_create" || op.name == "intention_partial_satisfaction") && validID(id) {
 		return "/v1/intents/" + id
 	}
 	if op.name == "swarm_create" && validID(id) {

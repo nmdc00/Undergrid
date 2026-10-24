@@ -62,10 +62,12 @@ export function ExternalLeads({
   intentionID,
   csrf,
   onUnauthorized,
+  onIntentionChanged,
 }: {
   intentionID: string;
   csrf: string;
   onUnauthorized: () => void;
+  onIntentionChanged?: (result: ObjectValue) => void;
 }) {
   const [query, setQuery] = useState(""),
     [kind, setKind] = useState("");
@@ -248,6 +250,16 @@ export function ExternalLeads({
           onUnavailable={() => {
             discardResults();
             setError("This lead is no longer available. Search again.");
+          }}
+          onRecorded={(result) => {
+            discardResults();
+            onIntentionChanged?.(result);
+          }}
+          onDecisionUnavailable={() => {
+            discardResults();
+            setError(
+              "This assessment changed. Review your intention for any recorded decision before searching again.",
+            );
           }}
           onClose={() => setSelected(null)}
         />

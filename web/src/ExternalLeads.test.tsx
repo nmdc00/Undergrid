@@ -515,3 +515,92 @@ test.each([401, 404])(
     if (status === 401) expect(unauthorized).toHaveBeenCalledOnce();
   },
 );
+
+test("current selected fit embeds explicit partial fulfillment and returns the new owner intention", async () => {
+  const fields = ["source_id", "source_url", "title"],
+    projection = "a".repeat(64),
+    reportHash = "b".repeat(64);
+  const fit = {
+    intention_id: "intent",
+    intention_revision: 1,
+    intention_version: 1,
+    intention_etag: '"1"',
+    lead: { id: "lead-one", source_version: "1", projection_hash: projection },
+    report_hash: reportHash,
+    assessment: "needs_clarification",
+    verification: "unverified_publisher_claim",
+    identity_assurance: "unknown",
+    rights_assurance: "unknown",
+    claim_status: "declared",
+    constraints: fields.map((field) => ({
+      constraint: "required_field",
+      requested: [field],
+      declared: field === "source_id" ? [field] : [],
+      status: field === "source_id" ? "declared_aligned" : "unknown",
+      reason:
+        field === "source_id"
+          ? "required_field_declared"
+          : "not_declared_in_partial_field_set",
+    })),
+  };
+  const saved = {
+    id: "intent",
+    version: 2,
+    current_revision: 2,
+    etag: '"2"',
+    state: "active",
+    objective: "European source catalog",
+    output: { kind: "json_dataset", schema_family: "source_catalog_v1" },
+    visibility: "private",
+    expires_at: "2099-01-01T00:00:00Z",
+    budget: null,
+    watch: { enabled: true, channels: ["inbox"] },
+    hard_constraints: {
+      required_fields: ["source_url", "title"],
+      license_ids: ["CC0-1.0"],
+    },
+    partial_satisfaction: {
+      evidence_class: "owner_declared_partial_satisfaction",
+      basis_revision: 1,
+      result_revision: 2,
+      fulfilled_required_fields: ["source_id"],
+      remaining_required_fields: ["source_url", "title"],
+      lead_id: "lead-one",
+      source_version: "1",
+      projection_hash: projection,
+      report_hash: reportHash,
+    },
+  };
+  const fetch = vi
+    .fn()
+    .mockResolvedValueOnce(respond(page()))
+    .mockResolvedValueOnce(respond(fit))
+    .mockResolvedValueOnce(respond(saved));
+  vi.stubGlobal("fetch", fetch);
+  const changed = vi.fn();
+  render(
+    <ExternalLeads
+      intentionID="intent"
+      csrf="partial-embedding-csrf"
+      onUnauthorized={vi.fn()}
+      onIntentionChanged={changed}
+    />,
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "Find external leads" }),
+  );
+  await screen.findByText("Reference catalog");
+  await userEvent.click(
+    screen.getByRole("button", { name: "Review declared fit" }),
+  );
+  const checkbox = await screen.findByLabelText("I have fulfilled source_id");
+  expect((checkbox as HTMLInputElement).checked).toBe(false);
+  await userEvent.click(checkbox);
+  await userEvent.click(
+    screen.getByRole("button", { name: "Save unmet remainder" }),
+  );
+  await waitFor(() => expect(changed).toHaveBeenCalledWith(saved));
+  expect(
+    screen.queryByRole("region", { name: "Selected lead assessment" }),
+  ).toBeNull();
+});
