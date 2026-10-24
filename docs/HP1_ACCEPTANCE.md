@@ -9,8 +9,8 @@ The current branch starts from release `852c9c3`. No complete HP1 journey has ru
 | 1. Previously unregistered owner signs in, registers, receives one scoped agent credential and creates an explicitly private structured intention with active watch and visible expiry. | Existing product routes/UI; live harness implemented. | PASS: real Chromium/OIDC/API/PostgreSQL setup, bearer read and reload on 23 October; exact evidence below. No mocked owner/API responses. | Product behavior in release; harness pending. | Actual chosen identity provider and unfamiliar-owner usability not qualified by the controlled issuer. |
 | 2. Owner inspects permitted lead provenance and declared fit, or an explicit honest gap without false independence/provider claims. | Lead browsing, declared constraint report and empty-result message exist. | PASS: honest gap with no configured source in the same setup journey. Controlled populated-source/declared-fit proof still pending. | Existing product behavior in release; continuous harness pending. | Real approved capability/request material and useful first-owner outcome remain unproven. |
 | 3. Owner declares only part of the need satisfied and sees the exact unresolved requirements preserved under an active watch. | Missing partial-satisfaction command, persistence and owner controls at this branch baseline. Terminal `satisfied` stops monitoring and does not fulfill this step. | Pending implementation and behavioral red/green proof. | Pending. | Local owner declaration cannot qualify publisher claims, legal rights or real usefulness. |
-| 4. A later permitted source update produces one durable opportunity and one notification; owner returns to inbox. | Source-refresh/notification product pipeline exists; owner inbox feature work ongoing. | Pending one continuous browser/worker journey. Existing focused fixtures are not substituted for this proof. | Pipeline merged; owner inbox integration pending. | Controlled HTTPS publisher is explicitly a local fixture, not source approval or relevance qualification. |
-| 5. Owner reviews result, acknowledges receipt and dismisses; reconnect and worker restart do not renotify unchanged evidence, but genuinely changed evidence may generate a new suggestion. | Owner inbox/dismissal feature work ongoing. | Pending browser commands plus independently observed persistence/restart effects. | Pending feature integration and acceptance proof. | No public qualification inferred from local success. |
+| 4. A later permitted source update produces one durable opportunity and one notification; owner returns to inbox. | Source-refresh/notification and owner inbox product paths exist. | PASS: continuous controlled-source browser/worker milestone at `fef4e96`; actual publisher GETs and normalized notification effects recorded below. | Pipeline and owner inbox merged; this acceptance milestone pending review/integration. | Controlled HTTPS publisher is explicitly a local fixture, not source approval or relevance qualification. |
+| 5. Owner reviews result, acknowledges receipt and dismisses; reconnect and worker restart do not renotify unchanged evidence, but genuinely changed evidence may generate a new suggestion. | Owner inbox/dismissal product paths exist. | PASS: browser receipt/dismissal/reconnect, actual worker restart and unchanged/changed-source effects at `fef4e96`; exact discovery receipt timestamp stable. | Inbox/dismissal merged; this acceptance milestone pending review/integration. | No public qualification inferred from local success. |
 
 ## Harness boundaries
 
@@ -97,7 +97,7 @@ separate tagged gate avoids pretending the empty-population browser environment
 is available in ordinary retained network regression databases. Full-path proof
 and integration remain pending the missing steps in the ledger.
 
-## Source/notification/receipt extension — authored, execution pending
+## Source/notification/receipt extension — locally proven, integration pending
 
 The branch now retains the original empty-source milestone as a separate test and
 adds `TestHP1LiveOwnerSourceNotificationReceiptDismissalAndRestart`. The extension
@@ -158,4 +158,41 @@ changes wait for normal due eligibility, with no manual SQL scheduling mutation.
 Restart waits for due eligibility and lets the new worker's actual startup source
 coordinator perform the unchanged fetch and downstream matching. This explicitly
 simulates accelerated scheduling; it does not qualify a real six-hour operational
-watch or a real source. The corrected extension is pending execution.
+watch or a real source. The corrected extension passed as recorded below.
+
+## Corrected continuous watch milestone — actual PASS
+
+Exact runtime source `fef4e96` passed both tagged live tests on 24 October 2026:
+original setup/gap 10.34 seconds, continuous source/watch/receipt/dismissal/restart
+17.26 seconds, package 28.627 seconds, zero failures or skips. The controlled
+publisher observed three actual GETs. The first suggestion produced exactly one
+opportunity, `opportunity.available` event and discovery inbox row. The owner
+acknowledged that precise event and dismissed the suggestion. After cancellation
+and awaited worker termination, a new worker fetched unchanged source evidence
+and completed its snapshot-bound matching descendants before the controller
+verified the same one/one/one counts and unchanged receipt timestamp. Version two
+then produced a different suggestion. The final worker terminated before SQL
+confirmed exactly two opportunities/events/discovery inbox rows, one dismissal,
+one acknowledged discovery event and zero room/task/approval effects. No financial
+runtime, credential or database participated.
+
+- Default production schedule/source/worker characterization: four actual race tests, package 9.302 seconds, zero failures/skips; `/tmp/undergrid-hp1-source-default-interval-fef4e9696.jsonl`. The SQL assertion observes the normal six-hour interval exactly.
+- Coupled frontend build/provenance: `/tmp/undergrid-hp1-watch-fef4e96-build-manifest.log`, PASS, with exact head/source/artifact SHA-256 values. The manifest check ran inside both live tests before Chromium.
+- Live runtime: `/tmp/undergrid-hp1-watch-live-fef4e96-55500.jsonl`, PASS.
+- Retained successful watch database: `hp1_run_40ee30266d6f4cf8a835838532f6ca81`, isolated network port 55500.
+- Browser artifacts: `/tmp/undergrid-hp1-browser-1838448042`.
+- Static validation: `go vet -tags=hp1_live ./internal/network`, PASS; `/tmp/undergrid-hp1-watch-fef4e96-vet.log`.
+
+The branch subsequently merged release `7fdae92` documentation. Its diff from the
+tested runtime changes only documentation, so the bounded runtime evidence above
+remains exact for the implementation. A future live gate must rebuild its manifest
+to bind the new repository head. Build provenance binds declared inputs and actual
+artifacts, not a reproducible attestation of all installed dependency bytes.
+
+HP1 is **not locally closed**. Step three still lacks the owner partial-satisfaction
+and visible unresolved-requirement action in this milestone. The final continuous
+journey must integrate that real action, validate the remaining requirement pins
+and account separately for opportunities generated by the changed intention
+revision. Controlled local issuer/source/scheduling fixtures do not qualify actual
+identity providers, sources, legal permissions, public deployment or the real
+unfamiliar-owner useful-result gate.
