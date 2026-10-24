@@ -119,18 +119,19 @@ previous source, not the unrun extension.
 
 The restart controller cancels and awaits worker termination before creating a
 new worker on the same database. It waits for that new worker to complete the
-unchanged source refresh, checks exactly one opportunity/event/discovery-inbox
+unchanged source refresh and the snapshot-bound external matching descendants,
+with no relevant pending/running or failed/cancelled descendants, then checks exactly one opportunity/event/discovery-inbox
 row before allowing publisher version two, and checks the exact dismissed
 opportunity's acknowledged event timestamp. It stops and awaits the final worker
 before independent final SQL counts. Receipt assertions exclude `intent.created`;
 there must be exactly one acknowledged `opportunity.available` event. No product
 row is inserted, deleted, rescheduled or reset by the controller.
 
-Build provenance is recorded by `node scripts/record-live-build.mjs` immediately
-after `npm run build`. Its manifest binds the repository head, all `src` and
+Build provenance is recorded by `node scripts/record-live-build.mjs`, which
+executes the actual `npm run build` with production `NODE_ENV` before recording. Its manifest binds the repository head, all `src` and
 `public` files, HTML, package/lock/compiler/Vite configuration, Vite environment
 files and the recorder itself, plus SHA-256 for every built artifact. The live
 harness checks that manifest before opening Chromium and logs the verified
-hashes. Run this recorder after each frontend rebuild/reconciliation. The current
+hashes. Run this coupled build/recorder after each frontend reconciliation. The current
 Vite configuration has no local imports outside these inputs. This check is not
 proof that arbitrary future build configurations have no other inputs.

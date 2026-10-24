@@ -422,14 +422,31 @@ func hp1SourceWorkerController(t *testing.T, ctx context.Context, admin *pgx.Con
 				restartedAt := time.Now()
 				startWorker()
 				deadline := time.Now().Add(8 * time.Second)
-				for {
-					var completed bool
-					err = admin.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM undergrid_queue.river_job WHERE kind='permissioned_source_refresh_v1' AND args->>'source_id'=$1 AND state='completed' AND attempted_at>=$2)`, cfg.ID, restartedAt).Scan(&completed)
-					if err != nil || completed {
+				var snapshot string
+				err = admin.QueryRow(ctx, externalSnapshotSQL, cfg.ID).Scan(&snapshot)
+				for err == nil {
+					var fetched, matched bool
+					var pending, failed int
+					err = admin.QueryRow(ctx, `SELECT
+ EXISTS(SELECT 1 FROM undergrid_queue.river_job WHERE kind='permissioned_source_refresh_v1' AND args->>'source_id'=$1 AND state='completed' AND attempted_at>=$2),
+ EXISTS(SELECT 1 FROM undergrid_queue.river_job WHERE kind='external_notification_scan_v1' AND args->>'source_id'=$1 AND args->>'snapshot_hash'=$3 AND COALESCE(args->>'intention_id','')<>'' AND state='completed' AND attempted_at>=$2),
+ (SELECT count(*) FROM undergrid_queue.river_job WHERE state NOT IN('completed','cancelled','discarded') AND (
+ (kind='external_notification_scan_v1' AND args->>'source_id'=$1 AND args->>'snapshot_hash'=$3) OR
+ (kind='permissioned_source_refresh_v1' AND args->>'source_id'=$1) OR
+ (kind='intention_scan_v1' AND args->>'cause_id' IN(SELECT id::text FROM undergrid.intents)))),
+ (SELECT count(*) FROM undergrid_queue.river_job WHERE state IN('cancelled','discarded') AND ((kind='external_notification_scan_v1' AND args->>'source_id'=$1 AND args->>'snapshot_hash'=$3) OR (kind='permissioned_source_refresh_v1' AND args->>'source_id'=$1)))`, cfg.ID, restartedAt, snapshot).Scan(&fetched, &matched, &pending, &failed)
+					if err != nil {
+						break
+					}
+					if failed != 0 {
+						err = fmt.Errorf("unchanged replay has %d failed/cancelled descendants", failed)
+						break
+					}
+					if fetched && matched && pending == 0 {
 						break
 					}
 					if time.Now().After(deadline) {
-						err = fmt.Errorf("restarted worker did not complete unchanged source refresh")
+						err = fmt.Errorf("unchanged restart pipeline not settled: fetched=%v matched=%v pending=%d", fetched, matched, pending)
 						break
 					}
 					time.Sleep(20 * time.Millisecond)
