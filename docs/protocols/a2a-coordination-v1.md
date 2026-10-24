@@ -19,3 +19,11 @@ When `configuration.acceptedOutputModes` is nonempty, it must contain the concre
 The shared finite registry includes `intention_external_leads` with resource `id` and typed `query` (`kind`, `q`, `limit`, `cursor`). Its result is a current authorized external-metadata read, with unknown identity/fit; no external observation becomes a registered agent or assignment. Read cursors retain the same actor/revision/filter authority as REST/MCP. See [read contract](../evidence/external-lead-read.md).
 
 `intention_external_fit_report` requires resource `id` and the single typed query `lead_id`. It compares explicitly permitted typed publisher declarations, labels every evidence row unverified, and leaves absent facts/identity/rights unknown. The durable receipt retains only the safe relative report path and selected opaque lead UUID. GetTask reauthorizes the current report; revoked source permission suppresses the resource artifact and reference. No arbitrary query text, cursors or operator permission-basis text are stored in the receipt. See [declared-fit contract](../evidence/external-fit-report.md).
+
+`intention_partial_satisfaction` uses the same closed body, `if_match` and stable
+`idempotency_key` as REST/MCP. A completed receipt means the owner declaration and
+unmet revision committed, not that a provider or artifact was verified. Its safe
+resource reference is the intention's readable `/v1/intents/{id}` path, rather
+than the POST-only action path. GetTask obtains a currently authorized intention
+snapshot; the receipt never stores historical private response/audit or command bodies.
+See [partial-satisfaction contract and proof](../PARTIAL_SATISFACTION.md).

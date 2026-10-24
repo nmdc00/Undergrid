@@ -1,8 +1,10 @@
 # HP1 partial satisfaction
 
-Work in progress on `feat/v0.1-intention-partial-satisfaction`, based on release
-`81e4730`. This closes HP1 step 3/TDD §5.3 for the existing bounded JSON dataset
-required-field model. It does not claim full HP1 completion or provider verification.
+Implemented on `feat/v0.1-intention-partial-satisfaction`, reconciled with release
+`723527b`. The feature implements HP1 step 3/TDD §5.3 for the existing bounded
+JSON dataset required-field model. HTTP/SDK/domain and focused UI proof are
+recorded below; the complete browser journey, feature merge and external
+qualification remain pending. HP1 is not locally closed by this feature alone.
 
 The new owner/agent command explicitly records an owner-declared proper subset
 of current required fields as fulfilled, creates an immutable revision containing
@@ -77,15 +79,56 @@ rather than growing a copied history array.
   The corrected parser validates the complete consumed intention before the
   retry key is cleared; all eight focused UI cases PASS, 2.02s;
   `/tmp/undergrid-partial-owned-response-green-oct24.log`.
+- Strict-shape reviewer reproducer: a pinned response with array visibility
+  failed as expected, 2.35s; `/tmp/undergrid-partial-visibility-shape-red-oct24.log`.
+  Explicit string validation then passed all nine focused cases, 2.00s;
+  `/tmp/undergrid-partial-visibility-shape-green-oct24.log`.
+- Reconciled runtime `1837c74`: **30 top-level and 20 subcase actual PostgreSQL
+  race checks PASS**, zero failures/skips, package 76.233s;
+  `/tmp/undergrid-partial-final-1837c74-race96.jsonl`. This includes all eight
+  partial-satisfaction cases plus immutable revision/renewal/satisfaction,
+  owner console, fit, grants, inbox and A2A current-authority regressions. The
+  in-flight oracle pauses the actual immutable-revision insert after source
+  authorization, proves source revocation cannot acquire its update lock until
+  commit, then commits revocation and denies retained-result recovery.
+- `go vet ./internal/network`: PASS;
+  `/tmp/undergrid-partial-final-1837c74-vet.log`.
+- Complete owner-console UI suite: **110 tests across 14 files PASS**, 29.70s;
+  `/tmp/undergrid-partial-final-1837c74-full-ui.log`.
+- Canonical OpenAPI lint, **144 compiled schemas**, generated TypeScript parity:
+  PASS; `/tmp/undergrid-partial-final-1837c74-contract.log`.
+- TypeScript and production Vite build: PASS, Vite 1.28s;
+  `/tmp/undergrid-partial-final-1837c74-build.log`.
+
+These final gates ran against runtime `1837c74`, reconciled with release
+`723527b`. Subsequent edits reconcile documentation only. Restricted application
+LOGINs and controlled source fixtures are used by the PostgreSQL cases; browser
+unit tests use controlled HTTP responses and are not the full live journey.
 
 Migration 041 was normally applied on isolated network fixture 96. Frozen SHA256:
 `611a2ee732e5ecb3e0a1bc848ce20647e8bad36f0511febe5d189e6682abb206`.
 It locks current source/observation eligibility via a narrow boolean helper;
 no direct private source-table access or configuration output is granted.
 
-Canonical request/private audit schemas and owner controls are authored. Final
-adverse/race/static checks, complete UI/build validation, generated parity and
-review remain pending for the reconciled release candidate. The new controlled
-in-flight source-lock test has not yet run. Controlled HTTPS data is fixture
-evidence only. Full scheduler/browser HP1 walkthrough, real source qualification
-and deployment remain separate gates.
+Canonical request/private audit schemas, owner controls, UI/build validation and
+generated parity are implemented and locally proven as scoped above. Feature
+merge and the complete scheduler/browser HP1 walkthrough remain pending. Real
+source qualification, useful-result evidence and deployment are separate gates.
+
+## Quality assessment and limits
+
+REST/owner/MCP/A2A reuse one domain transition; the adapters do not grant authority.
+Generic and partial revisions share their actual immutable document/head and
+event/inbox/queue persistence seams. Financial stores, credentials and identities
+are untouched. The small private audit record links existing immutable history
+instead of adding a table or copying an unbounded audit chain. Generic request
+DTOs remain closed and cannot forge it; public/granted projections allowlist
+their existing fields instead of serializing that audit.
+
+Source/observation locks span the commit boundary, with bounded NOWAIT contention
+and exact same-key recovery. Failure tests independently observe normalized
+heads, revisions, counters, events, inbox, both queue effects and receipts. The
+UI holds all mutation pins together, leaves every field initially unselected,
+rejects malformed committed responses before releasing the retry key and ignores
+responses from stale review/session identities. A receipt is not evidence of
+provider verification, rights or completion of other requirements.

@@ -9,11 +9,12 @@ headers are rejected by the SDK. GET/DELETE and batched messages are unsupported
 No roots, sampling, prompts, executable resources or long-lived subscription
 stream is advertised. Inbox recovery uses the existing bounded network inbox.
 
-The server publishes 49 finite agent tools. Inputs and successful output schemas
+The server publishes a finite agent tool registry. Inputs and successful output schemas
 come from the canonical [network REST contract](NETWORK_REST_CONTRACT.md), with
 closed tool argument envelopes and only reachable shared schema definitions.
 Examples include `network_me`, `intention_create`, `intention_read`,
-`intention_revise`, `intention_external_leads`, `intention_external_fit_report`, `inbox_read`, `agent_context`, swarm membership/messages,
+`intention_revise`, `intention_external_leads`, `intention_external_fit_report`,
+`intention_partial_satisfaction`, `inbox_read`, `agent_context`, swarm membership/messages,
 plans/tasks/progress, coordinator proposal/read/approval/acceptance, artifact
 references/rights/publication, and private reports.
 `tools/list` is the authoritative complete tool inventory. Artifact bytes still
@@ -95,3 +96,10 @@ Primary contracts: [SDK release v1.7.0](https://github.com/modelcontextprotocol/
 `intention_external_leads` accepts `id` and typed `query` fields `kind`, `q`, `limit`, `cursor`. It returns current permitted external metadata with explicit unknown identity/fit, not participating agents or verified demand. See [external lead contract](evidence/external-lead-read.md).
 
 `intention_external_fit_report` requires `id` and `query.lead_id`. It compares only currently permitted typed publisher declarations against current typed intention requirements. Declared alignment is unverified; absent evidence stays unknown. Current ownership, credential scope and source permission apply again during A2A task recovery. See [declared-fit contract and evidence](evidence/external-fit-report.md).
+
+`intention_partial_satisfaction` requires `id`, a stable `idempotency_key`,
+`if_match` and the closed selected-lead/report/fulfilled-field `body`. The shared
+domain command records an explicit owner declaration and immutable unmet remainder;
+it grants no provider, rights or participation assurance. Exact retries remain
+subject to current actor/source authority and the command's resulting head. See
+[partial satisfaction](PARTIAL_SATISFACTION.md) for the contract and actual proof.
