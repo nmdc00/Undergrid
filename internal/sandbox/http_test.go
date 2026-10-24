@@ -14,7 +14,7 @@ import (
 )
 
 func TestSandboxHTTPStrictCommands(t *testing.T) {
-	h := NewHandler(New("unused"), nil, nil)
+	h := mustWalletHandler(t, New("unused"), nil, nil)
 	for _, body := range []string{`{"product":"a","product":"b"}`, `{"product":"a"}` + strings.Repeat(" ", 65536)} {
 		r := httptest.NewRequest("POST", "/v1/payments", strings.NewReader(body))
 		r.Header.Set("Content-Type", "application/json")
@@ -50,7 +50,7 @@ func TestSandboxHTTPEnrollmentToAuthorization(t *testing.T) {
 	}
 	s := New(runtimeDSN)
 	o := Owner{Issuer: "https://owner.fixture", Subject: randomID()}
-	h := NewHandler(s, func(r *http.Request) (Owner, error) {
+	h := mustWalletHandler(t, s, func(r *http.Request) (Owner, error) {
 		if r.Header.Get("Fixture-Owner") != "verified" {
 			return Owner{}, ErrUnauthorized
 		}

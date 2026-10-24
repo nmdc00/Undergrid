@@ -33,6 +33,9 @@ func TestDurableParticipation(t *testing.T) {
 		return Owner{Issuer: issuer, Subject: r.Header.Get("X-Test-Owner"), Verified: true}, nil
 	})
 	service.termsVersion = "test-v1"
+	if err = service.ConfigureCredentialIssuance("network-lifecycle-test-key", bytes.Repeat([]byte{43}, 32)); err != nil {
+		t.Fatal(err)
+	}
 	call := func(owner, token, method, path, key, etag string, body any) (int, map[string]any) {
 		t.Helper()
 		raw, _ := json.Marshal(body)
@@ -54,7 +57,7 @@ func TestDurableParticipation(t *testing.T) {
 		if code != 201 {
 			t.Fatalf("register %d %#v", code, p)
 		}
-		code, a := call(owner, "", "POST", "/v1/agents", "", "", map[string]any{"name": "listener", "scopes": []string{"intents:read", "intents:write", "inbox:read"}})
+		code, a := call(owner, "", "POST", "/v1/agents", "initial-agent", "", map[string]any{"name": "listener", "scopes": []string{"intents:read", "intents:write", "inbox:read"}})
 		if code != 201 {
 			t.Fatalf("agent %d %#v", code, a)
 		}

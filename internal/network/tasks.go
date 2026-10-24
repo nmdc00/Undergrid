@@ -17,16 +17,20 @@ type storedTask struct {
 	version, epoch         int64
 	response               time.Time
 	progress               *time.Time
+	cure                   *time.Time
+	artifact               *string
+	credited               *string
+	blocked                bool
 }
 
 func loadTask(ctx context.Context, tx pgx.Tx, id string, lock bool) (storedTask, error) {
 	var t storedTask
 	var raw []byte
-	query := "SELECT id,plan_id,assigned_agent_id,state,specification,version,claim_epoch,response_deadline,progress_deadline FROM tasks WHERE id=$1"
+	query := "SELECT id,plan_id,assigned_agent_id,state,specification,version,claim_epoch,response_deadline,progress_deadline,cure_deadline,submitted_artifact_id,credited_progress_evidence_id,dependency_blocked FROM tasks WHERE id=$1"
 	if lock {
 		query += " FOR UPDATE"
 	}
-	err := tx.QueryRow(ctx, query, id).Scan(&t.id, &t.plan, &t.agent, &t.state, &raw, &t.version, &t.epoch, &t.response, &t.progress)
+	err := tx.QueryRow(ctx, query, id).Scan(&t.id, &t.plan, &t.agent, &t.state, &raw, &t.version, &t.epoch, &t.response, &t.progress, &t.cure, &t.artifact, &t.credited, &t.blocked)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return t, fail(404, "not_found")
 	}
@@ -36,12 +40,22 @@ func loadTask(ctx context.Context, tx pgx.Tx, id string, lock bool) (storedTask,
 	err = json.Unmarshal(raw, &t.spec)
 	return t, err
 }
-func taskResult(ctx context.Context, tx pgx.Tx, id string) (int, any, error) {
+func taskResult(ctx context.Context, tx pgx.Tx, id, audiencePrincipal string) (int, any, error) {
 	t, err := loadTask(ctx, tx, id, false)
 	if err != nil {
 		return 0, nil, err
 	}
-	return 200, map[string]any{"id": t.id, "plan_id": t.plan, "assigned_agent_id": t.agent, "state": t.state, "specification": t.spec, "version": t.version, "etag": etag(t.version), "claim_epoch": t.epoch, "response_deadline": t.response, "progress_deadline": t.progress}, nil
+	var credited *string
+	if t.credited != nil {
+		var visible bool
+		if err = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM task_progress_evidence WHERE id=$1 AND $2=ANY(audience_principal_ids))", *t.credited, audiencePrincipal).Scan(&visible); err != nil {
+			return 0, nil, err
+		}
+		if visible {
+			credited = t.credited
+		}
+	}
+	return 200, map[string]any{"id": t.id, "plan_id": t.plan, "assigned_agent_id": t.agent, "state": t.state, "specification": t.spec, "version": t.version, "etag": etag(t.version), "claim_epoch": t.epoch, "response_deadline": t.response, "progress_deadline": t.progress, "cure_deadline": t.cure, "submitted_artifact_id": t.artifact, "credited_progress_evidence_id": credited, "dependency_blocked": t.blocked}, nil
 }
 func (s *Service) updateTask(r *http.Request, tx pgx.Tx, a actor, id, action string) (int, any, error) {
 	t, err := loadTask(r.Context(), tx, id, false)
@@ -89,6 +103,9 @@ func (s *Service) updateTask(r *http.Request, tx pgx.Tx, a actor, id, action str
 		}
 		next, event = "open", "task.assignment_declined"
 		if in.Decision == "accept" {
+			if t.blocked {
+				return 0, nil, fail(409, "task_dependency_blocked")
+			}
 			policy, _, err := s.requireRights(r.Context(), tx, a, p.sealed.Plan.Rights)
 			if err != nil {
 				return 0, nil, err
@@ -113,27 +130,20 @@ func (s *Service) updateTask(r *http.Request, tx pgx.Tx, a actor, id, action str
 		if in.State != "in_progress" {
 			return 0, nil, fail(422, "invalid_progress_state")
 		}
-		if in.Epoch != t.epoch || p.state != "accepted" || !slices.Contains([]string{"accepted", "in_progress", "changes_requested", "at_risk"}, t.state) {
-			return 0, nil, fail(409, "task_not_current")
-		}
-		if t.spec.Deadline != nil && !t.spec.Deadline.After(time.Now()) {
-			return 0, nil, fail(409, "task_deadline_passed")
-		}
-		if _, _, err = s.requireRights(r.Context(), tx, a, p.sealed.Plan.Rights); err != nil {
+		if err = s.validateTaskProgress(r, tx, a, p, t, in.Epoch); err != nil {
 			return 0, nil, err
-		}
-		var blocked int
-		if err = tx.QueryRow(r.Context(), "SELECT count(*) FROM tasks WHERE plan_id=$1 AND task_key=ANY($2) AND state<>'accepted_output'", p.id, t.spec.DependsOn).Scan(&blocked); err != nil {
-			return 0, nil, err
-		}
-		if blocked != 0 {
-			return 0, nil, fail(409, "dependencies_unaccepted")
 		}
 		next, event = "in_progress", "task.progress_recorded"
-		when := time.Now().UTC().Add(time.Duration(t.spec.ProgressIntervalSeconds) * time.Second)
-		deadline = &when
+		if t.state == "at_risk" {
+			// A heartbeat cannot cure a missed deadline or erase the cure window.
+			next = "at_risk"
+		}
 	}
-	if _, err = tx.Exec(r.Context(), "UPDATE tasks SET state=$2,version=version+1,progress_deadline=$3 WHERE id=$1", id, next, deadline); err != nil {
+	if action == "assignment-response" {
+		if _, err = tx.Exec(r.Context(), "UPDATE tasks SET state=$2,version=version+1,progress_deadline=$3,cure_deadline=NULL WHERE id=$1", id, next, deadline); err != nil {
+			return 0, nil, err
+		}
+	} else if _, err = tx.Exec(r.Context(), "UPDATE tasks SET state=$2,version=version+1 WHERE id=$1", id, next); err != nil {
 		return 0, nil, err
 	}
 	if err = s.roomEvent(r.Context(), tx, a, id, t.version+1, event, p.swarm, "/v1/tasks/"+id); err != nil {
@@ -144,13 +154,43 @@ func (s *Service) updateTask(r *http.Request, tx pgx.Tx, a actor, id, action str
 			return 0, nil, err
 		}
 	}
-	return taskResult(r.Context(), tx, id)
+	return taskResult(r.Context(), tx, id, a.PrincipalID)
+}
+
+func progressWindowCurrent(t storedTask) error {
+	if t.progress != nil && t.state != "at_risk" && !t.progress.Add(taskCureWindow).After(time.Now()) {
+		return fail(409, "task_cure_expired")
+	}
+	if t.state == "at_risk" && (t.cure == nil || !t.cure.After(time.Now())) {
+		return fail(409, "task_cure_expired")
+	}
+	if t.spec.Deadline != nil && !t.spec.Deadline.After(time.Now()) {
+		return fail(409, "task_deadline_passed")
+	}
+	return nil
+}
+
+func (s *Service) validateTaskProgress(r *http.Request, tx pgx.Tx, a actor, p storedPlan, t storedTask, epoch int64) error {
+	if epoch != t.epoch || p.state != "accepted" || !slices.Contains([]string{"accepted", "in_progress", "changes_requested", "at_risk"}, t.state) {
+		return fail(409, "task_not_current")
+	}
+	if err := requireTaskDependencies(r.Context(), tx, t); err != nil {
+		return err
+	}
+	if err := progressWindowCurrent(t); err != nil {
+		return err
+	}
+	if _, _, err := s.requireRights(r.Context(), tx, a, p.sealed.Plan.Rights); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // Pending obligations survive inbox retention and reconnects. RLS excludes
 // assignments in rooms the agent can no longer access.
 func assignmentSnapshot(ctx context.Context, tx pgx.Tx, a actor) ([]any, error) {
-	rows, err := tx.Query(ctx, "SELECT t.id,t.plan_id,t.state,t.version,t.claim_epoch,p.content_hash FROM tasks t JOIN plan_versions p ON p.id=t.plan_id WHERE t.assigned_agent_id=$1 AND t.state IN ('offered','accepted','in_progress','submitted','changes_requested','at_risk') AND p.state IN ('proposed','accepted') ORDER BY t.id", a.AgentID)
+	rows, err := tx.Query(ctx, "SELECT t.id,t.plan_id,t.state,t.version,t.claim_epoch,p.content_hash,t.response_deadline,t.progress_deadline,t.cure_deadline,t.dependency_blocked FROM tasks t JOIN plan_versions p ON p.id=t.plan_id WHERE t.assigned_agent_id=$1 AND t.state IN ('offered','accepted','in_progress','submitted','changes_requested','at_risk') AND p.state IN ('proposed','accepted') ORDER BY t.id", a.AgentID)
 	if err != nil {
 		return nil, err
 	}
@@ -159,10 +199,13 @@ func assignmentSnapshot(ctx context.Context, tx pgx.Tx, a actor) ([]any, error) 
 	for rows.Next() {
 		var id, plan, state, hash string
 		var version, epoch int64
-		if err = rows.Scan(&id, &plan, &state, &version, &epoch, &hash); err != nil {
+		var response time.Time
+		var progress, cure *time.Time
+		var blocked bool
+		if err = rows.Scan(&id, &plan, &state, &version, &epoch, &hash, &response, &progress, &cure, &blocked); err != nil {
 			return nil, err
 		}
-		items = append(items, map[string]any{"id": id, "plan_id": plan, "plan_hash": hash, "state": state, "etag": etag(version), "claim_epoch": epoch, "context_path": "/v1/tasks/" + id})
+		items = append(items, map[string]any{"id": id, "plan_id": plan, "plan_hash": hash, "state": state, "etag": etag(version), "claim_epoch": epoch, "context_path": "/v1/tasks/" + id, "response_deadline": response, "progress_deadline": progress, "cure_deadline": cure, "dependency_blocked": blocked})
 	}
 	return items, rows.Err()
 }

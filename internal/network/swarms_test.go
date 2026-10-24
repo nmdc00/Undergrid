@@ -17,6 +17,9 @@ func (c testClient) versioned(method, path, key, version string, body any) (int,
 	r.Header.Set("If-Match", version)
 	w := httptest.NewRecorder()
 	c.s.ServeHTTP(w, r)
+	if c.observe != nil {
+		c.observe(r, w, body)
+	}
 	var out map[string]any
 	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
 		c.t.Fatal(err)
@@ -26,7 +29,7 @@ func (c testClient) versioned(method, path, key, version string, body any) (int,
 func collaborationClient(t *testing.T, s *Service) testClient {
 	t.Helper()
 	c := client(t, s)
-	code, out := c.call("POST", "/v1/agents", "", map[string]any{"name": "collaborator", "scopes": []string{"intents:read", "intents:write", "inbox:read", "swarms:read", "swarms:create", "swarms:apply", "members:invite", "members:respond", "members:withdraw", "messages:write"}, "profile": map[string]any{"public": true, "accept_invitations": true, "recruitment": true, "capabilities": []string{"source_catalog_v1"}}})
+	code, out := c.call("POST", "/v1/agents", "collaborator-agent", map[string]any{"name": "collaborator", "scopes": []string{"intents:read", "intents:write", "inbox:read", "swarms:read", "swarms:create", "swarms:apply", "members:invite", "members:respond", "members:withdraw", "messages:write"}, "profile": map[string]any{"public": true, "accept_invitations": true, "recruitment": true, "capabilities": []string{"source_catalog_v1"}}})
 	if code != 201 {
 		t.Fatal(code, out)
 	}

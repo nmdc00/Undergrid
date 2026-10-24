@@ -12,7 +12,7 @@ The checked manifest contract follows the release fixture: title, schema_family,
 
 The supported `source_catalog_v1` shape comes from the release acceptance fixture: a nonempty `sources` array with unique nonempty string source_id and absolute HTTPS source_url. Ordinary additional data fields remain inert and permitted. Optional observed_at/updated_at, when declared, must be RFC3339 strings. These timestamp names and bounds (50,000 sources, 256-byte IDs, 4,096-byte URLs, depth 32, 500,000 tokens) are narrow implementation defaults, not inferred PRD business requirements. Other schemas and manifest options are unsupported. No arbitrary supplied JSON Schema, remote `$ref`, fixture coverage language or executable check is interpreted. URL references are never fetched, including localhost/private hosts; this verifier asserts syntax/completeness, not reachability, safety, freshness, license validity or factual accuracy.
 
-## Isolation deployment requirement
+## Production image deployment requirement
 
 The executable has a 30-second wall deadline and a 192 MiB Go GC target. These are not a substitute for OS hard limits. Build a static binary (`CGO_ENABLED=0`) into `cmd/undergrid-verifier/Containerfile`, pin the built image digest, and launch each job with:
 
@@ -23,9 +23,11 @@ docker run --rm -i --network=none --read-only --memory=256m --memory-swap=256m \
   -e UNDERGRID_VERIFIER_IMAGE_SHA256=<pinned-image-digest-hex> <pinned-image>
 ```
 
-No volumes, Docker socket, DB credentials, network credentials or inherited host environment. The dispatcher also applies a 30-second deadline and bounds stdout to 64 KiB; abnormal termination is operational error, never failed artifact acceptance. Docker is unavailable in this workspace, so hard container isolation/resource tests remain an explicit unexecuted release gate. The actual process tests below validate binary behavior, not container security.
+No volumes, Docker socket, DB credentials, network credentials or inherited host environment. The dispatcher also applies a 30-second deadline and bounds stdout to 64 KiB; abnormal termination is operational error, never failed artifact acceptance. The separate bubblewrap runner and its present host qualification gate are documented in [verifier-isolation.md](verifier-isolation.md). It does not qualify object storage or establish image identity.
 
 ## Actual test evidence
+
+The bubblewrap runner, actual namespace probe, cgroup-v2 qualification gate, and evaluation evidence persistence are documented in [verifier-isolation.md](verifier-isolation.md). The earlier lines here describe fixed verifier binary behavior only.
 
 - Red: `go test ./internal/verification` failed on absent Job/Verify symbols before implementation.
 - Red: executable test failed on absent executable identity field before entrypoint implementation.

@@ -2,9 +2,6 @@ package network
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -16,7 +13,7 @@ import (
 )
 
 func listOwnerAgents(ctx context.Context, tx pgx.Tx, principal string) (int, any, error) {
-	rows, err := tx.Query(ctx, `SELECT jsonb_build_object('id',a.id,'name',a.name,'status',a.status,'credentials',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',c.id,'scopes',c.scopes,'expires_at',c.expires_at,'revoked_at',c.revoked_at) ORDER BY c.created_at) FROM credentials c WHERE c.agent_id=a.id),'[]'::jsonb)) FROM agents a WHERE a.principal_id=$1 ORDER BY a.created_at`, principal)
+	rows, err := tx.Query(ctx, `SELECT jsonb_build_object('id',a.id,'name',a.name,'status',a.status,'version',a.version,'etag','"'||a.version||'"','key_control_verified',a.key_control_verified_at IS NOT NULL,'endpoint_control_verified',a.endpoint_control_verified_at IS NOT NULL,'credentials',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',c.id,'kind',c.kind,'scopes',c.scopes,'generation',c.generation,'etag','"'||c.generation||'"','expires_at',c.expires_at,'revoked_at',c.revoked_at) ORDER BY c.created_at) FROM credentials c WHERE c.agent_id=a.id),'[]'::jsonb)) FROM agents a WHERE a.principal_id=$1 ORDER BY a.created_at`, principal)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -84,8 +81,14 @@ func (s *Service) ownerCommand(r *http.Request, tx pgx.Tx) (int, any, error) {
 	if _, err = tx.Exec(ctx, "SELECT set_config('undergrid.owner_issuer',$1,true),set_config('undergrid.owner_subject',$2,true)", o.Issuer, o.Subject); err != nil {
 		return 0, nil, err
 	}
-	if r.Method != "POST" && r.Method != "GET" {
+	if _, err = tx.Exec(ctx, "SELECT set_config('undergrid.owner_verified','true',true)"); err != nil {
+		return 0, nil, err
+	}
+	if r.Method != "POST" && r.Method != "GET" && !(r.Method == "PATCH" && strings.HasPrefix(r.URL.Path, "/v1/owner/intents/")) {
 		return 0, nil, fail(405, "method_not_allowed")
+	}
+	if r.Method == "GET" && r.URL.Path == "/v1/owner/config" {
+		return 200, map[string]any{"terms_version": s.termsVersion, "contribution_templates": s.publicTemplates()}, nil
 	}
 	if r.URL.Path == "/v1/principals" {
 		if r.Method != "POST" {
@@ -112,76 +115,196 @@ func (s *Service) ownerCommand(r *http.Request, tx pgx.Tx) (int, any, error) {
 		return 201, map[string]any{"id": id}, err
 	}
 	var principal string
-	if err = tx.QueryRow(ctx, "SELECT id FROM principals WHERE issuer=$1 AND subject=$2 AND status='active' FOR UPDATE", o.Issuer, o.Subject).Scan(&principal); errors.Is(err, pgx.ErrNoRows) {
+	principalQuery := "SELECT id FROM principals WHERE issuer=$1 AND subject=$2 AND status='active'"
+	agentID, planID, taskMutation, planMutation := ownerPlanAuthorityMutation(r)
+	if !planMutation {
+		principalQuery += " FOR UPDATE"
+	}
+	if err = tx.QueryRow(ctx, principalQuery, o.Issuer, o.Subject).Scan(&principal); errors.Is(err, pgx.ErrNoRows) {
 		return 0, nil, fail(403, "registration_required")
 	}
 	if err != nil {
 		return 0, nil, err
 	}
+	if _, err = tx.Exec(ctx, "SELECT set_config('undergrid.principal_id',$1,true)", principal); err != nil {
+		return 0, nil, err
+	}
+	if planMutation {
+		// A final vote can accept a plan using other principals' policy grants.
+		// Acquire their canonical sorted locks before locking this owner alone.
+		if err = prelockOwnerPlanAuthorities(ctx, tx, principal, agentID, planID, taskMutation); err != nil {
+			return 0, nil, err
+		}
+		// Nonlocking identity resolution grants no mutation authority. Recheck
+		// the authenticated owner after all potentially blocking policy locks.
+		if err = tx.QueryRow(ctx, principalQuery+" FOR UPDATE", o.Issuer, o.Subject).Scan(&principal); errors.Is(err, pgx.ErrNoRows) {
+			return 0, nil, fail(403, "registration_required")
+		}
+		if err != nil {
+			return 0, nil, err
+		}
+	}
+	if r.Method == "GET" && r.URL.Path == "/v1/owner/me" {
+		return 200, map[string]any{"id": principal}, nil
+	}
+	if agent, ok := ownerOAuthBindingsPath(r.URL.Path); ok {
+		return s.ownerOAuthBindings(r, tx, principal, agent)
+	}
+	if id, ok := ownerOAuthRevokePath(r.URL.Path); ok {
+		return s.ownerOAuthRevoke(r, tx, principal, id)
+	}
+	if id, ok := ownerOAuthRotatePath(r.URL.Path); ok {
+		return s.ownerOAuthRotate(r, tx, principal, id)
+	}
+	if strings.HasPrefix(r.URL.Path, "/v1/owner/agents/") && strings.Contains(r.URL.Path, "/opportunities/") {
+		return s.ownerOpportunityDismissal(r, tx, principal)
+	}
+	if r.URL.Path == "/v1/owner/intents" || strings.HasPrefix(r.URL.Path, "/v1/owner/intents/") {
+		return s.ownerIntents(r, tx, principal)
+	}
+	if agent, event, ok := ownerInboxPath(r.URL.Path); ok {
+		return s.ownerInbox(r, tx, principal, agent, event)
+	}
+	if ownerAssignmentRoute(r.URL.Path) {
+		return s.ownerAssignmentResponse(r, tx, principal)
+	}
+	if strings.HasPrefix(r.URL.Path, "/v1/owner/agents/") && strings.Contains(r.URL.Path, "/plans") {
+		return s.ownerPlanApproval(r, tx, principal)
+	}
+	if strings.HasPrefix(r.URL.Path, "/v1/owner/agents/") && (strings.Contains(r.URL.Path, "/participation") || strings.Contains(r.URL.Path, "/invitations/") || strings.HasSuffix(r.URL.Path, "/swarms") || strings.Contains(r.URL.Path, "/swarms/")) {
+		return s.ownerParticipation(r, tx, principal)
+	}
+	if id, action, ok := ownerAgentPath(r.URL.Path); ok {
+		return s.ownerAgentControl(r, tx, principal, id, action)
+	}
+	if id, ok := ownerRotationPath(r.URL.Path); ok {
+		if r.Method != "POST" {
+			return 0, nil, fail(405, "method_not_allowed")
+		}
+		return s.ownerRotation(r, tx, principal, id)
+	}
 	if r.Method == "GET" && r.URL.Path == "/v1/agents" {
 		return listOwnerAgents(ctx, tx, principal)
 	}
 	if r.URL.Path == "/v1/owner/policy" {
+		if r.Method == http.MethodPost {
+			return idempotentOwner(r, tx, principal, func() (int, any, error) {
+				return s.ownerPolicy(r, tx, principal)
+			})
+		}
 		return s.ownerPolicy(r, tx, principal)
 	}
 	if r.Method == "POST" && strings.HasPrefix(r.URL.Path, "/v1/owner/credentials/") && strings.HasSuffix(r.URL.Path, "/revoke") {
 		id := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/v1/owner/credentials/"), "/revoke")
-		return revokeOwnerCredential(r, tx, principal, id, s.environment)
+		return idempotentOwner(r, tx, principal, func() (int, any, error) {
+			return revokeOwnerCredential(r, tx, principal, id, s.environment)
+		})
 	}
 	if r.Method != "POST" || r.URL.Path != "/v1/agents" {
 		return 0, nil, fail(404, "not_found")
 	}
-	var input struct {
-		Name    string       `json:"name"`
-		Scopes  []string     `json:"scopes"`
-		Profile AgentProfile `json:"profile"`
-	}
-	if err = decode(r, &input); err != nil {
+	status, ref, err := idempotentOwner(r, tx, principal, func() (int, any, error) {
+		var input struct {
+			Name    string       `json:"name"`
+			Scopes  []string     `json:"scopes"`
+			Profile AgentProfile `json:"profile"`
+		}
+		if err := decode(r, &input); err != nil {
+			return 0, nil, err
+		}
+		if len(input.Name) < 1 || len(input.Name) > 120 || len(input.Scopes) == 0 || len(input.Scopes) > 30 {
+			return 0, nil, fail(422, "invalid_agent")
+		}
+		if err := s.validateAgentScopes(ctx, tx, principal, input.Scopes); err != nil {
+			return 0, nil, err
+		}
+		if err := admitPrincipalResource(ctx, tx, principal, "agents"); err != nil {
+			return 0, nil, err
+		}
+		if len(input.Profile.Capabilities) > 20 {
+			return 0, nil, fail(422, "capability_limit")
+		}
+		id := NewID()
+		if _, err := tx.Exec(ctx, "INSERT INTO agents(id,principal_id,name,profile) VALUES($1,$2,$3,$4)", id, principal, input.Name, canonical(input.Profile)); err != nil {
+			return 0, nil, err
+		}
+		out, err := s.issueRecoverableCredential(ctx, tx, principal, id, "", input.Scopes)
+		if err != nil {
+			return 0, nil, err
+		}
+		if input.Profile.Public && input.Profile.Recruitment {
+			if err = enqueueRecruitment(ctx, tx, ""); err != nil {
+				return 0, nil, err
+			}
+		}
+		return 201, out, nil
+	})
+	if err != nil {
 		return 0, nil, err
 	}
-	if len(input.Name) < 1 || len(input.Name) > 120 || len(input.Scopes) == 0 || len(input.Scopes) > 20 {
-		return 0, nil, fail(422, "invalid_agent")
+	refObject, ok := ref.(map[string]any)
+	if !ok {
+		return 0, nil, fail(500, "invalid_credential_result")
 	}
-	for _, scope := range input.Scopes {
-		ordinary := []string{"intents:read", "intents:write", "inbox:read", "swarms:read", "swarms:create", "swarms:apply", "members:invite", "members:respond", "members:withdraw", "messages:write", "plans:propose", "tasks:progress"}
-		rightsScopes := []string{"plans:approve", "rights:accept", "tasks:accept", "publication:approve"}
+	id, ok := refObject["id"].(string)
+	if !ok {
+		return 0, nil, fail(500, "invalid_credential_result")
+	}
+	result, err := s.regenerateCredential(ctx, tx, principal, id, ref)
+	return status, result, err
+}
+
+func ownerOAuthBindingsPath(path string) (string, bool) {
+	parts := strings.Split(path, "/")
+	if len(parts) == 6 && parts[1] == "v1" && parts[2] == "owner" && parts[3] == "agents" && parts[5] == "oauth-bindings" {
+		return parts[4], true
+	}
+	return "", false
+}
+
+func ownerOAuthRevokePath(path string) (string, bool) {
+	parts := strings.Split(path, "/")
+	if len(parts) == 6 && parts[1] == "v1" && parts[2] == "owner" && parts[3] == "oauth-bindings" && parts[5] == "revoke" {
+		return parts[4], true
+	}
+	return "", false
+}
+
+func ownerOAuthRotatePath(path string) (string, bool) {
+	parts := strings.Split(path, "/")
+	if len(parts) == 6 && parts[1] == "v1" && parts[2] == "owner" && parts[3] == "oauth-bindings" && parts[5] == "rotate" {
+		return parts[4], true
+	}
+	return "", false
+}
+
+func (s *Service) validateAgentScopes(ctx context.Context, tx pgx.Tx, principal string, scopes []string) error {
+	if len(scopes) == 0 || len(scopes) > 30 {
+		return fail(422, "invalid_scopes")
+	}
+	var err error
+	for _, scope := range scopes {
+		ordinary := []string{"intents:read", "intents:write", "inbox:read", "swarms:read", "swarms:create", "swarms:archive", "swarms:apply", "members:invite", "members:respond", "members:withdraw", "coordinator:propose", "messages:write", "plans:propose", "tasks:progress", "artifacts:submit", "artifacts:read", "artifacts:accept", "artifacts:reuse", "reports:write", "reports:read"}
+		rightsScopes := []string{"plans:approve", "rights:accept", "tasks:accept", "publication:approve", "artifacts:grant"}
+		if scope == "coordinator:approve" || scope == "coordinator:accept" {
+			if _, _, err := requireCoordinatorPolicy(ctx, tx, principal); err != nil {
+				return err
+			}
+			continue
+		}
 		if !slices.Contains(ordinary, scope) && !slices.Contains(rightsScopes, scope) {
-			return 0, nil, fail(403, "scope_not_authorized")
+			return fail(403, "scope_not_authorized")
 		}
 		if slices.Contains(rightsScopes, scope) {
 			var raw []byte
 			var policy CoordinationPolicy
 			if err = tx.QueryRow(ctx, "SELECT policy FROM principals WHERE id=$1", principal).Scan(&raw); err != nil {
-				return 0, nil, err
+				return err
 			}
 			if json.Unmarshal(raw, &policy) != nil || !policy.ExpiresAt.After(time.Now()) || len(policy.TemplateIDs) == 0 {
-				return 0, nil, fail(403, "owner_policy_required")
+				return fail(403, "owner_policy_required")
 			}
 		}
 	}
-	if err = admitPrincipalResource(ctx, tx, principal, "agents"); err != nil {
-		return 0, nil, err
-	}
-	id := NewID()
-	if len(input.Profile.Capabilities) > 20 {
-		return 0, nil, fail(422, "capability_limit")
-	}
-	if _, err = tx.Exec(ctx, "INSERT INTO agents(id,principal_id,name,profile) VALUES($1,$2,$3,$4)", id, principal, input.Name, canonical(input.Profile)); err != nil {
-		return 0, nil, err
-	}
-	secret := make([]byte, 32)
-	if _, err = rand.Read(secret); err != nil {
-		return 0, nil, err
-	}
-	token := "ug_" + base64.RawURLEncoding.EncodeToString(secret)
-	hash := sha256.Sum256([]byte(token))
-	credentialID := NewID()
-	_, err = tx.Exec(ctx, "INSERT INTO credentials(id,agent_id,digest,scopes,audience,expires_at) VALUES($1,$2,$3,$4,'undergrid-network',now()+interval '30 days')", credentialID, id, hash[:], input.Scopes)
-	if err == nil {
-		err = credentialEvent(ctx, tx, principal, credentialID, 1, "credential.issued", s.environment)
-	}
-	if err == nil && input.Profile.Public && input.Profile.Recruitment {
-		err = enqueueRecruitment(ctx, tx, "")
-	}
-	return 201, map[string]any{"id": id, "principal_id": principal, "credential_id": credentialID, "token": token, "expires_in": 2592000}, err
+	return nil
 }

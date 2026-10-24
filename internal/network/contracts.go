@@ -26,6 +26,7 @@ type AgentProfile struct {
 type actor struct {
 	PrincipalID, AgentID, CredentialID string
 	Scopes                             []string
+	grantedScopes                      []string
 }
 type problem struct {
 	Status int

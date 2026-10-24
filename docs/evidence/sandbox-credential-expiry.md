@@ -1,0 +1,44 @@
+# Financial sandbox credential expiry after authority waits
+
+TDD §§3/4/10 and financial authority invariants require a current sandbox credential inside the financial domain transaction. Network credentials, databases and identities remain separate.
+
+Acceptance: an actual restricted app LOGIN authorizes a quoted TEST USD payment through HTTP while another connection holds its actor or credential row. If server time reaches the newly issued immutable credential deadline before releasing that real wait, the request must return401 and leave the payment quoted, with no authority proof, reservation period, authorization receipt or economic effect. An ordinary valid credential on the actor remains usable. No provider operation occurs.
+
+Behavioral tests authored before runtime changes. Actual red/green evidence is recorded below; the full affected financial regression gate passed as recorded below. The initial HTTP fixture omitted Content-Type and failed400 before any authority wait (1.991s); that is a setup failure, not product-red evidence. The fixture now sends the published application/json content type.
+
+Actual corrected-fixture red: FAIL7.505s on preserved FINANCIAL55485. Both actor and credential row waits returned HTTP200 and authorized the TEST payment after server time passed expiry. Log `/tmp/undergrid-sandbox-expiry-red-corrected-fixture.log`. The test observes pg_blocking_pids and actual server time; it does not modify issuance metadata, clocks or triggers.
+
+The financial domain now materializes and locks its own credential row before checking revocation, audience and expiry against clock_timestamp(). Its scopes and transaction owner remain unchanged. The network package, identity and database are not reused. Repeated focused green: PASS15.313s (`-race -count=2`) on the preserved FINANCIAL55485 database. Both actual authority waits now return401; payment remains quoted with no policy snapshot, authority proof, reservation period, authorization receipt or economic effect. The same actor's ordinary valid credential can quote and authorize normally after each rejected attempt. Log `/tmp/undergrid-sandbox-expiry-green.log`. Vet and diff checks pass. Full affected sandbox and command regression gate passed on the reconciled release70b094e feature state: 64 cases/subcases, zero skips/failures, sandbox46.566s and cmd1.172s, under race detection. Log `/tmp/undergrid-sandbox-expiry-full-financial.jsonl`. This includes authority/reservation, Stripe reconciliation/refunds/subscriptions and local wallet/quote/payer proof behavior on preserved raw001–010 financial data. Existing combined-role fixture identity is limited to legacy setup/lifecycle cases; the new expiry scenarios prove actual app-only LOGIN independently. No applied SQL changed. Independent review found no actionable runtime issue.
+
+Quality review: the existing financial transaction retains responsibility for actor policy and credential scope. The locking CTE explains the required temporal ordering; no network repository, identity, credential or database is shared. Test expectations observe real locks, database time, HTTP results and normalized payment/receipt/effect rows independently of the implementation. No migration, external provider call, statement-coverage percentage, provider qualification or deployment is claimed.
+
+## Worker execution-time credential authority
+
+The earlier HTTP gate did not cover new payment dispatch, refund dispatch or renewal preparation. Their actor-serialized worker transactions still compared credential expiry to transaction-start `now()`. This follow-up branches from merged USDC release `1b73099` and extends the same TDD §11.1 current-authority requirement through actual worker entrypoints.
+
+New behavioral tests install a short persisted credential expiry using the fixture migrator before starting the operation. Separate real worker-only LOGINs call Stripe `DispatchPayment`, `DispatchRefund`, USDC `DispatchPayment` and `PrepareRenewal`. An independent connection holds the actor row; `pg_blocking_pids` proves the operation is waiting while the credential is still valid. The test releases that lock only after PostgreSQL `clock_timestamp()` reaches expiry. No wall clock, database clock or provider response is advanced to simulate expiry. Controlled Stripe HTTP and USDC HTTPS/RPC fixtures count actual spending/signature-disclosure requests; these are not actual provider qualification.
+
+Actual first red: `TestFinancialExecutionCredentialExpiresDuringActorWait` failed11.987s on retained isolated PostgreSQL95. Stripe sent one Checkout POST and became pending; renewal preparation created one payment, incremented reserved count and moved next due time; USDC called facilitator verify and settle once. All returned success after the observed credential expiry. Log `/tmp/undergrid-financial-execution-expiry-red95.log`.
+
+The narrow correction uses `clock_timestamp()` for credential validity after the existing actor lock in payment dispatch and renewal preparation. No lock order, identity, scope, idempotency key, migration or adapter contract changes. A focused race gate passed28.179s across the three new worker cases, existing HTTP actor/credential-wait expiry cases and owner subscription creation actor-wait credential/consent expiry cases (`/tmp/undergrid-financial-execution-expiry-green95.log`). Stripe now denies and cancels before provider POST; renewal denies with no payment/reservation/count/due-time changes; accepted USDC proofs deny new dispatch but retain the original unknown historical claim, provider key, proof and reservation, with no facilitator disclosure or economic effects.
+
+A subsequent in-scope scan found refund dispatch's identical stale predicate. Its independent actual red failed9.165s: the expired refund credential still produced a provider refund POST and pending state. After correcting that credential predicate, the focused race gate passed6.050s: unauthorized, failed predispatch refund, original provider key retained, zero refund POSTs and no refund fact (`/tmp/undergrid-financial-refund-expiry-red95.log`, `/tmp/undergrid-financial-refund-expiry-green95.log`). Existing already-dispatched late refund reconciliation remains separate authority and is not gated by current credential expiry.
+
+Quality review: financial transactions retain authority ownership and actor-first serialization; real worker identities remain separate from app, migrator and network roles. The shared test helper owns only the deterministic lock/deadline harness; each lifecycle independently asserts provider requests and normalized state/effects. No speculative credential row lock was introduced simply to manufacture another wait. Current owner subscription creation already uses `clock_timestamp()` after its actor lock and remains unchanged.
+
+Bounded scope: renewal quotes expire no later than immutable subscription consent; payment dispatch checks quote expiry after its actor wait, and the current Stripe adapter rejects subscription payments before provider collection. A stale subscription SQL time expression therefore does not establish a demonstrated consent-expiry bypass in the current path. UTC reservation-period and next-due timestamps still use transaction time; this feature does not claim an untested midnight-crossing/cadence correction. Full affected financial regression and final static gates remain pending at this checkpoint. No source/provider/legal/deployment approval is inferred.
+
+Root resumed verification after the assigned agent stopped at its usage limit.
+Exact runtime/test candidate `eda638796ffca1280763ba1b737e730e3fd810b5`
+passed the full isolated financial race gate:
+`go test -race -p 1 ./internal/sandbox ./cmd/undergrid-sandbox -count=1 -timeout=15m`.
+Sandbox163.624s; command2.246s. Log
+`/tmp/undergrid-financial-execution-expiry-full95.log`. Retained PostgreSQL95
+administrative/runtime DSNs were financial-only; no migration or provider
+configuration was changed. Earlier actual RED and focused GREEN logs remain
+separate. These are local fixture tests, not actual provider qualification.
+
+Reconciled release `e5d68d0` at `483ec8e`; financial source under
+`internal/sandbox` and `cmd/undergrid-sandbox` is byte-identical to the full
+passing candidate. Final financial vet and diff checks passed. No full network
+or promotion-SHA coverage claim is made.
