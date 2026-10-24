@@ -340,6 +340,23 @@ func hp1SourceWorkerController(t *testing.T, ctx context.Context, admin *pgx.Con
 	t.Cleanup(publisher.Close)
 	cfg := SourceConfig{ID: NewID(), Kind: "capability_manifest", Endpoint: "https://publisher.example/capabilities", Publisher: "HP1 controlled publisher", AccessBasis: "LOCAL FIXTURE permission only", RepublicationBasis: "LOCAL FIXTURE metadata permission only", TombstoneBasis: "LOCAL FIXTURE provenance retention only", PublicPermissionNotice: "Controlled fixture metadata; not a qualified real source", Fields: []string{"canonical_url", "title", "capability_claim"}}
 	refresher := externalNotificationRefresher(t, workerDSN, cfg, publisher)
+	// Accelerate only this fixture's successful refresh schedule. Due checks and
+	// all persisted timestamps still use the actual PostgreSQL clock.
+	refresher.successfulRefreshInterval = 100 * time.Millisecond
+	waitDue := func() error {
+		deadline := time.Now().Add(8 * time.Second)
+		for {
+			var due bool
+			err := admin.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM undergrid.external_sources WHERE id=$1 AND next_refresh<=now())`, cfg.ID).Scan(&due)
+			if err != nil || due {
+				return err
+			}
+			if time.Now().After(deadline) {
+				return fmt.Errorf("controlled source did not become due on actual clock")
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+	}
 	var mutex sync.Mutex
 	var stop context.CancelFunc
 	var done chan error
@@ -402,13 +419,16 @@ func hp1SourceWorkerController(t *testing.T, ctx context.Context, admin *pgx.Con
 			} else {
 				version.Store(2)
 			}
-			// RefreshDue normally synchronizes trusted operator approvals first. It is
-			// used for initial configuration; later forced fetch uses RefreshSource,
-			// which preserves the same current-approval checks without SQL due changes.
-			if publisherCalls.Load() == 0 {
-				err = refresher.RefreshDue(r.Context())
-			} else {
+			beforeGETs := publisherCalls.Load()
+			// Initial configuration comes from the worker's normal startup approval
+			// synchronization. A version change waits for real scheduled eligibility;
+			// RefreshSource is not a forced fetch and retains every approval guard.
+			err = waitDue()
+			if err == nil {
 				err = refresher.RefreshSource(r.Context(), cfg.ID)
+			}
+			if err == nil && publisherCalls.Load() <= beforeGETs {
+				err = fmt.Errorf("publisher update did not perform an actual HTTPS GET")
 			}
 		case "/restart-unchanged":
 			err = stopWorker()
@@ -416,10 +436,11 @@ func hp1SourceWorkerController(t *testing.T, ctx context.Context, admin *pgx.Con
 				err = admin.QueryRow(ctx, `SELECT o.id::text,b.acked_at FROM undergrid.opportunities o JOIN undergrid.events e ON e.aggregate_id=o.id AND e.type='opportunity.available' JOIN undergrid.inbox b ON b.event_id=e.id WHERE o.state='dismissed'`).Scan(&firstOpportunity, &receiptBefore)
 			}
 			if err == nil {
-				err = refresher.RefreshSource(r.Context(), cfg.ID)
+				err = waitDue()
 			}
 			if err == nil {
 				restartedAt := time.Now()
+				beforeGETs := publisherCalls.Load()
 				startWorker()
 				deadline := time.Now().Add(8 * time.Second)
 				var snapshot string
@@ -442,7 +463,7 @@ func hp1SourceWorkerController(t *testing.T, ctx context.Context, admin *pgx.Con
 						err = fmt.Errorf("unchanged replay has %d failed/cancelled descendants", failed)
 						break
 					}
-					if fetched && matched && pending == 0 {
+					if fetched && matched && pending == 0 && publisherCalls.Load() > beforeGETs {
 						break
 					}
 					if time.Now().After(deadline) {

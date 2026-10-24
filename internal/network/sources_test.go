@@ -87,6 +87,13 @@ func TestSourceRefreshPermittedLifecycle(t *testing.T) {
 	if fetchWithOpenTransaction.Load() {
 		t.Fatal("source fetch held a database transaction during external HTTP")
 	}
+	var successDelay float64
+	if err = db.QueryRow(context.Background(), `SELECT extract(epoch FROM next_refresh-last_success)::double precision FROM undergrid.external_sources WHERE id=$1`, cfg.ID).Scan(&successDelay); err != nil {
+		t.Fatal(err)
+	}
+	if successDelay != 21600 {
+		t.Fatalf("normal source success schedule changed: got %v seconds, want six hours", successDelay)
+	}
 	var metadata string
 	var status string
 	if err = db.QueryRow(context.Background(), "SELECT metadata::text,status FROM undergrid.external_observations WHERE source_id=$1", cfg.ID).Scan(&metadata, &status); err != nil {

@@ -135,3 +135,27 @@ harness checks that manifest before opening Chromium and logs the verified
 hashes. Run this coupled build/recorder after each frontend reconciliation. The current
 Vite configuration has no local imports outside these inputs. This check is not
 proof that arbitrary future build configurations have no other inputs.
+
+The first frozen extension gate at `85bb84d` passed the original milestone but
+failed the new watch scenario before its first opportunity. Read-only inspection
+of its retained database showed one ingested version-one observation, but its
+title omitted two words present in the intention's full-text AND query. The
+fixture query/title mismatch explained the observed zero matches. Review also
+identified a separate scheduling gap that would prevent later replay/update
+fetches: `RefreshSource` is an ordinary guarded refresh, not a forced fetch, and
+its nil result may mean no HTTP request occurred. Both are fixture defects, not
+evidence of a product defect. Actual output is retained in
+`/tmp/undergrid-hp1-watch-live-85bb84d-55500.jsonl` (package 46.691 seconds), with
+failed watch database `hp1_run_337b6d6cf413444ab65e1a1f058349c3` and browser artifacts
+`/tmp/undergrid-hp1-browser-4005800177`.
+
+The corrected fixture accelerates only its concrete refresher's successful refresh
+interval to 100 milliseconds. The production default remains six hours, including
+zero-value constructors; a real PostgreSQL lifecycle assertion checks exactly
+21,600 seconds between success and next refresh. Due checks, approvals, snapshot
+identity and persisted timestamps still use the actual database clock. Publisher
+changes wait for normal due eligibility, with no manual SQL scheduling mutation.
+Restart waits for due eligibility and lets the new worker's actual startup source
+coordinator perform the unchanged fetch and downstream matching. This explicitly
+simulates accelerated scheduling; it does not qualify a real six-hour operational
+watch or a real source. The corrected extension is pending execution.

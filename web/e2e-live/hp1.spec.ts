@@ -18,7 +18,7 @@ test("first owner signs in, creates a private watch and inspects an honest gap",
   const credential = await response.json();
   expect(credential.token).toMatch(/^ug_/);
   await page.getByRole("button", { name: "Dismiss credential", exact: true }).click();
-  await page.getByLabel("Objective", { exact: true }).fill("HP1 private environmental source catalogue");
+  await page.getByLabel("Objective", { exact: true }).fill("Environmental source catalogue");
   await expect(page.getByRole("combobox", { name: "Intention visibility", exact: true })).toHaveValue("private");
   await expect(page.getByLabel("Monitor matches in the agent inbox")).toBeChecked();
   const intentionResponse = page.waitForResponse(r => new URL(r.url()).pathname === "/v1/owner/intents" && r.request().method() === "POST");
