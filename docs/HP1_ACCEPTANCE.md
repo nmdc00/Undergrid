@@ -96,3 +96,41 @@ Cached external dependencies are explicit and resources close on failure. The
 separate tagged gate avoids pretending the empty-population browser environment
 is available in ordinary retained network regression databases. Full-path proof
 and integration remain pending the missing steps in the ledger.
+
+## Source/notification/receipt extension — authored, execution pending
+
+The branch now retains the original empty-source milestone as a separate test and
+adds `TestHP1LiveOwnerSourceNotificationReceiptDismissalAndRestart`. The extension
+starts from its own empty PostgreSQL copy and drives the same browser setup,
+controlled publisher ingestion and declared-fit review, owner inbox receipt,
+dismissal, reconnect and a genuinely changed source version. Partial satisfaction
+is explicitly still missing; omitting that action does not close HP1.
+
+The public `RunWorker` keeps normal source-file configuration and delegates its
+unchanged worker body to a private concrete-source helper. This lets the fixture
+route only external HTTPS transport to its controlled publisher; ordinary durable
+source coordinators, source approval checks, notification workers and domain
+transactions still execute. Before extraction, three actual source-fairness and
+shutdown tests passed in 9.708 seconds on retained network 96
+(`/tmp/undergrid-hp1-worker-before-extraction96.jsonl`). The reconciled original
+live milestone passed package 14.108 seconds
+(`/tmp/undergrid-hp1-owner-setup-reconciled55500.jsonl`). These characterize the
+previous source, not the unrun extension.
+
+The restart controller cancels and awaits worker termination before creating a
+new worker on the same database. It waits for that new worker to complete the
+unchanged source refresh, checks exactly one opportunity/event/discovery-inbox
+row before allowing publisher version two, and checks the exact dismissed
+opportunity's acknowledged event timestamp. It stops and awaits the final worker
+before independent final SQL counts. Receipt assertions exclude `intent.created`;
+there must be exactly one acknowledged `opportunity.available` event. No product
+row is inserted, deleted, rescheduled or reset by the controller.
+
+Build provenance is recorded by `node scripts/record-live-build.mjs` immediately
+after `npm run build`. Its manifest binds the repository head, all `src` and
+`public` files, HTML, package/lock/compiler/Vite configuration, Vite environment
+files and the recorder itself, plus SHA-256 for every built artifact. The live
+harness checks that manifest before opening Chromium and logs the verified
+hashes. Run this recorder after each frontend rebuild/reconciliation. The current
+Vite configuration has no local imports outside these inputs. This check is not
+proof that arbitrary future build configurations have no other inputs.

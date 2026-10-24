@@ -11,6 +11,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -19,6 +20,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 	"undergrid/internal/identity"
@@ -33,6 +35,14 @@ import (
 // qualification. Setup creates schema/LOGINs only; all product rows come from
 // Chromium commands through the real encrypted session and domain transactions.
 func TestHP1LiveOwnerSetupAndHonestGap(t *testing.T) {
+	hp1LiveOwnerJourney(t, false)
+}
+
+func TestHP1LiveOwnerSourceNotificationReceiptDismissalAndRestart(t *testing.T) {
+	hp1LiveOwnerJourney(t, true)
+}
+
+func hp1LiveOwnerJourney(t *testing.T, withWatch bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	adminDSN := hp1RunDatabase(t, ctx)
@@ -98,6 +108,13 @@ func TestHP1LiveOwnerSetupAndHonestGap(t *testing.T) {
 	if node == "" {
 		node = "/home/nmcdc/.nvm/versions/node/v24.15.0/bin/node"
 	}
+	verifyBuild := exec.CommandContext(ctx, node, filepath.Join(root, "web", "scripts", "record-live-build.mjs"), "--check")
+	verifyBuild.Dir = filepath.Join(root, "web")
+	buildProof, err := verifyBuild.CombinedOutput()
+	if err != nil {
+		t.Fatalf("frozen frontend provenance: %v: %s", err, buildProof)
+	}
+	t.Logf("Verified frontend source/build manifest: %s", buildProof)
 	chromium := os.Getenv("UNDERGRID_TEST_CHROMIUM")
 	if chromium == "" {
 		chromium = "/home/nmcdc/.cache/ms-playwright/chromium-1223/chrome-linux64/chrome"
@@ -110,10 +127,20 @@ func TestHP1LiveOwnerSetupAndHonestGap(t *testing.T) {
 	command := exec.CommandContext(ctx, node, filepath.Join(root, "web", "node_modules", "@playwright", "test", "cli.js"), "test", "--config", "playwright.live.config.ts")
 	command.Dir = filepath.Join(root, "web")
 	command.Env = append(os.Environ(), "UNDERGRID_HP1_BASE_URL="+app.URL, "UNDERGRID_TEST_CHROMIUM="+chromium, "UNDERGRID_HP1_BROWSER_ARTIFACTS="+artifacts)
+	var settleWorker func()
+	if withWatch {
+		controller, settle := hp1SourceWorkerController(t, ctx, admin)
+		settleWorker = settle
+		defer controller.Close()
+		command.Env = append(command.Env, "UNDERGRID_HP1_WATCH_CONTROL_URL="+controller.URL)
+	}
 	output, err := command.CombinedOutput()
 	t.Logf("Live Chromium output:\n%s", output)
 	if err != nil {
 		t.Fatalf("live owner journey: %v", err)
+	}
+	if settleWorker != nil {
+		settleWorker()
 	}
 	var intents, credentials int
 	var visibility, state string
@@ -129,6 +156,21 @@ func TestHP1LiveOwnerSetupAndHonestGap(t *testing.T) {
 	}
 	if visibility != "private" || state != "active" || !watching {
 		t.Fatalf("private active watch not persisted: %s %s %v", visibility, state, watching)
+	}
+	if withWatch {
+		var opportunities, events, inbox, dismissed, receipts, authorityEffects int
+		if err = admin.QueryRow(ctx, `SELECT
+ (SELECT count(*) FROM undergrid.opportunities),
+ (SELECT count(*) FROM undergrid.events WHERE type='opportunity.available'),
+ (SELECT count(*) FROM undergrid.inbox b JOIN undergrid.events e ON e.id=b.event_id WHERE e.type='opportunity.available'),
+ (SELECT count(*) FROM undergrid.opportunities WHERE state='dismissed'),
+ (SELECT count(*) FROM undergrid.inbox b JOIN undergrid.events e ON e.id=b.event_id WHERE e.type='opportunity.available' AND b.acked_at IS NOT NULL),
+ ((SELECT count(*) FROM undergrid.tasks)+(SELECT count(*) FROM undergrid.approvals)+(SELECT count(*) FROM undergrid.swarms))`).Scan(&opportunities, &events, &inbox, &dismissed, &receipts, &authorityEffects); err != nil {
+			t.Fatal(err)
+		}
+		if opportunities != 2 || events != 2 || inbox != 2 || dismissed != 1 || receipts != 1 || authorityEffects != 0 {
+			t.Fatalf("source/receipt/dismissal effects: opportunities=%d events=%d inbox=%d dismissed=%d receipts=%d task/right/room-effects=%d", opportunities, events, inbox, dismissed, receipts, authorityEffects)
+		}
 	}
 }
 
@@ -267,4 +309,166 @@ func hp1RunDatabase(t *testing.T, ctx context.Context) string {
 	runURL.Path = "/" + name
 	t.Logf("Retained isolated network database: %s on port %d", name, base.Port)
 	return runURL.String()
+}
+
+// The controller is a separate test-only listener, never a product route. It
+// changes publisher input or worker lifecycle; it cannot write product rows.
+func hp1SourceWorkerController(t *testing.T, ctx context.Context, admin *pgx.Conn) (*httptest.Server, func()) {
+	t.Helper()
+	role := "hp1_worker_" + strings.ReplaceAll(NewID(), "-", "")
+	if _, err := admin.Exec(ctx, "CREATE ROLE "+pgx.Identifier{role}.Sanitize()+" LOGIN NOSUPERUSER NOBYPASSRLS; GRANT undergrid_worker TO "+pgx.Identifier{role}.Sanitize()); err != nil {
+		t.Fatal(err)
+	}
+	workerDSN := networkFixtureRoleDSN(t, admin, role)
+	var version atomic.Int64
+	var publisherCalls atomic.Int64
+	publisher := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		publisherCalls.Add(1)
+		body, bodyErr := io.ReadAll(io.LimitReader(r.Body, 1))
+		if r.Method != "GET" || r.URL.Path != "/capabilities" || r.URL.RawQuery != "" || bodyErr != nil || len(body) != 0 || r.Header.Get("Authorization") != "" || r.Header.Get("Cookie") != "" {
+			t.Error("publisher received unexpected/private request")
+			http.Error(w, "unapproved request", 400)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if version.Load() == 0 {
+			_, _ = w.Write([]byte(`{"items":[],"next_page":0}`))
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"items": []any{map[string]any{"id": "environmental-catalogue", "version": fmt.Sprint(version.Load()), "url": "https://publisher.example/environmental-catalogue", "title": "Environmental source catalogue", "status": "active", "capability_claim": map[string]any{"version": "capability-claim-v1", "output": map[string]any{"kind": "json_dataset", "schema_family": "source_catalog_v1"}, "provided_fields": []string{"source_id"}, "fields_complete": true, "license_ids": []string{"CC0-1.0"}}}}, "next_page": 0})
+	}))
+	t.Cleanup(publisher.Close)
+	cfg := SourceConfig{ID: NewID(), Kind: "capability_manifest", Endpoint: "https://publisher.example/capabilities", Publisher: "HP1 controlled publisher", AccessBasis: "LOCAL FIXTURE permission only", RepublicationBasis: "LOCAL FIXTURE metadata permission only", TombstoneBasis: "LOCAL FIXTURE provenance retention only", PublicPermissionNotice: "Controlled fixture metadata; not a qualified real source", Fields: []string{"canonical_url", "title", "capability_claim"}}
+	refresher := externalNotificationRefresher(t, workerDSN, cfg, publisher)
+	var mutex sync.Mutex
+	var stop context.CancelFunc
+	var done chan error
+	stopWorker := func() error {
+		if stop == nil {
+			return nil
+		}
+		stop()
+		select {
+		case err := <-done:
+			stop = nil
+			done = nil
+			return err
+		case <-time.After(12 * time.Second):
+			return fmt.Errorf("HP1 worker did not terminate")
+		}
+	}
+	startWorker := func() {
+		workerCtx, cancel := context.WithCancel(ctx)
+		stop = cancel
+		done = make(chan error, 1)
+		go func() { done <- runWorkerWithSources(workerCtx, workerDSN, "development", refresher) }()
+	}
+	t.Cleanup(func() {
+		mutex.Lock()
+		defer mutex.Unlock()
+		if err := stopWorker(); err != nil {
+			t.Error(err)
+		}
+		t.Logf("Controlled publisher actual GET count: %d", publisherCalls.Load())
+	})
+	var firstOpportunity string
+	var receiptBefore time.Time
+	assertReceipt := func() error {
+		var after time.Time
+		if err := admin.QueryRow(ctx, `SELECT b.acked_at FROM undergrid.inbox b JOIN undergrid.events e ON e.id=b.event_id WHERE e.aggregate_id=$1 AND e.type='opportunity.available'`, firstOpportunity).Scan(&after); err != nil {
+			return err
+		}
+		if !after.Equal(receiptBefore) {
+			return fmt.Errorf("specific discovery receipt timestamp changed across restart")
+		}
+		return nil
+	}
+	controller := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mutex.Lock()
+		defer mutex.Unlock()
+		if r.Method != "POST" {
+			http.Error(w, "test control requires POST", 405)
+			return
+		}
+		var err error
+		switch r.URL.Path {
+		case "/start":
+			if stop == nil {
+				startWorker()
+			}
+		case "/publish/1", "/publish/2":
+			if strings.HasSuffix(r.URL.Path, "/1") {
+				version.Store(1)
+			} else {
+				version.Store(2)
+			}
+			// RefreshDue normally synchronizes trusted operator approvals first. It is
+			// used for initial configuration; later forced fetch uses RefreshSource,
+			// which preserves the same current-approval checks without SQL due changes.
+			if publisherCalls.Load() == 0 {
+				err = refresher.RefreshDue(r.Context())
+			} else {
+				err = refresher.RefreshSource(r.Context(), cfg.ID)
+			}
+		case "/restart-unchanged":
+			err = stopWorker()
+			if err == nil {
+				err = admin.QueryRow(ctx, `SELECT o.id::text,b.acked_at FROM undergrid.opportunities o JOIN undergrid.events e ON e.aggregate_id=o.id AND e.type='opportunity.available' JOIN undergrid.inbox b ON b.event_id=e.id WHERE o.state='dismissed'`).Scan(&firstOpportunity, &receiptBefore)
+			}
+			if err == nil {
+				err = refresher.RefreshSource(r.Context(), cfg.ID)
+			}
+			if err == nil {
+				restartedAt := time.Now()
+				startWorker()
+				deadline := time.Now().Add(8 * time.Second)
+				for {
+					var completed bool
+					err = admin.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM undergrid_queue.river_job WHERE kind='permissioned_source_refresh_v1' AND args->>'source_id'=$1 AND state='completed' AND attempted_at>=$2)`, cfg.ID, restartedAt).Scan(&completed)
+					if err != nil || completed {
+						break
+					}
+					if time.Now().After(deadline) {
+						err = fmt.Errorf("restarted worker did not complete unchanged source refresh")
+						break
+					}
+					time.Sleep(20 * time.Millisecond)
+				}
+			}
+			if err == nil {
+				var opportunities, events, inbox int
+				err = admin.QueryRow(ctx, `SELECT (SELECT count(*) FROM undergrid.opportunities),(SELECT count(*) FROM undergrid.events WHERE type='opportunity.available'),(SELECT count(*) FROM undergrid.inbox b JOIN undergrid.events e ON e.id=b.event_id WHERE e.type='opportunity.available')`).Scan(&opportunities, &events, &inbox)
+				if err == nil && (opportunities != 1 || events != 1 || inbox != 1) {
+					err = fmt.Errorf("unchanged restart duplicated effects: %d/%d/%d", opportunities, events, inbox)
+				}
+			}
+			if err == nil {
+				err = assertReceipt()
+			}
+			if err == nil {
+				t.Logf("Unchanged source refresh completed after actual worker restart: exactly one opportunity/event/inbox; receipt timestamp preserved for %s", firstOpportunity)
+			}
+		default:
+			http.Error(w, "unknown test control", 404)
+			return
+		}
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	return controller, func() {
+		mutex.Lock()
+		defer mutex.Unlock()
+		if err := stopWorker(); err != nil {
+			t.Fatal(err)
+		}
+		if firstOpportunity == "" {
+			t.Fatal("restart proof never selected the acknowledged discovery")
+		}
+		if err := assertReceipt(); err != nil {
+			t.Fatal(err)
+		}
+	}
 }
