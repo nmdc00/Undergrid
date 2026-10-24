@@ -3,8 +3,10 @@ package network
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"net/http"
 	"net/http/httptest"
@@ -381,5 +383,129 @@ func TestPartialSatisfactionMCPA2AExactRetryAndCurrentResourceRecovery(t *testin
 	var revisions int
 	if err = x.db.QueryRow(ctx, "SELECT count(*) FROM undergrid.intent_revisions WHERE intent_id=$1", x.original["id"]).Scan(&revisions); err != nil || revisions != 2 {
 		t.Fatal("adapter duplicated fulfillment", revisions, err)
+	}
+}
+
+func TestPartialSatisfactionRepeatedActionKeepsBoundedOwnerDeclaredHistory(t *testing.T) {
+	x := partialScenarioFixture(t, "private")
+	code, first := ownerCallMatch(x.owner, "POST", x.path+"/partial-satisfaction", "first-part", x.original["etag"].(string), x.body)
+	if code != 200 {
+		t.Fatal(code, first)
+	}
+	code, report := ownerCallMatch(x.owner, "GET", x.path+"/external-fit-report?lead_id="+x.body["lead_id"].(string), "", "", nil)
+	if code != 200 {
+		t.Fatal(code, report)
+	}
+	body := map[string]any{}
+	for k, v := range x.body {
+		body[k] = v
+	}
+	body["intention_revision"] = report["intention_revision"]
+	body["report_hash"] = report["report_hash"]
+	body["fulfilled_required_fields"] = []string{"source_url"}
+	code, next := ownerCallMatch(x.owner, "POST", x.path+"/partial-satisfaction", "second-part", first["etag"].(string), body)
+	if code != 200 {
+		t.Fatal(code, next)
+	}
+	audit := next["partial_satisfaction"].(map[string]any)
+	if audit["previous_fulfillment_revision"] != float64(2) || audit["basis_revision"] != float64(2) || audit["result_revision"] != float64(3) || audit["evidence_class"] != "owner_declared_partial_satisfaction" {
+		t.Fatal("unbounded/incorrect provenance", audit)
+	}
+	if fields := next["hard_constraints"].(map[string]any)["required_fields"].([]any); len(fields) != 1 || fields[0] != "title" {
+		t.Fatal(fields)
+	}
+	if next["rights_assurance"] != nil || next["verified"] != nil {
+		t.Fatal("owner declaration upgraded assurance", next)
+	}
+}
+
+func TestPartialSatisfactionLocksSourceUntilItsRevisionCommits(t *testing.T) {
+	x := partialScenarioFixture(t, "private")
+	ctx := context.Background()
+	barrier, err := x.db.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer barrier.Rollback(ctx)
+	gate := NewID()
+	if _, err = barrier.Exec(ctx, "SELECT pg_advisory_xact_lock(hashtextextended($1,61741))", gate); err != nil {
+		t.Fatal(err)
+	}
+	name := "partial_barrier_" + strings.ReplaceAll(NewID(), "-", "")
+	quoted := pgx.Identifier{"undergrid", name}.Sanitize()
+	sql := "CREATE FUNCTION " + quoted + "() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.intent_id::text='" + x.original["id"].(string) + "' AND NEW.document ? 'partial_satisfaction' THEN PERFORM pg_advisory_xact_lock(hashtextextended('" + gate + "',61741)); END IF; RETURN NEW; END $$; CREATE TRIGGER " + pgx.Identifier{name}.Sanitize() + " BEFORE INSERT ON undergrid.intent_revisions FOR EACH ROW EXECUTE FUNCTION " + quoted + "()"
+	// Use a separate admin connection: the barrier transaction remains open.
+	admin, err := pgx.ConnectConfig(ctx, x.db.Config())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer admin.Close(ctx)
+	if _, err = admin.Exec(ctx, sql); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if _, err := x.db.Exec(ctx, "DROP TRIGGER IF EXISTS "+pgx.Identifier{name}.Sanitize()+" ON undergrid.intent_revisions; DROP FUNCTION IF EXISTS "+quoted+"()"); err != nil {
+			t.Error(err)
+		}
+	})
+	type response struct {
+		code int
+		body map[string]any
+	}
+	finished := make(chan response, 1)
+	go func() {
+		code, out := ownerCallMatch(x.owner, "POST", x.path+"/partial-satisfaction", "source-serialized", x.original["etag"].(string), x.body)
+		finished <- response{code, out}
+	}()
+	cfg, err := pgx.ParseConfig(x.service.dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		var waiting bool
+		if err = admin.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE usename=$1 AND wait_event='advisory' AND query LIKE '%INSERT INTO intent_revisions%')", cfg.User).Scan(&waiting); err != nil {
+			t.Fatal(err)
+		}
+		if waiting {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("domain did not reach controlled post-source-lock revision barrier")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	revoke, err := admin.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = revoke.Exec(ctx, "SET LOCAL lock_timeout='100ms'"); err != nil {
+		t.Fatal(err)
+	}
+	_, err = revoke.Exec(ctx, "UPDATE undergrid.external_sources SET config=jsonb_set(config,'{PublicPermissionNotice}','\"\"') WHERE id=$1", x.config.ID)
+	var locked *pgconn.PgError
+	if !errors.As(err, &locked) || locked.Code != "55P03" {
+		t.Fatal("source changed while authorized revision was in flight", err)
+	}
+	if err = revoke.Rollback(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err = barrier.Rollback(ctx); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case result := <-finished:
+		if result.code != 200 {
+			t.Fatal(result.code, result.body)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("revision did not complete after barrier release")
+	}
+	if _, err = admin.Exec(ctx, "UPDATE undergrid.external_sources SET config=jsonb_set(config,'{PublicPermissionNotice}','\"\"') WHERE id=$1", x.config.ID); err != nil {
+		t.Fatal(err)
+	}
+	code, out := ownerCallMatch(x.owner, "POST", x.path+"/partial-satisfaction", "source-serialized", x.original["etag"].(string), x.body)
+	if code != 404 {
+		t.Fatal("committed source revocation replay", code, out)
 	}
 }

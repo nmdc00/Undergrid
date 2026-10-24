@@ -9110,6 +9110,10 @@
           },
           "partial_satisfaction": {
             "$ref": "#/components/schemas/PartialSatisfactionAudit"
+          },
+          "current_revision": {
+            "type": "integer",
+            "minimum": 1
           }
         },
         "required": [
@@ -9123,7 +9127,8 @@
           "visibility",
           "budget",
           "watch",
-          "expires_at"
+          "expires_at",
+          "current_revision"
         ],
         "additionalProperties": false
       },

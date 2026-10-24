@@ -1850,6 +1850,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/intents/{id}/partial-satisfaction": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record owner-declared partial fulfillment and keep unmet fields watched
+         * @description Current intention actor and permitted capability source are reauthorized before receipt recovery. Exact request/If-Match/report pins bind the original immutable revision. Server computes a nonempty remaining field set and preserves all other constraints; no provider verification or rights consent is inferred.
+         */
+        post: operations["post__v1_intents_id_partial_satisfaction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/intents/{id}/partial-satisfaction": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record owner-declared partial fulfillment and keep unmet fields watched
+         * @description Current intention actor and permitted capability source are reauthorized before receipt recovery. Exact request/If-Match/report pins bind the original immutable revision. Server computes a nonempty remaining field set and preserves all other constraints; no provider verification or rights consent is inferred.
+         */
+        post: operations["post__v1_owner_intents_id_partial_satisfaction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2076,6 +2116,8 @@ export interface components {
             version: number;
             etag: string;
             state: string;
+            partial_satisfaction?: components["schemas"]["PartialSatisfactionAudit"];
+            current_revision: number;
         };
         PublicIntent: {
             /** Format: uuid */
@@ -2997,6 +3039,8 @@ export interface components {
             /** @constant */
             verification: "unverified_publisher_claim";
             report_hash: string;
+            intention_version: number;
+            intention_etag: string;
         };
         SwarmArchive: {
             /** Format: uuid */
@@ -3130,6 +3174,38 @@ export interface components {
             id: string;
             /** @constant */
             state: "dismissed";
+        };
+        PartialSatisfactionInput: {
+            /** Format: uuid */
+            lead_id: string;
+            source_version: string;
+            projection_hash: string;
+            report_hash: string;
+            intention_revision: number;
+            fulfilled_required_fields: string[];
+        };
+        /** @description Private server-owned last owner-declared action. Historical if the current revision differs from result_revision. This does not verify a provider, rights, or non-field constraints. */
+        PartialSatisfactionAudit: {
+            /** @constant */
+            evidence_class: "owner_declared_partial_satisfaction";
+            basis_revision: number;
+            result_revision: number;
+            basis_version: number;
+            previous_fulfillment_revision?: number;
+            /** Format: uuid */
+            actor_principal_id: string;
+            /** Format: uuid */
+            actor_agent_id: string;
+            fulfilled_required_fields: string[];
+            remaining_required_fields: string[];
+            /** Format: uuid */
+            lead_id: string;
+            /** Format: uuid */
+            source_id: string;
+            source_version: string;
+            projection_hash: string;
+            report_hash: string;
+            command_digest: string;
         };
     };
     responses: never;
@@ -7015,6 +7091,95 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OpportunityDismissal"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post__v1_intents_id_partial_satisfaction: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+                "If-Match": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PartialSatisfactionInput"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    /** @description Matches the exact top-level body etag, including retained idempotent replay version. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PrivateIntent"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post__v1_owner_intents_id_partial_satisfaction: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+                "X-CSRF-Token": string;
+                "If-Match": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PartialSatisfactionInput"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    /** @description Matches the exact top-level body etag, including retained idempotent replay version. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PrivateIntent"];
                 };
             };
             /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */

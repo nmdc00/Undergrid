@@ -1,3 +1,4 @@
+import { PartialSatisfaction, type PartialReview } from "./PartialSatisfaction";
 import { useEffect, useRef, useState } from "react";
 import { ApiError, object, request, text, type ObjectValue } from "./api";
 
@@ -13,6 +14,7 @@ type Report = {
   assessment: string;
   claimStatus: string;
   constraints: Constraint[];
+  partialReview?: PartialReview;
 };
 const assessments: Record<string, string> = {
   declared_aligned: "Declared alignment",
@@ -87,11 +89,46 @@ function parseReport(
       reason: text(row.reason),
     };
   });
+  let partialReview: PartialReview | undefined;
+  if (raw.intention_etag !== undefined || raw.intention_version !== undefined) {
+    const source = object(raw.lead),
+      requiredFields = constraints
+        .filter((row) => row.name === "required_field")
+        .flatMap((row) => row.requested);
+    const projectionHash = text(source.projection_hash),
+      reportHash = text(raw.report_hash),
+      sourceVersion = text(source.source_version),
+      version = Number(raw.intention_version),
+      etag = text(raw.intention_etag);
+    if (
+      !Number.isSafeInteger(version) ||
+      version < 1 ||
+      etag !== `"${version}"` ||
+      !sourceVersion.length ||
+      !/^[a-f0-9]{64}$/.test(projectionHash) ||
+      !/^[a-f0-9]{64}$/.test(reportHash) ||
+      requiredFields.some((field) => !field.trim()) ||
+      new Set(requiredFields).size !== requiredFields.length
+    )
+      throw new Error("Invalid fulfillment review pins");
+    partialReview = {
+      intentionID: intention,
+      leadID: lead,
+      revision: Number(raw.intention_revision),
+      version,
+      etag,
+      sourceVersion,
+      projectionHash,
+      reportHash,
+      requiredFields,
+    };
+  }
   return {
     revision: Number(raw.intention_revision),
     assessment,
     claimStatus,
     constraints,
+    partialReview,
   };
 }
 export function ExternalFitReport({
@@ -101,6 +138,8 @@ export function ExternalFitReport({
   onUnauthorized,
   onUnavailable,
   onClose,
+  onRecorded,
+  onDecisionUnavailable,
 }: {
   intentionID: string;
   leadID: string;
@@ -108,6 +147,8 @@ export function ExternalFitReport({
   onUnauthorized: () => void;
   onUnavailable: () => void;
   onClose: () => void;
+  onRecorded?: (result: ObjectValue) => void;
+  onDecisionUnavailable?: () => void;
 }) {
   const [report, setReport] = useState<Report | null>(null),
     [error, setError] = useState(""),
@@ -192,6 +233,18 @@ export function ExternalFitReport({
               ))}
             </tbody>
           </table>
+          {report.partialReview && (
+            <PartialSatisfaction
+              review={report.partialReview}
+              csrf={csrf}
+              onRecorded={(result) => {
+                setReport(null);
+                onRecorded?.(result);
+              }}
+              onUnauthorized={onUnauthorized}
+              onUnavailable={onDecisionUnavailable ?? onUnavailable}
+            />
+          )}
         </>
       )}
       <button type="button" disabled={busy} onClick={() => void load()}>

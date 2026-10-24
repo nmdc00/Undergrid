@@ -25,9 +25,10 @@ func getIntent(ctx context.Context, tx pgx.Tx, a actor, id string) (int, any, er
 	}
 	var document []byte
 	var version int64
+	var revision int
 	var state string
 	var watch bool
-	err := tx.QueryRow(ctx, `SELECT r.document,i.version,i.state,i.watch_enabled FROM intents i JOIN intent_revisions r ON r.intent_id=i.id AND r.revision=i.current_revision WHERE i.id=$1 AND i.principal_id=$2`, id, a.PrincipalID).Scan(&document, &version, &state, &watch)
+	err := tx.QueryRow(ctx, `SELECT r.document,i.version,i.current_revision,i.state,i.watch_enabled FROM intents i JOIN intent_revisions r ON r.intent_id=i.id AND r.revision=i.current_revision WHERE i.id=$1 AND i.principal_id=$2`, id, a.PrincipalID).Scan(&document, &version, &revision, &state, &watch)
 	if errors.Is(err, pgx.ErrNoRows) {
 		var granted []byte
 		var grantedVersion int64
@@ -54,6 +55,7 @@ func getIntent(ctx context.Context, tx pgx.Tx, a actor, id string) (int, any, er
 	}
 	result["id"] = id
 	result["version"] = version
+	result["current_revision"] = revision
 	result["etag"] = etag(version)
 	result["state"] = state
 	result["watch"] = Watch{watch, []string{"inbox"}}
