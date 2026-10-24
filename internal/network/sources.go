@@ -31,6 +31,16 @@ type SourceRefresher struct {
 	dsn     string
 	configs []SourceConfig
 	client  *http.Client
+	// Private scheduling seam; normal construction always retains six hours.
+	// Tests may accelerate elapsed time without mutating source/product rows.
+	successfulRefreshInterval time.Duration
+}
+
+func (r *SourceRefresher) successRefreshInterval() time.Duration {
+	if r.successfulRefreshInterval <= 0 {
+		return 6 * time.Hour
+	}
+	return r.successfulRefreshInterval
 }
 
 func publicSourceIP(ip net.IP) bool {
@@ -320,7 +330,7 @@ func (r *SourceRefresher) refresh(ctx context.Context, db *pgx.Conn, c SourceCon
 		snapshot.validators = map[string]string{}
 	}
 	v, _ := json.Marshal(snapshot.validators)
-	if _, e = tx.Exec(ctx, `UPDATE undergrid.external_sources SET validators=$2,last_success=now(),next_refresh=now()+interval '6 hours',last_error=NULL WHERE id=$1`, c.ID, v); e != nil {
+	if _, e = tx.Exec(ctx, `UPDATE undergrid.external_sources SET validators=$2,last_success=now(),next_refresh=now()+($3::double precision * interval '1 second'),last_error=NULL WHERE id=$1`, c.ID, v, r.successRefreshInterval().Seconds()); e != nil {
 		return e
 	}
 	var snapshotHash string
