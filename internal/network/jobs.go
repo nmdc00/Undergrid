@@ -141,6 +141,12 @@ func RunWorker(ctx context.Context, dsn, environment string) error {
 	if err != nil {
 		return err
 	}
+	return runWorkerWithSources(ctx, dsn, environment, sources)
+}
+
+// The worker owns the concrete refresher lifecycle. Keeping construction at its
+// boundary lets acceptance tests control external HTTPS without bypassing jobs.
+func runWorkerWithSources(ctx context.Context, dsn, environment string, sources *SourceRefresher) error {
 	config, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
 		return err
