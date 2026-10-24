@@ -19,6 +19,9 @@ import (
 // Existing intention commands retain validation, quota, versions, event/inbox and
 // transactional queue rules; no agent credential is minted for the browser.
 func (s *Service) ownerIntents(r *http.Request, tx pgx.Tx, principal string) (int, any, error) {
+	if id, ok := partialSatisfactionID(strings.Replace(r.URL.Path, "/v1/owner/intents/", "/v1/intents/", 1)); ok {
+		return s.ownerPartialSatisfaction(r, tx, principal, id)
+	}
 	collection := r.URL.Path == "/v1/owner/intents"
 	opportunities := strings.HasSuffix(r.URL.Path, "/opportunities")
 	externalLeads := strings.HasSuffix(r.URL.Path, "/external-leads")
