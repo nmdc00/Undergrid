@@ -7934,6 +7934,212 @@
           }
         }
       }
+    },
+    "/v1/intents/{id}/partial-satisfaction": {
+      "post": {
+        "operationId": "post__v1_intents_id_partial_satisfaction",
+        "summary": "Record owner-declared partial fulfillment and keep unmet fields watched",
+        "description": "Current intention actor and permitted capability source are reauthorized before receipt recovery. Exact request/If-Match/report pins bind the original immutable revision. Server computes a nonempty remaining field set and preserves all other constraints; no provider verification or rights consent is inferred.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrivateIntent"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "ETag": {
+                "description": "Matches the exact top-level body etag, including retained idempotent replay version.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^\"[0-9]+\"$"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; status depends on authentication, visibility, validation, quotas and runtime availability.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "NetworkBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^\"[0-9]+\"$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartialSatisfactionInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/owner/intents/{id}/partial-satisfaction": {
+      "post": {
+        "operationId": "post__v1_owner_intents_id_partial_satisfaction",
+        "summary": "Record owner-declared partial fulfillment and keep unmet fields watched",
+        "description": "Current intention actor and permitted capability source are reauthorized before receipt recovery. Exact request/If-Match/report pins bind the original immutable revision. Server computes a nonempty remaining field set and preserves all other constraints; no provider verification or rights consent is inferred.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrivateIntent"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "ETag": {
+                "description": "Matches the exact top-level body etag, including retained idempotent replay version.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^\"[0-9]+\"$"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; status depends on authentication, visibility, validation, quotas and runtime availability.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OwnerSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^\"[0-9]+\"$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartialSatisfactionInput"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -8901,6 +9107,13 @@
           },
           "state": {
             "type": "string"
+          },
+          "partial_satisfaction": {
+            "$ref": "#/components/schemas/PartialSatisfactionAudit"
+          },
+          "current_revision": {
+            "type": "integer",
+            "minimum": 1
           }
         },
         "required": [
@@ -8914,7 +9127,8 @@
           "visibility",
           "budget",
           "watch",
-          "expires_at"
+          "expires_at",
+          "current_revision"
         ],
         "additionalProperties": false
       },
@@ -12575,6 +12789,14 @@
           "report_hash": {
             "type": "string",
             "pattern": "^[a-f0-9]{64}$"
+          },
+          "intention_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "intention_etag": {
+            "type": "string",
+            "pattern": "^\"[0-9]+\"$"
           }
         },
         "required": [
@@ -12591,7 +12813,9 @@
           "identity_assurance",
           "rights_assurance",
           "verification",
-          "report_hash"
+          "report_hash",
+          "intention_version",
+          "intention_etag"
         ]
       },
       "SwarmArchive": {
@@ -13153,6 +13377,147 @@
             "const": "dismissed"
           }
         }
+      },
+      "PartialSatisfactionInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "lead_id",
+          "source_version",
+          "projection_hash",
+          "report_hash",
+          "intention_revision",
+          "fulfilled_required_fields"
+        ],
+        "properties": {
+          "lead_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "source_version": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "projection_hash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "report_hash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "intention_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "fulfilled_required_fields": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 50,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      },
+      "PartialSatisfactionAudit": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "evidence_class",
+          "basis_revision",
+          "result_revision",
+          "basis_version",
+          "actor_principal_id",
+          "actor_agent_id",
+          "fulfilled_required_fields",
+          "remaining_required_fields",
+          "lead_id",
+          "source_id",
+          "source_version",
+          "projection_hash",
+          "report_hash",
+          "command_digest"
+        ],
+        "properties": {
+          "evidence_class": {
+            "type": "string",
+            "const": "owner_declared_partial_satisfaction"
+          },
+          "basis_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "result_revision": {
+            "type": "integer",
+            "minimum": 2
+          },
+          "basis_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "previous_fulfillment_revision": {
+            "type": "integer",
+            "minimum": 2
+          },
+          "actor_principal_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "actor_agent_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "fulfilled_required_fields": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 50,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "remaining_required_fields": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 50,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "lead_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "source_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "source_version": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "projection_hash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "report_hash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "command_digest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "description": "Private server-owned last owner-declared action. Historical if the current revision differs from result_revision. This does not verify a provider, rights, or non-field constraints."
       }
     },
     "securitySchemes": {

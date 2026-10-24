@@ -36,6 +36,43 @@ function localDateTime(instant: string): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 type Config = { terms: string; templates: ObjectValue[] };
+function FulfillmentSummary({ record }: { record: ObjectValue }) {
+  try {
+    const audit = object(record.partial_satisfaction),
+      fields = object(record.hard_constraints).required_fields;
+    if (
+      !Array.isArray(fields) ||
+      !Number.isInteger(audit.result_revision) ||
+      !Number.isInteger(record.current_revision)
+    )
+      throw new Error("Invalid fulfillment summary");
+    return (
+      <section aria-label="Current unmet requirements">
+        <h4>Unmet required fields</h4>
+        <ul>
+          {fields.map(text).map((field) => (
+            <li key={field}>{field}</li>
+          ))}
+        </ul>
+        <p>
+          Last owner-declared fulfillment: revision{" "}
+          {String(audit.result_revision)}. Current revision:{" "}
+          {String(record.current_revision)}.{" "}
+          {audit.result_revision !== record.current_revision
+            ? "The recorded fulfillment is historical; current requirements may have changed."
+            : "Other constraints remain required; this is not provider or rights verification."}
+        </p>
+      </section>
+    );
+  } catch {
+    return (
+      <p role="alert">
+        Fulfillment details could not be read. Reload the intention before
+        making another decision.
+      </p>
+    );
+  }
+}
 export function App() {
   const [phase, setPhase] = useState("loading"),
     [csrf, setCSRF] = useState(""),
@@ -422,6 +459,9 @@ export function App() {
                 <article>
                   <h3>{text(detail.objective)}</h3>
                   <pre>{JSON.stringify(detail, null, 2)}</pre>
+                  {detail.partial_satisfaction !== undefined && (
+                    <FulfillmentSummary record={detail} />
+                  )}
                   <h4>Current match evidence</h4>
                   {results.length === 0 ? (
                     <p>
@@ -458,6 +498,15 @@ export function App() {
                     <ExternalLeads
                       key={`${text(detail.id)}:${String(detail.version)}`}
                       intentionID={text(detail.id)}
+                      onIntentionChanged={(result) => {
+                        setDetail(result);
+                        setResults([]);
+                        setRevisionObjective(text(result.objective));
+                        setRevisionExpiry(
+                          localDateTime(text(result.expires_at)),
+                        );
+                        setEditingRevision(false);
+                      }}
                       csrf={csrf}
                       onUnauthorized={() => {
                         generation.current++;
