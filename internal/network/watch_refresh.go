@@ -35,7 +35,7 @@ func (w *watchRefreshWorker) Work(ctx context.Context, job *river.Job[watchRefre
 		return errors.New("invalid watcher refresh identity")
 	}
 	if args.WatcherID == "" {
-		return w.service.enqueueCompatibleWatchers(ctx, args)
+		return w.service.enqueueWatchers(ctx, args, job.Queue == freshWatchFanoutQueue)
 	}
 	db, err := pgx.Connect(ctx, w.service.dsn)
 	if err != nil {
@@ -70,6 +70,10 @@ func (w *watchRefreshWorker) Work(ctx context.Context, job *river.Job[watchRefre
 // compatible pairs enter the urgent queue; each pair rechecks current authority
 // and projection in the shared locked scan transaction before publishing.
 func (s *Service) enqueueCompatibleWatchers(ctx context.Context, args watchRefreshArgs) error {
+	return s.enqueueWatchers(ctx, args, false)
+}
+
+func (s *Service) enqueueWatchers(ctx context.Context, args watchRefreshArgs, fresh bool) error {
 	db, err := pgx.Connect(ctx, s.dsn)
 	if err != nil {
 		return err
@@ -130,13 +134,17 @@ func (s *Service) enqueueCompatibleWatchers(ctx context.Context, args watchRefre
 	if err != nil {
 		return err
 	}
+	pairQueue, fanoutQueue := watchRefreshQueue, watchFanoutQueue
+	if fresh {
+		pairQueue, fanoutQueue = freshWatchRefreshQueue, freshWatchFanoutQueue
+	}
 	for _, watcher := range compatible {
-		if _, err = queue.InsertTx(ctx, tx, watchRefreshArgs{CandidateID: args.CandidateID, WatcherID: watcher}, &river.InsertOpts{Queue: watchRefreshQueue, Priority: 1, MaxAttempts: 10}); err != nil {
+		if _, err = queue.InsertTx(ctx, tx, watchRefreshArgs{CandidateID: args.CandidateID, WatcherID: watcher}, &river.InsertOpts{Queue: pairQueue, Priority: 1, MaxAttempts: 10}); err != nil {
 			return err
 		}
 	}
 	if count == watcherRefreshPageSize {
-		if _, err = queue.InsertTx(ctx, tx, watchRefreshArgs{CandidateID: args.CandidateID, AfterID: last}, &river.InsertOpts{Queue: watchFanoutQueue, Priority: 2, MaxAttempts: 10}); err != nil {
+		if _, err = queue.InsertTx(ctx, tx, watchRefreshArgs{CandidateID: args.CandidateID, AfterID: last}, &river.InsertOpts{Queue: fanoutQueue, Priority: 2, MaxAttempts: 10}); err != nil {
 			return err
 		}
 	}

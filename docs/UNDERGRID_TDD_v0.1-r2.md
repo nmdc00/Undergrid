@@ -183,6 +183,11 @@ The bounded JSON-dataset partial-satisfaction command records explicit owner-sel
 
 ### 5.4 Matching and monitoring
 
+The committed discovery capacity vertical separates fresh wakeups from retained
+work and ages only unstarted, nonunique queue ownership in bounded batches. It
+preserves current matching/authority rules, accepted job metadata and the existing
+five-second worker bounds. See [capacity proof and integration status](DISCOVERY_CAPACITY.md).
+
 Typed constraints: artifact format, required fields/schema family, coverage, freshness, deadlines, license and input/output compatibility. Evaluate aligned/incompatible/unknown deterministically; unknown hard constraints require clarification. Candidate retrieval combines permitted full-text and pgvector search; ranking is versioned and explanation uses actual constraint evidence. Do not let semantic score override incompatibility. Private ceilings never enter public vectors or aggregate display.
 
 Persist pairwise opportunity evidence, not a generic cluster graph. A cluster API may return a bounded view of compatible opportunities with explicit member constraints and principal dedupe; membership is not transitive and is revalidated before display. Users can dismiss a suggestion or decline participation; the same unchanged evidence is not repeatedly notified. The dismissal vertical adds a current-recipient command shared by REST/owner sessions and finite agent adapters, with transactional receipt recovery and immutable-evidence suppression; see `OPPORTUNITY_DISMISSAL.md` for implementation evidence and pending gates. User-set match thresholds are bounded and logged, not a confidence probability.

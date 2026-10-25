@@ -26,7 +26,7 @@ review semantic discovery only after that prerequisite is proven and merged.
 
 ## First implementation task: discovery capacity
 
-Owner: `partial_resume_oct24`. New branch `feat/v0.1-discovery-capacity`, from
+Owner: `capacity_oct25` (resuming `partial_resume_oct24`). Branch `feat/v0.1-discovery-capacity`, from
 current `release/v0.1`, isolated worktree
 `/tmp/undergrid-worktrees/hp2-capacity/feat-v0.1-discovery-capacity`.
 Owning requirements: HP2 step 1, TDD §5.4 and the existing five-second committed
