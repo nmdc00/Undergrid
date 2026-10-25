@@ -2,6 +2,11 @@
 
 TDD §§5.4/6; implementation `cd02dd5`, no schema migration. This is a network worker scheduling correction, not a new semantic matching/provider qualification claim.
 
+The queue counts and routing below describe that historical implementation.
+The later [fresh/retained capacity evidence](../DISCOVERY_CAPACITY.md) records
+current queue ownership, pool headroom, backlog recovery and integration status;
+it preserves the same five-second discovery and twelve-second shutdown bounds.
+
 ## Observed defect and behavior
 
 The full release `7b645fb` network race gate failed after 1047.626s on the previously scanned watcher assertion. Persisted opportunity creation was 7.130s after the later candidate's creation, exceeding the existing five-second contract. Root's focused retained-fixture reproduction also failed after 15.689s. The prior foreground job scanned the newly committed source only; previously scanned watchers depended on a global repair lane that serially visited up to 1000 watches. Its coalesced global timestamp reset could also couple unrelated row locks.
