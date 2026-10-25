@@ -65,10 +65,10 @@ func enqueueScan(ctx context.Context, tx pgx.Tx, cause string) error {
 	if err != nil {
 		return err
 	}
-	if _, err = client.InsertTx(ctx, tx, scanArgs{cause}, &river.InsertOpts{MaxAttempts: 10, Queue: discoveryQueue, Priority: 1}); err != nil {
+	if _, err = client.InsertTx(ctx, tx, scanArgs{cause}, &river.InsertOpts{MaxAttempts: 10, Queue: freshDiscoveryQueue, Priority: 1}); err != nil {
 		return err
 	}
-	if _, err = client.InsertTx(ctx, tx, watchRefreshArgs{CandidateID: cause}, &river.InsertOpts{Queue: watchFanoutQueue, Priority: 2, MaxAttempts: 10}); err != nil {
+	if _, err = client.InsertTx(ctx, tx, watchRefreshArgs{CandidateID: cause}, &river.InsertOpts{Queue: freshWatchFanoutQueue, Priority: 2, MaxAttempts: 10}); err != nil {
 		return err
 	}
 	// At most one queued refresh follows a running sweep. Lock the queued row
@@ -147,13 +147,36 @@ func RunWorker(ctx context.Context, dsn, environment string) error {
 // The worker owns the concrete refresher lifecycle. Keeping construction at its
 // boundary lets acceptance tests control external HTTPS without bypassing jobs.
 func runWorkerWithSources(ctx context.Context, dsn, environment string, sources *SourceRefresher) error {
+	queues := map[string]river.QueueConfig{
+		river.QueueDefault:             {MaxWorkers: 2},
+		sourceRefreshQueue:             {MaxWorkers: 2},
+		externalNotificationQueue:      {MaxWorkers: 1},
+		externalFreshNotificationQueue: {MaxWorkers: 2, FetchCooldown: 100 * time.Millisecond, FetchPollInterval: 100 * time.Millisecond},
+		externalFreshMatchQueue:        {MaxWorkers: 4, FetchCooldown: 100 * time.Millisecond, FetchPollInterval: 100 * time.Millisecond},
+		externalReadyMatchQueue:        {MaxWorkers: 2, FetchCooldown: 100 * time.Millisecond, FetchPollInterval: 100 * time.Millisecond},
+		externalNotificationMatchQueue: {MaxWorkers: 4, FetchCooldown: 100 * time.Millisecond, FetchPollInterval: 100 * time.Millisecond},
+		"artifact_verification":        {MaxWorkers: 2},
+		"coordination":                 {MaxWorkers: 2},
+		"coordination_deadlines":       {MaxWorkers: 2},
+		freshDiscoveryQueue:            {MaxWorkers: 2, FetchCooldown: 100 * time.Millisecond, FetchPollInterval: 100 * time.Millisecond},
+		freshWatchFanoutQueue:          {MaxWorkers: 2, FetchCooldown: 100 * time.Millisecond, FetchPollInterval: 100 * time.Millisecond},
+		freshWatchRefreshQueue:         {MaxWorkers: 8, FetchCooldown: time.Millisecond, FetchPollInterval: 100 * time.Millisecond},
+		discoveryQueue:                 {MaxWorkers: 2},
+		discoveryRepairQueue:           {MaxWorkers: 1},
+		// Fanout continuations cannot wait behind their own pair jobs. Both
+		// queues bound wakeup latency even when LISTEN/NOTIFY is coalesced.
+		// Eight bounded pair slots amortize durable completion latency under
+		// backlog; idle polling stays at 100ms to avoid busy polling.
+		watchRefreshQueue: {MaxWorkers: 8, FetchCooldown: time.Millisecond, FetchPollInterval: 100 * time.Millisecond},
+		watchFanoutQueue:  {MaxWorkers: 2, FetchCooldown: 100 * time.Millisecond, FetchPollInterval: 100 * time.Millisecond},
+	}
 	config, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
 		return err
 	}
-	// Queue fetchers, completion and periodic/leader maintenance must
-	// retain pool capacity even while another queue has a backlog.
-	config.MaxConns = 24
+	// One registration map owns queue count and pool sizing. Completion and
+	// periodic/leader maintenance retain ten connections beyond queue fetchers.
+	config.MaxConns = int32(len(queues) + 10)
 	config.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
 		_, err := conn.Exec(ctx, "SET ROLE undergrid_worker")
 		return err
@@ -163,6 +186,9 @@ func runWorkerWithSources(ctx context.Context, dsn, environment string, sources 
 		return err
 	}
 	defer pool.Close()
+	if err = retainDiscoveryStartup(ctx, pool); err != nil {
+		return err
+	}
 	workers := river.NewWorkers()
 	river.AddWorker(workers, &sourceRefreshWorker{refresher: sources})
 	service := New(dsn, environment, nil)
@@ -177,26 +203,7 @@ func runWorkerWithSources(ctx context.Context, dsn, environment string, sources 
 	river.AddWorker(workers, &externalNotificationWorker{service: service})
 	river.AddWorker(workers, &fanoutWorker{dsn: dsn})
 	river.AddWorker(workers, &recruitWorker{service: New(dsn, environment, nil)})
-	client, err := river.NewClient(riverpgxv5.New(pool), &river.Config{Schema: "undergrid_queue", SoftStopTimeout: 5 * time.Second, Workers: workers, Queues: map[string]river.QueueConfig{
-		river.QueueDefault:             {MaxWorkers: 2},
-		sourceRefreshQueue:             {MaxWorkers: 2},
-		externalNotificationQueue:      {MaxWorkers: 1},
-		externalFreshNotificationQueue: {MaxWorkers: 2, FetchCooldown: 100 * time.Millisecond, FetchPollInterval: 100 * time.Millisecond},
-		externalFreshMatchQueue:        {MaxWorkers: 4, FetchCooldown: 100 * time.Millisecond, FetchPollInterval: 100 * time.Millisecond},
-		externalReadyMatchQueue:        {MaxWorkers: 2, FetchCooldown: 100 * time.Millisecond, FetchPollInterval: 100 * time.Millisecond},
-		externalNotificationMatchQueue: {MaxWorkers: 4, FetchCooldown: 100 * time.Millisecond, FetchPollInterval: 100 * time.Millisecond},
-		"artifact_verification":        {MaxWorkers: 2},
-		"coordination":                 {MaxWorkers: 2},
-		"coordination_deadlines":       {MaxWorkers: 2},
-		discoveryQueue:                 {MaxWorkers: 2},
-		discoveryRepairQueue:           {MaxWorkers: 1},
-		// Fanout continuations cannot wait behind their own pair jobs. Both
-		// queues bound wakeup latency even when LISTEN/NOTIFY is coalesced.
-		// Eight bounded pair slots amortize durable completion latency under
-		// backlog; idle polling stays at 100ms to avoid busy polling.
-		watchRefreshQueue: {MaxWorkers: 8, FetchCooldown: time.Millisecond, FetchPollInterval: 100 * time.Millisecond},
-		watchFanoutQueue:  {MaxWorkers: 2, FetchCooldown: 100 * time.Millisecond, FetchPollInterval: 100 * time.Millisecond},
-	}, PeriodicJobs: []*river.PeriodicJob{river.NewPeriodicJob(river.PeriodicInterval(time.Minute), func() (river.JobArgs, *river.InsertOpts) {
+	client, err := river.NewClient(riverpgxv5.New(pool), &river.Config{Schema: "undergrid_queue", SoftStopTimeout: 5 * time.Second, Workers: workers, Queues: queues, PeriodicJobs: []*river.PeriodicJob{river.NewPeriodicJob(river.PeriodicInterval(time.Minute), func() (river.JobArgs, *river.InsertOpts) {
 		return sourceRefreshArgs{}, &river.InsertOpts{Queue: sourceRefreshQueue, Priority: 1, MaxAttempts: 5}
 	}, &river.PeriodicJobOpts{RunOnStart: true}), river.NewPeriodicJob(river.PeriodicInterval(time.Minute), func() (river.JobArgs, *river.InsertOpts) {
 
@@ -212,10 +219,26 @@ func runWorkerWithSources(ctx context.Context, dsn, environment string, sources 
 	if err = client.Start(workerContext); err != nil {
 		return err
 	}
-	<-ctx.Done()
+	maintenance := time.NewTicker(time.Second)
+	defer maintenance.Stop()
+	var maintenanceErr error
+maintenanceLoop:
+	for {
+		select {
+		case <-ctx.Done():
+			break maintenanceLoop
+		case <-maintenance.C:
+			if _, err = retainAgedDiscovery(ctx, pool); err != nil {
+				if ctx.Err() == nil {
+					maintenanceErr = err
+				}
+				break maintenanceLoop
+			}
+		}
+	}
 	// Drain briefly, then River cancels running job contexts before the outer
 	// deadline. This leaves time to record retriable work before closing the pool.
 	shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	return client.Stop(shutdown)
+	return errors.Join(maintenanceErr, client.Stop(shutdown))
 }
