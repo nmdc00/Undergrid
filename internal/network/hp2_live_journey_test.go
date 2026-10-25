@@ -22,6 +22,14 @@ import (
 // This is an opt-in setup foundation, not the complete HP2 journey. The second
 // tag avoids adding unfinished HP2 expectations to HP1's established live gate.
 func TestHP2LiveThreeOwnerScopedSetupFoundation(t *testing.T) {
+	hp2LiveOwnerSetup(t, false)
+}
+
+func TestHP2LiveOwnerPublicationAndWithdrawal(t *testing.T) {
+	hp2LiveOwnerSetup(t, true)
+}
+
+func hp2LiveOwnerSetup(t *testing.T, publication bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	adminDSN := hp1RunDatabase(t, ctx)
@@ -113,6 +121,9 @@ func TestHP2LiveThreeOwnerScopedSetupFoundation(t *testing.T) {
 	browser := exec.CommandContext(ctx, node, filepath.Join(root, "web", "node_modules", "@playwright", "test", "cli.js"), "test", "--config", "playwright.hp2.config.ts")
 	browser.Dir = filepath.Join(root, "web")
 	browser.Env = append(os.Environ(), "UNDERGRID_HP1_BASE_URL="+app.URL, "UNDERGRID_HP2_ISSUER_URL="+issuer.URL, "UNDERGRID_TEST_CHROMIUM="+chromium, "UNDERGRID_HP1_BROWSER_ARTIFACTS="+artifacts)
+	if publication {
+		browser.Env = append(browser.Env, "UNDERGRID_HP2_OWNER_PUBLICATION=1")
+	}
 	output, err := browser.CombinedOutput()
 	t.Logf("Actual HP2 Chromium output:\n%s", output)
 	if err != nil {
@@ -158,5 +169,20 @@ func TestHP2LiveThreeOwnerScopedSetupFoundation(t *testing.T) {
 	}
 	if collaborationEffects != 0 {
 		t.Fatalf("setup fabricated %d collaboration effects", collaborationEffects)
+	}
+	if publication {
+		var revisions, revisionEvents, publicCurrent int
+		var firstProjection, latestProjection []byte
+		if err = admin.QueryRow(ctx, `SELECT
+ (SELECT count(*) FROM undergrid.intent_revisions),
+ (SELECT count(*) FROM undergrid.events WHERE type='intent.revised'),
+ (SELECT count(*) FROM undergrid.intents WHERE visibility='redacted_public'),
+ (SELECT r.public_projection FROM undergrid.intent_revisions r JOIN undergrid.intents i ON i.id=r.intent_id JOIN undergrid.principals p ON p.id=i.principal_id WHERE p.subject='hp2-controlled-buyer-a' AND r.revision=1),
+ (SELECT r.public_projection FROM undergrid.intent_revisions r JOIN undergrid.intents i ON i.id=r.intent_id JOIN undergrid.principals p ON p.id=i.principal_id WHERE p.subject='hp2-controlled-buyer-a' AND r.revision=i.current_revision)`).Scan(&revisions, &revisionEvents, &publicCurrent, &firstProjection, &latestProjection); err != nil {
+			t.Fatal(err)
+		}
+		if revisions != 3 || revisionEvents != 1 || publicCurrent != 0 || !bytes.Contains(firstProjection, []byte("Public environmental catalogue")) || string(latestProjection) != "{}" {
+			t.Fatalf("publication/revocation effects: revisions=%d events=%d public=%d first=%s latest=%s", revisions, revisionEvents, publicCurrent, firstProjection, latestProjection)
+		}
 	}
 }
