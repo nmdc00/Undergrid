@@ -140,7 +140,7 @@ Only ledger/map documentation changes follow this tested source.
 
 - Coupled actual console build and artifact/source manifest: PASS, Vite 1.50 seconds; `/tmp/undergrid-hp2-foundation-d8ffa39-build.log`. The existing unchanged dependency cache was linked into this worktree; no install/download occurred. Both live tests verified the manifest before Chromium.
 - Command: `go test -tags=hp1_live,hp2_live -race -json -count=1 -timeout=5m ./internal/network -run '^Test(HP1LiveOwnerSetupAndHonestGap|HP2LiveThreeOwnerScopedSetupFoundation)$'` with the preserved isolated 55500 network PostgreSQL template-copy environment and cached Chromium/libraries.
-- Runtime log: `/tmp/undergrid-hp2-foundation-d8ffa39-55500.jsonl`; **PASS 44.185 seconds, two top-level tests, zero failures/skips**. HP1 setup/gap passed 27.59 seconds; the new HP2 setup foundation passed 15.58 seconds (actual browser scenario 13.8 seconds).
+- Runtime log: `/tmp/undergrid-hp2-foundation-d8ffa39-55500.jsonl`; **PASS 44.185 seconds, two top-level tests, zero failures/skips**. HP1 setup/gap passed 27.59 seconds; the new HP2 setup foundation passed 15.58 seconds (actual browser scenario 12.4 seconds; Playwright runner 13.8 seconds).
 - HP2 retained run database: `hp1_run_24f1cc40edd6465ebfbaebcec563bf92` on network fixture port 55500; the shared template helper retains its historical database-name prefix. Browser artifacts: `/tmp/undergrid-hp2-browser-2247452439`.
 - HP1 regression retained database: `hp1_run_d65d964b022747d5baea583f7c24d89d` on the same isolated network server, separately cloned before its browser commands.
 - Static command: `go vet -tags=hp1_live,hp2_live ./internal/network`; PASS, `/tmp/undergrid-hp2-foundation-d8ffa39-vet.log`. Formatting and diff checks pass.
