@@ -153,8 +153,10 @@ The first capacity task above remains unchanged. The acceptance audit at release
 `docs/HP2_ACCEPTANCE.md` maps the actual routes, effects, authority/recovery
 requirements and missing behaviors. Its scoped three-account setup foundation passed an actual browser/API/PostgreSQL
 gate after the capacity worker released its test lease and root granted one. The
-ledger records exact source, commands, retained databases and fixture limitations;
-public projection and the full collaboration journey remain unproven.
+ledger records exact source, commands, retained databases and fixture limitations.
+Public projection was unproven at that foundation checkpoint; the publication
+feature below now has actual local proof, pending merge. The full collaboration
+journey remains unproven.
 
 ## Parallel owner behavior: explicit intention publication
 
