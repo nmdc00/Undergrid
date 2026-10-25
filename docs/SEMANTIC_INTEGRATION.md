@@ -90,6 +90,10 @@ twenty-two queues/thirty-two pool connections from that same registration map.
    intersection. No transitive compatibility or independence inference from
    multiple account IDs. Test partial-remainder conservation of typed fields and
    privacy, including current owner callbacks and canonical response validation.
+   Publication preview/review must use the actual draft typed constraints sent
+   by create/revision, not stale stored detail. Changes to summary, coverage,
+   license, format or other published fields invalidate that review; payload and
+   preview must agree without exposing private fields.
 
 Use new forward migrations for grant/embedding enforcement and semantic dismissal.
 Reserve 042 onward for this task; preserve applied 033–037/040/041 byte-for-byte.
