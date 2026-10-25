@@ -100,7 +100,7 @@ test(
               })
               .selectOption("redacted_public");
             await page
-              .getByLabel("Public summary", { exact: true })
+              .getByRole("textbox", { name: "Public summary", exact: true })
               .fill("Public environmental catalogue");
             const preview = page.getByRole("region", {
               name: "Public projection preview",
@@ -192,10 +192,11 @@ test(
             exact: true,
           }),
         ).toHaveCount(0);
-        await ownerPage
-          .getByLabel("Public summary", { exact: true })
+        const revisionForm = ownerPage.locator("form").filter({ has: ownerPage.getByRole("heading", { name: "New intention revision", exact: true }) });
+        await revisionForm
+          .getByRole("textbox", { name: "Public summary", exact: true })
           .fill("Updated public environmental catalogue");
-        await ownerPage
+        await revisionForm
           .getByLabel("I reviewed this public projection", { exact: true })
           .check();
         const change = ownerPage.waitForResponse(
