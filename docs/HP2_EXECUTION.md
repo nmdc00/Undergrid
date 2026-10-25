@@ -125,11 +125,11 @@ Full Undergrid v0.1 completion requires the other paths and all release gates to
 The first capacity task above remains unchanged. The acceptance audit at release
 `c0087c0` additionally records these concrete owner-control dependencies:
 
-- Intention publication: the shared `IntentInput` and owner intention command can
-  accept `redacted_public` with `public_summary`, but `App.tsx` currently offers
-  private/restricted creation and preserves visibility during revision. Explicit
-  owner selection/review of a public projection is missing; do not bypass it with
-  fixture SQL or relabel a hidden API call as completed browser publication.
+- Intention publication: the audited release offered only private/restricted
+  creation. This feature implements and locally proves explicit public creation,
+  fixed-audience summary review and withdrawal, pending review/merge; see
+  `OWNER_INTENTION_PUBLICATION.md`. True same-ID disclosure conversion remains
+  unsupported by the published domain contract, not hidden behind fixture SQL.
 - Builder opt-in: owner `POST /v1/agents` accepts `AgentProfile` with public,
   invitation, recruitment and declared capability fields. The registration form
   sends name/scopes only. Real owner controls must supply explicit bounded opt-ins;
