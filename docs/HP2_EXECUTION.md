@@ -129,11 +129,11 @@ Full Undergrid v0.1 completion requires the other paths and all release gates to
 The first capacity task above remains unchanged. The acceptance audit at release
 `c0087c0` additionally records these concrete owner-control dependencies:
 
-- Intention publication: the shared `IntentInput` and owner intention command can
-  accept `redacted_public` with `public_summary`, but `App.tsx` currently offers
-  private/restricted creation and preserves visibility during revision. Explicit
-  owner selection/review of a public projection is missing; do not bypass it with
-  fixture SQL or relabel a hidden API call as completed browser publication.
+- Intention publication: the audited release offered only private/restricted
+  creation. This feature implements and locally proves explicit public creation,
+  fixed-audience summary review and withdrawal, pending review/merge; see
+  `OWNER_INTENTION_PUBLICATION.md`. True same-ID disclosure conversion remains
+  unsupported by the published domain contract, not hidden behind fixture SQL.
 - Builder opt-in: owner `POST /v1/agents` accepts `AgentProfile` with public,
   invitation, recruitment and declared capability fields. The registration form
   sends name/scopes only. Real owner controls must supply explicit bounded opt-ins;
@@ -157,5 +157,69 @@ The first capacity task above remains unchanged. The acceptance audit at release
 `docs/HP2_ACCEPTANCE.md` maps the actual routes, effects, authority/recovery
 requirements and missing behaviors. Its scoped three-account setup foundation passed an actual browser/API/PostgreSQL
 gate after the capacity worker released its test lease and root granted one. The
-ledger records exact source, commands, retained databases and fixture limitations;
-public projection and the full collaboration journey remain unproven.
+ledger records exact source, commands, retained databases and fixture limitations.
+Public projection was unproven at that foundation checkpoint; the publication
+feature below now has actual local proof, pending merge. The full collaboration
+journey remains unproven.
+
+## Parallel owner behavior: explicit intention publication
+
+Owner: `publication_oct25` (continuing the preserved branch). One branch
+`feat/v0.1-owner-intention-publication`, from release `316fd4e`, isolated at
+`/tmp/undergrid-worktrees/owner-intention-publication/feat-v0.1-owner-intention-publication`.
+This closes the audited HP2 step-one owner publication control independently of
+the capacity implementation. The locked capacity task and its test lease remain
+unchanged. Owning requirements: HP2 step 1, TDD §§5.1/5.4 and existing selected
+public projection/privacy contracts. Owning evidence:
+`docs/OWNER_INTENTION_PUBLICATION.md` plus current `HP2_ACCEPTANCE.md` status.
+
+Observable behavior: owner creation explicitly selects `redacted_public`, enters
+a bounded public summary and reviews the actual allowlisted summary/output/hard-
+requirements projection. Existing public intentions can revise their selected
+summary after another review, while preserving their fixed audience. Private remains
+the creation default; editing a private objective or expiry must not publish it.
+The private objective, budget, preferences and server-owned partial audit are
+never included in the public preview or foreign projection. Existing stored
+intention/history remain private when their current visibility is private.
+
+Runtime entrypoints remain the existing owner `POST /v1/owner/intents` and versioned
+`PATCH /v1/owner/intents/{id}` commands, followed by normal authenticated foreign
+`GET /v1/intents/{id}`. Reuse closed `IntentInput` and current domain projection,
+authority, revision/idempotency/event/inbox/queue behavior. Do not add DTO fields,
+provider/consent policy, a separate publication table or adapter-only authority.
+The original task incorrectly assumed public-to-private revision was already
+supported. The [published revision contract](evidence/intention-revisions.md)
+deliberately rejects audience changes with `visibility_change_requires_grant`.
+Keep that guard unchanged. Explicit existing withdrawal stops current public
+discovery, disables the watch and denies foreign reads while retaining the
+`redacted_public` visibility, revision head and immutable history. It is not a
+private conversion or deletion. True consented disclosure transitions remain
+separately unimplemented; do not implement them through generic revision UI.
+
+Acceptance and required proof:
+
+- Author and run focused UI behavioral RED before publication behavior changes.
+  Prove explicit visibility/summary/projection review, private defaults, create
+  and revise payloads, unchanged private fields and no automatic publication on
+  unrelated edits. Preserve exact retry keys after malformed/unknown responses
+  and ignore stale actor/intention responses using the existing request contract.
+- Actual multi-owner browser/API/restricted-PostgreSQL lifecycle: A explicitly
+  publishes through the console, B's normally issued scoped credential sees only
+  the current allowlisted projection, A revises the public summary at the same
+  audience, then explicitly withdraws; B receives 404. Observe the updated public
+  projection before withdrawal and retained revision/history afterward. A direct
+  attempted audience change still returns the existing 409.
+  No product SQL seeds or hidden public revision may complete a browser step.
+- Observe immutable revision/head changes and the existing normalized effects.
+  Run relevant partial-remainder/audit privacy, current actor/revision and owner
+  authorization regressions. Current public or private read policy remains a
+  domain responsibility; do not widen it merely to make a UI test pass.
+- Update feature evidence and HP2 ledger as implemented, locally proven, merged
+  or pending accurately before the PR merges. Controlled identities and source
+  fixtures do not establish independent beneficial owners or provider relevance.
+
+Review actual DRY knowledge ownership (the server remains the public projection
+contract), orthogonality, bounded readable inputs, retry/error resource ownership
+and private failure behavior. All Go/Node gates require a root-granted serial
+lease; authoring this contract grants none. Full HP2 discovery, recruitment,
+room/plan/application flows and external qualification remain open.

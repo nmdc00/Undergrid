@@ -22,6 +22,14 @@ import (
 // This is an opt-in setup foundation, not the complete HP2 journey. The second
 // tag avoids adding unfinished HP2 expectations to HP1's established live gate.
 func TestHP2LiveThreeOwnerScopedSetupFoundation(t *testing.T) {
+	hp2LiveOwnerSetup(t, false)
+}
+
+func TestHP2LiveOwnerPublicationAndWithdrawal(t *testing.T) {
+	hp2LiveOwnerSetup(t, true)
+}
+
+func hp2LiveOwnerSetup(t *testing.T, publication bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	adminDSN := hp1RunDatabase(t, ctx)
@@ -113,6 +121,9 @@ func TestHP2LiveThreeOwnerScopedSetupFoundation(t *testing.T) {
 	browser := exec.CommandContext(ctx, node, filepath.Join(root, "web", "node_modules", "@playwright", "test", "cli.js"), "test", "--config", "playwright.hp2.config.ts")
 	browser.Dir = filepath.Join(root, "web")
 	browser.Env = append(os.Environ(), "UNDERGRID_HP1_BASE_URL="+app.URL, "UNDERGRID_HP2_ISSUER_URL="+issuer.URL, "UNDERGRID_TEST_CHROMIUM="+chromium, "UNDERGRID_HP1_BROWSER_ARTIFACTS="+artifacts)
+	if publication {
+		browser.Env = append(browser.Env, "UNDERGRID_HP2_OWNER_PUBLICATION=1")
+	}
 	output, err := browser.CombinedOutput()
 	t.Logf("Actual HP2 Chromium output:\n%s", output)
 	if err != nil {
@@ -120,8 +131,8 @@ func TestHP2LiveThreeOwnerScopedSetupFoundation(t *testing.T) {
 	}
 	// Read-only normalized attribution and effect checks. Names encode fixture
 	// identities only; separate accounts do not establish independent ownership.
-	rows, err := admin.Query(ctx, `SELECT p.subject,count(DISTINCT a.id),count(DISTINCT c.id),count(DISTINCT i.id),bool_and(COALESCE(i.visibility='private' AND i.state='active' AND i.watch_enabled,true))
- FROM undergrid.principals p LEFT JOIN undergrid.agents a ON a.principal_id=p.id LEFT JOIN undergrid.credentials c ON c.agent_id=a.id LEFT JOIN undergrid.intents i ON i.principal_id=p.id GROUP BY p.subject ORDER BY p.subject`)
+	rows, err := admin.Query(ctx, `SELECT p.subject,count(DISTINCT a.id),count(DISTINCT c.id),count(DISTINCT i.id),bool_and(COALESCE(CASE WHEN $1 AND p.subject='hp2-controlled-buyer-a' THEN i.visibility='redacted_public' AND i.state='withdrawn' AND NOT i.watch_enabled ELSE i.visibility='private' AND i.state='active' AND i.watch_enabled END,true))
+ FROM undergrid.principals p LEFT JOIN undergrid.agents a ON a.principal_id=p.id LEFT JOIN undergrid.credentials c ON c.agent_id=a.id LEFT JOIN undergrid.intents i ON i.principal_id=p.id GROUP BY p.subject ORDER BY p.subject`, publication)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,8 +140,8 @@ func TestHP2LiveThreeOwnerScopedSetupFoundation(t *testing.T) {
 	for rows.Next() {
 		var subject string
 		var agents, credentials, intents int
-		var privateWatches bool
-		if err = rows.Scan(&subject, &agents, &credentials, &intents, &privateWatches); err != nil {
+		var expectedState bool
+		if err = rows.Scan(&subject, &agents, &credentials, &intents, &expectedState); err != nil {
 			rows.Close()
 			t.Fatal(err)
 		}
@@ -138,9 +149,9 @@ func TestHP2LiveThreeOwnerScopedSetupFoundation(t *testing.T) {
 		if subject == "hp2-controlled-builder-c" {
 			expectedIntents = 0
 		}
-		if agents != 1 || credentials != 1 || intents != expectedIntents || !privateWatches {
+		if agents != 1 || credentials != 1 || intents != expectedIntents || !expectedState {
 			rows.Close()
-			t.Fatalf("unexpected %s setup effects: agents=%d credentials=%d intents=%d private=%v", subject, agents, credentials, intents, privateWatches)
+			t.Fatalf("unexpected %s setup effects: agents=%d credentials=%d intents=%d expected_state=%v", subject, agents, credentials, intents, expectedState)
 		}
 		seen[subject] = true
 	}
@@ -158,5 +169,25 @@ func TestHP2LiveThreeOwnerScopedSetupFoundation(t *testing.T) {
 	}
 	if collaborationEffects != 0 {
 		t.Fatalf("setup fabricated %d collaboration effects", collaborationEffects)
+	}
+	if publication {
+		var revisions, revisionEvents, withdrawalEvents, publicCurrent, version, currentRevision int
+		var unchangedPrivateFields bool
+		var firstProjection, latestProjection []byte
+		if err = admin.QueryRow(ctx, `SELECT
+ (SELECT count(*) FROM undergrid.intent_revisions),
+ (SELECT count(*) FROM undergrid.events WHERE type='intent.revised'),
+ (SELECT count(*) FROM undergrid.events WHERE type='intent.withdrawn'),
+ (SELECT count(*) FROM undergrid.public_intents()),
+ (SELECT i.version FROM undergrid.intents i JOIN undergrid.principals p ON p.id=i.principal_id WHERE p.subject='hp2-controlled-buyer-a'),
+ (SELECT i.current_revision FROM undergrid.intents i JOIN undergrid.principals p ON p.id=i.principal_id WHERE p.subject='hp2-controlled-buyer-a'),
+ (SELECT first.document-'public_summary'=latest.document-'public_summary' FROM undergrid.intents i JOIN undergrid.principals p ON p.id=i.principal_id JOIN undergrid.intent_revisions first ON first.intent_id=i.id AND first.revision=1 JOIN undergrid.intent_revisions latest ON latest.intent_id=i.id AND latest.revision=i.current_revision WHERE p.subject='hp2-controlled-buyer-a'),
+ (SELECT r.public_projection FROM undergrid.intent_revisions r JOIN undergrid.intents i ON i.id=r.intent_id JOIN undergrid.principals p ON p.id=i.principal_id WHERE p.subject='hp2-controlled-buyer-a' AND r.revision=1),
+ (SELECT r.public_projection FROM undergrid.intent_revisions r JOIN undergrid.intents i ON i.id=r.intent_id JOIN undergrid.principals p ON p.id=i.principal_id WHERE p.subject='hp2-controlled-buyer-a' AND r.revision=i.current_revision)`).Scan(&revisions, &revisionEvents, &withdrawalEvents, &publicCurrent, &version, &currentRevision, &unchangedPrivateFields, &firstProjection, &latestProjection); err != nil {
+			t.Fatal(err)
+		}
+		if revisions != 3 || revisionEvents != 1 || withdrawalEvents != 1 || publicCurrent != 0 || version != 3 || currentRevision != 2 || !unchangedPrivateFields || !bytes.Contains(firstProjection, []byte("Public environmental catalogue")) || !bytes.Contains(latestProjection, []byte("Updated public environmental catalogue")) {
+			t.Fatalf("publication/revocation effects: revisions=%d revised=%d withdrawn=%d public=%d version=%d head=%d conserved=%v first=%s latest=%s", revisions, revisionEvents, withdrawalEvents, publicCurrent, version, currentRevision, unchangedPrivateFields, firstProjection, latestProjection)
+		}
 	}
 }

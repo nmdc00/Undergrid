@@ -7,6 +7,13 @@ import { OwnerPolicy } from "./OwnerPolicy";
 import { ExternalLeads } from "./ExternalLeads";
 import { OpportunityDismissal } from "./OpportunityDismissal";
 import {
+  IntentionPublication,
+  intentionVisibility,
+  publicationReady,
+  validateSavedIntention,
+  type IntentionVisibility,
+} from "./IntentionPublication";
+import {
   ApiError,
   items,
   object,
@@ -30,6 +37,14 @@ const ordinaryScopes = [
   "plans:propose",
   "tasks:progress",
 ];
+const sourceCatalogOutput = {
+  kind: "json_dataset",
+  schema_family: "source_catalog_v1",
+} as const;
+const sourceCatalogConstraints = {
+  required_fields: ["source_id", "source_url"],
+  license_ids: ["CC0-1.0"],
+};
 function localDateTime(instant: string): string {
   const date = new Date(instant);
   const pad = (part: number) => String(part).padStart(2, "0");
@@ -104,12 +119,23 @@ export function App() {
     [grantExpiry, setGrantExpiry] = useState("");
   const [editingRevision, setEditingRevision] = useState(false),
     [revisionObjective, setRevisionObjective] = useState(""),
-    [revisionExpiry, setRevisionExpiry] = useState("");
+    [revisionExpiry, setRevisionExpiry] = useState(""),
+    [revisionVisibility, setRevisionVisibility] =
+      useState<IntentionVisibility>("private"),
+    [publicSummary, setPublicSummary] = useState(""),
+    [reviewedCreation, setReviewedCreation] = useState(""),
+    [revisionSummary, setRevisionSummary] = useState(""),
+    [reviewedRevision, setReviewedRevision] = useState("");
   const generation = useRef(0);
   const [intentionExpiry, setIntentionExpiry] = useState(() =>
     new Date(Date.now() + 30 * 86400000).toISOString(),
   );
-  async function refresh(token: string) {
+  async function refresh(token: string, expectedGeneration?: number) {
+    if (
+      expectedGeneration !== undefined &&
+      expectedGeneration !== generation.current
+    )
+      return;
     const mine = ++generation.current;
     const [a, i, p] = await Promise.all([
       request("/v1/agents", token),
@@ -122,6 +148,7 @@ export function App() {
     setIntents(items(i));
     setPolicy(p);
     setSelectedAgent((previous) => previous || (own[0] ? text(own[0].id) : ""));
+    return mine;
   }
   useEffect(() => {
     let active = true;
@@ -191,6 +218,20 @@ export function App() {
   }
   const terminalIntention =
     detail?.state === "withdrawn" || detail?.state === "satisfied";
+  const creationPublication = {
+    identity: JSON.stringify([csrf, selectedAgent]),
+    visibility: intentVisibility,
+    summary: publicSummary,
+    output: sourceCatalogOutput,
+    hardConstraints: sourceCatalogConstraints,
+  };
+  const revisionPublication = {
+    identity: JSON.stringify([csrf, detail?.id, detail?.etag]),
+    visibility: revisionVisibility,
+    summary: revisionSummary,
+    output: detail?.output,
+    hardConstraints: detail?.hard_constraints,
+  };
   return (
     <>
       <header>
@@ -280,7 +321,11 @@ export function App() {
               <h1>Your workspace</h1>
               <button
                 disabled={busy}
-                onClick={() => void action(() => refresh(csrf))}
+                onClick={() =>
+                  void action(async () => {
+                    await refresh(csrf);
+                  })
+                }
               >
                 Refresh
               </button>
@@ -522,7 +567,26 @@ export function App() {
                       {!editingRevision ? (
                         <button
                           disabled={busy}
-                          onClick={() => setEditingRevision(true)}
+                          onClick={() => {
+                            try {
+                              setRevisionVisibility(
+                                intentionVisibility(detail.visibility),
+                              );
+                              setRevisionSummary(
+                                typeof detail.public_summary === "string"
+                                  ? detail.public_summary
+                                  : "",
+                              );
+                              setReviewedRevision("");
+                              setEditingRevision(true);
+                            } catch (failure) {
+                              setError(
+                                failure instanceof Error
+                                  ? failure.message
+                                  : "Reload the intention before editing",
+                              );
+                            }
+                          }}
                         >
                           {detail.state === "expired"
                             ? "Renew intention"
@@ -532,6 +596,15 @@ export function App() {
                         <form
                           onSubmit={(e) =>
                             submit(e, async () => {
+                              if (
+                                !publicationReady(
+                                  revisionPublication,
+                                  reviewedRevision,
+                                )
+                              )
+                                return;
+                              const mine = generation.current;
+                              const previous = detail;
                               const revision = {
                                 objective: revisionObjective,
                                 output: detail.output,
@@ -540,44 +613,66 @@ export function App() {
                                   ? {}
                                   : { preferences: detail.preferences }),
                                 visibility: detail.visibility,
-                                ...(detail.public_summary === undefined
-                                  ? {}
-                                  : { public_summary: detail.public_summary }),
+                                ...(detail.visibility === "redacted_public"
+                                  ? { public_summary: revisionSummary }
+                                  : {}),
                                 budget: detail.budget ?? null,
                                 watch: detail.watch,
-                                expires_at: new Date(
-                                  revisionExpiry,
-                                ).toISOString(),
+                                expires_at:
+                                  revisionExpiry ===
+                                  localDateTime(text(detail.expires_at))
+                                    ? text(detail.expires_at)
+                                    : new Date(revisionExpiry).toISOString(),
                               };
-                              const out = await request(
-                                `/v1/owner/intents/${encodeURIComponent(text(detail.id))}`,
-                                csrf,
-                                "PATCH",
-                                { revision },
-                                text(detail.etag),
-                              );
+                              let out: ObjectValue;
+                              try {
+                                out = await request(
+                                  `/v1/owner/intents/${encodeURIComponent(text(detail.id))}`,
+                                  csrf,
+                                  "PATCH",
+                                  { revision },
+                                  text(detail.etag),
+                                  detail.visibility === "redacted_public" ||
+                                    revisionVisibility === "redacted_public"
+                                    ? (result) =>
+                                        validateSavedIntention(
+                                          result,
+                                          revision,
+                                          previous,
+                                        )
+                                    : undefined,
+                                );
+                              } catch (failure) {
+                                if (mine !== generation.current) return;
+                                throw failure;
+                              }
+                              if (mine !== generation.current) return;
                               setDetail(out);
                               setEditingRevision(false);
                               setRevisionObjective(text(out.objective));
                               setRevisionExpiry(
                                 localDateTime(text(out.expires_at)),
                               );
-                              await refresh(csrf);
-                              setIntentGrants(
-                                items(
-                                  await request(
-                                    `/v1/owner/intents/${encodeURIComponent(text(out.id))}/grants`,
-                                    csrf,
-                                  ),
-                                ),
+                              const refreshed = await refresh(csrf, mine);
+                              if (
+                                refreshed === undefined ||
+                                refreshed !== generation.current
+                              )
+                                return;
+                              const grants = await request(
+                                `/v1/owner/intents/${encodeURIComponent(text(out.id))}/grants`,
+                                csrf,
                               );
+                              if (refreshed === generation.current)
+                                setIntentGrants(items(grants));
                             })
                           }
                         >
                           <h4>New intention revision</h4>
                           <p>
-                            This keeps the current output, constraints,
-                            visibility, budget, and watch settings. Changes take
+                            This keeps the current output, constraints, budget,
+                            visibility and watch settings. Review any public
+                            projection before saving its summary. Changes take
                             effect after you save; expired intentions resume
                             with a new expiry.
                           </p>
@@ -593,6 +688,15 @@ export function App() {
                               }
                             />
                           </label>
+                          <IntentionPublication
+                            fixedAudience
+                            review={revisionPublication}
+                            label="Revision visibility"
+                            reviewedKey={reviewedRevision}
+                            onVisibility={setRevisionVisibility}
+                            onSummary={setRevisionSummary}
+                            onReview={setReviewedRevision}
+                          />
                           <label>
                             Expires at (local time)
                             <input
@@ -604,7 +708,16 @@ export function App() {
                               }
                             />
                           </label>
-                          <button disabled={busy || !revisionObjective.trim()}>
+                          <button
+                            disabled={
+                              busy ||
+                              !revisionObjective.trim() ||
+                              !publicationReady(
+                                revisionPublication,
+                                reviewedRevision,
+                              )
+                            }
+                          >
                             {detail.state === "expired"
                               ? "Renew intention"
                               : "Save new revision"}
@@ -632,15 +745,39 @@ export function App() {
                         }
                         onClick={() =>
                           void action(async () => {
-                            const out = await request(
-                              `/v1/owner/intents/${encodeURIComponent(text(detail.id))}`,
-                              csrf,
-                              "PATCH",
-                              { state },
-                              text(detail.etag),
-                            );
+                            const mine = generation.current;
+                            let out: ObjectValue;
+                            try {
+                              out = await request(
+                                `/v1/owner/intents/${encodeURIComponent(text(detail.id))}`,
+                                csrf,
+                                "PATCH",
+                                { state },
+                                text(detail.etag),
+                                detail.visibility === "redacted_public" &&
+                                  state === "withdrawn"
+                                  ? (result) =>
+                                      validateSavedIntention(
+                                        result,
+                                        {
+                                          ...detail,
+                                          watch: {
+                                            ...object(detail.watch),
+                                            enabled: false,
+                                          },
+                                        },
+                                        detail,
+                                        "withdrawn",
+                                      )
+                                  : undefined,
+                              );
+                            } catch (failure) {
+                              if (mine !== generation.current) return;
+                              throw failure;
+                            }
+                            if (mine !== generation.current) return;
                             setDetail(out);
-                            await refresh(csrf);
+                            await refresh(csrf, mine);
                           })
                         }
                       >
@@ -654,7 +791,13 @@ export function App() {
                       </button>
                     ),
                   )}
-                  <button onClick={() => setDetail(null)}>
+                  <button
+                    onClick={() => {
+                      generation.current++;
+                      setDetail(null);
+                      setEditingRevision(false);
+                    }}
+                  >
                     Close intention
                   </button>
                   {detail.visibility === "restricted" && (
@@ -801,29 +944,49 @@ export function App() {
               <form
                 onSubmit={(e) =>
                   submit(e, async () => {
-                    await request("/v1/owner/intents", csrf, "POST", {
-                      agent_id: selectedAgent,
-                      intent: {
-                        objective,
-                        output: {
-                          kind: "json_dataset",
-                          schema_family: "source_catalog_v1",
-                        },
-                        hard_constraints: {
-                          required_fields: ["source_id", "source_url"],
-                          license_ids: ["CC0-1.0"],
-                        },
-                        visibility: intentVisibility,
-                        watch: { enabled: watch, channels: ["inbox"] },
-                        expires_at: intentionExpiry,
-                      },
-                    } satisfies components["schemas"]["OwnerIntentInput"]);
+                    if (
+                      !publicationReady(creationPublication, reviewedCreation)
+                    )
+                      return;
+                    const mine = generation.current;
+                    const intent = {
+                      objective,
+                      output: sourceCatalogOutput,
+                      hard_constraints: sourceCatalogConstraints,
+                      visibility: intentVisibility,
+                      ...(intentVisibility === "redacted_public"
+                        ? { public_summary: publicSummary }
+                        : {}),
+                      watch: { enabled: watch, channels: ["inbox"] },
+                      expires_at: intentionExpiry,
+                    } satisfies components["schemas"]["IntentInput"];
+                    try {
+                      await request(
+                        "/v1/owner/intents",
+                        csrf,
+                        "POST",
+                        {
+                          agent_id: selectedAgent,
+                          intent,
+                        } satisfies components["schemas"]["OwnerIntentInput"],
+                        undefined,
+                        intentVisibility === "redacted_public"
+                          ? (result) => validateSavedIntention(result, intent)
+                          : undefined,
+                      );
+                    } catch (failure) {
+                      if (mine !== generation.current) return;
+                      throw failure;
+                    }
+                    if (mine !== generation.current) return;
                     setObjective("");
                     setIntentVisibility("private");
+                    setPublicSummary("");
+                    setReviewedCreation("");
                     setIntentionExpiry(
                       new Date(Date.now() + 30 * 86400000).toISOString(),
                     );
-                    await refresh(csrf);
+                    await refresh(csrf, mine);
                   })
                 }
               >
@@ -833,22 +996,14 @@ export function App() {
                   requirement. Expires in 30 days. This expresses a desired
                   license; it grants no contribution rights.
                 </p>
-                <label>
-                  Intention visibility
-                  <select
-                    value={intentVisibility}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      if (value === "private" || value === "restricted")
-                        setIntentVisibility(value);
-                    }}
-                  >
-                    <option value="private">Private</option>
-                    <option value="restricted">
-                      Restricted (grant selected fields to named principals)
-                    </option>
-                  </select>
-                </label>
+                <IntentionPublication
+                  review={creationPublication}
+                  label="Intention visibility"
+                  reviewedKey={reviewedCreation}
+                  onVisibility={setIntentVisibility}
+                  onSummary={setPublicSummary}
+                  onReview={setReviewedCreation}
+                />
                 <label>
                   Responsible agent
                   <select
@@ -883,7 +1038,14 @@ export function App() {
                   />
                   Monitor matches in the agent inbox
                 </label>
-                <button disabled={busy || !selectedAgent || !objective}>
+                <button
+                  disabled={
+                    busy ||
+                    !selectedAgent ||
+                    !objective ||
+                    !publicationReady(creationPublication, reviewedCreation)
+                  }
+                >
                   Create intention
                 </button>
               </form>
