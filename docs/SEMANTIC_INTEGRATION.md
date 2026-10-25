@@ -49,7 +49,8 @@ twenty-two queues/thirty-two pool connections from that same registration map.
 
 1. **Slow provider isolation.** Reproduce the direct-scan synchronous provider
    call before correcting it. Queue at least four slow public projections ahead
-   of a fresh exact-only private watcher/candidate, so two direct slots cannot
+   of a fresh private watcher without an external-processing grant and a matching
+   public candidate, so two direct slots cannot
    accidentally escape the five-second provider timeout just before the
    five-second discovery deadline. Exact scan and one opportunity/event/inbox
    must complete within the existing bound while provider work remains pending.
@@ -71,7 +72,9 @@ twenty-two queues/thirty-two pool connections from that same registration map.
    source/projection, consent and profile/configuration before provider POST,
    embedding persistence, matching, group reads and receipt recovery. A stale,
    withdrawn, legacy-unbound or mismatched private grant sends no content and
-   publishes no result. Test withdrawal/profile cutover during I/O and after an
+   produces no semantic observation/result derived from that grant. Legitimate
+   exact/external matching and the active watch continue. Test withdrawal/profile
+   cutover during I/O and after an
    embedding exists. Interactive credentials/scopes remain distinct from durable
    background watch/processing grants; do not silently stop a valid watch merely
    because an unrelated old token rotated.
