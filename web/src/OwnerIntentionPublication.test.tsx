@@ -148,14 +148,12 @@ async function preparePublicCreation() {
   await screen.findByRole("heading", { name: "Your workspace" });
   const visibility = screen.getByRole("combobox", {
     name: "Intention visibility",
-    exact: true,
   });
   expect((visibility as HTMLSelectElement).value).toBe("private");
   await userEvent.selectOptions(visibility, "redacted_public");
   const creationForm = screen
     .getByRole("heading", {
       name: "Create a source-catalog intention",
-      exact: true,
     })
     .closest("form")!;
   await userEvent.selectOptions(
@@ -172,7 +170,6 @@ async function preparePublicCreation() {
   );
   const preview = screen.getByRole("region", {
     name: "Public projection preview",
-    exact: true,
   });
   expect(preview.textContent).toContain(publicSummary);
   expect(preview.textContent).toContain("source_id");
@@ -180,7 +177,6 @@ async function preparePublicCreation() {
   expect(preview.textContent).not.toContain(privateObjective);
   const publish = screen.getByRole("button", {
     name: "Create intention",
-    exact: true,
   }) as HTMLButtonElement;
   expect(publish.disabled).toBe(true);
   await userEvent.click(
@@ -220,16 +216,12 @@ test("a public-summary revision keeps its fixed audience and private typed field
   await userEvent.click(
     await screen.findByRole("button", {
       name: "Review intention",
-      exact: true,
     }),
   );
-  await userEvent.click(
-    screen.getByRole("button", { name: "Edit intention", exact: true }),
-  );
+  await userEvent.click(screen.getByRole("button", { name: "Edit intention" }));
   expect(
     screen.queryByRole("combobox", {
       name: "Revision visibility",
-      exact: true,
     }),
   ).toBeNull();
   expect(
@@ -237,7 +229,6 @@ test("a public-summary revision keeps its fixed audience and private typed field
   ).toBeTruthy();
   const preview = screen.getByRole("region", {
     name: "Public projection preview",
-    exact: true,
   });
   expect(preview.textContent).not.toContain(privateObjective);
   expect(preview.textContent).not.toContain("private-preference-sentinel");
@@ -249,7 +240,6 @@ test("a public-summary revision keeps its fixed audience and private typed field
     (
       screen.getByRole("button", {
         name: "Save new revision",
-        exact: true,
       }) as HTMLButtonElement
     ).disabled,
   ).toBe(true);
@@ -257,7 +247,7 @@ test("a public-summary revision keeps its fixed audience and private typed field
     screen.getByLabelText("I reviewed this public projection", { exact: true }),
   );
   await userEvent.click(
-    screen.getByRole("button", { name: "Save new revision", exact: true }),
+    screen.getByRole("button", { name: "Save new revision" }),
   );
   await waitFor(() =>
     expect(
@@ -282,7 +272,7 @@ test("a public-summary revision keeps its fixed audience and private typed field
     expires_at: exactExpiry,
   });
   expect(new Headers(sent.init?.headers).get("If-Match")).toBe('"1"');
-  await screen.findByRole("button", { name: "Edit intention", exact: true });
+  await screen.findByRole("button", { name: "Edit intention" });
 });
 
 test("an uncertain public-create response retains the original reviewed command key and payload", async () => {
@@ -301,7 +291,6 @@ test("an uncertain public-create response retains the original reviewed command 
       (
         screen.getByRole("button", {
           name: "Create intention",
-          exact: true,
         }) as HTMLButtonElement
       ).disabled,
     ).toBe(false),
@@ -314,7 +303,7 @@ test("an uncertain public-create response retains the original reviewed command 
     ).value,
   ).toBe(publicSummary);
   await userEvent.click(
-    screen.getByRole("button", { name: "Create intention", exact: true }),
+    screen.getByRole("button", { name: "Create intention" }),
   );
   await waitFor(() =>
     expect(
@@ -337,7 +326,7 @@ test("a separate public creation draft cannot publish an unrelated private objec
   render(<App />);
   await screen.findByRole("heading", { name: "Your workspace" });
   await userEvent.selectOptions(
-    screen.getByRole("combobox", { name: "Intention visibility", exact: true }),
+    screen.getByRole("combobox", { name: "Intention visibility" }),
     "redacted_public",
   );
   await userEvent.type(
@@ -348,15 +337,12 @@ test("a separate public creation draft cannot publish an unrelated private objec
     screen.getByLabelText("I reviewed this public projection", { exact: true }),
   );
   await userEvent.click(
-    screen.getByRole("button", { name: "Review intention", exact: true }),
+    screen.getByRole("button", { name: "Review intention" }),
   );
-  await userEvent.click(
-    screen.getByRole("button", { name: "Edit intention", exact: true }),
-  );
+  await userEvent.click(screen.getByRole("button", { name: "Edit intention" }));
   expect(
     screen.queryByRole("combobox", {
       name: "Revision visibility",
-      exact: true,
     }),
   ).toBeNull();
   expect(screen.getByText("Audience is fixed: Private")).toBeTruthy();
@@ -364,7 +350,7 @@ test("a separate public creation draft cannot publish an unrelated private objec
   await userEvent.clear(objective);
   await userEvent.type(objective, "Updated private objective");
   await userEvent.click(
-    screen.getByRole("button", { name: "Save new revision", exact: true }),
+    screen.getByRole("button", { name: "Save new revision" }),
   );
   await waitFor(() =>
     expect(
@@ -389,12 +375,9 @@ test("explicit withdrawal revokes public discovery without changing visibility o
   await userEvent.click(
     await screen.findByRole("button", {
       name: "Review intention",
-      exact: true,
     }),
   );
-  await userEvent.click(
-    screen.getByRole("button", { name: "Withdraw", exact: true }),
-  );
+  await userEvent.click(screen.getByRole("button", { name: "Withdraw" }));
   await waitFor(() =>
     expect(
       requests.some(
@@ -409,9 +392,7 @@ test("explicit withdrawal revokes public discovery without changing visibility o
   expect(JSON.parse(String(sent.init?.body))).toEqual({ state: "withdrawn" });
   expect(new Headers(sent.init?.headers).get("If-Match")).toBe('"1"');
   await waitFor(() =>
-    expect(
-      screen.queryByRole("button", { name: "Edit intention", exact: true }),
-    ).toBeNull(),
+    expect(screen.queryByRole("button", { name: "Edit intention" })).toBeNull(),
   );
   expect(screen.getByText(/"visibility": "redacted_public"/)).toBeTruthy();
 });
@@ -422,12 +403,9 @@ test("a malformed withdrawal response preserves the same reviewed command for re
   await userEvent.click(
     await screen.findByRole("button", {
       name: "Review intention",
-      exact: true,
     }),
   );
-  await userEvent.click(
-    screen.getByRole("button", { name: "Withdraw", exact: true }),
-  );
+  await userEvent.click(screen.getByRole("button", { name: "Withdraw" }));
   await waitFor(() =>
     expect(
       requests.filter(
@@ -441,14 +419,11 @@ test("a malformed withdrawal response preserves the same reviewed command for re
       (
         screen.getByRole("button", {
           name: "Withdraw",
-          exact: true,
         }) as HTMLButtonElement
       ).disabled,
     ).toBe(false),
   );
-  await userEvent.click(
-    screen.getByRole("button", { name: "Withdraw", exact: true }),
-  );
+  await userEvent.click(screen.getByRole("button", { name: "Withdraw" }));
   await waitFor(() =>
     expect(
       requests.filter(
@@ -468,9 +443,7 @@ test("a malformed withdrawal response preserves the same reviewed command for re
     new Headers(sent[1].init?.headers).get("Idempotency-Key"),
   );
   await waitFor(() =>
-    expect(
-      screen.queryByRole("button", { name: "Edit intention", exact: true }),
-    ).toBeNull(),
+    expect(screen.queryByRole("button", { name: "Edit intention" })).toBeNull(),
   );
 });
 
@@ -500,22 +473,17 @@ test("a late withdrawal response cannot refresh an expired owner session", async
   await userEvent.click(
     await screen.findByRole("button", {
       name: "Review intention",
-      exact: true,
     }),
   );
-  await userEvent.click(
-    screen.getByRole("button", { name: "Withdraw", exact: true }),
-  );
+  await userEvent.click(screen.getByRole("button", { name: "Withdraw" }));
   await waitFor(() => expect(finishWithdrawal).toBeTypeOf("function"));
   await userEvent.selectOptions(
-    screen.getByRole("combobox", { name: "Inbox agent", exact: true }),
+    screen.getByRole("combobox", { name: "Inbox agent" }),
     "agent",
   );
   expired = true;
-  await userEvent.click(
-    screen.getByRole("button", { name: "Refresh inbox", exact: true }),
-  );
-  await screen.findByRole("link", { name: "Sign in", exact: true });
+  await userEvent.click(screen.getByRole("button", { name: "Refresh inbox" }));
+  await screen.findByRole("link", { name: "Sign in" });
   const readsBefore = fetch.mock.calls.filter(
     ([path, init]) => path === "/v1/owner/intents" && init?.method !== "POST",
   ).length;
@@ -551,9 +519,7 @@ test("a late withdrawal response cannot refresh an expired owner session", async
       ([path, init]) => path === "/v1/owner/intents" && init?.method !== "POST",
     ),
   ).toHaveLength(readsBefore);
-  expect(
-    screen.getByRole("link", { name: "Sign in", exact: true }),
-  ).toBeTruthy();
+  expect(screen.getByRole("link", { name: "Sign in" })).toBeTruthy();
 });
 
 test("a late withdrawal response cannot reopen a closed intention", async () => {
@@ -578,19 +544,14 @@ test("a late withdrawal response cannot reopen a closed intention", async () => 
   await userEvent.click(
     await screen.findByRole("button", {
       name: "Review intention",
-      exact: true,
     }),
   );
-  await userEvent.click(
-    screen.getByRole("button", { name: "Withdraw", exact: true }),
-  );
+  await userEvent.click(screen.getByRole("button", { name: "Withdraw" }));
   await waitFor(() => expect(finishWithdrawal).toBeTypeOf("function"));
   await userEvent.click(
-    screen.getByRole("button", { name: "Close intention", exact: true }),
+    screen.getByRole("button", { name: "Close intention" }),
   );
-  expect(
-    screen.queryByRole("heading", { name: privateObjective, exact: true }),
-  ).toBeNull();
+  expect(screen.queryByRole("heading", { name: privateObjective })).toBeNull();
   await act(async () =>
     finishWithdrawal(
       new Response(
@@ -618,9 +579,7 @@ test("a late withdrawal response cannot reopen a closed intention", async () => 
       ),
     ),
   );
-  expect(
-    screen.queryByRole("heading", { name: privateObjective, exact: true }),
-  ).toBeNull();
+  expect(screen.queryByRole("heading", { name: privateObjective })).toBeNull();
 });
 
 test("changing the selected public summary invalidates the prior projection review", async () => {
@@ -667,14 +626,12 @@ test("a late publication response cannot refresh an expired owner session", asyn
   await userEvent.click(await preparePublicCreation());
   await waitFor(() => expect(finishCreate).toBeTypeOf("function"));
   await userEvent.selectOptions(
-    screen.getByRole("combobox", { name: "Inbox agent", exact: true }),
+    screen.getByRole("combobox", { name: "Inbox agent" }),
     "agent",
   );
   expired = true;
-  await userEvent.click(
-    screen.getByRole("button", { name: "Refresh inbox", exact: true }),
-  );
-  await screen.findByRole("link", { name: "Sign in", exact: true });
+  await userEvent.click(screen.getByRole("button", { name: "Refresh inbox" }));
+  await screen.findByRole("link", { name: "Sign in" });
   const readsBefore = fetch.mock.calls.filter(
     ([path, init]) => path === "/v1/owner/intents" && init?.method !== "POST",
   ).length;
@@ -703,7 +660,5 @@ test("a late publication response cannot refresh an expired owner session", asyn
       ([path, init]) => path === "/v1/owner/intents" && init?.method !== "POST",
     ),
   ).toHaveLength(readsBefore);
-  expect(
-    screen.getByRole("link", { name: "Sign in", exact: true }),
-  ).toBeTruthy();
+  expect(screen.getByRole("link", { name: "Sign in" })).toBeTruthy();
 });

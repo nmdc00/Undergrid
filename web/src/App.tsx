@@ -321,7 +321,11 @@ export function App() {
               <h1>Your workspace</h1>
               <button
                 disabled={busy}
-                onClick={() => void action(() => refresh(csrf))}
+                onClick={() =>
+                  void action(async () => {
+                    await refresh(csrf);
+                  })
+                }
               >
                 Refresh
               </button>
