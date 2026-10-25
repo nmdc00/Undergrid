@@ -77,7 +77,17 @@ network fixtures and normal HTTP commands, before changing runtime behavior.
    completion-driven cooldown and 100-millisecond polling while preserving two
    workers, accepted schedules/attempts and the original recovery assertion.
 
-## Candidate acceptance, not yet proven
+6. The corrected and release-reconciled candidate `d2a476d` passed the complete
+   four-case PostgreSQL race gate: **78.297 seconds**, four top-level cases and
+   both legacy/restart subcases, zero failures/skips. The original five-second
+   initial/result/recovery and twelve-second shutdown assertions remain intact.
+   All forty post-start maintenance scans complete after the authority lock is
+   released. Whole-row preservation, bounded `256/41/0` batches with locked rows,
+   all exclusions and persisted fresh/retained pagination/pair routing also pass.
+   `/tmp/undergrid-capacity-green-attempt3-20261025.jsonl` and genuine template
+   copy `hp2_capacity_green_20261025_a3` are retained on network 55500.
+
+## Candidate acceptance and remaining integration
 
 The candidate retains the original two-phase five-second scan/result and
 twelve-second shutdown assertions and checks all accepted direct/fanout IDs and
@@ -88,8 +98,9 @@ exclude running/fresh/unique/unrelated states, exercise actual post-start runtim
 maintenance, and dispatch persisted fresh/retained River jobs through paginated
 fanout to check descendant scheduling ownership.
 
-Implementation and the additional tests are authored; GREEN, regressions, review
-and release integration remain pending. Controlled accounts prove separate
+Implementation and the focused acceptance gate are proven; affected retained
+runtime/HP1 regressions, static checks, review and release integration remain
+pending. Controlled accounts prove separate
 credential authority, not independent beneficial ownership. No semantic/provider,
 real-cohort, source, legal or deployment qualification is established by these
 queue tests. HP2 remains open.
