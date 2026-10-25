@@ -119,3 +119,39 @@ one complete actual journey, adjacent negative/recovery evidence and reviewed
 release integration. Real independently operated participants and protocol
 clients, provider/source/legal approvals and deployment remain external gates.
 Full Undergrid v0.1 completion requires the other paths and all release gates too.
+
+## Audited owner entrypoints and missing controls
+
+The first capacity task above remains unchanged. The acceptance audit at release
+`c0087c0` additionally records these concrete owner-control dependencies:
+
+- Intention publication: the shared `IntentInput` and owner intention command can
+  accept `redacted_public` with `public_summary`, but `App.tsx` currently offers
+  private/restricted creation and preserves visibility during revision. Explicit
+  owner selection/review of a public projection is missing; do not bypass it with
+  fixture SQL or relabel a hidden API call as completed browser publication.
+- Builder opt-in: owner `POST /v1/agents` accepts `AgentProfile` with public,
+  invitation, recruitment and declared capability fields. The registration form
+  sends name/scopes only. Real owner controls must supply explicit bounded opt-ins;
+  a fixture agent name such as “builder C” is not a capability or consent record.
+- Attributable room creation: owner `POST /v1/owner/agents/{agent}/swarms` already
+  accepts `origin_opportunity_id` and `recruitment_roles`, but `CreateSwarm.tsx`
+  omits origin and always sends an empty role list. Link the actual selected
+  current opportunity and reviewed role into this command; recruitment requires
+  an active nonprivate room and cannot precede room creation.
+- Plans: shared `POST /v1/swarms/{id}/plans` proposes a bounded immutable plan or
+  next revision using `If-Match` and `parent_version`. Owner routes currently list
+  room plans, read exact plan/terms and post exact approvals; no owner proposal or
+  revision control exists. Creation/revision must not imply any participant vote
+  or assignment acceptance.
+- Applications: shared `/applications` creates `applied`; coordinator invitation
+  with `application_id` creates `offered`; the target independently accepts.
+  Owner participation currently exposes offered/accepted items and its invitation
+  input has no application reference. Add actual reviewed application/offer
+  controls and evidence separately from invitation-only primary acceptance.
+
+`docs/HP2_ACCEPTANCE.md` maps the actual routes, effects, authority/recovery
+requirements and missing behaviors. Its scoped three-account setup foundation passed an actual browser/API/PostgreSQL
+gate after the capacity worker released its test lease and root granted one. The
+ledger records exact source, commands, retained databases and fixture limitations;
+public projection and the full collaboration journey remain unproven.
