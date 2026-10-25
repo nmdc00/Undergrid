@@ -63,6 +63,19 @@ network fixtures and normal HTTP commands, before changing runtime behavior.
    corrected the descendant test's assumption that one 256-row age-out batch
    must reach its newly inserted target after 257 HTTP watcher setups. It now
    uses the actual startup drain; no runtime behavior changed for that correction.
+5. Candidate attempt two completed all four cases but the package failed,
+   65.873 seconds. Backlog isolation, full-row/batch/exclusion preservation and
+   persisted descendant routing passed. The actual post-start maintenance case
+   recovered 34 of its forty accepted scans inside the unchanged five-second
+   bound. At final worker shutdown, cohort job IDs 1009–1048 contained 38
+   completed rows and two available, unattempted rows, with no retries or errors;
+   the initial setup scan (1003) is not part of that cohort. Database
+   `hp2_capacity_green_20261025_a2` and
+   `/tmp/undergrid-capacity-green-attempt2-20261025.jsonl` are retained.
+   The retained direct lane inherited River's 100-millisecond fetch cooldown
+   and one-second periodic polling. Its correction uses one-millisecond
+   completion-driven cooldown and 100-millisecond polling while preserving two
+   workers, accepted schedules/attempts and the original recovery assertion.
 
 ## Candidate acceptance, not yet proven
 

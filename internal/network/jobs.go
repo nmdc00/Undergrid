@@ -161,8 +161,10 @@ func runWorkerWithSources(ctx context.Context, dsn, environment string, sources 
 		freshDiscoveryQueue:            {MaxWorkers: 2, FetchCooldown: 100 * time.Millisecond, FetchPollInterval: 100 * time.Millisecond},
 		freshWatchFanoutQueue:          {MaxWorkers: 2, FetchCooldown: 100 * time.Millisecond, FetchPollInterval: 100 * time.Millisecond},
 		freshWatchRefreshQueue:         {MaxWorkers: 8, FetchCooldown: time.Millisecond, FetchPollInterval: 100 * time.Millisecond},
-		discoveryQueue:                 {MaxWorkers: 2},
-		discoveryRepairQueue:           {MaxWorkers: 1},
+		// Retained scans need prompt completion-driven fetches as well as
+		// reserved fresh capacity; a fetch cooldown must not stall recovery.
+		discoveryQueue:       {MaxWorkers: 2, FetchCooldown: time.Millisecond, FetchPollInterval: 100 * time.Millisecond},
+		discoveryRepairQueue: {MaxWorkers: 1},
 		// Fanout continuations cannot wait behind their own pair jobs. Both
 		// queues bound wakeup latency even when LISTEN/NOTIFY is coalesced.
 		// Eight bounded pair slots amortize durable completion latency under
