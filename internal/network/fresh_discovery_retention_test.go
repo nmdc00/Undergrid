@@ -354,18 +354,31 @@ func TestDiscoveryFanoutDescendantsFollowActualFreshOrRetainedJobQueue(t *testin
 				t.Fatal(err)
 			}
 		}
+		// Observe only this dispatch's new descendants. Older fresh-phase pairs
+		// may legitimately age into retained ownership during a slow fixture.
+		var actualLane string
+		if err = db.QueryRow(ctx, "SELECT queue FROM undergrid_queue.river_job WHERE id=$1", inserted.Job.ID).Scan(&actualLane); err != nil {
+			t.Fatal(err)
+		}
+		wantLane := freshWatchFanoutQueue
+		if retained {
+			wantLane = watchFanoutQueue
+		}
+		if actualLane != wantLane {
+			t.Fatalf("persisted dispatch queue=%s want=%s", actualLane, wantLane)
+		}
 		execute(inserted.Job.ID)
 		pairLane, fanoutLane := freshWatchRefreshQueue, freshWatchFanoutQueue
 		if retained {
 			pairLane, fanoutLane = watchRefreshQueue, watchFanoutQueue
 		}
 		var continuation int64
-		if err = db.QueryRow(ctx, "SELECT id FROM undergrid_queue.river_job WHERE queue=$1 AND kind='intention_watch_refresh_v1' AND args->>'candidate_id'=$2 AND COALESCE(args->>'after_id','')<>'' ORDER BY id DESC LIMIT 1", fanoutLane, candidateID).Scan(&continuation); err != nil {
+		if err = db.QueryRow(ctx, "SELECT id FROM undergrid_queue.river_job WHERE queue=$1 AND kind='intention_watch_refresh_v1' AND args->>'candidate_id'=$2 AND id>$3 AND COALESCE(args->>'after_id','')<>'' ORDER BY id DESC LIMIT 1", fanoutLane, candidateID, inserted.Job.ID).Scan(&continuation); err != nil {
 			t.Fatal("missing inherited continuation", err)
 		}
 		execute(continuation)
 		var pairs, distinctWatchers int
-		if err = db.QueryRow(ctx, "SELECT count(*),count(DISTINCT args->>'watcher_id') FROM undergrid_queue.river_job WHERE queue=$1 AND kind='intention_watch_refresh_v1' AND args->>'candidate_id'=$2 AND COALESCE(args->>'watcher_id','')<>''", pairLane, candidateID).Scan(&pairs, &distinctWatchers); err != nil {
+		if err = db.QueryRow(ctx, "SELECT count(*),count(DISTINCT args->>'watcher_id') FROM undergrid_queue.river_job WHERE queue=$1 AND kind='intention_watch_refresh_v1' AND args->>'candidate_id'=$2 AND id>$3 AND COALESCE(args->>'watcher_id','')<>''", pairLane, candidateID, inserted.Job.ID).Scan(&pairs, &distinctWatchers); err != nil {
 			t.Fatal(err)
 		}
 		if pairs != watcherRefreshPageSize+1 || distinctWatchers != pairs {
