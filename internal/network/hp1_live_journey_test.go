@@ -235,6 +235,12 @@ func hp1LiveOwnerJourney(t *testing.T, withWatch, withPartial bool) {
 // The fixture issues one-use codes bound to S256 verifier, redirect and nonce.
 // The browser follows real redirects and the app verifies signed tokens normally.
 func hp1OIDCIssuer(t *testing.T) *httptest.Server {
+	return hpLiveOIDCIssuer(t, func(*http.Request) string { return "hp1-unfamiliar-owner" })
+}
+
+// Identity selection is owned by the controlled issuer, never the application.
+// Bind it to the authorization grant so token redemption cannot switch actors.
+func hpLiveOIDCIssuer(t *testing.T, subjectForAuthorization func(*http.Request) string) *httptest.Server {
 	t.Helper()
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -244,7 +250,7 @@ func hp1OIDCIssuer(t *testing.T) *httptest.Server {
 	if err != nil {
 		t.Fatal(err)
 	}
-	type grant struct{ nonce, challenge, redirect string }
+	type grant struct{ nonce, challenge, redirect, subject string }
 	var lock sync.Mutex
 	codes := map[string]grant{}
 	var issuer string
@@ -266,9 +272,14 @@ func hp1OIDCIssuer(t *testing.T) *httptest.Server {
 				http.Error(w, "invalid redirect", 400)
 				return
 			}
+			subject := subjectForAuthorization(r)
+			if subject == "" {
+				http.Error(w, "controlled identity not selected", 400)
+				return
+			}
 			code := NewID()
 			lock.Lock()
-			codes[code] = grant{q.Get("nonce"), q.Get("code_challenge"), redirect.String()}
+			codes[code] = grant{q.Get("nonce"), q.Get("code_challenge"), redirect.String(), subject}
 			lock.Unlock()
 			values := redirect.Query()
 			values.Set("code", code)
@@ -290,7 +301,7 @@ func hp1OIDCIssuer(t *testing.T) *httptest.Server {
 				http.Error(w, "invalid bound code", 400)
 				return
 			}
-			token, err := jwt.Signed(signer).Claims(map[string]any{"iss": issuer, "sub": "hp1-unfamiliar-owner", "aud": "hp1-browser", "exp": time.Now().Add(5 * time.Minute).Unix(), "iat": time.Now().Unix(), "auth_time": time.Now().Unix(), "nonce": g.nonce, "email_verified": true}).Serialize()
+			token, err := jwt.Signed(signer).Claims(map[string]any{"iss": issuer, "sub": g.subject, "aud": "hp1-browser", "exp": time.Now().Add(5 * time.Minute).Unix(), "iat": time.Now().Unix(), "auth_time": time.Now().Unix(), "nonce": g.nonce, "email_verified": true}).Serialize()
 			if err != nil {
 				http.Error(w, "signing failed", 500)
 				return
