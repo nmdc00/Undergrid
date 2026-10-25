@@ -151,5 +151,7 @@ The first capacity task above remains unchanged. The acceptance audit at release
   controls and evidence separately from invitation-only primary acceptance.
 
 `docs/HP2_ACCEPTANCE.md` maps the actual routes, effects, authority/recovery
-requirements and missing behaviors. Its three-account setup foundation remains
-unexecuted until the capacity worker releases the test lease and root grants one.
+requirements and missing behaviors. Its scoped three-account setup foundation passed an actual browser/API/PostgreSQL
+gate after the capacity worker released its test lease and root granted one. The
+ledger records exact source, commands, retained databases and fixture limitations;
+public projection and the full collaboration journey remain unproven.
