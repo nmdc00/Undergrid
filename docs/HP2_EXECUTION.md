@@ -27,7 +27,8 @@ review semantic discovery only after that prerequisite is proven and merged.
 ## First implementation task: discovery capacity
 
 Owner: `partial_resume_oct24`. New branch `feat/v0.1-discovery-capacity`, from
-current `release/v0.1`, isolated worktree under `/tmp/undergrid-worktrees`.
+current `release/v0.1`, isolated worktree
+`/tmp/undergrid-worktrees/hp2-capacity/feat-v0.1-discovery-capacity`.
 Owning requirements: HP2 step 1, TDD §5.4 and the existing five-second committed
 discovery worker contract. Owning evidence: `docs/DISCOVERY_CAPACITY.md` (create
 with actual RED/GREEN/runtime results before the feature PR merges).
@@ -70,8 +71,9 @@ Never substitute an easier match or a wider timeout for the acceptance outcome.
 
 ## Parallel acceptance and review
 
-`live_resume_oct24` owns a separate `test/v0.1-hp2-live-journey` branch/worktree
-from release, initially recording `docs/HP2_ACCEPTANCE.md` and actual missing
+`live_resume_oct24` owns `test/v0.1-hp2-live-journey` at
+`/tmp/undergrid-worktrees/hp2-live/test-v0.1-hp2-live-journey`, from release,
+initially recording `docs/HP2_ACCEPTANCE.md` and actual missing
 entrypoints. Author the production-like multi-owner browser/API/worker journey
 without seeding product principals, opportunities, admissions, votes or tasks.
 Use trusted controlled provider/policy fixtures only where explicitly labeled;
