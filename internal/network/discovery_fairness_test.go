@@ -331,7 +331,7 @@ func assertFailedRefreshLeavesImmediateWakeup(t *testing.T) {
 		t.Fatalf("new commit changed delayed failure: unchanged=%v err=%v", failedUnchanged, err)
 	}
 	var foreground int
-	if err := db.QueryRow(context.Background(), "SELECT count(*) FROM undergrid_queue.river_job WHERE kind='intention_scan_v1' AND queue=$1 AND args->>'cause_id'=$2 AND state='available'", discoveryQueue, second["id"]).Scan(&foreground); err != nil || foreground != 1 {
+	if err := db.QueryRow(context.Background(), "SELECT count(*) FROM undergrid_queue.river_job WHERE kind='intention_scan_v1' AND queue=$1 AND args->>'cause_id'=$2 AND state='available'", freshDiscoveryQueue, second["id"]).Scan(&foreground); err != nil || foreground != 1 {
 		t.Fatalf("committed intention lost its foreground job: count=%d err=%v", foreground, err)
 	}
 	t.Logf("queued refreshes before=%d after=%d; delayed failure unchanged; one committed foreground job", queuedBefore, available)
