@@ -137,12 +137,19 @@ never align due to semantic score, revocation blocks current reads/replay,
 canonical locks prevent stale policy acceptance, and receipt/chat never grants
 participation or rights. Prove restart, decline and no duplicate effects.
 
-Current evidence: room participation/messages and owner plan/assignment decisions
-are merged. Semantic/groups/viewer are on dependent branches. Combined runtime
-integration exposed a five-second initial-scan starvation defect behind retained
-jobs; preserve the bound and fix durable fairness before closing the discovery
-steps. Complementary discovery and missing owner plan-creation/revision controls
-must be resolved against the actual intended user journey.
+Current evidence at release `5ea78d1`: the independently extracted discovery
+capacity fix is reviewed and merged in PR101, preserving the five-second bound,
+accepted work and HP1 behavior. Post-merge watcher/shutdown race checks passed
+10.625 seconds and the console build passed; exact logs are
+`/tmp/undergrid-capacity-release-5ea78d1-postmerge96-20261025.jsonl` and
+`/tmp/undergrid-capacity-release-5ea78d1-web-build-20261025.log`.
+The three-owner private setup foundation is merged in PR100; it does not prove
+publication or collaboration. Room participation/messages and owner plan/assignment
+decisions are merged. Semantic/groups/viewer remain on dependent branches, with
+the next reconciliation contract in [`SEMANTIC_INTEGRATION.md`](SEMANTIC_INTEGRATION.md).
+Complementary discovery, unknown-hard clarification and the audited owner
+publication/profile/room/plan/application controls still require their actual
+journeys and reviewed integration. HP2 remains open.
 
 Public qualification: externally operated participants and independent REST/MCP/A2A
 clients with actual outcomes, clearly labeled release-test evidence.
