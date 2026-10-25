@@ -112,6 +112,10 @@ Owning requirements: ID-01/02/03, INT-01/02/03/04/05, SW-06; TDD §§4–6,9,12.
 **Outcome:** distinct participants move from unmet demand to an explicitly agreed
 collaboration. Separate account IDs alone do not establish independent ownership.
 
+HP2 is the active local path after HP1 closure. The capacity-first branch,
+acceptance, review and dependency contract is recorded in
+[`HP2_EXECUTION.md`](HP2_EXECUTION.md).
+
 Journey:
 
 1. Publish eligible intentions; explain current hard/semantic matches or missing
