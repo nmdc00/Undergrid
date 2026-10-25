@@ -608,15 +608,17 @@ export function App() {
                                 ...(detail.preferences === undefined
                                   ? {}
                                   : { preferences: detail.preferences }),
-                                visibility: revisionVisibility,
-                                ...(revisionVisibility === "redacted_public"
+                                visibility: detail.visibility,
+                                ...(detail.visibility === "redacted_public"
                                   ? { public_summary: revisionSummary }
                                   : {}),
                                 budget: detail.budget ?? null,
                                 watch: detail.watch,
-                                expires_at: new Date(
-                                  revisionExpiry,
-                                ).toISOString(),
+                                expires_at:
+                                  revisionExpiry ===
+                                  localDateTime(text(detail.expires_at))
+                                    ? text(detail.expires_at)
+                                    : new Date(revisionExpiry).toISOString(),
                               };
                               let out: ObjectValue;
                               try {
@@ -665,8 +667,8 @@ export function App() {
                           <h4>New intention revision</h4>
                           <p>
                             This keeps the current output, constraints, budget,
-                            and watch settings. Review any public projection
-                            before saving its audience or summary. Changes take
+                            visibility and watch settings. Review any public
+                            projection before saving its summary. Changes take
                             effect after you save; expired intentions resume
                             with a new expiry.
                           </p>
@@ -683,6 +685,7 @@ export function App() {
                             />
                           </label>
                           <IntentionPublication
+                            fixedAudience
                             review={revisionPublication}
                             label="Revision visibility"
                             reviewedKey={reviewedRevision}
@@ -738,15 +741,39 @@ export function App() {
                         }
                         onClick={() =>
                           void action(async () => {
-                            const out = await request(
-                              `/v1/owner/intents/${encodeURIComponent(text(detail.id))}`,
-                              csrf,
-                              "PATCH",
-                              { state },
-                              text(detail.etag),
-                            );
+                            const mine = generation.current;
+                            let out: ObjectValue;
+                            try {
+                              out = await request(
+                                `/v1/owner/intents/${encodeURIComponent(text(detail.id))}`,
+                                csrf,
+                                "PATCH",
+                                { state },
+                                text(detail.etag),
+                                detail.visibility === "redacted_public" &&
+                                  state === "withdrawn"
+                                  ? (result) =>
+                                      validateSavedIntention(
+                                        result,
+                                        {
+                                          ...detail,
+                                          watch: {
+                                            ...object(detail.watch),
+                                            enabled: false,
+                                          },
+                                        },
+                                        detail,
+                                        "withdrawn",
+                                      )
+                                  : undefined,
+                              );
+                            } catch (failure) {
+                              if (mine !== generation.current) return;
+                              throw failure;
+                            }
+                            if (mine !== generation.current) return;
                             setDetail(out);
-                            await refresh(csrf);
+                            await refresh(csrf, mine);
                           })
                         }
                       >
@@ -760,7 +787,13 @@ export function App() {
                       </button>
                     ),
                   )}
-                  <button onClick={() => setDetail(null)}>
+                  <button
+                    onClick={() => {
+                      generation.current++;
+                      setDetail(null);
+                      setEditingRevision(false);
+                    }}
+                  >
                     Close intention
                   </button>
                   {detail.visibility === "restricted" && (

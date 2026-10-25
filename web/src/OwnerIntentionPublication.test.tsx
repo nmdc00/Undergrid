@@ -7,15 +7,21 @@ let fixtureNumber = 0;
 const privateObjective =
   "Private acquisition objective that must not be published";
 const publicSummary = "Public environmental source catalogue";
+const exactExpiry = "2030-02-01T00:00:35.123Z";
 const output = { kind: "json_dataset", schema_family: "source_catalog_v1" };
 const constraints = {
   required_fields: ["source_id", "source_url"],
   license_ids: ["CC0-1.0"],
 };
 
-function fixture(visibility = "private", malformedFirstCreate = false) {
+function fixture(
+  visibility = "private",
+  malformedFirstCreate = false,
+  malformedFirstWithdrawal = false,
+) {
   const requests: { path: string; init?: RequestInit }[] = [];
   let createCount = 0;
+  let withdrawalCount = 0;
   let record = {
     id: "intent",
     version: 1,
@@ -32,7 +38,7 @@ function fixture(visibility = "private", malformedFirstCreate = false) {
     preferences: { region: "private-preference-sentinel" },
     budget: { kind: "stated_budget", amount_minor: 3500, currency: "EUR" },
     watch: { enabled: true, channels: ["inbox"] },
-    expires_at: "2030-02-01T00:00:00Z",
+    expires_at: exactExpiry,
   };
   vi.stubGlobal(
     "fetch",
@@ -98,17 +104,34 @@ function fixture(visibility = "private", malformedFirstCreate = false) {
       if (path === "/v1/owner/intents/intent") {
         if (init?.method === "PATCH") {
           const sent = JSON.parse(String(init.body));
-          record = {
-            ...record,
-            ...sent.revision,
-            version: 2,
-            current_revision: 2,
-            etag: '"2"',
-          };
-        if (sent.revision && sent.revision.public_summary === undefined)
-          delete record.public_summary;
+          if (sent.revision) {
+            record = {
+              ...record,
+              ...sent.revision,
+              version: 2,
+              current_revision: 2,
+              etag: '"2"',
+            };
+            if (sent.revision.public_summary === undefined)
+              delete record.public_summary;
+          } else {
+            record = {
+              ...record,
+              version: 2,
+              etag: '"2"',
+              state: sent.state,
+              watch: { ...record.watch, enabled: sent.state === "active" },
+            };
+          }
         }
         value = record;
+        if (
+          init?.method === "PATCH" &&
+          JSON.parse(String(init.body)).state === "withdrawn" &&
+          malformedFirstWithdrawal &&
+          withdrawalCount++ === 0
+        )
+          value = {};
       }
       if (path === "/v1/owner/intents/intent/grants")
         value = { items: [], version: record.version, etag: record.etag };
@@ -129,7 +152,12 @@ async function preparePublicCreation() {
   });
   expect((visibility as HTMLSelectElement).value).toBe("private");
   await userEvent.selectOptions(visibility, "redacted_public");
-  const creationForm = screen.getByRole("heading", { name: "Create a source-catalog intention", exact: true }).closest("form")!;
+  const creationForm = screen
+    .getByRole("heading", {
+      name: "Create a source-catalog intention",
+      exact: true,
+    })
+    .closest("form")!;
   await userEvent.selectOptions(
     within(creationForm).getByLabelText("Responsible agent", { exact: true }),
     "agent",
@@ -186,7 +214,7 @@ test("owner explicitly reviews the selected public projection before creating a 
   });
 });
 
-test("owner revises a public intention back to private without losing private typed fields", async () => {
+test("a public-summary revision keeps its fixed audience and private typed fields", async () => {
   const requests = fixture("redacted_public");
   render(<App />);
   await userEvent.click(
@@ -198,11 +226,15 @@ test("owner revises a public intention back to private without losing private ty
   await userEvent.click(
     screen.getByRole("button", { name: "Edit intention", exact: true }),
   );
-  const visibility = screen.getByRole("combobox", {
-    name: "Revision visibility",
-    exact: true,
-  });
-  expect((visibility as HTMLSelectElement).value).toBe("redacted_public");
+  expect(
+    screen.queryByRole("combobox", {
+      name: "Revision visibility",
+      exact: true,
+    }),
+  ).toBeNull();
+  expect(
+    screen.getByText("Audience is fixed: Public summary and requirements"),
+  ).toBeTruthy();
   const preview = screen.getByRole("region", {
     name: "Public projection preview",
     exact: true,
@@ -210,7 +242,20 @@ test("owner revises a public intention back to private without losing private ty
   expect(preview.textContent).not.toContain(privateObjective);
   expect(preview.textContent).not.toContain("private-preference-sentinel");
   expect(preview.textContent).not.toContain("3500");
-  await userEvent.selectOptions(visibility, "private");
+  const summary = screen.getByLabelText("Public summary", { exact: true });
+  await userEvent.clear(summary);
+  await userEvent.type(summary, "Updated public environmental catalogue");
+  expect(
+    (
+      screen.getByRole("button", {
+        name: "Save new revision",
+        exact: true,
+      }) as HTMLButtonElement
+    ).disabled,
+  ).toBe(true);
+  await userEvent.click(
+    screen.getByLabelText("I reviewed this public projection", { exact: true }),
+  );
   await userEvent.click(
     screen.getByRole("button", { name: "Save new revision", exact: true }),
   );
@@ -227,12 +272,14 @@ test("owner revises a public intention back to private without losing private ty
   )!;
   const revision = JSON.parse(String(sent.init?.body)).revision;
   expect(revision).toMatchObject({
-    visibility: "private",
+    visibility: "redacted_public",
+    public_summary: "Updated public environmental catalogue",
     objective: privateObjective,
     output,
     hard_constraints: constraints,
     preferences: { region: "private-preference-sentinel" },
     budget: { amount_minor: 3500, currency: "EUR" },
+    expires_at: exactExpiry,
   });
   expect(new Headers(sent.init?.headers).get("If-Match")).toBe('"1"');
   await screen.findByRole("button", { name: "Edit intention", exact: true });
@@ -307,13 +354,12 @@ test("a separate public creation draft cannot publish an unrelated private objec
     screen.getByRole("button", { name: "Edit intention", exact: true }),
   );
   expect(
-    (
-      screen.getByRole("combobox", {
-        name: "Revision visibility",
-        exact: true,
-      }) as HTMLSelectElement
-    ).value,
-  ).toBe("private");
+    screen.queryByRole("combobox", {
+      name: "Revision visibility",
+      exact: true,
+    }),
+  ).toBeNull();
+  expect(screen.getByText("Audience is fixed: Private")).toBeTruthy();
   const objective = screen.getAllByLabelText("Objective", { exact: true })[0];
   await userEvent.clear(objective);
   await userEvent.type(objective, "Updated private objective");
@@ -335,6 +381,246 @@ test("a separate public creation draft cannot publish an unrelated private objec
   expect(revision.visibility).toBe("private");
   expect(revision.objective).toBe("Updated private objective");
   expect(revision.public_summary).toBeUndefined();
+});
+
+test("explicit withdrawal revokes public discovery without changing visibility or rewriting history", async () => {
+  const requests = fixture("redacted_public");
+  render(<App />);
+  await userEvent.click(
+    await screen.findByRole("button", {
+      name: "Review intention",
+      exact: true,
+    }),
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "Withdraw", exact: true }),
+  );
+  await waitFor(() =>
+    expect(
+      requests.some(
+        (r) =>
+          r.path === "/v1/owner/intents/intent" && r.init?.method === "PATCH",
+      ),
+    ).toBe(true),
+  );
+  const sent = requests.find(
+    (r) => r.path === "/v1/owner/intents/intent" && r.init?.method === "PATCH",
+  )!;
+  expect(JSON.parse(String(sent.init?.body))).toEqual({ state: "withdrawn" });
+  expect(new Headers(sent.init?.headers).get("If-Match")).toBe('"1"');
+  await waitFor(() =>
+    expect(
+      screen.queryByRole("button", { name: "Edit intention", exact: true }),
+    ).toBeNull(),
+  );
+  expect(screen.getByText(/"visibility": "redacted_public"/)).toBeTruthy();
+});
+
+test("a malformed withdrawal response preserves the same reviewed command for recovery", async () => {
+  const requests = fixture("redacted_public", false, true);
+  render(<App />);
+  await userEvent.click(
+    await screen.findByRole("button", {
+      name: "Review intention",
+      exact: true,
+    }),
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "Withdraw", exact: true }),
+  );
+  await waitFor(() =>
+    expect(
+      requests.filter(
+        (r) =>
+          r.path === "/v1/owner/intents/intent" && r.init?.method === "PATCH",
+      ),
+    ).toHaveLength(1),
+  );
+  await waitFor(() =>
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Withdraw",
+          exact: true,
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(false),
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "Withdraw", exact: true }),
+  );
+  await waitFor(() =>
+    expect(
+      requests.filter(
+        (r) =>
+          r.path === "/v1/owner/intents/intent" && r.init?.method === "PATCH",
+      ),
+    ).toHaveLength(2),
+  );
+  const sent = requests.filter(
+    (r) => r.path === "/v1/owner/intents/intent" && r.init?.method === "PATCH",
+  );
+  expect(sent[0].init?.body).toBe(sent[1].init?.body);
+  expect(new Headers(sent[0].init?.headers).get("If-Match")).toBe(
+    new Headers(sent[1].init?.headers).get("If-Match"),
+  );
+  expect(new Headers(sent[0].init?.headers).get("Idempotency-Key")).toBe(
+    new Headers(sent[1].init?.headers).get("Idempotency-Key"),
+  );
+  await waitFor(() =>
+    expect(
+      screen.queryByRole("button", { name: "Edit intention", exact: true }),
+    ).toBeNull(),
+  );
+});
+
+test("a late withdrawal response cannot refresh an expired owner session", async () => {
+  fixture("redacted_public");
+  const normalFetch = globalThis.fetch;
+  let finishWithdrawal!: (response: Response) => void;
+  let expired = false;
+  const fetch = vi.fn(async (path: string, init?: RequestInit) => {
+    if (
+      path === "/v1/owner/intents/intent" &&
+      init?.method === "PATCH" &&
+      JSON.parse(String(init.body)).state === "withdrawn"
+    )
+      return new Promise<Response>((resolve) => {
+        finishWithdrawal = resolve;
+      });
+    if (expired && path.includes("/inbox"))
+      return new Response(
+        JSON.stringify({ error: { code: "session_expired" } }),
+        { status: 401 },
+      );
+    return normalFetch(path, init);
+  });
+  vi.stubGlobal("fetch", fetch);
+  render(<App />);
+  await userEvent.click(
+    await screen.findByRole("button", {
+      name: "Review intention",
+      exact: true,
+    }),
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "Withdraw", exact: true }),
+  );
+  await waitFor(() => expect(finishWithdrawal).toBeTypeOf("function"));
+  await userEvent.selectOptions(
+    screen.getByRole("combobox", { name: "Inbox agent", exact: true }),
+    "agent",
+  );
+  expired = true;
+  await userEvent.click(
+    screen.getByRole("button", { name: "Refresh inbox", exact: true }),
+  );
+  await screen.findByRole("link", { name: "Sign in", exact: true });
+  const readsBefore = fetch.mock.calls.filter(
+    ([path, init]) => path === "/v1/owner/intents" && init?.method !== "POST",
+  ).length;
+  await act(async () =>
+    finishWithdrawal(
+      new Response(
+        JSON.stringify({
+          id: "intent",
+          version: 2,
+          current_revision: 1,
+          etag: '"2"',
+          state: "withdrawn",
+          objective: privateObjective,
+          visibility: "redacted_public",
+          public_summary: publicSummary,
+          output,
+          hard_constraints: constraints,
+          preferences: { region: "private-preference-sentinel" },
+          budget: {
+            kind: "stated_budget",
+            amount_minor: 3500,
+            currency: "EUR",
+          },
+          watch: { enabled: false, channels: ["inbox"] },
+          expires_at: exactExpiry,
+        }),
+        { status: 200 },
+      ),
+    ),
+  );
+  expect(
+    fetch.mock.calls.filter(
+      ([path, init]) => path === "/v1/owner/intents" && init?.method !== "POST",
+    ),
+  ).toHaveLength(readsBefore);
+  expect(
+    screen.getByRole("link", { name: "Sign in", exact: true }),
+  ).toBeTruthy();
+});
+
+test("a late withdrawal response cannot reopen a closed intention", async () => {
+  fixture("redacted_public");
+  const normalFetch = globalThis.fetch;
+  let finishWithdrawal!: (response: Response) => void;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (path: string, init?: RequestInit) => {
+      if (
+        path === "/v1/owner/intents/intent" &&
+        init?.method === "PATCH" &&
+        JSON.parse(String(init.body)).state === "withdrawn"
+      )
+        return new Promise<Response>((resolve) => {
+          finishWithdrawal = resolve;
+        });
+      return normalFetch(path, init);
+    }),
+  );
+  render(<App />);
+  await userEvent.click(
+    await screen.findByRole("button", {
+      name: "Review intention",
+      exact: true,
+    }),
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "Withdraw", exact: true }),
+  );
+  await waitFor(() => expect(finishWithdrawal).toBeTypeOf("function"));
+  await userEvent.click(
+    screen.getByRole("button", { name: "Close intention", exact: true }),
+  );
+  expect(
+    screen.queryByRole("heading", { name: privateObjective, exact: true }),
+  ).toBeNull();
+  await act(async () =>
+    finishWithdrawal(
+      new Response(
+        JSON.stringify({
+          id: "intent",
+          version: 2,
+          current_revision: 1,
+          etag: '"2"',
+          state: "withdrawn",
+          objective: privateObjective,
+          visibility: "redacted_public",
+          public_summary: publicSummary,
+          output,
+          hard_constraints: constraints,
+          preferences: { region: "private-preference-sentinel" },
+          budget: {
+            kind: "stated_budget",
+            amount_minor: 3500,
+            currency: "EUR",
+          },
+          watch: { enabled: false, channels: ["inbox"] },
+          expires_at: exactExpiry,
+        }),
+        { status: 200 },
+      ),
+    ),
+  );
+  expect(
+    screen.queryByRole("heading", { name: privateObjective, exact: true }),
+  ).toBeNull();
 });
 
 test("changing the selected public summary invalidates the prior projection review", async () => {

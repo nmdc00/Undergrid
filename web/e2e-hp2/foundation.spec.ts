@@ -186,9 +186,18 @@ test(
         await ownerPage
           .getByRole("button", { name: "Edit intention", exact: true })
           .click();
+        await expect(
+          ownerPage.getByRole("combobox", {
+            name: "Revision visibility",
+            exact: true,
+          }),
+        ).toHaveCount(0);
         await ownerPage
-          .getByRole("combobox", { name: "Revision visibility", exact: true })
-          .selectOption("private");
+          .getByLabel("Public summary", { exact: true })
+          .fill("Updated public environmental catalogue");
+        await ownerPage
+          .getByLabel("I reviewed this public projection", { exact: true })
+          .check();
         const change = ownerPage.waitForResponse(
           (r) =>
             new URL(r.url()).pathname ===
@@ -200,7 +209,59 @@ test(
           .click();
         const changed = await change;
         expect(changed.status()).toBe(200);
-        expect((await changed.json()).visibility).toBe("private");
+        const updated = await changed.json();
+        expect(updated.visibility).toBe("redacted_public");
+        expect(updated.current_revision).toBe(2);
+        const revisedProjection = await contexts[1].request.get(target, {
+          headers,
+        });
+        expect(revisedProjection.status()).toBe(200);
+        expect((await revisedProjection.json()).public_summary).toBe(
+          "Updated public environmental catalogue",
+        );
+        // Audience conversion remains a rejected generic revision. Explicit
+        // withdrawal is the current supported way to stop foreign discovery.
+        const forbidden = await ownerPage.request.patch(target, {
+          headers: {
+            Authorization: `Bearer ${actors[0].token}`,
+            "If-Match": updated.etag,
+            "Idempotency-Key": "publication-visibility-remains-fixed",
+          },
+          data: {
+            revision: {
+              objective: updated.objective,
+              output: updated.output,
+              hard_constraints: updated.hard_constraints,
+              visibility: "private",
+              budget: updated.budget,
+              watch: updated.watch,
+              expires_at: updated.expires_at,
+              ...(updated.preferences === undefined
+                ? {}
+                : { preferences: updated.preferences }),
+            },
+          },
+        });
+        expect(forbidden.status()).toBe(409);
+        expect((await forbidden.json()).error.code).toBe(
+          "visibility_change_requires_grant",
+        );
+        const withdrawalResponse = ownerPage.waitForResponse(
+          (r) =>
+            new URL(r.url()).pathname ===
+              `/v1/owner/intents/${actors[0].intent}` &&
+            r.request().method() === "PATCH",
+        );
+        await ownerPage
+          .getByRole("button", { name: "Withdraw", exact: true })
+          .click();
+        const withdrawal = await withdrawalResponse;
+        expect(withdrawal.status()).toBe(200);
+        const withdrawn = await withdrawal.json();
+        expect(withdrawn.visibility).toBe("redacted_public");
+        expect(withdrawn.state).toBe("withdrawn");
+        expect(withdrawn.watch.enabled).toBe(false);
+        expect(withdrawn.current_revision).toBe(2);
         expect(
           (await contexts[1].request.get(target, { headers })).status(),
         ).toBe(404);
@@ -208,15 +269,12 @@ test(
         await ownerPage
           .getByRole("button", { name: "Review intention", exact: true })
           .click();
-        await ownerPage
-          .getByRole("button", { name: "Edit intention", exact: true })
-          .click();
         await expect(
-          ownerPage.getByRole("combobox", {
-            name: "Revision visibility",
+          ownerPage.getByRole("button", {
+            name: "Edit intention",
             exact: true,
           }),
-        ).toHaveValue("private");
+        ).toHaveCount(0);
       }
       for (let owner = 0; owner < actors.length; owner++) {
         for (const target of actors.filter(

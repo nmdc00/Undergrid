@@ -158,7 +158,7 @@ public projection and the full collaboration journey remain unproven.
 
 ## Parallel owner behavior: explicit intention publication
 
-Owner: `live_resume_oct24`. One new branch
+Owner: `publication_oct25` (continuing the preserved branch). One branch
 `feat/v0.1-owner-intention-publication`, from release `316fd4e`, isolated at
 `/tmp/undergrid-worktrees/owner-intention-publication/feat-v0.1-owner-intention-publication`.
 This closes the audited HP2 step-one owner publication control independently of
@@ -167,9 +167,10 @@ unchanged. Owning requirements: HP2 step 1, TDD §§5.1/5.4 and existing selecte
 public projection/privacy contracts. Owning evidence:
 `docs/OWNER_INTENTION_PUBLICATION.md` plus current `HP2_ACCEPTANCE.md` status.
 
-Observable behavior: owner create/revise controls explicitly select
-`redacted_public`, enter a bounded public summary and review the actual allowlisted
-summary/output/hard-requirements projection before publication. Private remains
+Observable behavior: owner creation explicitly selects `redacted_public`, enters
+a bounded public summary and reviews the actual allowlisted summary/output/hard-
+requirements projection. Existing public intentions can revise their selected
+summary after another review, while preserving their fixed audience. Private remains
 the creation default; editing a private objective or expiry must not publish it.
 The private objective, budget, preferences and server-owned partial audit are
 never included in the public preview or foreign projection. Existing stored
@@ -180,8 +181,14 @@ Runtime entrypoints remain the existing owner `POST /v1/owner/intents` and versi
 `GET /v1/intents/{id}`. Reuse closed `IntentInput` and current domain projection,
 authority, revision/idempotency/event/inbox/queue behavior. Do not add DTO fields,
 provider/consent policy, a separate publication table or adapter-only authority.
-Public-to-private revision must revoke the current foreign read immediately;
-immutable historical revisions are not a grant to keep reading old public data.
+The original task incorrectly assumed public-to-private revision was already
+supported. The [published revision contract](evidence/intention-revisions.md)
+deliberately rejects audience changes with `visibility_change_requires_grant`.
+Keep that guard unchanged. Explicit existing withdrawal stops current public
+discovery, disables the watch and denies foreign reads while retaining the
+`redacted_public` visibility, revision head and immutable history. It is not a
+private conversion or deletion. True consented disclosure transitions remain
+separately unimplemented; do not implement them through generic revision UI.
 
 Acceptance and required proof:
 
@@ -192,7 +199,10 @@ Acceptance and required proof:
   and ignore stale actor/intention responses using the existing request contract.
 - Actual multi-owner browser/API/restricted-PostgreSQL lifecycle: A explicitly
   publishes through the console, B's normally issued scoped credential sees only
-  the current allowlisted projection, A revises back to private, B receives 404.
+  the current allowlisted projection, A revises the public summary at the same
+  audience, then explicitly withdraws; B receives 404. Observe the updated public
+  projection before withdrawal and retained revision/history afterward. A direct
+  attempted audience change still returns the existing 409.
   No product SQL seeds or hidden public revision may complete a browser step.
 - Observe immutable revision/head changes and the existing normalized effects.
   Run relevant partial-remainder/audit privacy, current actor/revision and owner

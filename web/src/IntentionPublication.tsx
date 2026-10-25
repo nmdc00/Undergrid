@@ -51,6 +51,7 @@ export function IntentionPublication({
   onVisibility,
   onSummary,
   onReview,
+  fixedAudience = false,
 }: {
   review: PublicationReview;
   label: string;
@@ -58,6 +59,7 @@ export function IntentionPublication({
   onVisibility: (value: IntentionVisibility) => void;
   onSummary: (value: string) => void;
   onReview: (value: string) => void;
+  fixedAudience?: boolean;
 }) {
   const publicView = review.visibility === "redacted_public";
   const validSummary =
@@ -65,31 +67,49 @@ export function IntentionPublication({
   return (
     <fieldset>
       <legend>Intention audience</legend>
-      <label>
-        {label}
-        <select
-          value={review.visibility}
-          onChange={(event) => {
-            const value = event.target.value;
-            if (
-              value !== "private" &&
-              value !== "restricted" &&
-              value !== "redacted_public"
-            )
-              return;
-            onReview("");
-            onVisibility(value);
-          }}
-        >
-          <option value="private">Private</option>
-          <option value="restricted">
-            Restricted (grant selected fields to named principals)
-          </option>
-          <option value="redacted_public">
-            Public summary and requirements
-          </option>
-        </select>
-      </label>
+      {fixedAudience ? (
+        <>
+          <p>
+            Audience is fixed:{" "}
+            {review.visibility === "private"
+              ? "Private"
+              : review.visibility === "restricted"
+                ? "Restricted"
+                : "Public summary and requirements"}
+          </p>
+          <p>
+            To use a different audience, create a new intention below. Withdraw
+            this intention to stop its current discovery; withdrawal retains its
+            history.
+          </p>
+        </>
+      ) : (
+        <label>
+          {label}
+          <select
+            value={review.visibility}
+            onChange={(event) => {
+              const value = event.target.value;
+              if (
+                value !== "private" &&
+                value !== "restricted" &&
+                value !== "redacted_public"
+              )
+                return;
+              onReview("");
+              onVisibility(value);
+            }}
+          >
+            <option value="private">Private</option>
+            <option value="restricted">
+              Restricted (grant selected fields to named principals)
+            </option>
+            <option value="redacted_public">
+              Public summary and requirements
+            </option>
+          </select>
+        </label>
+      )}
       {publicView && (
         <>
           <label>
@@ -176,13 +196,16 @@ export function validateSavedIntention(
   result: ObjectValue,
   expected: ObjectValue,
   previous?: ObjectValue,
+  stateChange?: "withdrawn",
 ): void {
   object(result.output);
   object(result.hard_constraints);
   object(result.watch);
   if (result.budget !== null) object(result.budget);
   const version = previous ? Number(previous.version) + 1 : 1;
-  const revision = previous ? Number(previous.current_revision) + 1 : 1;
+  const revision = previous
+    ? Number(previous.current_revision) + (stateChange ? 0 : 1)
+    : 1;
   if (
     typeof result.id !== "string" ||
     !result.id ||
@@ -195,9 +218,10 @@ export function validateSavedIntention(
     !Number.isSafeInteger(result.current_revision) ||
     result.current_revision !== revision ||
     result.state !==
-      (previous?.state === "expired"
-        ? "active"
-        : (previous?.state ?? "active")) ||
+      (stateChange ??
+        (previous?.state === "expired"
+          ? "active"
+          : (previous?.state ?? "active"))) ||
     !["objective", "output", "hard_constraints", "visibility", "watch"].every(
       (key) => sameJSON(result[key], expected[key]),
     ) ||
