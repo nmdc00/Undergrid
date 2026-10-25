@@ -223,3 +223,60 @@ contract), orthogonality, bounded readable inputs, retry/error resource ownershi
 and private failure behavior. All Go/Node gates require a root-granted serial
 lease; authoring this contract grants none. Full HP2 discovery, recruitment,
 room/plan/application flows and external qualification remain open.
+
+## Locked task: owner-reviewed builder registration — 25 October 2026
+
+Owner: `publication_oct25`, independent of the semantic integration worker.
+Branch `feat/v0.1-owner-builder-registration`, based on reviewed release
+`b0d49c7770b007126eb17316f5da5f074708e4bc`, isolated at
+`/tmp/undergrid-worktrees/builder-registration/feat-v0.1-owner-builder-registration`.
+This contract precedes tests and behavior changes. It implements the builder C
+onboarding prerequisite in HP2 acceptance step zero and the TDD r2 builder
+recruitment scenario (§ coordination/recruitment and primary network scenario),
+not the complete discovery-to-agreed-plan journey.
+
+Behavior and runtime boundary:
+
+- Use existing owner-session/CSRF `POST /v1/agents` and its closed AgentProfile:
+  `public`, `accept_invitations`, `recruitment`, `capabilities`. Keep private/
+  unlisted defaults, separate opt-ins and known bounded `source_catalog_v1`
+  selection. Require review of the exact selected profile snapshot; changing
+  that snapshot invalidates review. Claims are declared, not verified expertise.
+- Add owner-only saved-profile acknowledgement to existing `GET /v1/agents`
+  and its canonical/generated closed response. Normalize legacy missing/empty
+  profiles to explicit false flags and an empty capabilities list. Do not widen
+  the creation schema, add a profile PATCH or invent a public profile directory.
+  The public declaration currently enables recruitment eligibility, not a public
+  webpage. Existing-agent profile editing/revocation remains unsupported.
+- Preserve current scope/policy/resource admission, active owner/agent authority,
+  credential issuance/recovery, RLS and transaction boundaries. Publishing a
+  declared capability or opting in grants no admission, rights, assignment or
+  spending authority. Invitation eligibility and recruitment are orthogonal:
+  invitation-off may still recruit but rejects foreign unsolicited offers.
+
+Test-first acceptance and evidence:
+
+1. Author and run focused UI RED for missing controls/review/defaults and real
+   PostgreSQL owner-read/domain RED before changing behavior. Gate execution is
+   serialized by root; no Node/Go slot is granted at contract time.
+2. Prove exact creation body, review invalidation and owner refresh of the actual
+   saved normalized profile. Preserve same key/body on malformed/lost creation
+   responses, one agent/credential effect, and stale actor/draft safety. A success
+   claim must follow a valid acknowledged response, not only an outgoing payload.
+3. Through ordinary owner registration and normal API/worker recruitment, prove
+   selected declared capability eligibility and independent opt-in flags. Test
+   unlisted/recruitment-off/mismatched capability negatives, current active
+   authority, owner-only list separation and no foreign credential/profile leak.
+   Existing foreign invitation commands must produce exactly offered invitations
+   only when allowed; opting in alone creates no membership. No automatic accepted
+   membership, rights approval, task or financial effect is permitted.
+4. Normal-agent room setup needed to exercise recruitment is explicit fixture/API
+   support, not evidence that missing owner recruitment-role/room controls ship.
+   Do not seed product rows to complete the user journey or call fixture accounts
+   independent beneficial owners. Preserve recruitment budget/current-authority
+   guards and network/financial separation.
+5. Capture exact RED/GREEN/build/runtime source, logs and retained databases;
+   assess DRY knowledge, orthogonality, contracts, readability and failure recovery.
+   Independent review and scoped PR to `release/v0.1` precede integration. Full HP2,
+   public directory, existing-profile mutation and external qualifications stay
+   open unless independently implemented and proven.
