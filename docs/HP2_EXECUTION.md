@@ -23,6 +23,10 @@ Existing semantic and capacity work remains preserved. The parked capacity branc
 includes an unmerged semantic dependency and must not be merged wholesale. First
 extract its independent queue behavior onto the current release. Reconcile and
 review semantic discovery only after that prerequisite is proven and merged.
+That prerequisite is now complete in PR101, release `5ea78d1`; its capacity,
+retained-state and HP1 proofs remain in `DISCOVERY_CAPACITY.md`. The next locked
+semantic task is [`SEMANTIC_INTEGRATION.md`](SEMANTIC_INTEGRATION.md). Independent
+owner-publication controls use a separate branch and retain their own gates.
 
 ## First implementation task: discovery capacity
 
