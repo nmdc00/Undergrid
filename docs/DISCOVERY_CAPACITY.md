@@ -86,6 +86,15 @@ network fixtures and normal HTTP commands, before changing runtime behavior.
    all exclusions and persisted fresh/retained pagination/pair routing also pass.
    `/tmp/undergrid-capacity-green-attempt3-20261025.jsonl` and genuine template
    copy `hp2_capacity_green_20261025_a3` are retained on network 55500.
+7. Retained network-96 regressions on unchanged runtime completed in 107.950
+   seconds: 28 top-level cases passed. Two contract-validation cases failed
+   because this new worktree had no link to the already installed `ajv` package:
+   `TestExternalOpportunityRefreshWatchLifecycle` and
+   `TestOwnerInboxReceiptAndBoundCursor`. Their failure is fixture dependency
+   resolution, not a passing aggregate gate or a runtime diagnosis. Output:
+   `/tmp/undergrid-capacity-retained96-3a527fe-20261025.jsonl`. After terminal
+   completion, the existing unchanged root `node_modules` cache was linked;
+   nothing was installed or downloaded, and no source/database row was reset.
 
 ## Candidate acceptance and remaining integration
 
