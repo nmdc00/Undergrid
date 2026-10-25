@@ -52,7 +52,9 @@ Acceptance:
 - Prove exclusion of running, fresh, unique-key and unrelated jobs, bounded batch
   behavior, actual runtime maintenance, retained descendant routing and recovery
   after authority locks are released. Distinguish normal worker progress from
-  maintenance mutation in the preservation oracle.
+  maintenance mutation in the preservation oracle. Require bounded progress for
+  known eligible unattempted retained work; future-backoff retries must retain
+  their schedule rather than being reset to manufacture a five-second recovery.
 - Propagate the actual River job queue to continuation/pair routing so retained
   work cannot refill fresh lanes indefinitely.
 - Preserve HP1's concrete source-refresher seam, six-hour production scheduling,
@@ -90,11 +92,18 @@ No hosted GitHub CI is required; local checks remain required.
 
 After capacity: reconcile current semantic/profile/hard-constraint/group behavior
 and its preserved tests against release, including current dismissal hashes and
-the HP1 partial-remainder contract. Prove visible unknown-hard clarification and
+the HP1 partial-remainder contract. Semantic dismissal needs a forward migration;
+never edit frozen 033–037/040/041. Prove partial revisions do not silently renew
+revision/profile-bound private-query disclosure consent. Test exact discovery
+latency with a slow semantic provider: dedicated queues alone do not prove
+isolation while direct scans can call the provider synchronously.
+Prove visible unknown-hard clarification and
 registered complementary capability discovery. Complete real owner controls
 needed to carry match provenance and recruitment roles into room creation, builder
-profile opt-in, and bounded plan creation/revision; do not assume backend commands
-alone complete those user flows. Audit the actual missing controls before defining
+profile/invitation opt-in, bounded plan creation/revision and application
+review/offer. An invitation-based main journey must not erase the separately
+required application workflow. Do not assume backend commands alone complete
+those user flows. Audit the actual missing controls before defining
 each subsequent feature branch and acceptance criterion.
 
 Current-authority reads/replays, exact admission, plan/rights decisions and separate
