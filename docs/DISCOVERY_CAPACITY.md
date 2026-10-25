@@ -1,12 +1,14 @@
 # HP2 committed discovery capacity
 
-Work in progress on `feat/v0.1-discovery-capacity`, from release `c0087c0`.
+Implemented and locally validated on `feat/v0.1-discovery-capacity`, originally
+from release `c0087c0` and reconciled with release `316fd4e`. Review and merge
+status are separate from the proof below; no deployment is claimed.
 Owning requirements are HP2 step 1, TDD §5.4 and the existing five-second
 committed-discovery contract. This feature changes scheduling ownership, not
 matching policy, identity, permissions or opportunity evidence. It imports no
 parked semantic code and needs no application migration.
 
-## Runtime behavior under implementation
+## Implemented runtime behavior
 
 Normal committed intention changes receive independent fresh direct-scan,
 watcher-fanout and watcher-pair lanes. The existing queues remain active retained
@@ -103,6 +105,26 @@ network fixtures and normal HTTP commands, before changing runtime behavior.
    selected retained regression evidence on unchanged runtime. The earlier
    package invocation remains failed; no single clean thirty-case aggregate is
    claimed for that log.
+9. The complete HP1 journey and HP2 three-owner setup foundation both passed on
+   candidate `b5864dd2f3158d70cb65dd5c6a9d3ee18c31e919`, which differs from tested
+   runtime `d2a476d` only in documentation: **58.918 seconds**, two race cases,
+   zero failures/skips. HP1 partial remainder/source update/receipt/dismissal/
+   restart took 41.59 seconds; HP2 setup took 16.29 seconds (browser scenario
+   13.0 seconds, runner 14.4 seconds). Output:
+   `/tmp/undergrid-capacity-b5864dd-live-20261025.jsonl`.
+   Retained network-55500 databases are
+   `hp1_run_a3fd0bffae15430aaf79ac28cb159cbe` and
+   `hp1_run_45a27cad56814c4a860d0a0f19faece2`; browser artifacts are
+   `/tmp/undergrid-hp1-browser-4192728880` and
+   `/tmp/undergrid-hp2-browser-2864514872`.
+10. The coupled real frontend build and manifest passed (Vite 1.34 seconds),
+    binding candidate `b5864dd`, source hash `69acf04b7ff9faffb522c235882dad4c621d1d5b263b3838532acf341ac8abff`
+    and the actual served assets. Each live test verified that manifest before
+    opening Chromium. `go vet -tags=hp1_live,hp2_live ./...` and `go build ./...`
+    both exited zero. Outputs:
+    `/tmp/undergrid-capacity-b5864dd-live-build-20261025.log`,
+    `/tmp/undergrid-capacity-b5864dd-vet-20261025.log` and
+    `/tmp/undergrid-capacity-b5864dd-build-20261025.log`.
 
 ## Candidate acceptance and remaining integration
 
@@ -115,9 +137,30 @@ exclude running/fresh/unique/unrelated states, exercise actual post-start runtim
 maintenance, and dispatch persisted fresh/retained River jobs through paginated
 fanout to check descendant scheduling ownership.
 
-Implementation, focused acceptance and selected retained-runtime regressions
-are proven. Current HP1/HP2 browser regressions, static checks, review and release
-integration remain pending. Controlled accounts prove separate
+Implementation, focused acceptance, selected retained-runtime regressions,
+current HP1/HP2 browser regressions and static/build checks are proven. Final
+documentation review and release integration remain pending. Controlled accounts prove separate
 credential authority, not independent beneficial ownership. No semantic/provider,
 real-cohort, source, legal or deployment qualification is established by these
 queue tests. HP2 remains open.
+
+## Pragmatic assessment and limits
+
+The existing domain matcher, authority transaction and normalized opportunity/
+event/inbox effects remain shared. Queue ownership is separate from domain
+eligibility: an old or fresh job still rechecks current actors, intentions and
+public projections. One registration map owns queue count and connection-pool
+headroom; no parallel hand-maintained queue count or generic scheduler framework
+was added. Actual persisted queue identity owns descendant routing.
+
+Maintenance owns only a bounded queue update under the trusted worker role.
+Startup cancellation is observed between batches; periodic errors propagate
+through bounded worker shutdown, and running jobs are never relocated. The
+pinned River schema is an explicit dependency: future River upgrades must retain
+the full-row/exclusion/batch and runtime lifecycle gates. Accepted retry/error
+history and schedules are not deleted, reset or accelerated for recovery.
+
+This proves the selected held-owner/backlog, scheduling ownership and recovery
+scenarios, not an arbitrary-load or slow-semantic-provider SLA. Semantic/provider
+integration, owner publication/profile/room/plan/application controls and the full
+HP2 collaboration journey still require their own implementation and evidence.
