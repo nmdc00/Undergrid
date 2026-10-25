@@ -95,6 +95,14 @@ network fixtures and normal HTTP commands, before changing runtime behavior.
    `/tmp/undergrid-capacity-retained96-3a527fe-20261025.jsonl`. After terminal
    completion, the existing unchanged root `node_modules` cache was linked;
    nothing was installed or downloaded, and no source/database row was reset.
+8. Those exact two failed contract cases then passed independently with race
+   detection, 17.349 seconds, zero failures/skips:
+   `/tmp/undergrid-capacity-retained96-contract-remediation-e24c8a6-20261025.jsonl`.
+   The worktree package manifest and lockfile hashes match the existing root
+   dependency cache. Together with the prior 28 actual passes, this supplies the
+   selected retained regression evidence on unchanged runtime. The earlier
+   package invocation remains failed; no single clean thirty-case aggregate is
+   claimed for that log.
 
 ## Candidate acceptance and remaining integration
 
@@ -107,9 +115,9 @@ exclude running/fresh/unique/unrelated states, exercise actual post-start runtim
 maintenance, and dispatch persisted fresh/retained River jobs through paginated
 fanout to check descendant scheduling ownership.
 
-Implementation and the focused acceptance gate are proven; affected retained
-runtime/HP1 regressions, static checks, review and release integration remain
-pending. Controlled accounts prove separate
+Implementation, focused acceptance and selected retained-runtime regressions
+are proven. Current HP1/HP2 browser regressions, static checks, review and release
+integration remain pending. Controlled accounts prove separate
 credential authority, not independent beneficial ownership. No semantic/provider,
 real-cohort, source, legal or deployment qualification is established by these
 queue tests. HP2 remains open.
