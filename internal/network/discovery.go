@@ -60,9 +60,8 @@ func (s *Service) scanIntentions(ctx context.Context, cause string) error {
 	return nil
 }
 func (s *Service) scanIntent(ctx context.Context, db *pgx.Conn, id string) error {
-	if err := s.ensureSemanticEmbedding(ctx, db, id); err != nil {
-		return err
-	}
+	// Provider I/O belongs only to bounded embedding workers. Fresh exact
+	// discovery remains available while projections are slow or unqualified.
 	return s.scanIntentCandidate(ctx, db, id, "", false)
 }
 func (s *Service) scanIntentCandidate(ctx context.Context, db *pgx.Conn, id, candidateID string, urgent bool) error {

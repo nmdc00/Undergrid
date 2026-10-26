@@ -148,6 +148,23 @@ func (w *semanticRepairWorker) Work(ctx context.Context, job *river.Job[semantic
 	if err = db.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM intents WHERE id=$1 AND current_revision=$2 AND state='active' AND watch_enabled)`, a.IntentID, a.Revision).Scan(&current); err != nil || !current {
 		return err
 	}
+	// Repair external projections through the same bounded provider lane, without
+	// keeping this local discovery slot waiting for the external request.
+	tx, err := db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	queue, err := river.NewClient(riverpgxv5.New(nil), &river.Config{Schema: "undergrid_queue"})
+	if err != nil {
+		return err
+	}
+	if _, err = queue.InsertTx(ctx, tx, semanticEmbeddingArgs{IntentID: a.IntentID}, &river.InsertOpts{Queue: semanticEmbeddingQueue, Priority: 2, MaxAttempts: 10}); err != nil {
+		return err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return err
+	}
 	return retryDiscoveryLock(w.service.scanIntent(ctx, db, a.IntentID))
 }
 
