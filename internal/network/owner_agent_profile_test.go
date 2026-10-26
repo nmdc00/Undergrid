@@ -3,6 +3,7 @@ package network
 import (
 	"context"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -19,32 +20,56 @@ func TestOwnerAgentListAcknowledgesDeclaredAndLegacyProfiles(t *testing.T) {
 	if code != 200 {
 		t.Fatal(code, page)
 	}
+	if len(page["items"].([]any)) != 2 {
+		t.Fatalf("owner agent count: %#v", page)
+	}
+	foundCreated := false
 	for _, raw := range page["items"].([]any) {
 		item := raw.(map[string]any)
 		expected := map[string]any{"public": false, "accept_invitations": false, "recruitment": false, "capabilities": []any{}}
 		if item["id"] == created["id"] {
+			foundCreated = true
 			expected = profile
 		}
 		if !reflect.DeepEqual(item["profile"], expected) {
 			t.Fatalf("saved profile acknowledgement: got %#v want %#v", item["profile"], expected)
 		}
 	}
+	if !foundCreated {
+		t.Fatal("created agent missing from owner list")
+	}
 	// Historical empty profiles are read compatibly without rewriting stored rows.
 	if _, err := db.Exec(context.Background(), "UPDATE undergrid.agents SET profile='{}' WHERE id=$1", created["id"]); err != nil {
 		t.Fatal(err)
 	}
-	_, legacy := a.call("GET", "/v1/agents", "", nil)
+	code, legacy := a.call("GET", "/v1/agents", "", nil)
+	if code != 200 || len(legacy["items"].([]any)) != 2 {
+		t.Fatalf("legacy owner list:%d %#v", code, legacy)
+	}
+	foundCreated = false
 	for _, raw := range legacy["items"].([]any) {
 		item := raw.(map[string]any)
+		if item["id"] == created["id"] {
+			foundCreated = true
+		}
 		if item["id"] == created["id"] && !reflect.DeepEqual(item["profile"], map[string]any{"public": false, "accept_invitations": false, "recruitment": false, "capabilities": []any{}}) {
 			t.Fatalf("legacy profile not normalized: %#v", item)
 		}
+	}
+	if !foundCreated {
+		t.Fatal("legacy created agent missing")
 	}
 	var stored string
 	if err := db.QueryRow(context.Background(), "SELECT profile::text FROM undergrid.agents WHERE id=$1", created["id"]).Scan(&stored); err != nil || stored != "{}" {
 		t.Fatalf("read mutated legacy profile: %s %v", stored, err)
 	}
-	_, other := foreign.call("GET", "/v1/agents", "", nil)
+	code, other := foreign.call("GET", "/v1/agents", "", nil)
+	if code != 200 || len(other["items"].([]any)) != 1 {
+		t.Fatalf("foreign own list:%d %#v", code, other)
+	}
+	if strings.Contains(string(canonical(other)), created["credential_id"].(string)) || strings.Contains(string(canonical(other)), created["token"].(string)) || strings.Contains(string(canonical(other)), "source_catalog_v1") {
+		t.Fatal("foreign list leaked profile or credential")
+	}
 	for _, raw := range other["items"].([]any) {
 		if raw.(map[string]any)["id"] == created["id"] {
 			t.Fatal("foreign profile leaked")

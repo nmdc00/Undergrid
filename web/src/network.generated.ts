@@ -1983,6 +1983,7 @@ export interface components {
             key_control_verified: boolean;
             endpoint_control_verified: boolean;
             credentials: components["schemas"]["Credential"][];
+            profile: components["schemas"]["SavedAgentProfile"];
         };
         OwnerAgents: {
             items: components["schemas"]["OwnerAgent"][];
@@ -3206,6 +3207,12 @@ export interface components {
             projection_hash: string;
             report_hash: string;
             command_digest: string;
+        };
+        SavedAgentProfile: {
+            public: boolean;
+            accept_invitations: boolean;
+            recruitment: boolean;
+            capabilities: string[];
         };
     };
     responses: never;

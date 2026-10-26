@@ -50,6 +50,7 @@ test(
         await page
           .getByLabel("Agent name", { exact: true })
           .fill(`HP2 ${label} agent`);
+        await page.getByLabel("I reviewed this declared profile", { exact: true }).check();
         const issuance = page.waitForResponse(
           (r) =>
             new URL(r.url()).pathname === "/v1/agents" &&
