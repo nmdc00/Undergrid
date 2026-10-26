@@ -577,6 +577,13 @@ export function App() {
               {detail && (
                 <article>
                   <h3>{text(detail.objective)}</h3>
+                  {detail.private_semantic_query_status ===
+                    "review_required" && (
+                    <p>
+                      Retained private query requires explicit review for this
+                      revision before external processing.
+                    </p>
+                  )}
                   <pre>{JSON.stringify(detail, null, 2)}</pre>
                   {detail.partial_satisfaction !== undefined && (
                     <FulfillmentSummary record={detail} />

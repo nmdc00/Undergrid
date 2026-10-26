@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 func controlledSemanticConsent(t *testing.T) (*semanticProvider, *atomic.Int64) {
@@ -105,6 +107,12 @@ func TestPartialRevisionRetainsQueryWithoutRenewingExternalProcessingGrant(t *te
 	}
 	if embedded {
 		t.Fatal("unreviewed partial revision persisted semantic embedding")
+	}
+	// Application-level denial is also enforced at the worker database boundary.
+	_, err = db.Exec(context.Background(), `UPDATE intent_revisions SET embedding='[1,0,0]'::public.vector,embedding_profile_hash=$2,embedding_input_hash=$3,embedding_projection_hash=$3,embedding_provider=$4,embedding_model=$5,embedding_model_revision=$6,embedding_dimensions=3,embedded_at=clock_timestamp() WHERE intent_id=$1 AND revision=2`, id, provider.hash, digest([]byte(retained.PrivateSemanticQuery.Projection)), provider.config.ProviderID, provider.config.Model, provider.config.ModelRevision)
+	var deniedEmbedding *pgconn.PgError
+	if !errors.As(err, &deniedEmbedding) || deniedEmbedding.Code != "P0001" {
+		t.Fatalf("database accepted unreviewed partial embedding: %v", err)
 	}
 	if remainder["private_semantic_query_status"] != "review_required" {
 		t.Fatal("retained query must expose its need for revision review", remainder)
