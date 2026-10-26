@@ -5,7 +5,7 @@ Scope: `HAPPY_PATH_EXECUTION.md` HP2 and the capacity-first dependency contract 
 `c0087c0`, after HP1 local closure. HP1 external qualifications remain open.
 Implementation, continuous local proof, reviewed merge and external qualification
 are separate facts. **HP2 is not locally proven or closed.** The scoped three-owner setup foundation passed on 25 October; it does not
-complete discovery or collaboration. The bounded owner publication/revision/withdrawal control now also has actual local proof, pending feature review/merge. Exact evidence
+complete discovery or collaboration. The bounded owner publication/revision/withdrawal control has actual local proof and merged in PR103 (`b0d49c7`). Reviewed builder registration now has local browser/API/worker proof on its feature branch, pending final review/merge. Exact evidence
 is recorded at the end of this ledger.
 
 Three controlled accounts A/B/C test separate current authorities. They do not
@@ -25,9 +25,9 @@ is a separately required workflow, even if the main journey uses invitations.
 
 | Step / acceptance outcome | Actual entrypoints and dependencies | Implemented and missing | Continuous proof / merge status | External qualification |
 | --- | --- | --- | --- | --- |
-| 0. A/B/C sign in separately, register owners and scoped agents; A/B create private watched intentions; separately create explicitly public intentions with reviewed selected projections. | Production OIDC/session/CSRF; `POST /v1/agents`; owner `POST /v1/owner/intents`; normal bearer `GET /v1/me` and `/v1/intents/{id}`. | Basic private account/agent/intention creation merged. This branch implements explicit redacted-public creation, reviewed same-audience summary revision and withdrawal; feature merge pending. Agent registration still lacks builder capability, invitation and recruitment opt-ins. | PASS: actual three-context browser/API/PostgreSQL setup and private watch ownership boundary at `d8ffa39`; this bounded foundation is reviewed and merged in PR100. The publication→summary revision→withdraw lifecycle passed on `d3d5370`; see `OWNER_INTENTION_PUBLICATION.md` for exact proof and corrected fixed-audience contract. No product rows are seeded. | Controlled identities are fixture accounts only. |
+| 0. A/B/C sign in separately, register owners and scoped agents; A/B create private watched intentions; separately create explicitly public intentions with reviewed selected projections. | Production OIDC/session/CSRF; `POST /v1/agents`; owner `POST /v1/owner/intents`; normal bearer `GET /v1/me` and `/v1/intents/{id}`. | Basic private account/agent/intention creation merged. Explicit redacted-public creation, reviewed same-audience summary revision and withdrawal merged in PR103. Reviewed builder capability, invitation and recruitment opt-ins are implemented and locally proven on `feat/v0.1-owner-builder-registration`; final review/merge pending. | PASS: actual three-context browser/API/PostgreSQL setup and private watch ownership boundary at `d8ffa39`; this bounded foundation is reviewed and merged in PR100. The publication→summary revision→withdraw lifecycle passed on `d3d5370`; see `OWNER_INTENTION_PUBLICATION.md` for exact proof and corrected fixed-audience contract. Builder console registration/reload plus real worker recruitment passed on `7728350`; see `OWNER_BUILDER_REGISTRATION.md`. No browser product rows are seeded. | Controlled identities are fixture accounts only. |
 | 1. A/B inspect current hard/semantic matches, explanatory unknown-hard gaps and compatible groups without assuming transitivity. | Intention create/revise → durable scan/fanout/pair workers; agent/owner intention opportunities. Parked semantic branch adds current profile-bound vectors and `GET /v1/intents/{id}/compatible-groups` / owner equivalent; dependent group viewer remains parked. | Release exact-demand path exists. Independent fresh capacity now has current-release RED/GREEN, retained-runtime and HP1/foundation regression proof; it is reviewed and merged in PR101/release `5ea78d1` (see `DISCOVERY_CAPACITY.md`). Semantic/profile/hard-constraint/group integration, visible unknown-hard clarification and selected group UI are not yet merged. | First blocked acceptance outcome. Preserve the existing five-second fresh-watch/result bounds; no continuous HP2 proof. | Controlled vectors do not qualify model relevance/provider operation. |
-| 2. Discover registered complementary capability; create a reviewed restricted room carrying the current match origin and opt-in recruitment role; C receives attributable recruitment. | Agent `POST /v1/swarms`; owner `POST /v1/owner/agents/{agent}/swarms`; `origin_opportunity_id`, `recruitment_roles`; normal recruitment worker; agent `GET /v1/opportunities`. | Domain room/recruitment commands exist; registered complementary capability discovery remains missing. Owner room UI always sends empty roles and no origin. Owner agent UI sends no profile opt-ins; existing owner agent-creation API accepts a profile. | Missing user controls must be implemented and integrated before the full journey. Direct API fixture setup must not be mislabeled as completed owner controls. | Separate account IDs and declared capabilities do not establish independence or verified competence. |
+| 2. Discover registered complementary capability; create a reviewed restricted room carrying the current match origin and opt-in recruitment role; C receives attributable recruitment. | Agent `POST /v1/swarms`; owner `POST /v1/owner/agents/{agent}/swarms`; `origin_opportunity_id`, `recruitment_roles`; normal recruitment worker; agent `GET /v1/opportunities`. | Domain room/recruitment commands exist; registered complementary capability discovery remains missing. Owner room UI always sends empty roles and no origin. Reviewed owner agent profile controls and saved acknowledgement now have local proof on the builder feature branch, pending final review/merge. | Missing user controls must be implemented and integrated before the full journey. Direct API fixture setup must not be mislabeled as completed owner controls. | Separate account IDs and declared capabilities do not establish independence or verified competence. |
 | 3a. A invites B/C; each reviews full-history disclosure and independently accepts or declines; messages persist. | Agent invitations, invitation read, membership response and messages; owner `/v1/owner/agents/{agent}/swarms/{room}/invitations`, `/invitations/{id}`, `/swarms/{room}/membership-response`, `/context`, `/messages`; `GET .../participation`. | Merged room creation, invitation, explicit response, owner room context and persistent messages. Must connect actual current discovery/recruitment to this lifecycle and retain opt-in checks. | Existing focused evidence is not a continuous three-owner journey. New main journey must prove reviewed room policy, pending vs accepted state and cross-owner message recovery. | Controlled participants are not the required external cohort. |
 | 3b. C applies to an available role; coordinator reviews that exact application and explicitly offers admission; C separately accepts. | Agent `POST /v1/swarms/{id}/applications`, then coordinator invitations with `application_id`, then membership response. | Agent domain transition exists. Owner participation currently lists offered/accepted states, not application review; owner invitation DTO omits `application_id`. User-facing application review/offer remains missing. | Separate required lifecycle: apply does not admit, offer does not admit, decline/expiry/revocation/retry do not fabricate acceptance. It cannot disappear because the primary journey chooses invitations. | No external operation qualified. |
 | 4. A creates/revises a bounded plan; all required principals review the exact plan hash and enabled contribution terms and explicitly vote. | Agent `POST /v1/swarms/{id}/plans` with current room `If-Match` and `parent_version`; `GET /v1/plans/{id}` and approvals. Owner routes currently list/read plans and post approvals. | Shared plan proposal/revision and exact votes exist; owner plan creation/revision controls are missing. Owner exact review/approval is merged. Normal enabled template/license policy and current room contributors remain prerequisites. | Full journey must create and revise through actual controls, with no SQL plan/vote seed or copied hidden fixture result. Required principal votes and rights records stay distinct from assignments. | Local test-only templates do not approve legal terms. |
@@ -112,7 +112,7 @@ The historical foundation checkpoint stopped at scoped three-account setup, two
 private watched intentions and foreign-access denial. Public projection publishing
 was then a missing owner control. The publication feature now proves separate
 explicitly public creation, reviewed same-audience summary revision and withdrawal
-(see `OWNER_INTENTION_PUBLICATION.md`), pending merge; it does not convert private
+(see `OWNER_INTENTION_PUBLICATION.md`), merged in PR103; it does not convert private
 IDs to public. Neither proof skips missing discovery/profile/room/plan controls by
 silently seeding their rows or granting consent. Subsequent reviewed features
 will extend them into the complete path, plus the distinct application workflow. The scoped foundation ran only after root granted a serial test lease, and the
@@ -165,9 +165,35 @@ retained empty-template copies are infrastructure, while all product creation
 uses actual browser commands. SQL is a read-only outcome oracle. No financial
 identity/database or arbitrary agent-content execution is involved.
 
-This proves only the bounded setup foundation. Explicit public projection,
+At that historical foundation checkpoint, this proved only bounded setup. Later public projection and builder registration evidence supersede those two missing-control observations; full HP2 remains open. The original checkpoint left explicit public projection,
 semantic/groups/current discovery capacity, builder opt-ins/complementary
 capability, attributable room/role controls, separate application review/offer,
 plan creation/revision and the complete collaboration/recovery journey remain
 open as mapped above. Full HP2 is not locally closed; public/external/legal/provider
 qualifications remain unproven.
+
+
+## Actual builder registration prerequisite — 26 October 2026
+
+Implemented and locally proven on `feat/v0.1-owner-builder-registration`, pending
+independent final review/merge. Frozen product/test source `7728350` passed five
+focused UI cases, full console125 tests/16files, strict145-schema/closed HTTP
+contracts, tagged all-package vet/build, the actual builder browser and retained
+full HP1 partial-remainder plus HP2 publication/withdrawal browsers. Exact logs,
+commands, failed aggregates, fixture remediation and retained DBs are recorded in
+[owner builder registration evidence](OWNER_BUILDER_REGISTRATION.md).
+
+Through normal OIDC/session/CSRF C explicitly selects and reviews public declared
+`source_catalog_v1` capability and recruitment, leaving foreign invitations off.
+Reload acknowledges the actual saved four-field profile. A's scoped normal-agent
+API room/role fixture causes the actual restricted worker to emit exactly one
+C opportunity/event/inbox triple; unsolicited invitation and room context remain
+404, with no foreign membership, plan, task or approval. Fixture API room setup
+does not complete the missing owner room-origin/recruitment-role controls. Domain
+negatives separately preserve unlisted/recruitment-off/mismatched capability
+exclusion and invitation eligibility independent of recruitment.
+
+This closes the local builder onboarding prerequisite only after reviewed merge.
+It does not prove registered complementary-capability discovery, semantic/groups,
+unknown-hard clarification, reviewed room provenance/roles, application review,
+plan creation/revision, full HP2 admission/consent/recovery or external independence.

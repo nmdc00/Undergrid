@@ -22,14 +22,18 @@ import (
 // This is an opt-in setup foundation, not the complete HP2 journey. The second
 // tag avoids adding unfinished HP2 expectations to HP1's established live gate.
 func TestHP2LiveThreeOwnerScopedSetupFoundation(t *testing.T) {
-	hp2LiveOwnerSetup(t, false)
+	hp2LiveOwnerSetup(t, false, false)
 }
 
 func TestHP2LiveOwnerPublicationAndWithdrawal(t *testing.T) {
-	hp2LiveOwnerSetup(t, true)
+	hp2LiveOwnerSetup(t, true, false)
 }
 
-func hp2LiveOwnerSetup(t *testing.T, publication bool) {
+func TestHP2LiveOwnerBuilderRegistrationAndRecruitment(t *testing.T) {
+	hp2LiveOwnerSetup(t, false, true)
+}
+
+func hp2LiveOwnerSetup(t *testing.T, publication, builderRegistration bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	adminDSN := hp1RunDatabase(t, ctx)
@@ -124,6 +128,29 @@ func hp2LiveOwnerSetup(t *testing.T, publication bool) {
 	if publication {
 		browser.Env = append(browser.Env, "UNDERGRID_HP2_OWNER_PUBLICATION=1")
 	}
+	if builderRegistration {
+		browser.Env = append(browser.Env, "UNDERGRID_HP2_BUILDER_REGISTRATION=1")
+		workerRole := "hp2_worker_" + strings.ReplaceAll(NewID(), "-", "")
+		if _, err = admin.Exec(ctx, "CREATE ROLE "+pgx.Identifier{workerRole}.Sanitize()+" LOGIN NOSUPERUSER NOBYPASSRLS; GRANT undergrid_worker TO "+pgx.Identifier{workerRole}.Sanitize()); err != nil {
+			t.Fatal(err)
+		}
+		workerDSN := networkFixtureRoleDSN(t, admin, workerRole)
+		workerCtx, stop := context.WithCancel(ctx)
+		done := make(chan error, 1)
+		t.Setenv("UNDERGRID_SOURCES_FILE", "")
+		go func() { done <- RunWorker(workerCtx, workerDSN, "development") }()
+		defer func() {
+			stop()
+			select {
+			case err := <-done:
+				if err != nil {
+					t.Error(err)
+				}
+			case <-time.After(12 * time.Second):
+				t.Error("HP2 recruitment worker did not stop")
+			}
+		}()
+	}
 	output, err := browser.CombinedOutput()
 	t.Logf("Actual HP2 Chromium output:\n%s", output)
 	if err != nil {
@@ -167,8 +194,28 @@ func hp2LiveOwnerSetup(t *testing.T, publication bool) {
 	if err = admin.QueryRow(ctx, `SELECT (SELECT count(*) FROM undergrid.swarms)+(SELECT count(*) FROM undergrid.memberships)+(SELECT count(*) FROM undergrid.plan_versions)+(SELECT count(*) FROM undergrid.approvals)+(SELECT count(*) FROM undergrid.tasks)`).Scan(&collaborationEffects); err != nil {
 		t.Fatal(err)
 	}
-	if collaborationEffects != 0 {
+	expectedCollaborationEffects := 0
+	if builderRegistration {
+		expectedCollaborationEffects = 2
+	} // one fixture/API-created room and its creator membership
+	if collaborationEffects != expectedCollaborationEffects {
 		t.Fatalf("setup fabricated %d collaboration effects", collaborationEffects)
+	}
+	if builderRegistration {
+		var profiles, opportunities, events, inbox, completedRecruitmentJobs, foreignMemberships, plans, tasks, approvals int
+		if err = admin.QueryRow(ctx, `SELECT
+   (SELECT count(*) FROM undergrid.agents a JOIN undergrid.principals p ON p.id=a.principal_id WHERE p.subject='hp2-controlled-builder-c' AND a.profile='{"public":true,"accept_invitations":false,"recruitment":true,"capabilities":["source_catalog_v1"]}'::jsonb),
+   (SELECT count(*) FROM undergrid.opportunities WHERE kind='builder_recruitment'),
+   (SELECT count(*) FROM undergrid.events e JOIN undergrid.opportunities o ON o.id=e.aggregate_id WHERE o.kind='builder_recruitment' AND e.type='opportunity.available'),
+   (SELECT count(*) FROM undergrid.inbox i JOIN undergrid.events e ON e.id=i.event_id JOIN undergrid.opportunities o ON o.id=e.aggregate_id WHERE o.kind='builder_recruitment'),
+   (SELECT count(*) FROM undergrid_queue.river_job WHERE kind='builder_recruitment_v1' AND state='completed'),
+   (SELECT count(*) FROM undergrid.memberships WHERE role<>'coordinator'),
+   (SELECT count(*) FROM undergrid.plan_versions),(SELECT count(*) FROM undergrid.tasks),(SELECT count(*) FROM undergrid.approvals)`).Scan(&profiles, &opportunities, &events, &inbox, &completedRecruitmentJobs, &foreignMemberships, &plans, &tasks, &approvals); err != nil {
+			t.Fatal(err)
+		}
+		if profiles != 1 || opportunities != 1 || events != 1 || inbox != 1 || completedRecruitmentJobs < 1 || foreignMemberships != 0 || plans != 0 || tasks != 0 || approvals != 0 {
+			t.Fatalf("builder profile/recruitment effects: profile=%d opp/event/inbox=%d/%d/%d completedjobs=%d memberships=%d plans/tasks/approvals=%d/%d/%d", profiles, opportunities, events, inbox, completedRecruitmentJobs, foreignMemberships, plans, tasks, approvals)
+		}
 	}
 	if publication {
 		var revisions, revisionEvents, withdrawalEvents, publicCurrent, version, currentRevision int
