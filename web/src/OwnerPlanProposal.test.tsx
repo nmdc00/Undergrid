@@ -4,7 +4,54 @@ import userEvent from "@testing-library/user-event";
 import { expect, test, vi } from "vitest";
 import { Participation } from "./Participation";
 
-function fixture(malformedFirst = false) {
+function fixture({
+  malformedFirst = false,
+  legacyPlan = false,
+  invalidRequired = false,
+}: {
+  malformedFirst?: boolean;
+  legacyPlan?: boolean;
+  invalidRequired?: boolean;
+} = {}) {
+  const legacySpec = {
+    parent_version: null,
+    objective: "Existing accepted nullable plan",
+    required_principals: invalidRequired ? null : ["owner-a", "owner-c"],
+    acceptance_principals: ["owner-a"],
+    publication_principals: null,
+    rights: {
+      template_id: "test-contribution-v1",
+      license_id: "CC0-1.0",
+      publication: "exact_manifest_approval",
+    },
+    tasks: [
+      {
+        key: "old-task",
+        assignee_agent_id: "agent-c",
+        depends_on: null,
+        output_schema: "source_catalog_v1",
+        checks: ["json_schema_v1"],
+        progress_interval_seconds: 86400,
+        deadline: "2030-02-01T00:00:35.123Z",
+      },
+    ],
+    respond_by: new Date(Date.now() + 86400000).toISOString(),
+  };
+  const legacyCanonical = JSON.stringify({
+    plan: legacySpec,
+    template_hash: "a".repeat(64),
+  });
+  const legacy = {
+    id: "legacy-plan",
+    swarm_id: "room",
+    version: 1,
+    state: "accepted",
+    content_hash: createHash("sha256").update(legacyCanonical).digest("hex"),
+    canonical_json: legacyCanonical,
+    specification: legacySpec,
+    tasks: [],
+  };
+
   let posts = 0;
   const receipts = new Map<string, unknown>();
   const calls: { path: string; init?: RequestInit }[] = [];
@@ -37,7 +84,14 @@ function fixture(malformedFirst = false) {
       if (path.endsWith("/plan-context"))
         value = {
           swarm: { id: "room", state: "active", version: 1, etag: '"1"' },
-          latest_plan: null,
+          latest_plan: legacyPlan
+            ? {
+                id: legacy.id,
+                version: legacy.version,
+                state: legacy.state,
+                content_hash: legacy.content_hash,
+              }
+            : null,
           items: [
             {
               id: "member-a",
@@ -55,6 +109,7 @@ function fixture(malformedFirst = false) {
           next_after: "",
           limit: 100,
         };
+      if (legacyPlan && path.endsWith("/plans/legacy-plan")) value = legacy;
       if (path === "/v1/owner/config")
         value = {
           terms_version: "test-v1",
@@ -245,7 +300,7 @@ test("owner reviews an actual two-task dependency draft and sends current select
 });
 
 test("malformed proposal receipt preserves exact draft, parent, ETag and key for recovery", async () => {
-  const calls = fixture(true);
+  const calls = fixture({ malformedFirst: true });
   await openEditor();
   await fillDependentDraft();
   await userEvent.click(screen.getByLabelText("I reviewed this plan proposal"));
@@ -266,4 +321,78 @@ test("malformed proposal receipt preserves exact draft, parent, ETag and key for
     retry = new Headers(posts[1].init?.headers);
   expect(retry.get("Idempotency-Key")).toBe(first.get("Idempotency-Key"));
   expect(retry.get("If-Match")).toBe(first.get("If-Match"));
+});
+
+test("a valid existing plan with nullable publication and dependencies loads as a new immutable revision", async () => {
+  fixture({ legacyPlan: true });
+  render(
+    <Participation
+      agents={[{ id: "agent-a", name: "Owned agent", status: "active" }]}
+      csrf="nullable-plan-owner"
+      onUnauthorized={vi.fn()}
+    />,
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "Load participation" }),
+  );
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Open room" }),
+  );
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Load plan context" }),
+  );
+  await userEvent.click(
+    await screen.findByRole("button", {
+      name: "Load latest plan for revision",
+    }),
+  );
+  expect(
+    (
+      (await screen.findByRole("textbox", {
+        name: "Plan objective",
+      })) as HTMLTextAreaElement
+    ).value,
+  ).toBe("Existing accepted nullable plan");
+  expect(
+    (
+      screen.getByLabelText(
+        "Task 1 final deadline (UTC, optional)",
+      ) as HTMLInputElement
+    ).value,
+  ).toBe("2030-02-01T00:00:35.123");
+  expect(
+    (
+      screen.getByLabelText(
+        "Publication principal: owner-a",
+      ) as HTMLInputElement
+    ).checked,
+  ).toBe(false);
+  expect(screen.getByText("New revision of plan 1")).toBeTruthy();
+});
+
+test("nullable compatibility does not accept a missing required-principal array", async () => {
+  fixture({ legacyPlan: true, invalidRequired: true });
+  render(
+    <Participation
+      agents={[{ id: "agent-a", name: "Owned agent", status: "active" }]}
+      csrf="invalid-required-owner"
+      onUnauthorized={vi.fn()}
+    />,
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "Load participation" }),
+  );
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Open room" }),
+  );
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Load plan context" }),
+  );
+  await userEvent.click(
+    await screen.findByRole("button", {
+      name: "Load latest plan for revision",
+    }),
+  );
+  await screen.findByRole("alert");
+  expect(screen.queryByRole("textbox", { name: "Plan objective" })).toBeNull();
 });
