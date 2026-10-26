@@ -797,6 +797,7 @@ export function App() {
                           <IntentionConstraintsEditor
                             key={`revision-${String(detail.id)}-${String(detail.etag)}`}
                             value={revisionConstraints}
+                            disabled={busy}
                             onChange={setRevisionConstraints}
                           />
                           <IntentionPublication
@@ -1154,13 +1155,13 @@ export function App() {
               >
                 <h3>Create a source-catalog intention</h3>
                 <p>
-                  JSON dataset with source_id and source_url, CC0-1.0
-                  requirement. Expires in 30 days. This expresses a desired
-                  license; it grants no contribution rights.
+                  JSON source-catalog dataset. Review the requirements and
+                  expiry below. A desired license grants no contribution rights.
                 </p>
                 <IntentionConstraintsEditor
                   key={`creation-${queryGeneration}`}
                   value={creationConstraints}
+                  disabled={busy}
                   onChange={setCreationConstraints}
                 />
                 <IntentionPublication
