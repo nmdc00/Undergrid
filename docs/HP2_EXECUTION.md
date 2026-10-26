@@ -286,9 +286,57 @@ Test-first acceptance and evidence:
 
 ## Next task contract: reviewed room origin and recruitment roles — 26 October 2026
 
-Status: planned, not implemented or runtime-proven. Semantic integration and
-builder registration remain active prerequisites; this contract starts no new
-behavior or test process. One later feature branch,
+Status: locked for implementation after semantic PR107 and prerequisite checkpoint
+PR108, source release `6a93b05`. Implementer `semantic_oct26`; independent review
+`review_oct26`; root integrates the reviewed feature. Branch
+`feat/v0.1-owner-room-origin-recruitment`, isolated worktree
+`/tmp/undergrid-worktrees/room-origin/feat-v0.1-owner-room-origin-recruitment`.
+This assignment grants test authoring, not a costly test lease. The older planning
+and static-audit checkpoint below remains history; PR107 now makes shared-demand
+reads compare current input/profile/projection hashes before publication.
+
+All four existing supplied origin kinds must be validated: `shared_demand`,
+`external_request`, `external_capability`, `builder_recruitment`. The UI can start
+from current owned-intention results; it needs no group viewer or new generic
+read route. A selected origin pins the actual owned recipient agent. Selection,
+agent/session/context or command-field changes invalidate review; accepted newer
+drafts cannot be erased by older completions. Command fields freeze while their
+snapshot is pending, and generation checks reject stale results.
+
+Origin eligibility is checked in the shared domain transaction **before retained
+idempotent response recovery**, not only before a new insert. Unchanged current
+origin plus identical body/key recovers the same room; changed input conflicts.
+Stale, dismissed, foreign, revoked, expired or changed source/candidate/hash/profile
+origins deny recovery and produce no new effects. Objective-only commands retain
+their existing creation/retry behavior.
+
+Do not reuse migration040/043 dismissal eligibility wholesale: shared-demand
+visible/current provenance does not require an active watch, although dismissal
+and computed-group contracts do. Include a positive otherwise-current shared
+origin with monitoring disabled. External kinds retain the existing monitored,
+current permitted-source/observation/revision contract. Recruitment origins bind
+the active public/restricted source room/coordinator and current recipient role,
+profile and recruitment hash; receipt is neither admission nor rights consent.
+
+Forward migration **045 is reserved for this feature**, after the plan feature's
+frozen044. A narrow boolean/current-eligibility NOWAIT authority-lock helper is
+permitted only where actual restricted application RLS prevents safely locking
+foreign principal/agent/intention/source rows. It may not expose private foreign
+rows, broaden table grants or change frozen040–044. Keep payload/current-evidence
+validation in the shared domain, not owner adapters.
+
+Review exactly the selected origin, objective, private/restricted visibility,
+full-history disclosure and bounded zero-to-ten existing supported recruitment
+roles. The existing created id/version/visibility/history response is sufficient;
+no new DTO/read route is authorized merely for convenience. Verify persisted
+origin/roles independently in the runtime proof. The parked group viewer at
+`8f03ecd` remains preserved as a separate five-file feature delta.
+
+Write actual restricted HTTP and console behavioral REDs before corrections,
+then prove an actual normal-owner selected-match → reviewed restricted room with
+origin and role → restricted-worker recruitment opportunity/event/inbox journey.
+No browser product rows may be seeded and no additional member may be admitted.
+All failure, retry, current-authority and unchanged HP1 checks remain mandatory. One later feature branch,
 `feat/v0.1-owner-room-origin-recruitment`, must start from the then-current
 reviewed `release/v0.1` in its own isolated worktree. Root assigns its implementer
 and serial test lease after the current dependencies are ready. This contract is
