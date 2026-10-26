@@ -5,6 +5,7 @@ import {
   planSummary,
   planInteger as integer,
   planStrings as strings,
+  nullablePlanStrings,
   planDetails,
   reviewedPlan,
   type Summary,
@@ -211,7 +212,7 @@ export function OwnerPlanApproval({
             Required approvers: {strings(spec.required_principals).join(", ")}.
             Output acceptance: {strings(spec.acceptance_principals).join(", ")}.
             Publication approvers:{" "}
-            {strings(spec.publication_principals).join(", ")}.
+            {nullablePlanStrings(spec.publication_principals).join(", ")}.
           </p>
           <p>
             Contribution terms: {text(rights.template_id)}; license{" "}
@@ -236,7 +237,8 @@ export function OwnerPlanApproval({
               return (
                 <li key={text(t.key)}>
                   Task {text(t.key)} assigned to {text(t.assignee_agent_id)}.
-                  Depends on: {strings(t.depends_on).join(", ") || "none"}.
+                  Depends on:{" "}
+                  {nullablePlanStrings(t.depends_on).join(", ") || "none"}.
                   Output: {text(t.output_schema)}; checks:{" "}
                   {strings(t.checks).join(", ")}. Progress every{" "}
                   {integer(t.progress_interval_seconds)} seconds. Deadline:{" "}

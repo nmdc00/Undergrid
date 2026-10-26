@@ -36,18 +36,18 @@ export function planStrings(x: unknown): string[] {
   if (!Array.isArray(x)) throw Error("Invalid plan details");
   return x.map(text);
 }
+export function nullablePlanStrings(value: unknown): string[] {
+  return value === null ? [] : planStrings(value);
+}
 export function planDetails(raw: unknown): Plan {
   const x = object(raw),
     spec = object(x.specification),
     rights = object(spec.rights);
   text(spec.objective);
   text(spec.respond_by);
-  for (const k of [
-    "required_principals",
-    "acceptance_principals",
-    "publication_principals",
-  ])
+  for (const k of ["required_principals", "acceptance_principals"])
     planStrings(spec[k]);
+  nullablePlanStrings(spec.publication_principals);
   for (const k of ["template_id", "license_id", "publication"]) text(rights[k]);
   if (
     !Array.isArray(spec.tasks) ||
@@ -60,7 +60,7 @@ export function planDetails(raw: unknown): Plan {
     const t = object(raw);
     text(t.key);
     text(t.assignee_agent_id);
-    planStrings(t.depends_on);
+    nullablePlanStrings(t.depends_on);
     planStrings(t.checks);
     text(t.output_schema);
     planInteger(t.progress_interval_seconds);
