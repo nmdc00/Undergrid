@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { ApiError, object, request, text, type ObjectValue } from "./api";
 import {
   planSummary,
+  planInteger as integer,
+  planStrings as strings,
   planDetails,
   reviewedPlan,
   type Summary,

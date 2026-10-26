@@ -1,5 +1,10 @@
 import { object, text, type ObjectValue } from "./api";
-import { planDetails, planSummary } from "./plan-contract";
+import {
+  planDetails,
+  planSummary,
+  planInteger as positive,
+  planStrings as strings,
+} from "./plan-contract";
 import type { components } from "./network.generated";
 
 export type PlanInput = components["schemas"]["PlanSpec"];
@@ -20,16 +25,6 @@ export type TaskDraft = Omit<TaskInput, "deadline" | "depends_on"> & {
 };
 export type Draft = Omit<PlanInput, "tasks"> & { tasks: TaskDraft[] };
 
-function positive(value: unknown): number {
-  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1)
-    throw Error("Invalid plan version");
-  return value;
-}
-function strings(value: unknown): string[] {
-  if (!Array.isArray(value) || !value.every((x) => typeof x === "string"))
-    throw Error("Invalid plan fields");
-  return value;
-}
 export function proposalContext(
   value: unknown,
   roomID: string,

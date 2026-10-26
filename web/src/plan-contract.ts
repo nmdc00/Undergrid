@@ -16,7 +16,7 @@ export type Review = Plan & {
   contribution_template_hash: string;
   terms_url: string;
 };
-function integer(x: unknown) {
+export function planInteger(x: unknown) {
   if (typeof x !== "number" || !Number.isSafeInteger(x) || x < 1)
     throw Error("Invalid plan version");
   return x;
@@ -27,12 +27,12 @@ export function planSummary(raw: unknown): Summary {
   if (!/^[a-f0-9]{64}$/.test(hash)) throw Error("Invalid plan hash");
   return {
     id: text(x.id),
-    version: integer(x.version),
+    version: planInteger(x.version),
     state: text(x.state),
     content_hash: hash,
   };
 }
-function strings(x: unknown): string[] {
+export function planStrings(x: unknown): string[] {
   if (!Array.isArray(x)) throw Error("Invalid plan details");
   return x.map(text);
 }
@@ -47,7 +47,7 @@ export function planDetails(raw: unknown): Plan {
     "acceptance_principals",
     "publication_principals",
   ])
-    strings(spec[k]);
+    planStrings(spec[k]);
   for (const k of ["template_id", "license_id", "publication"]) text(rights[k]);
   if (
     !Array.isArray(spec.tasks) ||
@@ -60,10 +60,10 @@ export function planDetails(raw: unknown): Plan {
     const t = object(raw);
     text(t.key);
     text(t.assignee_agent_id);
-    strings(t.depends_on);
-    strings(t.checks);
+    planStrings(t.depends_on);
+    planStrings(t.checks);
     text(t.output_schema);
-    integer(t.progress_interval_seconds);
+    planInteger(t.progress_interval_seconds);
     if (t.deadline != null) text(t.deadline);
   }
   return {
