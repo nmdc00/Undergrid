@@ -3,6 +3,7 @@ package network
 import (
 	"context"
 	"errors"
+	"os"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -64,6 +65,11 @@ func enqueueScan(ctx context.Context, tx pgx.Tx, cause string) error {
 	client, err := river.NewClient(riverpgxv5.New(nil), &river.Config{Schema: "undergrid_queue"})
 	if err != nil {
 		return err
+	}
+	if os.Getenv("UNDERGRID_SEMANTIC_CONFIG_FILE") != "" {
+		if _, err = client.InsertTx(ctx, tx, semanticEmbeddingArgs{IntentID: cause}, &river.InsertOpts{Queue: semanticEmbeddingQueue, Priority: 1, MaxAttempts: 10}); err != nil {
+			return err
+		}
 	}
 	if _, err = client.InsertTx(ctx, tx, scanArgs{cause}, &river.InsertOpts{MaxAttempts: 10, Queue: freshDiscoveryQueue, Priority: 1}); err != nil {
 		return err
@@ -148,6 +154,12 @@ func RunWorker(ctx context.Context, dsn, environment string) error {
 // boundary lets acceptance tests control external HTTPS without bypassing jobs.
 func runWorkerWithSources(ctx context.Context, dsn, environment string, sources *SourceRefresher) error {
 	queues := map[string]river.QueueConfig{
+		semanticRepairQueue:    {MaxWorkers: 2, FetchCooldown: time.Millisecond, FetchPollInterval: 100 * time.Millisecond},
+		semanticEmbeddingQueue: {MaxWorkers: 2, FetchPollInterval: 100 * time.Millisecond},
+		semanticReadyQueue:     {MaxWorkers: 2, FetchPollInterval: 100 * time.Millisecond},
+		semanticFanoutQueue:    {MaxWorkers: 2, FetchPollInterval: 100 * time.Millisecond},
+		semanticPairQueue:      {MaxWorkers: 4, FetchPollInterval: 100 * time.Millisecond},
+
 		river.QueueDefault:             {MaxWorkers: 2},
 		sourceRefreshQueue:             {MaxWorkers: 2},
 		externalNotificationQueue:      {MaxWorkers: 1},
@@ -194,6 +206,10 @@ func runWorkerWithSources(ctx context.Context, dsn, environment string, sources 
 	workers := river.NewWorkers()
 	river.AddWorker(workers, &sourceRefreshWorker{refresher: sources})
 	service := New(dsn, environment, nil)
+	service.semantic, err = semanticConfiguration(environment)
+	if err != nil {
+		return err
+	}
 	if err = service.ConfigureArtifactsFromEnvironment(); err != nil {
 		return err
 	}
@@ -201,6 +217,9 @@ func runWorkerWithSources(ctx context.Context, dsn, environment string, sources 
 	river.AddWorker(workers, &artifactEvaluationWorker{service: service})
 	river.AddWorker(workers, &inputGrantDeliveryWorker{dsn: dsn})
 	river.AddWorker(workers, &scanWorker{service: service})
+	river.AddWorker(workers, &semanticEmbeddingWorker{service: service})
+	river.AddWorker(workers, &semanticReadyWorker{service: service})
+	river.AddWorker(workers, &semanticRepairWorker{service: service})
 	river.AddWorker(workers, &watchRefreshWorker{service: service})
 	river.AddWorker(workers, &externalNotificationWorker{service: service})
 	river.AddWorker(workers, &fanoutWorker{dsn: dsn})

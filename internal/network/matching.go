@@ -1,40 +1,36 @@
 package network
 
 import (
-	"slices"
 	"strings"
 )
 
+type ConstraintAssessment struct {
+	Dimension string `json:"dimension"`
+	Status    string `json:"status"`
+	Reason    string `json:"reason"`
+}
+
 type Compatibility struct {
-	Compatible bool     `json:"compatible"`
-	Status     string   `json:"status"`
-	Reasons    []string `json:"reasons"`
-	Algorithm  string   `json:"algorithm"`
+	MinimumSimilarity       *float64               `json:"minimum_similarity,omitempty"`
+	Compatible              bool                   `json:"compatible"`
+	Status                  string                 `json:"status"`
+	Reasons                 []string               `json:"reasons"`
+	Algorithm               string                 `json:"algorithm"`
+	Similarity              *float64               `json:"similarity,omitempty"`
+	SemanticProfileHash     string                 `json:"semantic_profile_hash,omitempty"`
+	Model                   string                 `json:"model,omitempty"`
+	ModelRevision           string                 `json:"model_revision,omitempty"`
+	SourceProjectionHash    string                 `json:"source_projection_hash,omitempty"`
+	CandidateProjectionHash string                 `json:"candidate_projection_hash,omitempty"`
+	TextRank                float64                `json:"text_rank,omitempty"`
+	ConstraintEvidence      []ConstraintAssessment `json:"constraint_evidence,omitempty"`
+	CombinedConstraints     *Constraints           `json:"combined_constraints,omitempty"`
 }
 
 func CompareDemand(a, b IntentInput) Compatibility {
-	e := Compatibility{Status: "compatible", Compatible: true, Reasons: []string{}, Algorithm: "hard-constraints-exact-v1"}
-	reject := func(status, reason string) Compatibility {
-		e.Compatible = false
-		e.Status = status
-		e.Reasons = append(e.Reasons, reason)
+	e := compareDemandConstraints(a, b)
+	if !e.Compatible {
 		return e
-	}
-	if a.Output != b.Output {
-		return reject("incompatible", "output_schema_mismatch")
-	}
-	if len(a.HardConstraints.LicenseIDs) == 0 || len(b.HardConstraints.LicenseIDs) == 0 {
-		return reject("needs_clarification", "license_unspecified")
-	}
-	overlap := false
-	for _, license := range a.HardConstraints.LicenseIDs {
-		if slices.Contains(b.HardConstraints.LicenseIDs, license) {
-			overlap = true
-			break
-		}
-	}
-	if !overlap {
-		return reject("incompatible", "no_common_license")
 	}
 	text := func(i IntentInput) string {
 		if i.PublicSummary != "" {
@@ -43,8 +39,11 @@ func CompareDemand(a, b IntentInput) Compatibility {
 		return strings.ToLower(strings.TrimSpace(i.Objective))
 	}
 	if text(a) != text(b) {
-		return reject("needs_clarification", "semantic_comparison_pending")
+		e.Compatible = false
+		e.Status = "needs_clarification"
+		e.Reasons = []string{"semantic_comparison_pending"}
+		return e
 	}
-	e.Reasons = []string{"same_declared_outcome", "same_output_schema", "common_permitted_license", "required_fields_can_be_combined"}
+	e.Reasons = append([]string{"same_declared_outcome"}, e.Reasons...)
 	return e
 }

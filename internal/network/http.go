@@ -19,6 +19,7 @@ import (
 
 type OwnerAuthenticator func(*http.Request) (Owner, error)
 type Service struct {
+	semantic           *semanticProvider
 	a2a                *networkA2A
 	mcpHandler         http.Handler
 	mcpOrigin          string
@@ -401,17 +402,32 @@ func (s *Service) agentCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, e
 		}
 		return s.listExternalLeads(r, tx, a, id, "agent")
 	}
+	if strings.HasPrefix(r.URL.Path, "/v1/intents/") && strings.HasSuffix(r.URL.Path, "/compatible-groups") {
+		if r.Method != "GET" {
+			return 0, nil, fail(405, "method_not_allowed")
+		}
+		if !slices.Contains(a.Scopes, "intents:read") {
+			return 0, nil, insufficientScope(a, "intents:read")
+		}
+		return s.compatibleGroups(r, tx, a, strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/v1/intents/"), "/compatible-groups"))
+	}
 	if r.Method == "GET" && (r.URL.Path == "/v1/opportunities" || strings.HasPrefix(r.URL.Path, "/v1/opportunities/") || (strings.HasPrefix(r.URL.Path, "/v1/intents/") && strings.HasSuffix(r.URL.Path, "/opportunities"))) {
 		if !slices.Contains(a.Scopes, "intents:read") {
 			return 0, nil, insufficientScope(a, "intents:read")
 		}
-		return listOpportunities(r, tx, a)
+		return s.listOpportunities(r, tx, a)
 	}
 	if r.URL.Path == "/v1/inbox" || r.URL.Path == "/v1/agent-context" || strings.HasPrefix(r.URL.Path, "/v1/inbox/") {
 		if !slices.Contains(a.Scopes, "inbox:read") {
 			return 0, nil, insufficientScope(a, "inbox:read")
 		}
 		return s.inboxCommand(r, tx, a)
+	}
+	if r.Method == "GET" && r.URL.Path == "/v1/matching-policy" {
+		if !slices.Contains(a.Scopes, "intents:read") {
+			return 0, nil, insufficientScope(a, "intents:read")
+		}
+		return matchingPolicy(s.environment)
 	}
 	if r.Method == "GET" && r.URL.Path == "/v1/me" {
 		return 200, map[string]any{"agent_id": a.AgentID, "principal_id": a.PrincipalID, "environment": s.environment, "scopes": a.Scopes}, nil

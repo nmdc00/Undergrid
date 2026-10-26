@@ -53,6 +53,18 @@ func getIntent(ctx context.Context, tx pgx.Tx, a actor, id string) (int, any, er
 	if err = json.Unmarshal(document, &result); err != nil {
 		return 0, nil, err
 	}
+	delete(result, "semantic_processing_grant")
+	stored, err := decodeStoredIntent(document, revision)
+	if err != nil {
+		return 0, nil, err
+	}
+	if stored.PrivateSemanticQuery != nil {
+		status := "review_required"
+		if stored.processingGrant.matches(stored, revision) {
+			status = "revision_bound"
+		}
+		result["private_semantic_query_status"] = status
+	}
 	result["id"] = id
 	result["version"] = version
 	result["current_revision"] = revision
@@ -72,12 +84,17 @@ func mutateIntentOnce(r *http.Request, tx pgx.Tx, a actor, environment string) (
 	var id string
 	var version int64
 	var eventType string
+
 	if r.Method == "POST" {
 		var input IntentInput
 		if err = decode(r, &input); err != nil {
 			return 0, nil, err
 		}
+
 		if err = input.validate(); err != nil {
+			return 0, nil, err
+		}
+		if err = validateSemanticConsent(input, environment); err != nil {
 			return 0, nil, err
 		}
 		if err = admitPrincipalResource(ctx, tx, a.PrincipalID, "active_intents"); err != nil {
@@ -90,7 +107,8 @@ func mutateIntentOnce(r *http.Request, tx pgx.Tx, a actor, environment string) (
 			return 0, nil, err
 		}
 		projection := intentPublicProjection(input)
-		if _, err = tx.Exec(ctx, "INSERT INTO intent_revisions(intent_id,revision,document,public_projection,content_hash) VALUES($1,1,$2,$3,$4)", id, canonical(input), canonical(projection), digest(canonical(input))); err != nil {
+		encoded := canonical(intentRevisionDocument{IntentInput: input, SemanticProcessingGrant: newSemanticProcessingGrant(input, 1)})
+		if _, err = tx.Exec(ctx, "INSERT INTO intent_revisions(intent_id,revision,document,public_projection,content_hash) VALUES($1,1,$2,$3,$4)", id, encoded, canonical(projection), digest(encoded)); err != nil {
 			return 0, nil, err
 		}
 	} else {
@@ -156,7 +174,11 @@ func mutateIntentOnce(r *http.Request, tx pgx.Tx, a actor, environment string) (
 			if err = decodeIntentJSON(mutation.Revision, &input); err != nil {
 				return 0, nil, err
 			}
+
 			if err = input.validate(); err != nil {
+				return 0, nil, err
+			}
+			if err = validateSemanticConsent(input, environment); err != nil {
 				return 0, nil, err
 			}
 			if input.Visibility != visibility {
@@ -183,7 +205,7 @@ func mutateIntentOnce(r *http.Request, tx pgx.Tx, a actor, environment string) (
 			if err = json.Unmarshal(previousRaw, &previousDocument); err != nil {
 				return 0, nil, err
 			}
-			if err = writeIntentRevision(ctx, tx, id, currentRevision+1, version, state, input, previousDocument.PartialSatisfaction); err != nil {
+			if err = writeIntentRevision(ctx, tx, id, currentRevision+1, version, state, input, previousDocument.PartialSatisfaction, newSemanticProcessingGrant(input, currentRevision+1)); err != nil {
 				return 0, nil, err
 			}
 		}
@@ -201,8 +223,8 @@ func mutateIntentOnce(r *http.Request, tx pgx.Tx, a actor, environment string) (
 
 // Shared by ordinary revisions and owner-declared partial fulfillment. Input
 // still owns the public projection; server-only audit never enters it.
-func writeIntentRevision(ctx context.Context, tx pgx.Tx, id string, revision int, version int64, state string, input IntentInput, audit *partialSatisfactionAudit) error {
-	encoded := canonical(intentRevisionDocument{IntentInput: input, PartialSatisfaction: audit})
+func writeIntentRevision(ctx context.Context, tx pgx.Tx, id string, revision int, version int64, state string, input IntentInput, audit *partialSatisfactionAudit, grant *semanticProcessingGrant) error {
+	encoded := canonical(intentRevisionDocument{IntentInput: input, PartialSatisfaction: audit, SemanticProcessingGrant: grant})
 	if _, err := tx.Exec(ctx, "INSERT INTO intent_revisions(intent_id,revision,document,public_projection,content_hash) VALUES($1,$2,$3,$4,$5)", id, revision, encoded, canonical(intentPublicProjection(input)), digest(encoded)); err != nil {
 		return err
 	}
@@ -217,8 +239,17 @@ func finishIntentMutation(ctx context.Context, tx pgx.Tx, a actor, id string, ve
 	if environment != "production" {
 		origin = "release_test"
 	}
+	var document []byte
+	if err = tx.QueryRow(ctx, "SELECT r.document FROM intents i JOIN intent_revisions r ON r.intent_id=i.id AND r.revision=i.current_revision WHERE i.id=$1", id).Scan(&document); err != nil {
+		return nil, err
+	}
+	var input IntentInput
+	if err = json.Unmarshal(document, &input); err != nil {
+		return nil, err
+	}
+	facts := intentMatchingFacts(input)
 	eventID := NewID()
-	if _, err = tx.Exec(ctx, "INSERT INTO events(id,aggregate_kind,aggregate_id,version,principal_id,agent_id,type,facts,origin) VALUES($1,'intent',$2,$3,$4,$5,$6,'{}',$7)", eventID, id, version, a.PrincipalID, a.AgentID, eventType, origin); err != nil {
+	if _, err = tx.Exec(ctx, "INSERT INTO events(id,aggregate_kind,aggregate_id,version,principal_id,agent_id,type,facts,origin) VALUES($1,'intent',$2,$3,$4,$5,$6,$8,$7)", eventID, id, version, a.PrincipalID, a.AgentID, eventType, origin, canonical(facts)); err != nil {
 		return nil, err
 	}
 	var sequence int64

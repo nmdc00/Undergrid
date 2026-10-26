@@ -31,7 +31,7 @@ type partialScenario struct {
 	phase     *atomic.Int64
 }
 
-func partialScenarioFixture(t *testing.T, visibility string) *partialScenario {
+func partialScenarioFixture(t *testing.T, visibility string, configure ...func(*IntentInput)) *partialScenario {
 	t.Helper()
 
 	s, db, worker, owner := externalNotificationFixture(t)
@@ -44,6 +44,9 @@ func partialScenarioFixture(t *testing.T, visibility string) *partialScenario {
 	input.Preferences = map[string]string{"region": "EU"}
 	budget := json.RawMessage(`{"amount_minor":12345,"currency":"EUR","kind":"stated_budget"}`)
 	input.Budget = &budget
+	for _, change := range configure {
+		change(&input)
+	}
 	code, original := owner.call("POST", "/v1/intents", NewID(), input)
 	if code != 201 {
 		t.Fatal(code, original)

@@ -32,7 +32,8 @@ type partialSatisfactionAudit struct {
 }
 type intentRevisionDocument struct {
 	IntentInput
-	PartialSatisfaction *partialSatisfactionAudit `json:"partial_satisfaction,omitempty"`
+	PartialSatisfaction     *partialSatisfactionAudit `json:"partial_satisfaction,omitempty"`
+	SemanticProcessingGrant *semanticProcessingGrant  `json:"semantic_processing_grant,omitempty"`
 }
 type partialSatisfactionInput struct {
 	LeadID            string   `json:"lead_id"`
@@ -168,7 +169,7 @@ func (s *Service) partialSatisfaction(r *http.Request, tx pgx.Tx, a actor, id st
 			prior = current.PartialSatisfaction.ResultRevision
 		}
 		audit := &partialSatisfactionAudit{EvidenceClass: "owner_declared_partial_satisfaction", BasisRevision: currentRevision, ResultRevision: currentRevision + 1, BasisVersion: version, PreviousFulfillmentRevision: prior, ActorPrincipalID: a.PrincipalID, ActorAgentID: a.AgentID, FulfilledFields: append([]string{}, input.FulfilledFields...), RemainingFields: remaining, LeadID: lead.ID, SourceID: lead.SourceID, SourceVersion: input.SourceVersion, ProjectionHash: input.ProjectionHash, ReportHash: input.ReportHash, CommandDigest: commandDigest}
-		if err = writeIntentRevision(r.Context(), tx, id, currentRevision+1, version+1, "active", next, audit); err != nil {
+		if err = writeIntentRevision(r.Context(), tx, id, currentRevision+1, version+1, "active", next, audit, current.SemanticProcessingGrant); err != nil {
 			return 0, nil, err
 		}
 		result, err := finishIntentMutation(r.Context(), tx, a, id, version+1, "intent.partially_satisfied", s.environment)
