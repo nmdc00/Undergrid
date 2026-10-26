@@ -855,3 +855,136 @@ test.each(["create", "revise"] as const)(
     }
   },
 );
+
+test.each([
+  ["create", "threshold"],
+  ["revise", "threshold"],
+  ["create", "query"],
+  ["revise", "query"],
+] as const)(
+  "pending %s completion preserves a newer %s draft or prevents its edit",
+  async (mode, field) => {
+    fixture();
+    const originalFetch = globalThis.fetch;
+    let release = () => {};
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let entered = false;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (...args: Parameters<typeof fetch>) => {
+        const [path, init] = args;
+        if (path === "/v1/owner/matching-policy")
+          return new Response(
+            JSON.stringify({
+              enabled: true,
+              allow_private_projections: true,
+              profile_hash: "a".repeat(64),
+              provider_id: "controlled-provider",
+              model: "controlled-model",
+              model_revision: "r1",
+              permission_evidence: "controlled fixture only",
+              privacy_policy_sha256: "b".repeat(64),
+            }),
+            { headers: { "Content-Type": "application/json" } },
+          );
+        if (
+          (mode === "create" &&
+            path === "/v1/owner/intents" &&
+            init?.method === "POST") ||
+          (mode === "revise" &&
+            path === "/v1/owner/intents/intent" &&
+            init?.method === "PATCH")
+        ) {
+          entered = true;
+          await pending;
+        }
+        return originalFetch(...args);
+      }),
+    );
+    render(<App />);
+    await screen.findByRole("heading", { name: "Your workspace" });
+    let submit: HTMLElement;
+    if (mode === "create") {
+      submit = screen.getByRole("button", { name: "Create intention" });
+      const creationForm = submit.closest("form")!;
+      await userEvent.selectOptions(
+        within(creationForm).getByLabelText("Responsible agent", {
+          exact: true,
+        }),
+        "agent",
+      );
+      await userEvent.type(
+        within(creationForm).getByLabelText("Objective", { exact: true }),
+        privateObjective,
+      );
+    } else {
+      await userEvent.click(
+        screen.getByRole("button", { name: "Review intention" }),
+      );
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Edit intention" }),
+      );
+      submit = screen.getByRole("button", { name: "Save new revision" });
+    }
+    const form = submit.closest("form")!;
+    const findDraft = (scope: HTMLElement) =>
+      field === "threshold"
+        ? (within(scope).getByRole("spinbutton", {
+            name: /Minimum semantic similarity/,
+          }) as HTMLInputElement)
+        : (within(scope).getByLabelText(
+            "Selected private matching query",
+          ) as HTMLTextAreaElement);
+    if (field === "query") {
+      await userEvent.click(
+        within(form).getByRole("button", {
+          name: "Review private matching policy",
+        }),
+      );
+      await within(form).findByLabelText("Selected private matching query");
+      await userEvent.type(findDraft(form), "Submitted selected private query");
+      await userEvent.click(
+        within(form).getByLabelText(
+          "Allow this selected query to be processed by this provider profile",
+        ),
+      );
+    } else await userEvent.type(findDraft(form), "0.8");
+    await userEvent.click(submit);
+    await waitFor(() => expect(entered).toBe(true));
+    const newer =
+      field === "threshold" ? "0.9" : "Newer selected private query draft";
+    let changedDraft = false;
+    try {
+      const input = findDraft(form);
+      if (!input.matches(":disabled")) {
+        await userEvent.clear(input);
+        await userEvent.type(input, newer);
+        expect(input.value).toBe(newer);
+        changedDraft = true;
+      }
+    } finally {
+      await act(async () => {
+        release();
+      });
+    }
+    await waitFor(() =>
+      expect(
+        (screen.getByRole("button", { name: "Sign out" }) as HTMLButtonElement)
+          .disabled,
+      ).toBe(false),
+    );
+    if (changedDraft) {
+      const currentForm =
+        mode === "create"
+          ? screen
+              .getByRole("button", { name: "Create intention" })
+              .closest("form")!
+          : screen
+              .getByRole("button", { name: "Save new revision" })
+              .closest("form")!;
+      expect(findDraft(currentForm).value).toBe(newer);
+    }
+  },
+);
