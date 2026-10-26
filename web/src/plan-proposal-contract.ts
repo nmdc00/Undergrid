@@ -22,8 +22,12 @@ export type TemplateChoice = {
 export type TaskDraft = Omit<TaskInput, "deadline" | "depends_on"> & {
   deadline: string;
   depends_on: string[];
+  originalDeadline?: string;
 };
-export type Draft = Omit<PlanInput, "tasks"> & { tasks: TaskDraft[] };
+export type Draft = Omit<PlanInput, "tasks"> & {
+  tasks: TaskDraft[];
+  originalRespondBy?: string;
+};
 
 export function proposalContext(
   value: unknown,
@@ -114,6 +118,26 @@ function utcInstant(value: string): string {
   if (!Number.isFinite(date.getTime())) throw Error("Invalid plan deadline");
   return date.toISOString();
 }
+// Native date controls display milliseconds. Preserve the validated source ISO
+// when that display is unchanged; the immutable plan may contain finer precision.
+function preservedInstant(
+  editor: string,
+  original: string | undefined,
+): string {
+  return original && editor === utcEditor(original)
+    ? original
+    : utcInstant(editor);
+}
+function exactInstant(value: string): string {
+  const match =
+    /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{1,9}))?(Z|[+-]\d{2}:\d{2})$/.exec(
+      value,
+    );
+  if (!match) throw Error("Invalid exact plan deadline");
+  const wholeSecond = Date.parse(match[1] + match[3]);
+  if (!Number.isFinite(wholeSecond)) throw Error("Invalid exact plan deadline");
+  return `${wholeSecond / 1000}.${(match[2] ?? "").padEnd(9, "0")}`;
+}
 export function emptyTask(index: number): TaskDraft {
   return {
     key: `task-${index}`,
@@ -142,12 +166,15 @@ export function newDraft(): Draft {
   };
 }
 export function inputFromDraft(draft: Draft): PlanInput {
+  const { originalRespondBy, ...specification } = draft;
   return {
-    ...draft,
-    respond_by: utcInstant(draft.respond_by),
+    ...specification,
+    respond_by: preservedInstant(draft.respond_by, originalRespondBy),
     tasks: draft.tasks.map((task) => {
-      const { deadline, ...spec } = task;
-      return deadline ? { ...spec, deadline: utcInstant(deadline) } : spec;
+      const { deadline, originalDeadline, ...spec } = task;
+      return deadline
+        ? { ...spec, deadline: preservedInstant(deadline, originalDeadline) }
+        : spec;
     }),
   };
 }
@@ -201,12 +228,10 @@ function parsedInput(value: unknown): PlanInput {
 function inputIdentity(spec: PlanInput): string {
   return JSON.stringify({
     ...spec,
-    respond_by: new Date(spec.respond_by).toISOString(),
+    respond_by: exactInstant(spec.respond_by),
     tasks: spec.tasks.map((task) => ({
       ...task,
-      ...(task.deadline
-        ? { deadline: new Date(task.deadline).toISOString() }
-        : {}),
+      ...(task.deadline ? { deadline: exactInstant(task.deadline) } : {}),
     })),
   });
 }
@@ -226,10 +251,12 @@ export function revisionDraft(value: unknown, context: ProposalContext): Draft {
     ...spec,
     parent_version: latest.version,
     respond_by: utcEditor(spec.respond_by),
+    originalRespondBy: spec.respond_by,
     tasks: spec.tasks.map((task) => ({
       ...task,
       depends_on: task.depends_on ?? [],
       deadline: task.deadline ? utcEditor(task.deadline) : "",
+      originalDeadline: task.deadline,
     })),
   };
 }
