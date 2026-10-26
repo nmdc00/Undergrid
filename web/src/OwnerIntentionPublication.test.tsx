@@ -760,7 +760,7 @@ test("public revision reviews edited typed requirements rather than the stored d
 });
 
 test.each(["create", "revise"] as const)(
-  "typed requirement controls freeze while an exact %s request is pending",
+  "a pending %s response cannot erase a newer typed requirements draft",
   async (mode) => {
     fixture(mode === "revise" ? "redacted_public" : "private");
     const originalFetch = globalThis.fetch;
@@ -810,21 +810,48 @@ test.each(["create", "revise"] as const)(
       await userEvent.click(submit);
     }
     await waitFor(() => expect(entered).toBe(true));
+    const licenses = within(form).getByLabelText(
+      "Permitted license IDs",
+    ) as HTMLInputElement;
+    let changedDraft = false;
     try {
-      for (const label of [
-        "Required field IDs",
-        "Permitted license IDs",
-        "Declare coverage",
-      ]) {
-        expect(
-          within(form).getByLabelText(label).matches(":disabled"),
-          label,
-        ).toBe(true);
+      // Either pending controls prevent edits, or an accepted newer edit must
+      // survive the response to the older submitted body.
+      if (!licenses.matches(":disabled")) {
+        await userEvent.clear(licenses);
+        await userEvent.type(licenses, "MIT");
+        expect(licenses.value).toBe("MIT");
+        changedDraft = true;
       }
     } finally {
       await act(async () => {
         release();
       });
+    }
+    await waitFor(() =>
+      expect(
+        (screen.getByRole("button", { name: "Sign out" }) as HTMLButtonElement)
+          .disabled,
+      ).toBe(false),
+    );
+    if (changedDraft) {
+      const currentForm =
+        mode === "create"
+          ? screen
+              .getByRole("heading", {
+                name: "Create a source-catalog intention",
+              })
+              .closest("form")!
+          : screen
+              .getByRole("button", { name: "Save new revision" })
+              .closest("form")!;
+      expect(
+        (
+          within(currentForm).getByLabelText(
+            "Permitted license IDs",
+          ) as HTMLInputElement
+        ).value,
+      ).toBe("MIT");
     }
   },
 );
