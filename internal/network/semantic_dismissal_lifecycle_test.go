@@ -57,7 +57,13 @@ func TestSemanticDismissalSurvivesWorkerRestartAndProfileCutover(t *testing.T) {
 			for _, raw := range page["items"].([]any) {
 				item := raw.(map[string]any)
 				if item["candidate_intent_id"] == ids[1] && item["evidence"].(map[string]any)["algorithm"] == "hard-constraints-hybrid-cosine-v1" {
-					return item
+					var scanned bool
+					if err := db.QueryRow(context.Background(), "SELECT last_scan IS NOT NULL FROM undergrid.intents WHERE id=$1", ids[0]).Scan(&scanned); err != nil {
+						t.Fatal(err)
+					}
+					if scanned {
+						return item
+					}
 				}
 			}
 			if time.Now().After(deadline) {
