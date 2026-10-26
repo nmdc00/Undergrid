@@ -47,7 +47,7 @@ export function readIntentionConstraints(value: unknown): IntentionConstraints {
     if (raw.delivery === null) result.delivery = null;
     else {
       const delivery = object(raw.delivery);
-      const resultDelivery: components["schemas"]["DeliveryConstraint"] = {};
+      const resultDelivery: { not_before?: string; deliver_by?: string } = {};
       for (const key of ["not_before", "deliver_by"] as const) {
         const bound = delivery[key];
         if (bound !== undefined) {
