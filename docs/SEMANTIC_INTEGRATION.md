@@ -181,3 +181,50 @@ Independent SQL proves zero principals, agents, intentions, opportunities, event
 and River jobs. Keep this genuine empty baseline for isolated copies; later
 forward migrations must be applied normally. Actual proof:
 `/tmp/undergrid-semantic-55502-template-proof-oct26.log`.
+
+## Mandatory integration defects reproduced and narrowly corrected
+
+Frozen `73b92ca` ran all three restricted PostgreSQL runtime REDs against genuine
+vector template copy `semantic_integration_red_oct26`. All three failed causally,
+package 10.372s (`/tmp/undergrid-semantic-three-red-73b92ca-oct26.jsonl`):
+
+- Current profile-bound semantic suggestion dismissal returned 404.
+- Partial revision 2 retained the old query/acknowledgment and sent it to the
+  provider a second time without an explicit new revision grant (two calls).
+- Four earlier slow projections delayed the private exact watch's `last_scan`
+  beyond five seconds while six provider requests remained pending. Its exact
+  opportunity/event/inbox already existed (1/1/1); the failed invariant was timely
+  completed local scanning, not absence of a result.
+
+Two actual App UI REDs then failed because typed requirement draft controls were
+missing (`/tmp/undergrid-semantic-typed-ui-red-73b92ca-oct26.log`, 2 failed,
+10 skipped, 3.48s). No timeout or acceptance criterion changed.
+
+Current corrections move provider I/O exclusively to bounded embedding workers,
+retain local exact scans, mint server-only revision/profile/query-hash processing
+grants only on explicit validated create/full revisions, retain historical grants
+on partial revisions, and enforce that binding through forward migration 042.
+Owned responses hide grant metadata and distinguish `review_required` from
+`revision_bound`; the latter still requires current operator policy/profile.
+Forward migration 043 adds locked current semantic evidence/hash checks before
+receipt recovery while retaining the existing exact/source authority guards.
+Console publication review and payload now share the actual typed requirement
+draft, including coverage/license edits; stored optional typed dimensions remain
+preserved. The only supported output remains JSON/source_catalog_v1.
+
+Normal release PR106 integration is included. Frozen `8ecae06` ran the focused
+three-case race gate on `semantic_integration_green1_oct26`: **PASS 10.935s**,
+`/tmp/undergrid-semantic-three-green1-8ecae06-oct26.jsonl`. The two typed App UI
+cases **PASS 3.83s**, ten skipped,
+`/tmp/undergrid-semantic-typed-ui-green1-8ecae06-oct26.log`. These are narrow
+regressions, not the combined semantic/release acceptance gate. Additional raw
+worker SQL denial and owned-status presentation changes at `568e701` still need
+affected checks.
+
+042/043 were normally applied to the retained green database and are frozen:
+`042` SHA256 `6c7ced2e2908110af0b42450b1d3a3f23f3c9920e8185f5f0f8123239496db9a`;
+`043` SHA256 `59f9d24e62760ee9aa3d94d314c9899fbbe0b12bc5e85f9b4414fbb9c12c33c2`.
+Combined profile/consent/group/dismissal, private/partial/privacy, capacity,
+HP1/HP2 browser, schema/static/build/UI and independent review gates remain
+pending. No feature PR, release merge, promotion or external qualification is
+claimed by this checkpoint.
