@@ -1,9 +1,7 @@
 import type { components } from "./network.generated";
 import { object, type ObjectValue } from "./api";
 
-export type DeclaredProfile = Required<
-  Omit<components["schemas"]["AgentProfile"], "capabilities">
-> & { capabilities: string[] };
+export type DeclaredProfile = components["schemas"]["SavedAgentProfile"];
 export const privateAgentProfile: DeclaredProfile = {
   public: false,
   accept_invitations: false,

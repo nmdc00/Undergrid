@@ -9,7 +9,7 @@ import (
 )
 
 func TestOwnerAgentListAcknowledgesDeclaredAndLegacyProfiles(t *testing.T) {
-	s, db := fixture(t)
+	s, db, _, _ := externalNotificationFixture(t)
 	a, foreign := client(t, s), client(t, s)
 	profile := map[string]any{"public": true, "accept_invitations": false, "recruitment": true, "capabilities": []any{"source_catalog_v1"}}
 	code, created := a.call("POST", "/v1/agents", "reviewed-builder-profile", map[string]any{"name": "Reviewed builder", "scopes": []string{"intents:read"}, "profile": profile})
@@ -78,7 +78,7 @@ func TestOwnerAgentListAcknowledgesDeclaredAndLegacyProfiles(t *testing.T) {
 }
 
 func TestOwnerDeclaredBuilderOptInsRemainIndependent(t *testing.T) {
-	s, db := fixture(t)
+	s, db, worker, _ := externalNotificationFixture(t)
 	organizer := collaborationClient(t, s)
 	code, room := organizer.call("POST", "/v1/swarms", "owner-profile-role", map[string]any{"objective": "Reviewed declared capability recruitment", "visibility": "restricted", "recruitment_roles": []RecruitmentRole{{Key: "builder", SchemaFamily: "source_catalog_v1", Description: "Build the catalogue"}}})
 	if code != 201 {
@@ -105,11 +105,11 @@ func TestOwnerDeclaredBuilderOptInsRemainIndependent(t *testing.T) {
 				t.Fatal(code, created)
 			}
 			owner.token = created["token"].(string)
-			if err := s.ScanRecruitment(context.Background(), room["id"].(string)); err != nil {
+			if err := worker.ScanRecruitment(context.Background(), room["id"].(string)); err != nil {
 				t.Fatal(err)
 			}
 			var offers, events, inbox int
-			if err := db.QueryRow(context.Background(), `SELECT count(*),count(e.id),count(i.id) FROM undergrid.opportunities o LEFT JOIN undergrid.events e ON e.aggregate_id=o.id AND e.type='opportunity.available' LEFT JOIN undergrid.inbox i ON i.event_id=e.id WHERE o.source_swarm_id=$1 AND o.recipient_agent_id=$2 AND o.kind='builder_recruitment'`, room["id"], created["id"]).Scan(&offers, &events, &inbox); err != nil {
+			if err := db.QueryRow(context.Background(), `SELECT count(*),count(e.id),count(i.event_id) FROM undergrid.opportunities o LEFT JOIN undergrid.events e ON e.aggregate_id=o.id AND e.type='opportunity.available' LEFT JOIN undergrid.inbox i ON i.event_id=e.id WHERE o.source_swarm_id=$1 AND o.recipient_agent_id=$2 AND o.kind='builder_recruitment'`, room["id"], created["id"]).Scan(&offers, &events, &inbox); err != nil {
 				t.Fatal(err)
 			}
 			want := 0
