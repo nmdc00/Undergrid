@@ -52,15 +52,18 @@ function fixture() {
         };
       if (path === "/v1/owner/config")
         value = {
-          templates: [
-            {
-              id: "test-contribution-v1",
-              sha256: "a".repeat(64),
-              license_ids: ["CC0-1.0"],
-              terms_url: "https://example.org/test-terms",
-              test_only: true,
-            },
-          ],
+          terms_version: "test-v1",
+          contribution_templates: {
+            templates: [
+              {
+                id: "test-contribution-v1",
+                sha256: "a".repeat(64),
+                license_ids: ["CC0-1.0"],
+                terms_url: "https://example.org/test-terms",
+                test_only: true,
+              },
+            ],
+          },
         };
       return new Response(JSON.stringify(value), {
         headers: { "Content-Type": "application/json" },
