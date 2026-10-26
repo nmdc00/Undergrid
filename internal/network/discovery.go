@@ -126,9 +126,11 @@ func (s *Service) scanIntentCandidate(ctx context.Context, db *pgx.Conn, id, can
 	}
 	// Captured vectors do not extend a startup worker's operator authority.
 	// Keep exact comparison available when that profile has been withdrawn.
-	semanticActive, err := s.semanticProjectionCurrent(input)
-	if err != nil {
-		return err
+	semanticActive, policyErr := s.semanticProjectionCurrent(input)
+	if policyErr != nil {
+		// Durable embedding work retains retryable policy errors. Local exact and
+		// external matching need no external-processing permission and still run.
+		semanticActive = false
 	}
 	var candidates []demandCandidate
 	if semanticActive {
@@ -230,7 +232,9 @@ func (s *Service) listOpportunities(r *http.Request, tx pgx.Tx, a actor) (int, a
 	}
 	provider, policyErr := semanticConfiguration(s.environment)
 	if policyErr != nil {
-		return 0, nil, fail(503, "semantic_policy_unavailable")
+		// An unavailable processing profile authorizes no derived semantic result.
+		// Exact results remain eligible under their own current domain contracts.
+		provider = nil
 	}
 	profile := ""
 	if provider != nil {

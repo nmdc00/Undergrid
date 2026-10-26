@@ -160,10 +160,11 @@ func (s *Service) compatibleGroups(r *http.Request, tx pgx.Tx, a actor, id strin
 	}
 	// Read the current operator profile without a provider request. Configuration
 	// changes cannot reuse old evidence or a private disclosure acknowledgement.
-	provider, err := semanticConfiguration(s.environment)
-	if err != nil {
-		return 0, nil, err
-	}
+	provider, policyErr := semanticConfiguration(s.environment)
+	if policyErr != nil {
+		provider = nil
+	} // Keep exact groups; no semantic edges are authorized.
+
 	scores := map[string]float64{}
 	key := func(a, b string) string {
 		if a > b {
