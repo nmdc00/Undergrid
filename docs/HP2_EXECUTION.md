@@ -385,3 +385,13 @@ saved normalized owner-only profile. Ordinary browser registration/reload and
 actual restricted-worker recruitment pass; the API-created fixture room is not
 completion of the later owner room-origin/role contract. Existing-profile mutation
 and public-directory controls remain unsupported. Full HP2 remains open.
+
+
+## Remaining typed owner requirement controls
+
+The semantic integration's public review and command payload share the actual
+required-field/license/coverage draft. Stored freshness/delivery/input-schema
+requirements are conserved. Their explicit owner create/edit controls remain an
+atomic follow-up before full HP2 closure, with test-first payload/preview/review
+invalidation and exact unedited timestamp preservation. No unsupported output
+format selector is implied; the current domain supports source-catalog JSON.

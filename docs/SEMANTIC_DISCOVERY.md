@@ -1,5 +1,49 @@
 # Locked vertical: semantic demand discovery
 
+## Current integration status — 26 October
+
+The current feature is `feat/v0.1-semantic-integration`, reconciled with release
+through builder PR106. It is **not yet merged or release-qualified**. The parked
+branch and earlier checkpoints below are retained history. Current source
+`d01aedd` has an actual combined PostgreSQL race gate: **36 top-level and 40
+subcases PASS, package 94.503s**, no failed/skipped cases. The earlier current
+combined gate at `c567281` **FAILED 112.839s** (30/36 top-level passed): six old
+focused fixtures still assumed provider I/O ran inside local scans, and one
+restart oracle required the entire shared-fixture opportunity list to be empty.
+Test-only `d01aedd` invokes the actual dedicated embedding worker before focused
+local scans and scopes restart suppression to its exact target pair; original
+provider counts, timing, hard constraints, private projection, revocation and
+profile assertions remain. The separate seven-case remediation passed 21.774s.
+This preserves both aggregate outcomes rather than relabeling the failed run.
+
+Current implementation includes immutable typed hard evidence/group reads;
+revision/profile/query-hash-bound private processing grants; server-owned grant
+metadata preserved historically, never renewed by partial satisfaction;
+forward migrations 042/043 for embedding and current semantic dismissal;
+exact discovery isolated from slow provider work; unchanged dismissal recovery
+through real worker restart and a new profile-bound suggestion after explicit
+revision; retained unbound legacy evidence denied at current reads; and local
+exact/external work continuing while optional semantic policy becomes unreadable.
+The provider policy/review and disclosure boundaries remain fail-closed.
+Current queue registration derives 22 queues and 32 pooled connections, including
+all fresh/retained capacity lanes and the source refresher seam.
+
+See [the current integration record](SEMANTIC_INTEGRATION.md) for exact RED/GREEN
+logs, retained databases, genuine pgvector template and frozen migration hashes.
+Capacity regressions and current HP1/HP2 browser acceptance still need proof on
+this integration. Real provider/model relevance, legal/source permissions,
+independently operated users, deployment and full HP2 remain unqualified.
+
+The owner requirement editor currently supports required field/license/coverage
+drafts and preserves existing freshness/delivery/input-schema fields. Creating
+and editing those latter dimensions in the console is a separate missing owner
+control; this feature does not claim it. The source-catalog boundary still
+supports only `json_dataset`/`source_catalog_v1`. Visible unknown-hard
+clarification, complementary registered-capability discovery and the dependent
+group viewer also remain open.
+
+## Historical task and implementation checkpoints
+
 Assigned from release135b3fe under full r2 implementation authorization. Owning requirements: INT-02/03/04, TDD §§3.1/4/5.4/9 and threat-model disclosure/tenant boundaries. Branch `feat/v0.1-semantic-discovery`, isolated worktree `/tmp/undergrid-worktrees/semantic/feat-v0.1-semantic-discovery`. Network migration033 is reserved; inactivity owns030/031/032. No semantic migration has been written or applied at this design checkpoint.
 
 ## Observable contract

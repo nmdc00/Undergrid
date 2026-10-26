@@ -1,5 +1,19 @@
 # Current semantic projection authority
 
+Current integration `feat/v0.1-semantic-integration` additionally binds private
+processing permission to immutable server-owned revision/profile/query-hash
+metadata. Explicit validated create/full revision commands mint that binding;
+partial fulfillment carries the historical binding without renewing it. Legacy
+unbound completed observations remain retained but cannot authorize current
+semantic reads, groups or receipt recovery. See `SEMANTIC_INTEGRATION.md`.
+The focused provider fixtures now call the actual dedicated embedding worker;
+local scans do not perform provider I/O. An unreadable optional semantic policy
+keeps embedding work retryable and authorizes no derived semantic result, while
+valid exact/external scans and generic reads continue. Initial invalid operator
+configuration at worker startup remains unchanged. The historical branch/test
+record below is preserved; current combined proof is 36 top-level/40 subcases
+PASS at `d01aedd`, 94.503s, with broader release integration still pending.
+
 Scoped correction to TDD §5.4's operator-controlled disclosure boundary. An embedding worker's startup client is not continuing permission to send public or privately selected text. The observation path checks the current trusted operator file immediately before provider I/O and again before the write-once observation update. The current profile must equal the worker's pinned startup profile, and the current projection class/private profile acknowledgment must remain eligible. Removing or replacing the profile declines old observations; an unreadable or malformed configured file returns a retryable policy-unavailable error without disclosing text or publishing a new observation. Existing completed evidence remains immutable history.
 
 Branch `feat/v0.1-semantic-profile-authority` was cut from release `d1e866d` and explicitly depends on semantic checkpoint `9b59521`. It changes only the shared projection authority check, its two observation callers, focused runtime tests, an existing withdrawal fixture's trusted config setup and this document. No migration, discovery identity, opportunity read behavior, financial database, provider selection or deployment is introduced.

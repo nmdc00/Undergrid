@@ -1,5 +1,16 @@
 # Semantic discovery: public pipeline checkpoint
 
+Current implementation/evidence lives on `feat/v0.1-semantic-integration`; this
+file's original public-pipeline checkpoints below are historical. Current
+`d01aedd` combined semantic/provider/profile/private/typed/group/runtime race
+proof passes 36 top-level/40 subcases in 94.503s. Its earlier failed aggregate
+and separate focused fixture remediation remain retained. Current revision-bound
+private grants, asynchronous provider isolation, legacy evidence denial and
+semantic dismissal/restart/profile-cutover proof are recorded in
+[`SEMANTIC_INTEGRATION.md`](../SEMANTIC_INTEGRATION.md). Current capacity/browser
+release regressions, semantic feature merge and external qualification remain
+pending. Fixture vectors do not verify a provider or model relevance.
+
 Requirements: INT-02/03/04 and TDD §5.4. Branch
 `feat/v0.1-semantic-discovery`, not merged or release-qualified. Initial public
 pipeline source88be383; current-projection/RLS/contract correction542f758;
