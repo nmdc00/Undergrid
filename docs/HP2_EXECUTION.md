@@ -496,11 +496,15 @@ versions must not silently cancel an accepted plan or copy old approvals.
    approval, event/inbox or room-version change. Pagination and selection must
    not silently truncate a room or introduce hidden fixture IDs.
 5. Actual normal-owner browser/API/restricted-worker/PostgreSQL lifecycle: load
-   current participant context; create a reviewed multitask dependency plan; load
-   and revise its immutable basis; inspect exact canonical hashes and term binding;
-   independently observe proposed/offered states and zero automatic votes. Then
-   use existing separate owner approval and assignment controls to demonstrate
-   the exact intended activation boundary and retained prior-plan behavior.
+   current participant context; create a reviewed multitask dependency plan;
+   inspect exact canonical hashes and term binding, proposed/offered states and
+   zero automatic votes. Activate this initial plan through independently posted
+   exact plan/rights votes and each separate assignment acceptance. Only then
+   load its immutable basis and propose a reviewed revision. Prove the original
+   accepted head and task commitments remain intact while the revision is merely
+   proposed or partially approved; fresh exact votes and new separate assignment
+   acceptances are required before its normal accepted-head transition. Exercise
+   rejection/expiry without erasing the previous accepted commitments as well.
    Add response-loss/concurrent-authority/reconnect proof; preserve existing owner
    approval, assignment, dependency, HP1 and publication/recruitment regressions.
 6. Assess DRY knowledge ownership, orthogonality, readability, closed contracts,
