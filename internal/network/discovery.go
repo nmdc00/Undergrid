@@ -308,7 +308,6 @@ func (s *Service) listOpportunities(r *http.Request, tx pgx.Tx, a actor) (int, a
 func publicIntent(ctx context.Context, tx pgx.Tx, id string) (int, any, error) {
 	var raw []byte
 	var version int64
-	var revision int
 	err := tx.QueryRow(ctx, "SELECT projection,version FROM public_intents() WHERE id=$1", id).Scan(&raw, &version)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return 0, nil, fail(404, "not_found")
