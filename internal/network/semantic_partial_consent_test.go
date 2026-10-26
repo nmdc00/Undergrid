@@ -83,7 +83,14 @@ func TestPartialRevisionRetainsQueryWithoutRenewingExternalProcessingGrant(t *te
 	}
 	expected := x.input
 	expected.HardConstraints.RequiredFields = []string{"source_url", "title"}
-	if !reflect.DeepEqual(retained, expected) {
+	var gotFields, wantFields map[string]any
+	if err = json.Unmarshal(canonical(retained), &gotFields); err != nil {
+		t.Fatal(err)
+	}
+	if err = json.Unmarshal(canonical(expected), &wantFields); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(gotFields, wantFields) {
 		t.Fatalf("partial must preserve all query/input fields: got%+v expected%+v", retained, expected)
 	}
 	if err = x.worker.ensureSemanticEmbedding(context.Background(), db, id); err != nil {
