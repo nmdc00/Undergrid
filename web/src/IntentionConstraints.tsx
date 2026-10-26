@@ -97,14 +97,12 @@ function LabelsInput({
 export function IntentionConstraintsEditor({
   value,
   onChange,
-  disabled = false,
 }: {
   value: IntentionConstraints;
   onChange: (value: IntentionConstraints) => void;
-  disabled?: boolean;
 }) {
   return (
-    <fieldset disabled={disabled}>
+    <fieldset>
       <legend>Output and hard requirements</legend>
       <p>
         JSON dataset · source_catalog_v1. Enter declared labels separated by

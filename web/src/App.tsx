@@ -774,111 +774,114 @@ export function App() {
                             })
                           }
                         >
-                          <h4>New intention revision</h4>
-                          <p>
-                            This keeps the current output, constraints, budget,
-                            visibility and watch settings. Review any public
-                            projection before saving its summary. Changes take
-                            effect after you save; expired intentions resume
-                            with a new expiry.
-                          </p>
-                          <label>
-                            Objective
-                            <textarea
-                              required
-                              minLength={3}
-                              maxLength={4000}
-                              value={revisionObjective}
-                              onChange={(e) =>
-                                setRevisionObjective(e.target.value)
-                              }
-                            />
-                          </label>
-                          <IntentionConstraintsEditor
-                            key={`revision-${String(detail.id)}-${String(detail.etag)}`}
-                            value={revisionConstraints}
-                            disabled={busy}
-                            onChange={setRevisionConstraints}
-                          />
-                          <IntentionPublication
-                            fixedAudience
-                            review={revisionPublication}
-                            label="Revision visibility"
-                            reviewedKey={reviewedRevision}
-                            onVisibility={setRevisionVisibility}
-                            onSummary={setRevisionSummary}
-                            onReview={setReviewedRevision}
-                          />
-                          <label>
-                            Minimum semantic similarity for this intention (0–1)
-                            <input
-                              type="number"
-                              min="0"
-                              max="1"
-                              step="any"
-                              value={revisionSemanticThreshold}
-                              aria-describedby="revision-semantic-threshold-help"
-                              onChange={(e) =>
-                                setRevisionSemanticThreshold(e.target.value)
-                              }
-                            />
-                          </label>
-                          {detail.private_semantic_query_status ===
-                            "review_required" && (
+                          <fieldset disabled={busy}>
+                            <legend>Intention revision</legend>
+                            <h4>New intention revision</h4>
                             <p>
-                              Retained private query requires explicit review
-                              for this revision before external processing.
+                              This keeps the current output, constraints,
+                              budget, visibility and watch settings. Review any
+                              public projection before saving its summary.
+                              Changes take effect after you save; expired
+                              intentions resume with a new expiry.
                             </p>
-                          )}
-                          <PrivateSemanticQuery
-                            csrf={csrf}
-                            onChange={setRevisionPrivateQuery}
-                            initialProjection={
-                              detail.private_semantic_query == null
-                                ? ""
-                                : text(
-                                    object(detail.private_semantic_query)
-                                      .projection,
-                                  )
-                            }
-                          />
-                          <p id="revision-semantic-threshold-help">
-                            Optional. Leave blank to use the service default.
-                            Applies when semantic matching is enabled; the score
-                            is not a probability.
-                          </p>
-                          <label>
-                            Expires at (local time)
-                            <input
-                              type="datetime-local"
-                              required
-                              value={revisionExpiry}
-                              onChange={(e) =>
-                                setRevisionExpiry(e.target.value)
+                            <label>
+                              Objective
+                              <textarea
+                                required
+                                minLength={3}
+                                maxLength={4000}
+                                value={revisionObjective}
+                                onChange={(e) =>
+                                  setRevisionObjective(e.target.value)
+                                }
+                              />
+                            </label>
+                            <IntentionConstraintsEditor
+                              key={`revision-${String(detail.id)}-${String(detail.etag)}`}
+                              value={revisionConstraints}
+                              onChange={setRevisionConstraints}
+                            />
+                            <IntentionPublication
+                              fixedAudience
+                              review={revisionPublication}
+                              label="Revision visibility"
+                              reviewedKey={reviewedRevision}
+                              onVisibility={setRevisionVisibility}
+                              onSummary={setRevisionSummary}
+                              onReview={setReviewedRevision}
+                            />
+                            <label>
+                              Minimum semantic similarity for this intention
+                              (0–1)
+                              <input
+                                type="number"
+                                min="0"
+                                max="1"
+                                step="any"
+                                value={revisionSemanticThreshold}
+                                aria-describedby="revision-semantic-threshold-help"
+                                onChange={(e) =>
+                                  setRevisionSemanticThreshold(e.target.value)
+                                }
+                              />
+                            </label>
+                            {detail.private_semantic_query_status ===
+                              "review_required" && (
+                              <p>
+                                Retained private query requires explicit review
+                                for this revision before external processing.
+                              </p>
+                            )}
+                            <PrivateSemanticQuery
+                              csrf={csrf}
+                              onChange={setRevisionPrivateQuery}
+                              initialProjection={
+                                detail.private_semantic_query == null
+                                  ? ""
+                                  : text(
+                                      object(detail.private_semantic_query)
+                                        .projection,
+                                    )
                               }
                             />
-                          </label>
-                          <button
-                            disabled={
-                              busy ||
-                              !revisionObjective.trim() ||
-                              !publicationReady(
-                                revisionPublication,
-                                reviewedRevision,
-                              )
-                            }
-                          >
-                            {detail.state === "expired"
-                              ? "Renew intention"
-                              : "Save new revision"}
-                          </button>
-                          <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => setEditingRevision(false)}
-                          >
-                            Cancel edit
-                          </button>
+                            <p id="revision-semantic-threshold-help">
+                              Optional. Leave blank to use the service default.
+                              Applies when semantic matching is enabled; the
+                              score is not a probability.
+                            </p>
+                            <label>
+                              Expires at (local time)
+                              <input
+                                type="datetime-local"
+                                required
+                                value={revisionExpiry}
+                                onChange={(e) =>
+                                  setRevisionExpiry(e.target.value)
+                                }
+                              />
+                            </label>
+                            <button
+                              disabled={
+                                busy ||
+                                !revisionObjective.trim() ||
+                                !publicationReady(
+                                  revisionPublication,
+                                  reviewedRevision,
+                                )
+                              }
+                            >
+                              {detail.state === "expired"
+                                ? "Renew intention"
+                                : "Save new revision"}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => setEditingRevision(false)}
+                            >
+                              Cancel edit
+                            </button>
+                          </fieldset>
                         </form>
                       )}
                     </>
@@ -1153,90 +1156,94 @@ export function App() {
                   })
                 }
               >
-                <h3>Create a source-catalog intention</h3>
-                <p>
-                  JSON source-catalog dataset. Review the requirements and
-                  expiry below. A desired license grants no contribution rights.
-                </p>
-                <IntentionConstraintsEditor
-                  key={`creation-${queryGeneration}`}
-                  value={creationConstraints}
-                  disabled={busy}
-                  onChange={setCreationConstraints}
-                />
-                <IntentionPublication
-                  review={creationPublication}
-                  label="Intention visibility"
-                  reviewedKey={reviewedCreation}
-                  onVisibility={setIntentVisibility}
-                  onSummary={setPublicSummary}
-                  onReview={setReviewedCreation}
-                />
-                <label>
-                  Responsible agent
-                  <select
-                    required
-                    value={selectedAgent}
-                    onChange={(e) => setSelectedAgent(e.target.value)}
+                <fieldset disabled={busy}>
+                  <legend>New intention details</legend>
+                  <h3>Create a source-catalog intention</h3>
+                  <p>
+                    JSON source-catalog dataset. Review the requirements and
+                    expiry below. A desired license grants no contribution
+                    rights.
+                  </p>
+                  <IntentionConstraintsEditor
+                    key={`creation-${queryGeneration}`}
+                    value={creationConstraints}
+                    onChange={setCreationConstraints}
+                  />
+                  <IntentionPublication
+                    review={creationPublication}
+                    label="Intention visibility"
+                    reviewedKey={reviewedCreation}
+                    onVisibility={setIntentVisibility}
+                    onSummary={setPublicSummary}
+                    onReview={setReviewedCreation}
+                  />
+                  <label>
+                    Responsible agent
+                    <select
+                      required
+                      value={selectedAgent}
+                      onChange={(e) => setSelectedAgent(e.target.value)}
+                    >
+                      <option value="">Select an agent</option>
+                      {agents
+                        .filter((a) => a.status === "active")
+                        .map((a) => (
+                          <option key={text(a.id)} value={text(a.id)}>
+                            {text(a.name)}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                  <label>
+                    Objective
+                    <textarea
+                      required
+                      maxLength={2000}
+                      value={objective}
+                      onChange={(e) => setObjective(e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Minimum semantic similarity (0–1)
+                    <input
+                      type="number"
+                      min="0"
+                      max="1"
+                      step="any"
+                      value={semanticThreshold}
+                      aria-describedby="create-semantic-threshold-help"
+                      onChange={(e) => setSemanticThreshold(e.target.value)}
+                    />
+                  </label>
+                  <PrivateSemanticQuery
+                    key={queryGeneration}
+                    csrf={csrf}
+                    onChange={setPrivateQuery}
+                  />
+                  <p id="create-semantic-threshold-help">
+                    Optional. Leave blank to use the service default. Applies
+                    when semantic matching is enabled; the score is not a
+                    probability.
+                  </p>
+                  <label className="check">
+                    <input
+                      type="checkbox"
+                      checked={watch}
+                      onChange={(e) => setWatch(e.target.checked)}
+                    />
+                    Monitor matches in the agent inbox
+                  </label>
+                  <button
+                    disabled={
+                      busy ||
+                      !selectedAgent ||
+                      !objective ||
+                      !publicationReady(creationPublication, reviewedCreation)
+                    }
                   >
-                    <option value="">Select an agent</option>
-                    {agents
-                      .filter((a) => a.status === "active")
-                      .map((a) => (
-                        <option key={text(a.id)} value={text(a.id)}>
-                          {text(a.name)}
-                        </option>
-                      ))}
-                  </select>
-                </label>
-                <label>
-                  Objective
-                  <textarea
-                    required
-                    maxLength={2000}
-                    value={objective}
-                    onChange={(e) => setObjective(e.target.value)}
-                  />
-                </label>
-                <label>
-                  Minimum semantic similarity (0–1)
-                  <input
-                    type="number"
-                    min="0"
-                    max="1"
-                    step="any"
-                    value={semanticThreshold}
-                    aria-describedby="create-semantic-threshold-help"
-                    onChange={(e) => setSemanticThreshold(e.target.value)}
-                  />
-                </label>
-                <PrivateSemanticQuery
-                  key={queryGeneration}
-                  csrf={csrf}
-                  onChange={setPrivateQuery}
-                />
-                <p id="create-semantic-threshold-help">
-                  Optional. Leave blank to use the service default. Applies when
-                  semantic matching is enabled; the score is not a probability.
-                </p>
-                <label className="check">
-                  <input
-                    type="checkbox"
-                    checked={watch}
-                    onChange={(e) => setWatch(e.target.checked)}
-                  />
-                  Monitor matches in the agent inbox
-                </label>
-                <button
-                  disabled={
-                    busy ||
-                    !selectedAgent ||
-                    !objective ||
-                    !publicationReady(creationPublication, reviewedCreation)
-                  }
-                >
-                  Create intention
-                </button>
+                    Create intention
+                  </button>
+                </fieldset>
               </form>
             </section>
             <OwnerInbox
