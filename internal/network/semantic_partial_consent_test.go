@@ -106,6 +106,18 @@ func TestPartialRevisionRetainsQueryWithoutRenewingExternalProcessingGrant(t *te
 	if embedded {
 		t.Fatal("unreviewed partial revision persisted semantic embedding")
 	}
+	if remainder["private_semantic_query_status"] != "review_required" {
+		t.Fatal("retained query must expose its need for revision review", remainder)
+	}
+	forged := map[string]any{}
+	if err = json.Unmarshal(canonical(retained), &forged); err != nil {
+		t.Fatal(err)
+	}
+	forged["semantic_processing_grant"] = map[string]any{"revision": 2, "profile_hash": provider.hash, "projection_hash": digest([]byte(retained.PrivateSemanticQuery.Projection))}
+	code, denied := x.owner.versioned("PATCH", "/v1/intents/"+id, "forged-query-review", remainder["etag"].(string), map[string]any{"revision": forged})
+	if code != 400 {
+		t.Fatal("caller forged revision processing authority", code, denied)
+	}
 	code, renewed := x.owner.versioned("PATCH", "/v1/intents/"+id, "explicit-query-review", remainder["etag"].(string), map[string]any{"revision": retained})
 	if code != 200 {
 		t.Fatal(code, renewed)
