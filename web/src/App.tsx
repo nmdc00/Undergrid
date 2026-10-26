@@ -1,3 +1,8 @@
+import {
+  IntentionConstraintsEditor,
+  readIntentionConstraints,
+  type IntentionConstraints,
+} from "./IntentionConstraints";
 import { OwnerInbox } from "./OwnerInbox";
 import type { components } from "./network.generated";
 import { useEffect, useRef, useState, type FormEvent } from "react";
@@ -131,10 +136,16 @@ export function App() {
     [reviewedCreation, setReviewedCreation] = useState(""),
     [revisionSummary, setRevisionSummary] = useState(""),
     [reviewedRevision, setReviewedRevision] = useState("");
-  const [revisionSemanticThreshold, setRevisionSemanticThreshold] = useState("");
-  const [revisionPrivateQuery, setRevisionPrivateQuery] = useState<PrivateQuery>();
+  const [revisionSemanticThreshold, setRevisionSemanticThreshold] =
+    useState("");
+  const [revisionPrivateQuery, setRevisionPrivateQuery] =
+    useState<PrivateQuery>();
   const [privateQuery, setPrivateQuery] = useState<PrivateQuery>();
   const [queryGeneration, setQueryGeneration] = useState(0);
+  const [creationConstraints, setCreationConstraints] =
+    useState<IntentionConstraints>(sourceCatalogConstraints);
+  const [revisionConstraints, setRevisionConstraints] =
+    useState<IntentionConstraints>(sourceCatalogConstraints);
   const generation = useRef(0);
   const [intentionExpiry, setIntentionExpiry] = useState(() =>
     new Date(Date.now() + 30 * 86400000).toISOString(),
@@ -232,14 +243,14 @@ export function App() {
     visibility: intentVisibility,
     summary: publicSummary,
     output: sourceCatalogOutput,
-    hardConstraints: sourceCatalogConstraints,
+    hardConstraints: creationConstraints,
   };
   const revisionPublication = {
     identity: JSON.stringify([csrf, detail?.id, detail?.etag]),
     visibility: revisionVisibility,
     summary: revisionSummary,
     output: detail?.output,
-    hardConstraints: detail?.hard_constraints,
+    hardConstraints: revisionConstraints,
   };
   return (
     <>
@@ -585,6 +596,11 @@ export function App() {
                           onClick={() => {
                             try {
                               setRevisionPrivateQuery(undefined);
+                              setRevisionConstraints(
+                                readIntentionConstraints(
+                                  detail.hard_constraints,
+                                ),
+                              );
                               setRevisionVisibility(
                                 intentionVisibility(detail.visibility),
                               );
@@ -637,7 +653,7 @@ export function App() {
                                       ),
                                     }),
                                 output: detail.output,
-                                hard_constraints: detail.hard_constraints,
+                                hard_constraints: revisionConstraints,
                                 ...(detail.preferences === undefined
                                   ? {}
                                   : { preferences: detail.preferences }),
@@ -723,6 +739,16 @@ export function App() {
                               }
                             />
                           </label>
+                          <IntentionConstraintsEditor
+                            key={`revision-${String(detail.id)}-${String(detail.etag)}`}
+                            value={revisionConstraints}
+                            onChange={setRevisionConstraints}
+                          />
+                          <IntentionConstraintsEditor
+                            key={`creation-${queryGeneration}`}
+                            value={creationConstraints}
+                            onChange={setCreationConstraints}
+                          />
                           <IntentionPublication
                             fixedAudience
                             review={revisionPublication}
@@ -746,6 +772,13 @@ export function App() {
                               }
                             />
                           </label>
+                          {detail.private_semantic_query_status ===
+                            "review_required" && (
+                            <p>
+                              Retained private query requires explicit review
+                              for this revision before external processing.
+                            </p>
+                          )}
                           <PrivateSemanticQuery
                             csrf={csrf}
                             onChange={setRevisionPrivateQuery}
@@ -1017,10 +1050,17 @@ export function App() {
                     const mine = generation.current;
                     const intent = {
                       objective,
-                      ...(privateQuery ? {private_semantic_query: privateQuery} : {}),
-                      ...(semanticThreshold === "" ? {} : {semantic_minimum_similarity:Number(semanticThreshold)}),
+                      ...(privateQuery
+                        ? { private_semantic_query: privateQuery }
+                        : {}),
+                      ...(semanticThreshold === ""
+                        ? {}
+                        : {
+                            semantic_minimum_similarity:
+                              Number(semanticThreshold),
+                          }),
                       output: sourceCatalogOutput,
-                      hard_constraints: sourceCatalogConstraints,
+                      hard_constraints: creationConstraints,
                       visibility: intentVisibility,
                       ...(intentVisibility === "redacted_public"
                         ? { public_summary: publicSummary }
@@ -1049,6 +1089,7 @@ export function App() {
                     if (mine !== generation.current) return;
                     setObjective("");
                     setPrivateQuery(undefined);
+                    setCreationConstraints(sourceCatalogConstraints);
                     setQueryGeneration((n) => n + 1);
                     setSemanticThreshold("");
                     setIntentVisibility("private");
@@ -1067,6 +1108,11 @@ export function App() {
                   requirement. Expires in 30 days. This expresses a desired
                   license; it grants no contribution rights.
                 </p>
+                <IntentionConstraintsEditor
+                  key={`creation-${queryGeneration}`}
+                  value={creationConstraints}
+                  onChange={setCreationConstraints}
+                />
                 <IntentionPublication
                   review={creationPublication}
                   label="Intention visibility"
