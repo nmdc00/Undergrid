@@ -40,11 +40,13 @@ function fixture(malformedFirst = false) {
           latest_plan: null,
           items: [
             {
+              id: "member-a",
               agent_id: "agent-a",
               principal_id: "owner-a",
               role: "coordinator",
             },
             {
+              id: "member-c",
               agent_id: "agent-c",
               principal_id: "owner-c",
               role: "contributor",
