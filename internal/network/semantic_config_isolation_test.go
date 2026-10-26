@@ -135,6 +135,17 @@ func TestRunningWorkerSemanticConfigFailurePreservesExactDiscoveryAndReads(t *te
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
+	var newEmbedding bool
+	var acceptedEmbeddingJobs int
+	if err := db.QueryRow(context.Background(), "SELECT embedding IS NOT NULL FROM undergrid.intent_revisions WHERE intent_id=$1 AND revision=1", next["id"]).Scan(&newEmbedding); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRow(context.Background(), "SELECT count(*) FROM undergrid_queue.river_job WHERE kind='semantic_embedding_v1' AND args->>'intent_id'=$1 AND state IN ('available','pending','running','retryable','scheduled')", next["id"].(string)).Scan(&acceptedEmbeddingJobs); err != nil {
+		t.Fatal(err)
+	}
+	if newEmbedding || acceptedEmbeddingJobs < 1 {
+		t.Fatal("unavailable processing policy must retain accepted pending/retryable work without embedding", newEmbedding, acceptedEmbeddingJobs)
+	}
 	code, page = a.call("GET", "/v1/intents/"+watch["id"].(string)+"/opportunities", "", nil)
 	if code != 200 {
 		t.Errorf("generic current exact read unavailable: %d %v", code, page)
