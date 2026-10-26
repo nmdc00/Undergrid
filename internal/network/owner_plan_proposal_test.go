@@ -107,3 +107,63 @@ func TestPlanProposalReplayRejectsCurrentObserver(t *testing.T) {
 		t.Fatalf("retained proposal bypassed current contributor authority:%d %#v", code, out)
 	}
 }
+
+func TestPlanProposalSelectedParticipantActivityGatesNewWriteNotOwnReceipt(t *testing.T) {
+	for _, kind := range []string{"agent", "principal"} {
+		t.Run(kind, func(t *testing.T) {
+			s, db := ownerSwarmCreationFixture(t)
+			enableTestTerms(t, s)
+			proposer, peer := planningClient(t, s), collaborationClient(t, s)
+			_, a := proposer.call("GET", "/v1/me", "", nil)
+			_, b := peer.call("GET", "/v1/me", "", nil)
+			code, room := proposer.call("POST", "/v1/swarms", "selected-activity-room", map[string]any{"objective": "Selected participant activity in new immutable proposals", "visibility": "restricted", "recruitment_roles": []any{}})
+			if code != 201 {
+				t.Fatal(code, room)
+			}
+			roomPath := "/v1/swarms/" + room["id"].(string)
+			code, invitation := proposer.call("POST", roomPath+"/invitations", "selected-peer-offer", map[string]any{"agent_id": b["agent_id"], "role": "contributor", "respond_by": time.Now().Add(time.Hour)})
+			if code != 201 {
+				t.Fatal(code, invitation)
+			}
+			if code, out := peer.versioned("POST", roomPath+"/membership-response", "selected-peer-accept", invitation["etag"].(string), map[string]any{"invitation_id": invitation["id"], "decision": "accept"}); code != 200 {
+				t.Fatal(code, out)
+			}
+			spec := ownerPlanProposalSpec(b["agent_id"].(string), a["principal_id"].(string))
+			spec.RequiredPrincipals = append(spec.RequiredPrincipals, b["principal_id"].(string))
+			spec.AcceptancePrincipals = append(spec.AcceptancePrincipals, b["principal_id"].(string))
+			spec.PublicationPrincipals = append(spec.PublicationPrincipals, b["principal_id"].(string))
+			path := roomPath + "/plans"
+			code, first := proposer.versioned("POST", path, "activity-first-plan", room["etag"].(string), spec)
+			if code != 201 {
+				t.Fatal(code, first)
+			}
+			// Explicit current-authority fixture; all room/plan/task product creation above
+			// used normal scoped commands. Deactivation must not invent a second plan.
+			table, id := "agents", b["agent_id"]
+			if kind == "principal" {
+				table, id = "principals", b["principal_id"]
+			}
+			if _, err := db.Exec(context.Background(), "UPDATE undergrid."+table+" SET status='inactive' WHERE id=$1", id); err != nil {
+				t.Fatal(err)
+			}
+			if code, recovered := proposer.versioned("POST", path, "activity-first-plan", room["etag"].(string), spec); code != 201 || recovered["id"] != first["id"] {
+				t.Fatalf("unrelated participant change invalidated own committed receipt:%d %#v", code, recovered)
+			}
+			_, snapshot := proposer.call("GET", roomPath+"/context", "", nil)
+			parent := int64(1)
+			spec.ParentVersion = &parent
+			spec.Objective = "New revision must recheck the selected participant"
+			code, next := proposer.versioned("POST", path, "activity-new-revision", snapshot["swarm"].(map[string]any)["etag"].(string), spec)
+			if code < 400 {
+				t.Fatalf("new plan accepted inactive selected %s: status=%d id=%v", kind, code, next["id"])
+			}
+			var plans, tasks, votes int
+			if err := db.QueryRow(context.Background(), `SELECT (SELECT count(*) FROM undergrid.plan_versions WHERE swarm_id=$1),(SELECT count(*) FROM undergrid.tasks t JOIN undergrid.plan_versions p ON p.id=t.plan_id WHERE p.swarm_id=$1),(SELECT count(*) FROM undergrid.approvals a JOIN undergrid.plan_versions p ON p.id=a.plan_id WHERE p.swarm_id=$1)`, room["id"]).Scan(&plans, &tasks, &votes); err != nil {
+				t.Fatal(err)
+			}
+			if plans != 1 || tasks != 2 || votes != 0 {
+				t.Fatalf("denied revision effects: plans=%d tasks=%d approvals=%d", plans, tasks, votes)
+			}
+		})
+	}
+}
