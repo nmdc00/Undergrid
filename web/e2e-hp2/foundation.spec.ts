@@ -3,10 +3,14 @@ import { test, expect, type BrowserContext } from "@playwright/test";
 // Actual network app/session/API. This foundation does not prove discovery,
 // builder profile, membership, plan or assignment flows still missing from HP2.
 test(
-  process.env.UNDERGRID_HP2_OWNER_PUBLICATION === "1"
-    ? "owner publishes a selected projection and revokes its foreign read through the console"
-    : "three controlled owners receive separate scoped agents and private watches",
+  process.env.UNDERGRID_HP2_BUILDER_REGISTRATION === "1"
+    ? "owner reviews builder declarations and receives worker recruitment without admission"
+    : process.env.UNDERGRID_HP2_OWNER_PUBLICATION === "1"
+      ? "owner publishes a selected projection and revokes its foreign read through the console"
+      : "three controlled owners receive separate scoped agents and private watches",
   async ({ browser }) => {
+    const builderRegistration =
+      process.env.UNDERGRID_HP2_BUILDER_REGISTRATION === "1";
     const publication = process.env.UNDERGRID_HP2_OWNER_PUBLICATION === "1";
     const issuer = process.env.UNDERGRID_HP2_ISSUER_URL;
     if (!issuer) throw new Error("HP2 requires the controlled issuer URL");
@@ -50,7 +54,34 @@ test(
         await page
           .getByLabel("Agent name", { exact: true })
           .fill(`HP2 ${label} agent`);
-        await page.getByLabel("I reviewed this declared profile", { exact: true }).check();
+        if (builderRegistration && label === "buyer-a") {
+          for (const scope of [
+            "swarms:create",
+            "members:invite",
+            "swarms:read",
+          ])
+            await page.getByLabel(scope, { exact: true }).check();
+        }
+        if (builderRegistration && label === "builder-c") {
+          await page.getByLabel("swarms:read", { exact: true }).check();
+          await page
+            .getByLabel("Make declared profile public for recruitment", {
+              exact: true,
+            })
+            .check();
+          await page
+            .getByLabel("Receive recruitment opportunities", { exact: true })
+            .check();
+          await page
+            .getByLabel("Declare source_catalog_v1 capability", { exact: true })
+            .check();
+          await expect(
+            page.getByLabel("Accept foreign invitations", { exact: true }),
+          ).not.toBeChecked();
+        }
+        await page
+          .getByLabel("I reviewed this declared profile", { exact: true })
+          .check();
         const issuance = page.waitForResponse(
           (r) =>
             new URL(r.url()).pathname === "/v1/agents" &&
@@ -145,6 +176,16 @@ test(
             "source_url",
           ]);
         }
+        if (builderRegistration && label === "builder-c") {
+          const saved = page.getByRole("region", {
+            name: "Saved profile for HP2 builder-c agent",
+            exact: true,
+          });
+          await expect(saved).toContainText('"recruitment": true');
+          await page.reload();
+          await expect(saved).toContainText('"accept_invitations": false');
+          await expect(saved).toContainText('"source_catalog_v1"');
+        }
         actors.push(actor);
         expect(
           await page.evaluate(() => [
@@ -193,7 +234,14 @@ test(
             exact: true,
           }),
         ).toHaveCount(0);
-        const revisionForm = ownerPage.locator("form").filter({ has: ownerPage.getByRole("heading", { name: "New intention revision", exact: true }) });
+        const revisionForm = ownerPage
+          .locator("form")
+          .filter({
+            has: ownerPage.getByRole("heading", {
+              name: "New intention revision",
+              exact: true,
+            }),
+          });
         await revisionForm
           .getByRole("textbox", { name: "Public summary", exact: true })
           .fill("Updated public environmental catalogue");
@@ -290,6 +338,75 @@ test(
           );
           expect(inaccessible.status()).toBe(404);
         }
+      }
+      if (builderRegistration) {
+        const creator = contexts[0].pages()[0];
+        const response = await creator.request.post("/v1/swarms", {
+          headers: {
+            Authorization: `Bearer ${actors[0].token}`,
+            "Idempotency-Key": "hp2-builder-role-room",
+          },
+          data: {
+            objective: "Build the bounded declared catalogue",
+            visibility: "restricted",
+            recruitment_roles: [
+              {
+                key: "catalog-builder",
+                schema_family: "source_catalog_v1",
+                description: "Build and validate catalogue data",
+              },
+            ],
+          },
+        });
+        expect(response.status()).toBe(201);
+        const room = await response.json();
+        const builder = contexts[2].pages()[0];
+        let offers: { items: { swarm_id: string; role_key: string }[] } = {
+          items: [],
+        };
+        await expect
+          .poll(
+            async () => {
+              const response = await builder.request.get(
+                "/v1/opportunities?kind=builder_recruitment",
+                { headers: { Authorization: `Bearer ${actors[2].token}` } },
+              );
+              expect(response.status()).toBe(200);
+              offers = await response.json();
+              return offers.items.filter(
+                (item) =>
+                  item.swarm_id === room.id &&
+                  item.role_key === "catalog-builder",
+              ).length;
+            },
+            { timeout: 5_000 },
+          )
+          .toBe(1);
+        const blocked = await creator.request.post(
+          `/v1/swarms/${room.id}/invitations`,
+          {
+            headers: {
+              Authorization: `Bearer ${actors[0].token}`,
+              "Idempotency-Key": "hp2-builder-invitation-off",
+            },
+            data: {
+              agent_id: actors[2].agent,
+              role: "contributor",
+              respond_by: new Date(Date.now() + 3600000).toISOString(),
+            },
+          },
+        );
+        expect(blocked.status()).toBe(404);
+        const context = await builder.request.get(
+          `/v1/swarms/${room.id}/context`,
+          { headers: { Authorization: `Bearer ${actors[2].token}` } },
+        );
+        expect(context.status()).toBe(404);
+        const own = await builder.request.get("/v1/agents");
+        expect(own.status()).toBe(200);
+        expect(
+          (await own.json()).items.map((item: { id: string }) => item.id),
+        ).toEqual([actors[2].agent]);
       }
       // Names identify intended future roles only. No builder capability, opt-in,
       // independent ownership, collaboration or participant consent is inferred.

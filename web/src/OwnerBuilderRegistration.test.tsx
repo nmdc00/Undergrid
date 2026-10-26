@@ -1,7 +1,14 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, test, vi } from "vitest";
 import { App } from "./App";
+
+// Exercise the real App callback boundary while controlling a late response.
+vi.mock("./OwnerInbox", () => ({
+  OwnerInbox: ({ onUnauthorized }: { onUnauthorized: () => void }) => (
+    <button onClick={onUnauthorized}>Expire owner session</button>
+  ),
+}));
 
 let sequence = 0;
 const privateProfile = {
@@ -224,4 +231,47 @@ test("a completed registration does not clear a different draft edited while pen
   complete();
   await screen.findByText("ug_builder_secret");
   expect(input.value).toBe(editingDisabled ? "" : "Next separate builder");
+});
+
+test("a late registration result cannot restore a secret or refresh after owner expiry", async () => {
+  const calls = fixture();
+  const original = globalThis.fetch;
+  let complete!: () => void;
+  const waiting = new Promise<void>((resolve) => {
+    complete = resolve;
+  });
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (path: string, init?: RequestInit) => {
+      if (path === "/v1/agents" && init?.method === "POST") await waiting;
+      return original(path, init);
+    }),
+  );
+  render(<App />);
+  await name();
+  await userEvent.click(
+    screen.getByLabelText("I reviewed this declared profile"),
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Register agent" }));
+  await userEvent.click(
+    screen.getByRole("button", { name: "Expire owner session" }),
+  );
+  await screen.findByRole("link", { name: "Sign in" });
+  const readsBefore = calls.filter(
+    (c) => c.path === "/v1/agents" && c.init?.method !== "POST",
+  ).length;
+  await act(async () => {
+    complete();
+    await waiting;
+  });
+  await waitFor(() => expect(creation(calls)).toHaveLength(1));
+  expect(screen.queryByText("ug_builder_secret")).toBeNull();
+  expect(
+    screen.queryByRole("region", {
+      name: "Saved profile for Declared builder",
+    }),
+  ).toBeNull();
+  expect(
+    calls.filter((c) => c.path === "/v1/agents" && c.init?.method !== "POST"),
+  ).toHaveLength(readsBefore);
 });
