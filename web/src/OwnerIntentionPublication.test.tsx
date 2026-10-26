@@ -758,3 +758,73 @@ test("public revision reviews edited typed requirements rather than the stored d
     JSON.parse(String(sent.init?.body)).revision.hard_constraints.coverage,
   ).toEqual({ required: [], excluded: ["US"] });
 });
+
+test.each(["create", "revise"] as const)(
+  "typed requirement controls freeze while an exact %s request is pending",
+  async (mode) => {
+    fixture(mode === "revise" ? "redacted_public" : "private");
+    const originalFetch = globalThis.fetch;
+    let release = () => {};
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let entered = false;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (...args: Parameters<typeof fetch>) => {
+        const [path, init] = args;
+        if (
+          (mode === "create" &&
+            path === "/v1/owner/intents" &&
+            init?.method === "POST") ||
+          (mode === "revise" &&
+            path === "/v1/owner/intents/intent" &&
+            init?.method === "PATCH")
+        ) {
+          entered = true;
+          await pending;
+        }
+        return originalFetch(...args);
+      }),
+    );
+    render(<App />);
+    let form: HTMLFormElement;
+    if (mode === "create") {
+      const submit = await preparePublicCreation();
+      form = submit.closest("form")!;
+      await userEvent.click(submit);
+    } else {
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Review intention" }),
+      );
+      await userEvent.click(
+        screen.getByRole("button", { name: "Edit intention" }),
+      );
+      const submit = screen.getByRole("button", { name: "Save new revision" });
+      form = submit.closest("form")!;
+      await userEvent.click(
+        within(form).getByLabelText("I reviewed this public projection", {
+          exact: true,
+        }),
+      );
+      await userEvent.click(submit);
+    }
+    await waitFor(() => expect(entered).toBe(true));
+    try {
+      for (const label of [
+        "Required field IDs",
+        "Permitted license IDs",
+        "Declare coverage",
+      ]) {
+        expect(
+          within(form).getByLabelText(label).matches(":disabled"),
+          label,
+        ).toBe(true);
+      }
+    } finally {
+      await act(async () => {
+        release();
+      });
+    }
+  },
+);
