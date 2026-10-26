@@ -8,10 +8,16 @@ function fixture({
   malformedFirst = false,
   legacyPlan = false,
   invalidRequired = false,
+  preciseRespondBy,
+  preciseDeadline,
+  wrongPrecisionReply,
 }: {
   malformedFirst?: boolean;
   legacyPlan?: boolean;
   invalidRequired?: boolean;
+  preciseRespondBy?: string;
+  preciseDeadline?: string;
+  wrongPrecisionReply?: "respond_by" | "task_deadline";
 } = {}) {
   const legacySpec = {
     parent_version: null,
@@ -32,10 +38,11 @@ function fixture({
         output_schema: "source_catalog_v1",
         checks: ["json_schema_v1"],
         progress_interval_seconds: 86400,
-        deadline: "2030-02-01T00:00:35.123Z",
+        deadline: preciseDeadline ?? "2030-02-01T00:00:35.123Z",
       },
     ],
-    respond_by: new Date(Date.now() + 86400000).toISOString(),
+    respond_by:
+      preciseRespondBy ?? new Date(Date.now() + 86400000).toISOString(),
   };
   const legacyCanonical = JSON.stringify({
     plan: legacySpec,
@@ -52,7 +59,8 @@ function fixture({
     tasks: [],
   };
 
-  let posts = 0;
+  let posts = 0,
+    precisionReplies = 0;
   const receipts = new Map<string, unknown>();
   const calls: { path: string; init?: RequestInit }[] = [];
   vi.stubGlobal(
@@ -160,6 +168,27 @@ function fixture({
           });
         }
         value = malformedFirst && posts++ === 0 ? {} : receipts.get(key);
+        if (wrongPrecisionReply && precisionReplies++ === 0) {
+          const altered = JSON.parse(JSON.stringify(value));
+          const sealed = JSON.parse(altered.canonical_json);
+          if (wrongPrecisionReply === "respond_by") {
+            const changed = altered.specification.respond_by.replace(
+              /\.\d+Z$/,
+              ".654999Z",
+            );
+            altered.specification.respond_by = changed;
+            sealed.plan.respond_by = changed;
+          } else {
+            const changed = altered.specification.tasks[0].deadline.replace(
+              /\.\d+Z$/,
+              ".123999Z",
+            );
+            altered.specification.tasks[0].deadline = changed;
+            sealed.plan.tasks[0].deadline = changed;
+          }
+          altered.canonical_json = JSON.stringify(sealed);
+          value = altered;
+        }
       }
       return new Response(JSON.stringify(value), {
         headers: { "Content-Type": "application/json" },
@@ -618,3 +647,109 @@ test("a late committed proposal reply cannot restore a receipt after changing ow
   expect(screen.queryByText(/Plan proposed: plan-1/)).toBeNull();
   expect(screen.queryByRole("textbox", { name: "Plan objective" })).toBeNull();
 });
+
+async function openPrecisionRevision() {
+  render(
+    <Participation
+      agents={[{ id: "agent-a", name: "Owned agent", status: "active" }]}
+      csrf="precision-revision-owner"
+      onUnauthorized={vi.fn()}
+    />,
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "Load participation" }),
+  );
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Open room" }),
+  );
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Load plan context" }),
+  );
+  await userEvent.click(
+    await screen.findByRole("button", {
+      name: "Load latest plan for revision",
+    }),
+  );
+  await screen.findByRole("textbox", { name: "Plan objective" });
+}
+function preciseTimes() {
+  return {
+    preciseDeadline: "2030-02-01T00:00:35.123456Z",
+    preciseRespondBy: new Date(Date.now() + 86400000)
+      .toISOString()
+      .replace(/\.\d{3}Z$/, ".654321Z"),
+  };
+}
+
+test("an unchanged revision preserves submillisecond response and task deadlines exactly", async () => {
+  const times = preciseTimes(),
+    calls = fixture({ legacyPlan: true, ...times });
+  await openPrecisionRevision();
+  await userEvent.type(
+    screen.getByRole("textbox", { name: "Plan objective" }),
+    " with a clarified objective",
+  );
+  await userEvent.click(screen.getByLabelText("I reviewed this plan proposal"));
+  await userEvent.click(screen.getByRole("button", { name: "Propose plan" }));
+  await screen.findByText(/Plan proposed: plan-1/);
+  const post = calls.find(
+    (c) => c.path.endsWith("/plans") && c.init?.method === "POST",
+  )!;
+  const sent = JSON.parse(String(post.init?.body));
+  expect(sent.respond_by).toBe(times.preciseRespondBy);
+  expect(sent.tasks[0].deadline).toBe(times.preciseDeadline);
+  expect(Object.keys(sent).sort()).toEqual(
+    [
+      "parent_version",
+      "objective",
+      "required_principals",
+      "acceptance_principals",
+      "publication_principals",
+      "rights",
+      "tasks",
+      "respond_by",
+    ].sort(),
+  );
+  expect(Object.keys(sent.tasks[0]).sort()).toEqual(
+    [
+      "key",
+      "assignee_agent_id",
+      "depends_on",
+      "output_schema",
+      "checks",
+      "progress_interval_seconds",
+      "deadline",
+    ].sort(),
+  );
+});
+
+test.each(["respond_by", "task_deadline"] as const)(
+  "a reply changing %s within the same millisecond remains uncertain and retries its original key",
+  async (wrongPrecisionReply) => {
+    const calls = fixture({
+      legacyPlan: true,
+      ...preciseTimes(),
+      wrongPrecisionReply,
+    });
+    await openPrecisionRevision();
+    await userEvent.click(
+      screen.getByLabelText("I reviewed this plan proposal"),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Propose plan" }));
+    await screen.findByRole("alert");
+    expect(screen.queryByText(/Plan proposed: plan-1/)).toBeNull();
+    await userEvent.click(
+      screen.getByLabelText("I reviewed this plan proposal"),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Propose plan" }));
+    await screen.findByText(/Plan proposed: plan-1/);
+    const posts = calls.filter(
+      (c) => c.path.endsWith("/plans") && c.init?.method === "POST",
+    );
+    expect(posts).toHaveLength(2);
+    expect(posts[1].init?.body).toBe(posts[0].init?.body);
+    expect(new Headers(posts[1].init?.headers).get("Idempotency-Key")).toBe(
+      new Headers(posts[0].init?.headers).get("Idempotency-Key"),
+    );
+  },
+);
