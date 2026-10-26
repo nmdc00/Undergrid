@@ -50,7 +50,7 @@ function fixture() {
           next_after: "",
           limit: 100,
         };
-      if (path === "/v1/policies/contribution-templates")
+      if (path === "/v1/owner/config")
         value = {
           templates: [
             {
