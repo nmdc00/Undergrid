@@ -127,3 +127,30 @@ from this prerequisite. True same-ID disclosure conversion remains unsupported;
 preserve the existing 409 audience-change guard. Real provider/model/relevance,
 independent cohort, legal/source/deployment qualifications and all other happy
 paths remain separate full-v0.1 requirements.
+
+## 2026-10-26 current-release RED checkpoint
+
+Resumed implementation owner `semantic_oct26` on the preserved branch from
+`b0d49c7`; the environment restart removed the old worker tree. No semantic
+behavior or forward migration has been imported at this checkpoint.
+
+Test-only `e3280ea` ran the actual configured TLS provider/normal HTTP intention/
+restricted-login `RunWorker` seam on a genuine copy of the empty 041 template,
+`semantic_red_oct26` on network fixture 55500. Both top-level cases failed,
+package 6.272s, terminal exit 1. The five-second paraphrase assertion observed
+no semantic result and zero provider inputs. Matching-policy and compatible-group
+reads each returned 404. Exact retained log:
+`/tmp/undergrid-semantic-current-red-e3280ea-oct26.jsonl`.
+
+Review found that this first test's configured threshold 0.9999 exceeded its
+controlled vector cosine (approximately 0.994834); that fixture could not prove a
+successful compatible result after implementation. Preserve that failed run, but
+do not use it as the sole semantic RED. Test-only `b07d882` corrects the controlled
+threshold to 0.99 and requires an actual 64-character profile string rather than
+letting absent metadata pass an empty-string comparison. Its corrected RED must
+run before any product import. The missing-route 404 evidence remains direct.
+
+Fixture startup preserved stale postmaster/socket lock files before removing
+only those locks, after verifying the old PID belonged to the Codex process
+rather than PostgreSQL; normal PostgreSQL crash recovery completed successfully.
+No product data, jobs, migration ledger, role or retained database was reset.
