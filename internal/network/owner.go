@@ -168,6 +168,9 @@ func (s *Service) ownerCommand(r *http.Request, tx pgx.Tx) (int, any, error) {
 	if ownerAssignmentRoute(r.URL.Path) {
 		return s.ownerAssignmentResponse(r, tx, principal)
 	}
+	if ownerPlanProposalRoute(r) {
+		return s.ownerPlanProposal(r, tx, principal)
+	}
 	if strings.HasPrefix(r.URL.Path, "/v1/owner/agents/") && strings.Contains(r.URL.Path, "/plans") {
 		return s.ownerPlanApproval(r, tx, principal)
 	}
