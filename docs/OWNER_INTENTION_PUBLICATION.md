@@ -2,7 +2,8 @@
 
 Branch: `feat/v0.1-owner-intention-publication`, from release `316fd4e`.
 Reconciled with reviewed capacity release `5ea78d1`. Implementation and bounded
-local lifecycle proof are complete; feature review/merge remains pending. HP2 and
+local lifecycle proof are complete; independent review and merge completed in
+PR103 at release `b0d49c7`. HP2 and
 real provider/user qualification remain open.
 
 ## Implemented, not yet release-qualified
@@ -152,4 +153,8 @@ retry-key release, and per-view/session epochs prevent late replies from restori
 obsolete detail. Immutable history is observed independently rather than erased
 to pass tests. No schema, DTO, provider policy or generic visibility guard changed.
 The full discovery-to-agreed-plan HP2 journey and external qualifications remain
-unproven; reviewed feature integration is still pending.
+unproven. Reviewed feature integration completed in PR103 at `b0d49c7`;
+post-merge focused UI checks passed (10 tests, 9.53 seconds) and the console
+TypeScript/Vite build passed (1.34 seconds). Retained logs:
+`/tmp/undergrid-owner-publication-release-b0d49c7-ui.log` and
+`/tmp/undergrid-owner-publication-release-b0d49c7-build.log`.
