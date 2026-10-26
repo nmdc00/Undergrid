@@ -131,7 +131,7 @@ The first capacity task above remains unchanged. The acceptance audit at release
 
 - Intention publication: the audited release offered only private/restricted
   creation. This feature implements and locally proves explicit public creation,
-  fixed-audience summary review and withdrawal, pending review/merge; see
+  fixed-audience summary review and withdrawal, merged in PR103 (`b0d49c7`); see
   `OWNER_INTENTION_PUBLICATION.md`. True same-ID disclosure conversion remains
   unsupported by the published domain contract, not hidden behind fixture SQL.
 - Builder opt-in: owner `POST /v1/agents` accepts `AgentProfile` with public,
@@ -159,7 +159,7 @@ requirements and missing behaviors. Its scoped three-account setup foundation pa
 gate after the capacity worker released its test lease and root granted one. The
 ledger records exact source, commands, retained databases and fixture limitations.
 Public projection was unproven at that foundation checkpoint; the publication
-feature below now has actual local proof, pending merge. The full collaboration
+feature below now has actual local proof and is merged in PR103 (`b0d49c7`). The full collaboration
 journey remains unproven.
 
 ## Parallel owner behavior: explicit intention publication
@@ -223,3 +223,165 @@ contract), orthogonality, bounded readable inputs, retry/error resource ownershi
 and private failure behavior. All Go/Node gates require a root-granted serial
 lease; authoring this contract grants none. Full HP2 discovery, recruitment,
 room/plan/application flows and external qualification remain open.
+
+## Locked task: owner-reviewed builder registration — 25 October 2026
+
+Owner: `builder_oct26`, resuming the preserved `publication_oct25` task, independent of the semantic integration worker.
+Branch `feat/v0.1-owner-builder-registration`, based on reviewed release
+`b0d49c7770b007126eb17316f5da5f074708e4bc`, isolated at
+`/tmp/undergrid-worktrees/builder-registration/feat-v0.1-owner-builder-registration`.
+This contract precedes tests and behavior changes. It implements the builder C
+onboarding prerequisite in HP2 acceptance step zero and the TDD r2 builder
+recruitment scenario (§ coordination/recruitment and primary network scenario),
+not the complete discovery-to-agreed-plan journey.
+
+Behavior and runtime boundary:
+
+- Use existing owner-session/CSRF `POST /v1/agents` and its closed AgentProfile:
+  `public`, `accept_invitations`, `recruitment`, `capabilities`. Keep private/
+  unlisted defaults, separate opt-ins and known bounded `source_catalog_v1`
+  selection. Require review of the exact selected profile snapshot; changing
+  that snapshot invalidates review. Claims are declared, not verified expertise.
+- Add owner-only saved-profile acknowledgement to existing `GET /v1/agents`
+  and its canonical/generated closed response. Normalize legacy missing/empty
+  profiles to explicit false flags and an empty capabilities list. Do not widen
+  the creation schema, add a profile PATCH or invent a public profile directory.
+  The public declaration currently enables recruitment eligibility, not a public
+  webpage. Existing-agent profile editing/revocation remains unsupported.
+- Preserve current scope/policy/resource admission, active owner/agent authority,
+  credential issuance/recovery, RLS and transaction boundaries. Publishing a
+  declared capability or opting in grants no admission, rights, assignment or
+  spending authority. Invitation eligibility and recruitment are orthogonal:
+  invitation-off may still recruit but rejects foreign unsolicited offers.
+
+Test-first acceptance and evidence:
+
+1. Author and run focused UI RED for missing controls/review/defaults and real
+   PostgreSQL owner-read/domain RED before changing behavior. Gate execution is
+   serialized by root; no Node/Go slot is granted at contract time.
+2. Prove exact creation body, review invalidation and owner refresh of the actual
+   saved normalized profile. Preserve same key/body on malformed/lost creation
+   responses, one agent/credential effect, and stale actor/draft safety. A success
+   claim must follow a valid acknowledged response, not only an outgoing payload.
+3. Through ordinary owner registration and normal API/worker recruitment, prove
+   selected declared capability eligibility and independent opt-in flags. Test
+   unlisted/recruitment-off/mismatched capability negatives, current active
+   authority, owner-only list separation and no foreign credential/profile leak.
+   Existing foreign invitation commands must produce exactly offered invitations
+   only when allowed; opting in alone creates no membership. No automatic accepted
+   membership, rights approval, task or financial effect is permitted.
+4. Normal-agent room setup needed to exercise recruitment is explicit fixture/API
+   support, not evidence that missing owner recruitment-role/room controls ship.
+   Do not seed product rows to complete the user journey or call fixture accounts
+   independent beneficial owners. Preserve recruitment budget/current-authority
+   guards and network/financial separation.
+5. Capture exact RED/GREEN/build/runtime source, logs and retained databases;
+   assess DRY knowledge, orthogonality, contracts, readability and failure recovery.
+   Independent review and scoped PR to `release/v0.1` precede integration. Full HP2,
+   public directory, existing-profile mutation and external qualifications stay
+   open unless independently implemented and proven.
+
+## Next task contract: reviewed room origin and recruitment roles — 26 October 2026
+
+Status: planned, not implemented or runtime-proven. Semantic integration and
+builder registration remain active prerequisites; this contract starts no new
+behavior or test process. One later feature branch,
+`feat/v0.1-owner-room-origin-recruitment`, must start from the then-current
+reviewed `release/v0.1` in its own isolated worktree. Root assigns its implementer
+and serial test lease after the current dependencies are ready. This contract is
+recorded on `docs/v0.1-room-origin-contract`, based on release `f80460e`, at
+`/tmp/undergrid-worktrees/room-origin-contract/docs-v0.1-room-origin-contract`.
+
+Owning requirements: HP2 steps 2–3, SW-01/02/06 and TDD §§6/9, especially the
+published `POST /v1/swarms` precondition: “visible current opportunity or explicit
+objective.” The reference is provenance; it grants no candidate membership,
+rights, assignment acceptance or spending authority. Objective-only creation
+without an origin remains valid. Supplying an origin alongside an objective must
+not turn a stale or foreign reference into valid provenance.
+
+Static audit at `f80460e` (not a runtime reproduction): `createSwarm` in
+`internal/network/swarms.go` checks a supplied origin's UUID and recipient-row
+existence only. Opportunity RLS in migration 002 restricts the recipient, but
+does not establish current source/candidate eligibility, suggestion state or
+input hash. Owner creation delegates to that same domain command. Thus the code
+contains no current-evidence guard for a retained stale origin. The check also
+sits inside the idempotent callback, so retained command responses bypass it.
+No origin-specific runtime test was found by this audit. Existing opportunity
+listing alone is insufficient as an authority check: the shared-demand query
+checks active/public rows without comparing the stored evidence hash to current
+revisions. These findings need actual behavioral RED before implementation.
+
+Runtime entrypoints and expected effects:
+
+- Owner console creation in `web/src/CreateSwarm.tsx` uses existing
+  `POST /v1/owner/agents/{agent}/swarms`; scoped agent creation uses
+  `POST /v1/swarms`. Both must reach the same transaction-owned validation.
+  Select an actual currently accessible opportunity, disclose its provenance and
+  review the exact objective, nonpublic visibility, full-history policy and
+  bounded recruitment-role specification before submission. Changes invalidate
+  review. Keep public transcript consent and its existing shared-command guard
+  distinct; do not widen the owner's existing private/restricted choices.
+- Preserve existing role limits (at most ten, nonempty key, supported
+  `source_catalog_v1` family and bounded description), policy/quota admission and
+  owner/agent authorization. Review is a UI safeguard, never domain authority.
+- A successful creation persists one swarm with the reviewed origin and roles,
+  one accepted creator/coordinator membership, the existing creation event/inbox
+  effects and durable recruitment work. Other participants remain unadmitted.
+  Private rooms remain ineligible for public recruitment. No new table or
+  migration is planned; justify any later necessity from actual implementation
+  evidence, while preserving frozen migrations and semantic migration ownership.
+
+Required test-first acceptance and failure recovery:
+
+1. Reproduce stale-origin acceptance through actual restricted PostgreSQL HTTP
+   commands before behavior changes. Prove a current eligible origin succeeds;
+   reject foreign, dismissed, withdrawn/expired or inaccessible source/candidate
+   references and changed revision/evidence bindings. Include current semantic
+   profile/projection eligibility after that integration, and current permitted
+   external source/observation evidence for supported external kinds. Cover
+   current actor deactivation/revocation and concurrent eligibility changes with
+   the same relevant authority locks; never obtain private foreign data merely
+   to validate provenance. Denial must commit no swarm, membership, event/inbox
+   or recruitment-job effects.
+2. Test current eligibility before retained-response recovery for commands with
+   an origin, as well as current owner/agent authorization. Under unchanged
+   authority and input, a lost or malformed response must reuse the same key and
+   body, recover the same room and create no duplicate effects. Changed payloads
+   conflict. A stale origin must not become usable through a previously retained
+   key. Keep objective-only retries working without inventing an origin gate.
+3. Write console behavioral RED for missing current-origin/role controls, review
+   invalidation, history disclosure and exact outgoing command. Prove stale
+   actor/selection responses cannot restore an obsolete review or room, and
+   response validation precedes clearing retry identity. Do not silently drop an
+   invalid selected origin and submit an objective-only command instead.
+4. Run an actual owner browser/API/worker lifecycle after dependencies merge:
+   review the current match, create the room with exact origin and role, observe
+   persisted provenance and one attributable eligible builder opportunity.
+   Recruitment receipt creates no invitation acceptance or membership. Preserve
+   separate later invitation/application review and explicit admission steps;
+   fixture setup cannot stand in for the missing owner controls.
+5. Preserve owner isolation, current room/history ACLs, quota/idempotency guards,
+   separate admission/plan/rights/assignment decisions and HP1 recovery. Assess
+   DRY ownership of eligibility rules, orthogonality, readable provenance and
+   transaction/error ownership. Record actual RED/GREEN, source SHA, commands,
+   logs and retained databases in `docs/OWNER_ROOM_ORIGIN_RECRUITMENT.md`; update
+   this task's status and `HP2_ACCEPTANCE.md` before independent review and a
+   scoped feature PR to `release/v0.1` can merge.
+
+This task does not implement complementary capability discovery, application
+review, plan proposal/revision or the full HP2 journey. Account separation and
+controlled recruitment fixtures do not qualify independent beneficial owners,
+provider relevance, legal consent or deployment. Those gates remain open.
+
+
+### Builder registration implementation checkpoint — 26 October 2026
+
+The locked builder task above is implemented and locally proven on
+`feat/v0.1-owner-builder-registration` (`7728350` frozen runtime/test source),
+pending independent final review/merge. Evidence and exact RED/GREEN/retained
+runtime gates: [`OWNER_BUILDER_REGISTRATION.md`](OWNER_BUILDER_REGISTRATION.md).
+The console reviews explicit independent profile opt-ins and acknowledges the
+saved normalized owner-only profile. Ordinary browser registration/reload and
+actual restricted-worker recruitment pass; the API-created fixture room is not
+completion of the later owner room-origin/role contract. Existing-profile mutation
+and public-directory controls remain unsupported. Full HP2 remains open.

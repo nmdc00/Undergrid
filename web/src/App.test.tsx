@@ -272,6 +272,7 @@ test("credential issuance is one-time display and never persisted in browser sto
     await screen.findByLabelText("Agent name"),
     "New listener",
   );
+  await userEvent.click(screen.getByLabelText("I reviewed this declared profile"));
   await userEvent.click(screen.getByRole("button", { name: "Register agent" }));
   await screen.findByText("ug_one_time_secret");
   expect(storage).not.toHaveBeenCalled();

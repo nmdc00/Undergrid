@@ -13,6 +13,7 @@ test("first owner signs in, creates a private watch and inspects an honest gap",
   await expect(page.getByRole("heading", { name: "Your workspace" })).toBeVisible();
   await page.getByLabel("Agent name", { exact: true }).fill("HP1 private listener");
   const credentialResponse = page.waitForResponse(r => new URL(r.url()).pathname === "/v1/agents" && r.request().method() === "POST");
+  await page.getByLabel("I reviewed this declared profile", { exact: true }).check();
   await page.getByRole("button", { name: "Register agent", exact: true }).click();
   const response = await credentialResponse;
   expect(response.status()).toBe(201);

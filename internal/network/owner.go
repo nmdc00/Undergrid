@@ -13,7 +13,7 @@ import (
 )
 
 func listOwnerAgents(ctx context.Context, tx pgx.Tx, principal string) (int, any, error) {
-	rows, err := tx.Query(ctx, `SELECT jsonb_build_object('id',a.id,'name',a.name,'status',a.status,'version',a.version,'etag','"'||a.version||'"','key_control_verified',a.key_control_verified_at IS NOT NULL,'endpoint_control_verified',a.endpoint_control_verified_at IS NOT NULL,'credentials',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',c.id,'kind',c.kind,'scopes',c.scopes,'generation',c.generation,'etag','"'||c.generation||'"','expires_at',c.expires_at,'revoked_at',c.revoked_at) ORDER BY c.created_at) FROM credentials c WHERE c.agent_id=a.id),'[]'::jsonb)) FROM agents a WHERE a.principal_id=$1 ORDER BY a.created_at`, principal)
+	rows, err := tx.Query(ctx, `SELECT jsonb_build_object('id',a.id,'name',a.name,'status',a.status,'profile',jsonb_build_object('public',COALESCE((a.profile->>'public')::boolean,false),'accept_invitations',COALESCE((a.profile->>'accept_invitations')::boolean,false),'recruitment',COALESCE((a.profile->>'recruitment')::boolean,false),'capabilities',COALESCE(NULLIF(a.profile->'capabilities','null'::jsonb),'[]'::jsonb)),'version',a.version,'etag','"'||a.version||'"','key_control_verified',a.key_control_verified_at IS NOT NULL,'endpoint_control_verified',a.endpoint_control_verified_at IS NOT NULL,'credentials',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',c.id,'kind',c.kind,'scopes',c.scopes,'generation',c.generation,'etag','"'||c.generation||'"','expires_at',c.expires_at,'revoked_at',c.revoked_at) ORDER BY c.created_at) FROM credentials c WHERE c.agent_id=a.id),'[]'::jsonb)) FROM agents a WHERE a.principal_id=$1 ORDER BY a.created_at`, principal)
 	if err != nil {
 		return 0, nil, err
 	}

@@ -137,7 +137,7 @@ never align due to semantic score, revocation blocks current reads/replay,
 canonical locks prevent stale policy acceptance, and receipt/chat never grants
 participation or rights. Prove restart, decline and no duplicate effects.
 
-Current evidence at release `5ea78d1`: the independently extracted discovery
+Current evidence at release `b0d49c7`: the independently extracted discovery
 capacity fix is reviewed and merged in PR101, preserving the five-second bound,
 accepted work and HP1 behavior. Post-merge watcher/shutdown race checks passed
 10.625 seconds and the console build passed; exact logs are
@@ -147,9 +147,12 @@ The three-owner private setup foundation is merged in PR100; it does not prove
 publication or collaboration. Room participation/messages and owner plan/assignment
 decisions are merged. Semantic/groups/viewer remain on dependent branches, with
 the next reconciliation contract in [`SEMANTIC_INTEGRATION.md`](SEMANTIC_INTEGRATION.md).
-Complementary discovery, unknown-hard clarification and the audited owner
-publication/profile/room/plan/application controls still require their actual
-journeys and reviewed integration. HP2 remains open.
+Owner publication is reviewed and merged in PR103: explicit public creation,
+fixed-audience summary revision and withdrawal have an actual three-owner
+browser/API/PostgreSQL proof; see `OWNER_INTENTION_PUBLICATION.md`. Withdrawal
+retains history and is not a private conversion. Complementary discovery,
+unknown-hard clarification and owner profile/room/plan/application controls still
+require their actual journeys and reviewed integration. HP2 remains open.
 
 Public qualification: externally operated participants and independent REST/MCP/A2A
 clients with actual outcomes, clearly labeled release-test evidence.
@@ -297,10 +300,22 @@ remaining gate. Do not start multiple unrelated happy paths in parallel.
 
 ## Immediate checkpoint
 
-The active path is **HP1**. Inventory and finish current owner inbox/dismissal
-branches, then close the partial-satisfaction/unmet-remainder and explicit-gap/
-clarification user steps. Build one complete HP1 acceptance walkthrough. Record
-actual missing steps before assigning further branches. Preserve the HP2 semantic
-queue-fairness failure/reproducer and resume it when its path is active or when it
-is demonstrably a prerequisite for HP1. No complete path is newly claimed by
-writing this mapping.
+Mapping is complete for all six paths. HP1 is locally closed; **HP2 is active**.
+The capacity prerequisite and explicit owner-publication feature are reviewed and
+merged. Current work is semantic integration against the release and reviewed
+builder registration; neither is claimed complete. The full HP2 journey remains
+unproven. Finish its remaining discovery, room, recruitment, application, plan
+and assignment steps before starting HP3.
+
+On 26 October, fetched `main...develop` divergence remains `0 1`. Release PR62
+remains open; no release promotion or deployment is implied by feature merges.
+
+| Current responsibility | Branch / worktree | Required evidence |
+| --- | --- | --- |
+| Semantic integration (`semantic_oct26`) | `feat/v0.1-semantic-integration`; `/tmp/undergrid-worktrees/semantic-integration/feat-v0.1-semantic-integration` | `SEMANTIC_INTEGRATION.md`: actual behavioral RED, current consent/profile/dismissal, slow-provider isolation and retained HP1/capacity proof. |
+| Builder registration (`builder_oct26`) | `feat/v0.1-owner-builder-registration`; `/tmp/undergrid-worktrees/builder-registration/feat-v0.1-owner-builder-registration` | Task contract `04f91de` in `HP2_EXECUTION.md`; owner profile acknowledgment, explicit reviewed opt-ins, normal recruitment and authority/recovery proof. |
+| Integration (`root`) | `release/v0.1`; documentation corrections on `docs/v0.1-happy-path-checkpoint` in its isolated worktree | Review task diffs and evidence before feature PR merges; serialize costly gates and preserve full-path acceptance. |
+
+These are resumed responsibilities after the prior worker tree ended. Existing
+worktrees, failed gates and retained databases remain evidence. Real provider,
+source, legal, independent-user and deployment qualifications remain open.

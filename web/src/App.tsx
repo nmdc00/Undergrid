@@ -3,6 +3,11 @@ import {
   readIntentionConstraints,
   type IntentionConstraints,
 } from "./IntentionConstraints";
+import {
+  ProfileReview,
+  SavedProfile,
+  privateAgentProfile,
+} from "./AgentProfile";
 import { OwnerInbox } from "./OwnerInbox";
 import type { components } from "./network.generated";
 import { useEffect, useRef, useState, type FormEvent } from "react";
@@ -146,6 +151,9 @@ export function App() {
     useState<IntentionConstraints>(sourceCatalogConstraints);
   const [revisionConstraints, setRevisionConstraints] =
     useState<IntentionConstraints>(sourceCatalogConstraints);
+  const [agentProfile, setAgentProfile] = useState(privateAgentProfile),
+    [reviewedAgentProfile, setReviewedAgentProfile] = useState("");
+  const agentProfileReview = JSON.stringify([csrf, agentProfile]);
   const generation = useRef(0);
   const [intentionExpiry, setIntentionExpiry] = useState(() =>
     new Date(Date.now() + 30 * 86400000).toISOString(),
@@ -372,6 +380,7 @@ export function App() {
                     <strong>{text(a.name)}</strong>{" "}
                     <span>{text(a.status)}</span>
                     <p className="identifier">Agent {text(a.id)}</p>
+                    <SavedProfile agent={a} />
                     <AgentAuthority
                       agent={a}
                       busy={busy}
@@ -434,13 +443,32 @@ export function App() {
               <form
                 onSubmit={(e) =>
                   submit(e, async () => {
-                    const issued = await request("/v1/agents", csrf, "POST", {
-                      name: agentName,
-                      scopes,
-                    });
+                    if (reviewedAgentProfile !== agentProfileReview) return;
+                    const mine = generation.current;
+                    const issued = await request(
+                      "/v1/agents",
+                      csrf,
+                      "POST",
+                      {
+                        name: agentName,
+                        scopes,
+                        profile: agentProfile,
+                      },
+                      undefined,
+                      (result) => {
+                        if (
+                          typeof result.credential_id !== "string" ||
+                          !result.credential_id
+                        )
+                          throw new Error("Invalid server response");
+                      },
+                    );
+                    if (mine !== generation.current) return;
                     setSecret(text(issued.token));
                     setAgentName("");
-                    await refresh(csrf);
+                    setAgentProfile(privateAgentProfile);
+                    setReviewedAgentProfile("");
+                    await refresh(csrf, mine);
                   })
                 }
               >
@@ -451,10 +479,11 @@ export function App() {
                     required
                     maxLength={120}
                     value={agentName}
+                    disabled={busy}
                     onChange={(e) => setAgentName(e.target.value)}
                   />
                 </label>
-                <fieldset>
+                <fieldset disabled={busy}>
                   <legend>Network scopes</legend>
                   {ordinaryScopes.map((scope) => (
                     <label className="check" key={scope}>
@@ -473,7 +502,26 @@ export function App() {
                     </label>
                   ))}
                 </fieldset>
-                <button disabled={busy || !agentName || scopes.length === 0}>
+                <ProfileReview
+                  profile={agentProfile}
+                  onChange={(profile) => {
+                    setAgentProfile(profile);
+                    setReviewedAgentProfile("");
+                  }}
+                  reviewed={reviewedAgentProfile === agentProfileReview}
+                  onReview={(checked) =>
+                    setReviewedAgentProfile(checked ? agentProfileReview : "")
+                  }
+                  busy={busy}
+                />
+                <button
+                  disabled={
+                    busy ||
+                    !agentName ||
+                    scopes.length === 0 ||
+                    reviewedAgentProfile !== agentProfileReview
+                  }
+                >
                   Register agent
                 </button>
               </form>
@@ -743,11 +791,6 @@ export function App() {
                             key={`revision-${String(detail.id)}-${String(detail.etag)}`}
                             value={revisionConstraints}
                             onChange={setRevisionConstraints}
-                          />
-                          <IntentionConstraintsEditor
-                            key={`creation-${queryGeneration}`}
-                            value={creationConstraints}
-                            onChange={setCreationConstraints}
                           />
                           <IntentionPublication
                             fixedAudience

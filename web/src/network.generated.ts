@@ -2063,6 +2063,7 @@ export interface components {
             key_control_verified: boolean;
             endpoint_control_verified: boolean;
             credentials: components["schemas"]["Credential"][];
+            profile: components["schemas"]["SavedAgentProfile"];
         };
         OwnerAgents: {
             items: components["schemas"]["OwnerAgent"][];
@@ -3394,6 +3395,12 @@ export interface components {
             group_limit: 10;
             truncated: boolean;
             limitations: ("bounded_nonexhaustive_views" | "principal_ids_do_not_prove_independent_owners")[];
+        };
+        SavedAgentProfile: {
+            public: boolean;
+            accept_invitations: boolean;
+            recruitment: boolean;
+            capabilities: string[];
         };
     };
     responses: never;
