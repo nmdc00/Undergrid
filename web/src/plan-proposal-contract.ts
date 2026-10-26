@@ -182,6 +182,8 @@ function parsedInput(value: unknown): PlanInput {
     if (task.deadline != null) result.deadline = text(task.deadline);
     return result;
   });
+  if (rights.publication !== "exact_manifest_approval")
+    throw Error("Invalid publication mode");
   return {
     parent_version:
       raw.parent_version === null ? null : positive(raw.parent_version),
@@ -231,6 +233,7 @@ export function revisionDraft(value: unknown, context: ProposalContext): Draft {
     respond_by: utcEditor(spec.respond_by),
     tasks: spec.tasks.map((task) => ({
       ...task,
+      depends_on: task.depends_on ?? [],
       deadline: task.deadline ? utcEditor(task.deadline) : "",
     })),
   };
