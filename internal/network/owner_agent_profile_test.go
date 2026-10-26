@@ -127,9 +127,16 @@ func TestOwnerDeclaredBuilderOptInsRemainIndependent(t *testing.T) {
 			} else if code != 201 {
 				t.Fatalf("invitation optin failed:%d %#v", code, invitation)
 			}
-			var accepted int
-			if err := db.QueryRow(context.Background(), "SELECT count(*) FROM undergrid.memberships WHERE swarm_id=$1 AND agent_id=$2 AND state='accepted'", room["id"], created["id"]).Scan(&accepted); err != nil || accepted != 0 {
-				t.Fatalf("registration or offer admitted builder:%d %v", accepted, err)
+			var accepted, offered int
+			if err := db.QueryRow(context.Background(), "SELECT count(*) FILTER (WHERE state='accepted'),count(*) FILTER (WHERE state='offered') FROM undergrid.memberships WHERE swarm_id=$1 AND agent_id=$2", room["id"], created["id"]).Scan(&accepted, &offered); err != nil {
+				t.Fatal(err)
+			}
+			expectedOffered := 0
+			if tc.invite {
+				expectedOffered = 1
+			}
+			if accepted != 0 || offered != expectedOffered {
+				t.Fatalf("optin offer/admission states: accepted=%d offered=%d want offered=%d", accepted, offered, expectedOffered)
 			}
 		})
 	}
