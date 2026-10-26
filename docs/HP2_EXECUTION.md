@@ -372,3 +372,16 @@ This task does not implement complementary capability discovery, application
 review, plan proposal/revision or the full HP2 journey. Account separation and
 controlled recruitment fixtures do not qualify independent beneficial owners,
 provider relevance, legal consent or deployment. Those gates remain open.
+
+
+### Builder registration implementation checkpoint — 26 October 2026
+
+The locked builder task above is implemented and locally proven on
+`feat/v0.1-owner-builder-registration` (`7728350` frozen runtime/test source),
+pending independent final review/merge. Evidence and exact RED/GREEN/retained
+runtime gates: [`OWNER_BUILDER_REGISTRATION.md`](OWNER_BUILDER_REGISTRATION.md).
+The console reviews explicit independent profile opt-ins and acknowledges the
+saved normalized owner-only profile. Ordinary browser registration/reload and
+actual restricted-worker recruitment pass; the API-created fixture room is not
+completion of the later owner room-origin/role contract. Existing-profile mutation
+and public-directory controls remain unsupported. Full HP2 remains open.

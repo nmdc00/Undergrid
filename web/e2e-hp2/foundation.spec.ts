@@ -1,7 +1,7 @@
 import { test, expect, type BrowserContext } from "@playwright/test";
 
-// Actual network app/session/API. This foundation does not prove discovery,
-// builder profile, membership, plan or assignment flows still missing from HP2.
+// Actual network app/session/API. Separate modes prove setup, publication or
+// reviewed builder registration/recruitment; none proves the full HP2 journey.
 test(
   process.env.UNDERGRID_HP2_BUILDER_REGISTRATION === "1"
     ? "owner reviews builder declarations and receives worker recruitment without admission"
@@ -408,8 +408,8 @@ test(
           (await own.json()).items.map((item: { id: string }) => item.id),
         ).toEqual([actors[2].agent]);
       }
-      // Names identify intended future roles only. No builder capability, opt-in,
-      // independent ownership, collaboration or participant consent is inferred.
+      // Role names alone prove no capability or consent. The builder mode above
+      // proves explicit declarations; independent ownership and full HP2 remain open.
     } finally {
       for (const context of contexts) await context.close();
     }
