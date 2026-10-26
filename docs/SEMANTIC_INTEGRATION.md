@@ -154,3 +154,30 @@ Fixture startup preserved stale postmaster/socket lock files before removing
 only those locks, after verifying the old PID belonged to the Codex process
 rather than PostgreSQL; normal PostgreSQL crash recovery completed successfully.
 No product data, jobs, migration ledger, role or retained database was reset.
+
+Corrected runtime oracle `b07d882`, docs HEAD `f2b066b`, then ran on another
+normal empty-template copy, `semantic_red_corrected_oct26`: terminal exit 1,
+package 7.652s, both top-level cases failed with the same absent provider/result
+and missing-route behavior. The controlled cosine now clears the configured
+0.99 cutoff. Retained log:
+`/tmp/undergrid-semantic-corrected-red-f2b066b-oct26.jsonl`.
+
+Normal merge reconciliation `0d5eea8` imports the parked implementation while
+retaining current HP1 revision/audit/head helpers, source refresher, capacity
+routing and derived 22-queue/32-connection configuration, and fixed-audience
+publication/expiry/reply guards. Compile-only terminal PASS (`0.006s`, no tests)
+is in `/tmp/undergrid-semantic-oct26-mechanical-compile.log`; this is not runtime
+or release acceptance. The new mandatory provider-isolation, partial-consent and
+semantic-dismissal tests remain unrun at this checkpoint and their behavioral
+corrections remain unimplemented.
+
+The preserved pgvector fixture 55498 contains 495 principals, 1099 intentions
+and 5128 jobs with genuine migrations through 039; it has no empty application
+template and remains intact. A separate Unix-socket-only network cluster 55502
+was initialized with the existing packaged PostgreSQL 16.11/pgvector 0.6.0
+binaries. Normal application migration ran once on
+`undergrid_semantic_template`, with 42 ledger entries (001–041 and River ready).
+Independent SQL proves zero principals, agents, intentions, opportunities, events
+and River jobs. Keep this genuine empty baseline for isolated copies; later
+forward migrations must be applied normally. Actual proof:
+`/tmp/undergrid-semantic-55502-template-proof-oct26.log`.
