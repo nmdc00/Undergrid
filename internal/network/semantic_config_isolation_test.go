@@ -121,7 +121,7 @@ func TestRunningWorkerSemanticConfigFailurePreservesExactDiscoveryAndReads(t *te
 			t.Fatal(err)
 		}
 		var external, externalEvents, externalInbox int
-		err = db.QueryRow(context.Background(), `SELECT count(*),count(e.id),count(b.event_id) FROM undergrid.opportunities o LEFT JOIN undergrid.events e ON e.aggregate_id=o.id AND e.type='opportunity.available' LEFT JOIN undergrid.inbox b ON b.event_id=e.id WHERE o.source_intent_id=$1 AND o.kind='external_capability' AND o.evidence->>'source_id'=$2 AND o.evidence->>'source_version'='2'`, watch["id"], source.ID).Scan(&external, &externalEvents, &externalInbox)
+		err = db.QueryRow(context.Background(), `SELECT count(*),count(e.id),count(b.event_id) FROM undergrid.opportunities o LEFT JOIN undergrid.events e ON e.aggregate_id=o.id AND e.type='opportunity.available' LEFT JOIN undergrid.inbox b ON b.event_id=e.id JOIN undergrid.external_observations observation ON observation.id=o.external_observation_id WHERE o.source_intent_id=$1 AND o.kind='external_capability' AND observation.source_id=$2 AND o.evidence->>'source_version'='2'`, watch["id"], source.ID).Scan(&external, &externalEvents, &externalInbox)
 		if err != nil {
 			t.Fatal(err)
 		}
