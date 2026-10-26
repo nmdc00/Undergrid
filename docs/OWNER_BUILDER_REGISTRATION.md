@@ -1,7 +1,7 @@
 # Owner-reviewed builder registration
 
 Status on 26 October 2026: implemented and locally proven on this feature branch;
-independent final review and merge to `release/v0.1` pending. Full HP2 remains open.
+independent final review approved; merge to `release/v0.1` pending. Full HP2 remains open.
 Owning contract: [HP2 execution](HP2_EXECUTION.md), locked task `04f91de`, TDD r2
 §6 and §9 primary builder scenario. This is a write/read owner behavior, not a
 public directory, existing-profile editor or complete recruitment/admission UI.
@@ -136,6 +136,28 @@ capability exclusion and invitation eligibility independent of recruitment. They
 use normal owner commands and restricted API/worker LOGINS. Explicit legacy `{}`
 compatibility data is a labeled domain fixture, not browser journey completion.
 Current authority/replay guards remain in the retained domain suite.
+
+## Final offered-state characterization and review
+
+Evidence audit strengthened the existing opt-in oracle in test-only `9e113c8`:
+positive invitation choices must create exactly one `offered` membership, never
+an accepted membership; invitation-off must leave neither. This is an existing-
+behavior characterization, not an invented RED. On final documentation/comment
+head `0a5cbdf`, the same focused two domain cases plus five subcases passed
+**4.029 seconds** using the existing restricted API/worker LOGIN fixtures:
+
+```sh
+UNDERGRID_TEST_DATABASE_URL='postgres://nmcdc@localhost:55500/undergrid_builder_offered_20261026?host=/tmp/undergrid-pg-hp1-55500/socket&sslmode=disable' GOCACHE=/tmp/undergrid-gocache GOMODCACHE=/tmp/undergrid-gomod /tmp/undergrid-toolchain/go/bin/go test -json -race ./internal/network -run '^TestOwner(AgentListAcknowledgesDeclaredAndLegacyProfiles|DeclaredBuilderOptInsRemainIndependent)$' -count=1
+```
+
+Log: `/tmp/undergrid-builder-0a5cbdf-exact-offered-domain-20261026.jsonl`.
+Database `undergrid_builder_offered_20261026` is another genuine empty-template
+copy, retained intact. No product code changed after `7728350`, so its full UI,
+browser, domain and static evidence remains applicable; the later gate proves
+the strengthened oracle, rather than pretending the earlier suite included it.
+Independent read-only review approves through `0a5cbdf` plus this terminal gate,
+with no material finding outstanding. PR [106](https://github.com/nmdc00/Undergrid/pull/106)
+targets `release/v0.1`; final merge and release postchecks remain pending.
 
 ## Quality and remaining scope
 
