@@ -1,7 +1,13 @@
 package network
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"net/http/httptest"
+
 	"context"
+	"github.com/jackc/pgx/v5"
 	"testing"
 	"time"
 )
@@ -165,5 +171,126 @@ func TestPlanProposalSelectedParticipantActivityGatesNewWriteNotOwnReceipt(t *te
 				t.Fatalf("denied revision effects: plans=%d tasks=%d approvals=%d", plans, tasks, votes)
 			}
 		})
+	}
+}
+
+// All participant records are created through normal owner/agent commands. These
+// focused fixtures isolate current identity changes from the future browser path.
+func planProposalPeerRoom(t *testing.T, role string) (*Service, *pgx.Conn, testClient, testClient, map[string]any, map[string]any, map[string]any) {
+	t.Helper()
+	s, db := ownerSwarmCreationFixture(t)
+	enableTestTerms(t, s)
+	a, b := planningClient(t, s), collaborationClient(t, s)
+	_, aid := a.call("GET", "/v1/me", "", nil)
+	_, bid := b.call("GET", "/v1/me", "", nil)
+	code, room := a.call("POST", "/v1/swarms", "peer-eligibility-room", map[string]any{"objective": "Current selected plan participants", "visibility": "restricted", "recruitment_roles": []any{}})
+	if code != 201 {
+		t.Fatal(code, room)
+	}
+	path := "/v1/swarms/" + room["id"].(string)
+	code, invite := a.call("POST", path+"/invitations", "peer-eligibility-offer", map[string]any{"agent_id": bid["agent_id"], "role": role, "respond_by": time.Now().Add(time.Hour)})
+	if code != 201 {
+		t.Fatal(code, invite)
+	}
+	if code, out := b.versioned("POST", path+"/membership-response", "peer-eligibility-join", invite["etag"].(string), map[string]any{"invitation_id": invite["id"], "decision": "accept"}); code != 200 {
+		t.Fatal(code, out)
+	}
+	return s, db, a, b, aid, bid, room
+}
+
+func TestPlanProposalNonAssignedPrincipalsNeedAnActiveEligibleMember(t *testing.T) {
+	for _, purpose := range []string{"required", "publication"} {
+		for _, alternate := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/alternate-active-%t", purpose, alternate), func(t *testing.T) {
+				role := "contributor"
+				if purpose == "publication" {
+					role = "observer"
+				}
+				_, db, a, b, aid, bid, room := planProposalPeerRoom(t, role)
+				path := "/v1/swarms/" + room["id"].(string)
+				if alternate {
+					code, issued := b.call("POST", "/v1/agents", "alternate-active-member", map[string]any{"name": "Alternative eligible attribution", "scopes": []string{"members:respond", "swarms:read"}, "profile": map[string]any{"accept_invitations": true}})
+					if code != 201 {
+						t.Fatal(code, issued)
+					}
+					alternative := b
+					alternative.token = issued["token"].(string)
+					code, invite := a.call("POST", path+"/invitations", "alternative-eligible-offer", map[string]any{"agent_id": issued["id"], "role": role, "respond_by": time.Now().Add(time.Hour)})
+					if code != 201 {
+						t.Fatal(code, invite)
+					}
+					if code, out := alternative.versioned("POST", path+"/membership-response", "alternative-eligible-join", invite["etag"].(string), map[string]any{"invitation_id": invite["id"], "decision": "accept"}); code != 200 {
+						t.Fatal(code, out)
+					}
+				}
+				if _, err := db.Exec(context.Background(), "UPDATE undergrid.agents SET status='revoked' WHERE id=$1", bid["agent_id"]); err != nil {
+					t.Fatal(err)
+				}
+				spec := ownerPlanProposalSpec(aid["agent_id"].(string), aid["principal_id"].(string))
+				if purpose == "required" {
+					spec.RequiredPrincipals = append(spec.RequiredPrincipals, bid["principal_id"].(string))
+				} else {
+					spec.PublicationPrincipals = append(spec.PublicationPrincipals, bid["principal_id"].(string))
+				}
+				code, result := a.versioned("POST", path+"/plans", "non-assigned-principal-proposal", room["etag"].(string), spec)
+				if alternate {
+					if code != 201 {
+						t.Fatalf("another revoked agent incorrectly disqualified active accepted witness:%d %#v", code, result)
+					}
+				} else if code < 400 {
+					t.Fatalf("%s principal without active eligible accepted agent entered plan:%d", purpose, code)
+				}
+			})
+		}
+	}
+}
+
+func TestPlanProposalParticipantContentionRetainsRetryableRecovery(t *testing.T) {
+	s, db, a, _, aid, bid, room := planProposalPeerRoom(t, "contributor")
+	spec := ownerPlanProposalSpec(bid["agent_id"].(string), aid["principal_id"].(string))
+	spec.RequiredPrincipals = append(spec.RequiredPrincipals, bid["principal_id"].(string))
+	path := "/v1/swarms/" + room["id"].(string) + "/plans"
+	locker, err := pgx.Connect(context.Background(), db.Config().ConnString())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer locker.Close(context.Background())
+	held, err := locker.Begin(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer held.Rollback(context.Background())
+	if _, err = held.Exec(context.Background(), "SELECT id FROM undergrid.principals WHERE id=$1 FOR UPDATE", bid["principal_id"]); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	r := httptest.NewRequest("POST", path, bytes.NewReader(canonical(spec))).WithContext(ctx)
+	r.Header.Set("Authorization", "Bearer "+a.token)
+	r.Header.Set("Idempotency-Key", "contended-plan-original")
+	r.Header.Set("If-Match", room["etag"].(string))
+	response := httptest.NewRecorder()
+	started := time.Now()
+	s.ServeHTTP(response, r)
+	var result map[string]any
+	if err = json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if response.Code != 500 || result["error"].(map[string]any)["retryable"] != true || time.Since(started) > 2*time.Second {
+		t.Fatalf("NOWAIT contention lost existing retryable failure contract: %d %s elapsed=%s", response.Code, response.Body, time.Since(started))
+	}
+	var plans int
+	if err = db.QueryRow(context.Background(), "SELECT count(*) FROM undergrid.plan_versions WHERE swarm_id=$1", room["id"]).Scan(&plans); err != nil || plans != 0 {
+		t.Fatalf("contended command committed plan:%d %v", plans, err)
+	}
+	if err = held.Rollback(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	code, recovered := a.versioned("POST", path, "contended-plan-original", room["etag"].(string), spec)
+	if code != 201 {
+		t.Fatalf("same-key retry after releasing authority contention:%d %#v", code, recovered)
+	}
+	if err = db.QueryRow(context.Background(), "SELECT count(*) FROM undergrid.plan_versions WHERE swarm_id=$1", room["id"]).Scan(&plans); err != nil || plans != 1 {
+		t.Fatalf("recovered command multiplicity:%d %v", plans, err)
 	}
 }
