@@ -65,7 +65,7 @@ func TestCurrentReleaseSemanticParaphraseRuntime(t *testing.T) {
 	if err := os.WriteFile(ca, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: provider.Certificate().Raw}), 0600); err != nil {
 		t.Fatal(err)
 	}
-	config := map[string]any{"endpoint": provider.URL, "provider_id": "controlled-fixture", "model": "controlled-fixture", "model_revision": "fixture-revision-1", "dimensions": 3, "permission_evidence": "controlled TLS fixture, not provider qualification", "privacy_policy_sha256": strings.Repeat("d", 64), "allow_public_projections": true, "allow_private_projections": false, "minimum_similarity": 0.9999, "test_only": true, "tls_root_ca_file": ca}
+	config := map[string]any{"endpoint": provider.URL, "provider_id": "controlled-fixture", "model": "controlled-fixture", "model_revision": "fixture-revision-1", "dimensions": 3, "permission_evidence": "controlled TLS fixture, not provider qualification", "privacy_policy_sha256": strings.Repeat("d", 64), "allow_public_projections": true, "allow_private_projections": false, "minimum_similarity": 0.99, "test_only": true, "tls_root_ca_file": ca}
 	path := filepath.Join(dir, "semantic.json")
 	if err := os.WriteFile(path, canonical(config), 0600); err != nil {
 		t.Fatal(err)
@@ -111,7 +111,8 @@ func TestCurrentReleaseSemanticParaphraseRuntime(t *testing.T) {
 				continue
 			}
 			evidence := item["evidence"].(map[string]any)
-			if evidence["algorithm"] != "hard-constraints-hybrid-cosine-v1" || evidence["semantic_profile_hash"] == "" {
+			profile, profileOK := evidence["semantic_profile_hash"].(string)
+			if evidence["algorithm"] != "hard-constraints-hybrid-cosine-v1" || !profileOK || len(profile) != 64 {
 				t.Fatal("missing semantic profile-bound evidence", evidence)
 			}
 			mu.Lock()
