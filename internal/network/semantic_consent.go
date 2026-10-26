@@ -2,6 +2,7 @@ package network
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"strings"
 	"unicode/utf8"
 )
@@ -55,7 +56,7 @@ func (p *semanticProvider) selectedProjection(input IntentInput, publicProjectio
 		return input.PublicSummary, digest([]byte(publicProjection)), true
 	}
 	q := input.PrivateSemanticQuery
-	if q == nil || !p.config.AllowPrivateProjections || q.ProfileHash != p.hash || q.validate(input.Visibility) != nil {
+	if !input.processingGrant.matches(input, input.storedRevision) || q == nil || !p.config.AllowPrivateProjections || q.ProfileHash != p.hash || q.validate(input.Visibility) != nil {
 		return "", "", false
 	}
 	return q.Projection, digest([]byte(q.Projection)), true
@@ -87,4 +88,33 @@ func (s *Service) semanticProjectionCurrent(input IntentInput) (bool, error) {
 	}
 	_, _, allowed := current.selectedProjection(input, "")
 	return allowed, nil
+}
+
+// This authority is minted only by explicit validated create/full-revision
+// commands. Retaining query data or a historical grant does not renew it.
+type semanticProcessingGrant struct {
+	Revision       int    `json:"revision"`
+	ProfileHash    string `json:"profile_hash"`
+	ProjectionHash string `json:"projection_hash"`
+}
+
+func newSemanticProcessingGrant(input IntentInput, revision int) *semanticProcessingGrant {
+	if input.PrivateSemanticQuery == nil {
+		return nil
+	}
+	return &semanticProcessingGrant{revision, input.PrivateSemanticQuery.ProfileHash, digest([]byte(input.PrivateSemanticQuery.Projection))}
+}
+func (g *semanticProcessingGrant) matches(input IntentInput, revision int) bool {
+	q := input.PrivateSemanticQuery
+	return g != nil && q != nil && revision > 0 && g.Revision == revision && g.ProfileHash == q.ProfileHash && g.ProjectionHash == digest([]byte(q.Projection))
+}
+func decodeStoredIntent(raw []byte, revision int) (IntentInput, error) {
+	var document intentRevisionDocument
+	if err := json.Unmarshal(raw, &document); err != nil {
+		return IntentInput{}, err
+	}
+	input := document.IntentInput
+	input.processingGrant = document.SemanticProcessingGrant
+	input.storedRevision = revision
+	return input, nil
 }

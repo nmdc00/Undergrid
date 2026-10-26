@@ -113,7 +113,7 @@ func (s *Service) enqueueWatchers(ctx context.Context, args watchRefreshArgs, fr
 			return err
 		}
 	}
-	rows, err := tx.Query(ctx, `SELECT i.id::text,r.document,
+	rows, err := tx.Query(ctx, `SELECT i.id::text,r.document,i.current_revision,
  CASE WHEN r.embedding IS NOT NULL AND target.embedding IS NOT NULL AND r.embedding_profile_hash=$4 AND target.embedding_profile_hash=$4 THEN 1-(r.embedding OPERATOR(public.<=>) target.embedding) END
  FROM intents i JOIN intent_revisions r ON r.intent_id=i.id AND r.revision=i.current_revision
  JOIN principals p ON p.id=i.principal_id JOIN agents a ON a.id=i.agent_id
@@ -128,15 +128,16 @@ func (s *Service) enqueueWatchers(ctx context.Context, args watchRefreshArgs, fr
 	for rows.Next() {
 		var id string
 		var document []byte
+		var revision int
 		var cosine *float64
-		if err = rows.Scan(&id, &document, &cosine); err != nil {
+		if err = rows.Scan(&id, &document, &revision, &cosine); err != nil {
 			rows.Close()
 			return err
 		}
 		last = id
 		count++
-		var watcher IntentInput
-		if err = json.Unmarshal(document, &watcher); err != nil {
+		watcher, err := decodeStoredIntent(document, revision)
+		if err != nil {
 			rows.Close()
 			return err
 		}

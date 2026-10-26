@@ -72,6 +72,9 @@ type Watch struct {
 	Channels []string `json:"channels"`
 }
 type IntentInput struct {
+	processingGrant *semanticProcessingGrant
+	storedRevision  int
+
 	PrivateSemanticQuery      *PrivateSemanticQuery `json:"private_semantic_query,omitempty"`
 	SemanticMinimumSimilarity *float64              `json:"semantic_minimum_similarity,omitempty"`
 	Objective                 string                `json:"objective"`

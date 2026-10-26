@@ -103,7 +103,8 @@ func (s *Service) scanIntentCandidate(ctx context.Context, db *pgx.Conn, id, can
 	var expires time.Time
 	var watching bool
 	var version int64
-	err = tx.QueryRow(ctx, `SELECT r.document,r.content_hash,i.state,i.expires_at,i.watch_enabled,i.version,r.embedding_projection_hash FROM intents i JOIN intent_revisions r ON r.intent_id=i.id AND r.revision=i.current_revision WHERE i.id=$1`+intentLock, id).Scan(&raw, &inputHash, &state, &expires, &watching, &version, &sourceProjectionHash)
+	var revision int
+	err = tx.QueryRow(ctx, `SELECT r.document,r.content_hash,i.state,i.expires_at,i.watch_enabled,i.version,r.embedding_projection_hash,i.current_revision FROM intents i JOIN intent_revisions r ON r.intent_id=i.id AND r.revision=i.current_revision WHERE i.id=$1`+intentLock, id).Scan(&raw, &inputHash, &state, &expires, &watching, &version, &sourceProjectionHash, &revision)
 	if err != nil {
 		return err
 	}
@@ -119,8 +120,8 @@ func (s *Service) scanIntentCandidate(ctx context.Context, db *pgx.Conn, id, can
 		}
 		return tx.Commit(ctx)
 	}
-	var input IntentInput
-	if err = json.Unmarshal(raw, &input); err != nil {
+	input, err := decodeStoredIntent(raw, revision)
+	if err != nil {
 		return err
 	}
 	// Captured vectors do not extend a startup worker's operator authority.
@@ -307,6 +308,7 @@ func (s *Service) listOpportunities(r *http.Request, tx pgx.Tx, a actor) (int, a
 func publicIntent(ctx context.Context, tx pgx.Tx, id string) (int, any, error) {
 	var raw []byte
 	var version int64
+	var revision int
 	err := tx.QueryRow(ctx, "SELECT projection,version FROM public_intents() WHERE id=$1", id).Scan(&raw, &version)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return 0, nil, fail(404, "not_found")

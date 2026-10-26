@@ -2,7 +2,6 @@ package network
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -204,8 +203,8 @@ func (s *Service) enqueueSemanticRepairs(ctx context.Context, refresh bool) erro
 			return err
 		}
 		priority := 4
-		var input IntentInput
-		if err = json.Unmarshal(raw, &input); err != nil {
+		input, err := decodeStoredIntent(raw, a.Revision)
+		if err != nil {
 			rows.Close()
 			return err
 		}

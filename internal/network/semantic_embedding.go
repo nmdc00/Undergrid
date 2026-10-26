@@ -2,7 +2,6 @@ package network
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"time"
 
@@ -29,8 +28,8 @@ func (s *Service) ensureSemanticEmbedding(ctx context.Context, db *pgx.Conn, id 
 	if err != nil {
 		return err
 	}
-	var input IntentInput
-	if err = json.Unmarshal(raw, &input); err != nil {
+	input, err := decodeStoredIntent(raw, revision)
+	if err != nil {
 		return err
 	}
 	text, projectionHash, eligible := s.semantic.selectedProjection(input, projection)
@@ -73,8 +72,8 @@ func (s *Service) ensureSemanticEmbedding(ctx context.Context, db *pgx.Conn, id 
 	if state != "active" || !expires.After(time.Now()) || revision != currentRevision || projection != currentProjection {
 		return nil
 	}
-	var currentInput IntentInput
-	if err = json.Unmarshal(currentRaw, &currentInput); err != nil {
+	currentInput, err := decodeStoredIntent(currentRaw, currentRevision)
+	if err != nil {
 		return err
 	}
 	currentText, currentHash, currentEligible := s.semantic.selectedProjection(currentInput, currentProjection)

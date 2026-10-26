@@ -2206,6 +2206,11 @@ export interface components {
             current_revision: number;
             semantic_minimum_similarity?: number | null;
             private_semantic_query?: components["schemas"]["PrivateSemanticQuery"] | null;
+            /**
+             * @description Retained private query revision grant status; revision_bound still requires the current operator profile and policy. Historical data alone cannot authorize processing.
+             * @enum {string}
+             */
+            private_semantic_query_status?: "revision_bound" | "review_required";
         };
         PublicIntent: {
             /** Format: uuid */

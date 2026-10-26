@@ -9440,6 +9440,14 @@
                 "type": "null"
               }
             ]
+          },
+          "private_semantic_query_status": {
+            "type": "string",
+            "enum": [
+              "revision_bound",
+              "review_required"
+            ],
+            "description": "Retained private query revision grant status; revision_bound still requires the current operator profile and policy. Historical data alone cannot authorize processing."
           }
         },
         "required": [

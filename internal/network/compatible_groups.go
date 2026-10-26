@@ -105,15 +105,16 @@ func (s *Service) compatibleGroups(r *http.Request, tx pgx.Tx, a actor, id strin
 		return 0, nil, fail(404, "not_found")
 	}
 	var raw []byte
-	err := tx.QueryRow(r.Context(), `SELECT r.document FROM intents i JOIN intent_revisions r ON r.intent_id=i.id AND r.revision=i.current_revision WHERE i.id=$1 AND i.principal_id=$2 AND i.agent_id=$3 AND i.state='active' AND i.watch_enabled AND i.expires_at>clock_timestamp()`, id, a.PrincipalID, a.AgentID).Scan(&raw)
+	var revision int
+	err := tx.QueryRow(r.Context(), `SELECT r.document,i.current_revision FROM intents i JOIN intent_revisions r ON r.intent_id=i.id AND r.revision=i.current_revision WHERE i.id=$1 AND i.principal_id=$2 AND i.agent_id=$3 AND i.state='active' AND i.watch_enabled AND i.expires_at>clock_timestamp()`, id, a.PrincipalID, a.AgentID).Scan(&raw, &revision)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return 0, nil, fail(404, "not_found")
 	}
 	if err != nil {
 		return 0, nil, err
 	}
-	var input IntentInput
-	if err = json.Unmarshal(raw, &input); err != nil {
+	input, err := decodeStoredIntent(raw, revision)
+	if err != nil {
 		return 0, nil, err
 	}
 	source := groupCandidate{ID: id, PrincipalID: a.PrincipalID, Input: input}
