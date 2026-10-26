@@ -778,11 +778,11 @@ export function App() {
                             <legend>Intention revision</legend>
                             <h4>New intention revision</h4>
                             <p>
-                              This keeps the current output, constraints,
-                              budget, visibility and watch settings. Review any
-                              public projection before saving its summary.
-                              Changes take effect after you save; expired
-                              intentions resume with a new expiry.
+                              Output, budget, audience and watch preferences
+                              stay unchanged. Review your revised objective,
+                              requirements and any public projection. Changes
+                              take effect after saving; expired intentions
+                              resume with a new expiry.
                             </p>
                             <label>
                               Objective
