@@ -662,3 +662,47 @@ test("a late publication response cannot refresh an expired owner session", asyn
   ).toHaveLength(readsBefore);
   expect(screen.getByRole("link", { name: "Sign in" })).toBeTruthy();
 });
+
+test("creation reviews the actual typed requirements draft and invalidates review after a change", async () => {
+  const requests = fixture();
+  render(<App />);
+  const publish = await preparePublicCreation();
+  await userEvent.click(screen.getByLabelText("Declare coverage"));
+  await userEvent.type(screen.getByLabelText("Required coverage labels"), "EU");
+  const licenses = screen.getByLabelText("Permitted license IDs");
+  await userEvent.clear(licenses);
+  await userEvent.type(licenses, "MIT");
+  expect((publish as HTMLButtonElement).disabled).toBe(true);
+  const preview = screen.getByRole("region", { name: "Public projection preview" });
+  expect(preview.textContent).toContain('"required": [');
+  expect(preview.textContent).toContain("EU");
+  expect(preview.textContent).toContain("MIT");
+  expect(preview.textContent).not.toContain(privateObjective);
+  await userEvent.click(screen.getByLabelText("I reviewed this public projection", { exact: true }));
+  await userEvent.click(publish);
+  await waitFor(() => expect(requests.some(r => r.path === "/v1/owner/intents" && r.init?.method === "POST")).toBe(true));
+  const sent = requests.find(r => r.path === "/v1/owner/intents" && r.init?.method === "POST")!;
+  expect(JSON.parse(String(sent.init?.body)).intent.hard_constraints).toEqual({
+    required_fields: ["source_id", "source_url"], license_ids: ["MIT"],
+    coverage: { required: ["EU"], excluded: [] },
+  });
+});
+
+test("public revision reviews edited typed requirements rather than the stored detail", async () => {
+  const requests = fixture("redacted_public");
+  render(<App />);
+  await screen.findByRole("heading", { name: "Your workspace" });
+  await userEvent.click(screen.getByRole("button", { name: privateObjective }));
+  await userEvent.click(await screen.findByRole("button", { name: "Edit intention" }));
+  const form = screen.getByRole("button", { name: "Save revision" }).closest("form")!;
+  await userEvent.click(within(form).getByLabelText("I reviewed this public projection", { exact: true }));
+  await userEvent.click(within(form).getByLabelText("Declare coverage"));
+  await userEvent.type(within(form).getByLabelText("Excluded coverage labels"), "US");
+  expect((within(form).getByRole("button", { name: "Save revision" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(within(form).getByRole("region", { name: "Public projection preview" }).textContent).toContain("US");
+  await userEvent.click(within(form).getByLabelText("I reviewed this public projection", { exact: true }));
+  await userEvent.click(within(form).getByRole("button", { name: "Save revision" }));
+  await waitFor(() => expect(requests.some(r => r.path === "/v1/owner/intents/intent" && r.init?.method === "PATCH")).toBe(true));
+  const sent = requests.find(r => r.path === "/v1/owner/intents/intent" && r.init?.method === "PATCH")!;
+  expect(JSON.parse(String(sent.init?.body)).revision.hard_constraints.coverage).toEqual({ required: [], excluded: ["US"] });
+});
