@@ -16,7 +16,7 @@ import (
 // constructed explicitly under the old schema's restricted role permissions;
 // no trigger or migration ledger is changed to fabricate legacy eligibility.
 func TestLegacyUnboundPrivateSemanticEvidenceIsIneligibleAfterMigration(t *testing.T) {
-	provider, _ := controlledSemanticConsent(t)
+	provider, providerCalls := controlledSemanticConsent(t)
 	dsn := os.Getenv("UNDERGRID_SEMANTIC_LEGACY_DATABASE_URL")
 	if dsn == "" {
 		t.Fatal("set dedicated genuine 041-template copy for retained legacy migration proof")
@@ -145,6 +145,34 @@ func TestLegacyUnboundPrivateSemanticEvidenceIsIneligibleAfterMigration(t *testi
 	code, out = a.call("POST", "/v1/opportunities/"+oid+"/dismiss", "legacy-dismiss", map[string]any{})
 	if code != 404 {
 		t.Errorf("legacy unbound receipt recovered: %d %v", code, out)
+	}
+	code, out = a.call("GET", "/v1/intents/"+source["id"].(string)+"/compatible-groups", "", nil)
+	if code != 200 || len(out["items"].([]any)) != 0 {
+		t.Errorf("legacy unbound group survived: %d %v", code, out)
+	}
+	// Ineligibility for derived semantic processing must not stop valid exact work.
+	exact := intentFixture()
+	exact.Visibility = "redacted_public"
+	exact.PublicSummary = input.Objective
+	code, exactCandidate := b.call("POST", "/v1/intents", NewID(), exact)
+	if code != 201 {
+		t.Fatal(code, exactCandidate)
+	}
+	runtimeWorker := New(networkFixtureRoleDSN(t, db, workerRole), "development", nil)
+	runtimeWorker.semantic = provider
+	if err = runtimeWorker.scanIntentCandidate(ctx, worker, source["id"].(string), exactCandidate["id"].(string), true); err != nil {
+		t.Fatal(err)
+	}
+	code, page = a.call("GET", "/v1/intents/"+source["id"].(string)+"/opportunities", "", nil)
+	if code != 200 || len(page["items"].([]any)) != 1 {
+		t.Fatalf("legacy grant denial disabled valid exact matching: %d %v", code, page)
+	}
+	exactItem := page["items"].([]any)[0].(map[string]any)
+	if exactItem["candidate_intent_id"] != exactCandidate["id"] || exactItem["evidence"].(map[string]any)["algorithm"] != "hard-constraints-exact-v1" {
+		t.Fatal("wrong current exact evidence", exactItem)
+	}
+	if providerCalls.Load() != 0 {
+		t.Fatal("legacy unbound query was reprocessed", providerCalls.Load())
 	}
 	var embeddingRetained, watching bool
 	if err = db.QueryRow(ctx, "SELECT r.embedding IS NOT NULL,i.watch_enabled FROM undergrid.intents i JOIN undergrid.intent_revisions r ON r.intent_id=i.id AND r.revision=2 WHERE i.id=$1", source["id"]).Scan(&embeddingRetained, &watching); err != nil {
