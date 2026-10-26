@@ -12,7 +12,8 @@ keeps embedding work retryable and authorizes no derived semantic result, while
 valid exact/external scans and generic reads continue. Initial invalid operator
 configuration at worker startup remains unchanged. The historical branch/test
 record below is preserved; current combined proof is 36 top-level/40 subcases
-PASS at `d01aedd`, 94.503s, with broader release integration still pending.
+PASS at `d01aedd`, 94.503s, with current capacity/browser regressions also passing at `5a36e5a`; reviewed
+feature merge and broader release integration remain pending.
 
 Scoped correction to TDD §5.4's operator-controlled disclosure boundary. An embedding worker's startup client is not continuing permission to send public or privately selected text. The observation path checks the current trusted operator file immediately before provider I/O and again before the write-once observation update. The current profile must equal the worker's pinned startup profile, and the current projection class/private profile acknowledgment must remain eligible. Removing or replacing the profile declines old observations; an unreadable or malformed configured file returns a retryable policy-unavailable error without disclosing text or publishing a new observation. Existing completed evidence remains immutable history.
 

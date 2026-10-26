@@ -7,7 +7,7 @@ through builder PR106. It is **not yet merged or release-qualified**. The parked
 branch and earlier checkpoints below are retained history. Current source
 `d01aedd` has an actual combined PostgreSQL race gate: **36 top-level and 40
 subcases PASS, package 94.503s**, no failed/skipped cases. The earlier current
-combined gate at `c567281` **FAILED 112.839s** (30/36 top-level passed): six old
+combined gate at `c567281` **FAILED 112.839s** (30/36 top-level passed): five old
 focused fixtures still assumed provider I/O ran inside local scans, and one
 restart oracle required the entire shared-fixture opportunity list to be empty.
 Test-only `d01aedd` invokes the actual dedicated embedding worker before focused
@@ -30,8 +30,10 @@ all fresh/retained capacity lanes and the source refresher seam.
 
 See [the current integration record](SEMANTIC_INTEGRATION.md) for exact RED/GREEN
 logs, retained databases, genuine pgvector template and frozen migration hashes.
-Capacity regressions and current HP1/HP2 browser acceptance still need proof on
-this integration. Real provider/model relevance, legal/source permissions,
+Current source `5a36e5a` also passes all four retained capacity cases (76.293s),
+145 console tests (51.55s), tagged all-package vet/build and four actual baseline
+browser cases (94.096s); exact sources, databases and artifacts are recorded in
+`SEMANTIC_INTEGRATION.md`. Review and release integration remain pending. Real provider/model relevance, legal/source permissions,
 independently operated users, deployment and full HP2 remain unqualified.
 
 The owner requirement editor currently supports required field/license/coverage

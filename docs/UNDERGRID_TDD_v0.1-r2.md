@@ -188,6 +188,18 @@ work and ages only unstarted, nonunique queue ownership in bounded batches. It
 preserves current matching/authority rules, accepted job metadata and the existing
 five-second worker bounds. See [capacity proof and integration status](DISCOVERY_CAPACITY.md).
 
+Current semantic integration checkpoint (feature branch, final review/merge
+pending): current typed hard evidence, pairwise group reads, revision-bound
+private processing grants and semantic dismissal/restart/profile-cutover proof
+have combined local runtime evidence. Provider I/O is isolated from local scans;
+legacy unbound evidence remains retained but is ineligible, and optional policy
+outages preserve exact/external progress without granting disclosure. Current
+capacity, UI, tagged static/build and baseline browser regressions also pass.
+See [the integration record](SEMANTIC_INTEGRATION.md) for actual sources,
+failures/remediations, artifacts and remaining owner/HP2/external gates. This
+checkpoint does not waive visible unknown-hard clarification, registered
+complementary capability discovery or the complete collaboration journey.
+
 Typed constraints: artifact format, required fields/schema family, coverage, freshness, deadlines, license and input/output compatibility. Evaluate aligned/incompatible/unknown deterministically; unknown hard constraints require clarification. Candidate retrieval combines permitted full-text and pgvector search; ranking is versioned and explanation uses actual constraint evidence. Do not let semantic score override incompatibility. Private ceilings never enter public vectors or aggregate display.
 
 Persist pairwise opportunity evidence, not a generic cluster graph. A cluster API may return a bounded view of compatible opportunities with explicit member constraints and principal dedupe; membership is not transitive and is revalidated before display. Users can dismiss a suggestion or decline participation; the same unchanged evidence is not repeatedly notified. The dismissal vertical adds a current-recipient command shared by REST/owner sessions and finite agent adapters, with transactional receipt recovery and immutable-evidence suppression; see `OPPORTUNITY_DISMISSAL.md` for implementation evidence and pending gates. User-set match thresholds are bounded and logged, not a confidence probability.

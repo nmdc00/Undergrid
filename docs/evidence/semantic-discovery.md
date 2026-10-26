@@ -7,8 +7,9 @@ proof passes 36 top-level/40 subcases in 94.503s. Its earlier failed aggregate
 and separate focused fixture remediation remain retained. Current revision-bound
 private grants, asynchronous provider isolation, legacy evidence denial and
 semantic dismissal/restart/profile-cutover proof are recorded in
-[`SEMANTIC_INTEGRATION.md`](../SEMANTIC_INTEGRATION.md). Current capacity/browser
-release regressions, semantic feature merge and external qualification remain
+[`SEMANTIC_INTEGRATION.md`](../SEMANTIC_INTEGRATION.md). Current `5a36e5a` capacity (four cases, 76.293s), console (145 tests,
+51.55s), tagged static/build and four actual baseline browser regressions
+(94.096s) also pass. Semantic feature merge and external qualification remain
 pending. Fixture vectors do not verify a provider or model relevance.
 
 Requirements: INT-02/03/04 and TDD §5.4. Branch

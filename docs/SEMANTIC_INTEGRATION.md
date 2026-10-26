@@ -1,20 +1,125 @@
 # HP2 current semantic discovery integration
 
-Task baseline: reviewed release `5ea78d1`, after capacity PR101. HP1 remains
+Task baseline: reviewed release after capacity PR101, public intention PR103 and builder-registration PR106; current runtime includes release `f5e5960`. HP1 remains
 locally closed. HP2 remains open. This task restores the preserved semantic
 vertical into current runtime contracts; it does not claim full collaboration
 or external provider/relevance qualification.
 
+## Authoritative current checkpoint — 26 October
+
+Feature `feat/v0.1-semantic-integration`, current frozen source `5a36e5a`, remains
+unmerged. Independent code review has found no remaining material issue; final
+evidence reconciliation, approval and merge are still pending. HP2 and full v0.1
+remain open, with external qualifications separate.
+
+Current implementation closes the locked integration defects: dedicated bounded
+embedding workers keep local scans out of provider I/O; explicit create/full
+revision commands mint private revision/profile/query-hash processing grants;
+partial revisions retain data and historical grants without renewing permission;
+042 enforces embedding permission at the worker database boundary; current
+semantic receipt authorization and immutable suppression use forward 043;
+legacy unbound completed evidence remains retained but is denied at current
+reads before LIMIT; and a running worker's optional semantic configuration
+outage preserves valid exact and external progress without authorizing disclosure.
+Two intention command fieldsets freeze their captured editable snapshots while a
+mutation is pending, protecting requirements, thresholds and selected queries.
+
+Required proof already completed:
+
+| Gate | Actual source and outcome | Retained evidence |
+| --- | --- | --- |
+| Combined semantic/provider/profile/private/typed/groups/runtime | `d01aedd`, 36 top-level + 40 subcases PASS, 94.503s | `/tmp/undergrid-semantic-combined2-d01aedd-oct26.jsonl` |
+| Earlier combined aggregate and fixture remediation | `c567281` FAILED 112.839s: 30 top-level passed, six failed; actual dedicated-worker fixture/target-pair remediation at `d01aedd` PASS seven top-level/six profile subcases, 21.774s | `/tmp/undergrid-semantic-combined-c567281-oct26.jsonl`, `/tmp/undergrid-semantic-remediation-d01aedd-oct26.jsonl` |
+| Current console suite | `5a36e5a`, 145 tests / 17 files PASS, 51.55s | `/tmp/undergrid-semantic-full-ui-final-oct26.log` |
+| Coupled TypeScript/Vite/source manifest | `5a36e5a`, PASS, Vite 1.45s; source SHA256 `8d13e437931b56b8aeaaa368e58fd74e50879f7329c49151a6f4f3d63b0ab180` | `/tmp/undergrid-semantic-live-build-5a36e5a-oct26.log` |
+| Tagged all-package vet and all-package build | `5a36e5a`, both terminal exit 0; includes current fallback/read-grant changes | `/tmp/undergrid-semantic-final-vet-5a36e5a-oct26.log`, `/tmp/undergrid-semantic-final-build-5a36e5a-oct26.log` |
+| Fresh/retained capacity regressions | `5a36e5a`, four top-level cases PASS, package 76.293s; original five-second/12-second bounds unchanged | `/tmp/undergrid-semantic-capacity-final-5a36e5a-oct26.jsonl` |
+| Canonical API schemas, lint and generated parity | 156 schemas PASS; no canonical API changes after this source | `/tmp/undergrid-semantic-contract-de9ced0-oct26.log` |
+| Current full HP1 partial/restart + three HP2 baseline browser regressions | `5a36e5a`, four actual Chromium/API/PostgreSQL cases PASS, package 94.096s | `/tmp/undergrid-semantic-browser4-5a36e5a-oct26.jsonl` |
+
+`git diff d01aedd..5a36e5a` changes documentation and frontend/tests only, with no
+Go implementation or canonical API delta. The broad Go proof remains scoped to
+that unchanged backend. Current UI/busy behavior has its separate current suite,
+build and browser gates. The detailed dated checkpoints below are retained
+history, not claims that their previously pending fixes remain unimplemented.
+
+### Actual browser databases and artifacts
+
+The exact current manifest was checked before the tagged race/browser gate.
+Normal migration created `undergrid_hp1_template` on network-only vector port
+55502 by a genuine copy of the original empty 041 semantic template, then applied
+042/043 normally. Independent preflight found zero owners, agents, intentions,
+opportunities, events and River jobs, with 44 real ledger entries. The original
+041 template remains unchanged for historical migration tests. No product rows
+were seeded for any browser step.
+
+All four cases passed at frozen `5a36e5a` (package 94.096s):
+
+| Actual browser case | Go case / browser runner time | Retained database on 55502 | Retained artifacts |
+| --- | --- | --- | --- |
+| HP1 full partial-remainder/source/receipt/dismissal/restart journey | 42.01s / 36.9s | `hp1_run_125325ac491a4940a58c152b102b8373` | `/tmp/undergrid-hp1-browser-3981504811` |
+| HP2 three-owner scoped setup foundation | 15.86s / 14.0s | `hp1_run_113fddb5895b4f4db2a0337401090839` | `/tmp/undergrid-hp2-browser-3829113800` |
+| HP2 owner publication/revision/withdrawal | 18.61s / 16.9s | `hp1_run_cc0b50b1597347199cac0e976d508785` | `/tmp/undergrid-hp2-browser-3010361129` |
+| HP2 reviewed builder registration/worker recruitment | 16.59s / 14.9s | `hp1_run_875deaf375d64ffcbf8db85cd3aa8e61` | `/tmp/undergrid-hp2-browser-2037053351` |
+
+The scoped browser scenarios are baseline regressions, not a complete HP2
+semantic collaboration journey. Their normal OIDC/session/PKCE/CSRF/account and
+credential flows prove separate fixture authorities, never independent beneficial
+owners, real provider relevance or external qualification. The builder room
+fixture remains explicitly an agent-API setup; it does not complete missing
+owner room-origin/role controls or imply admission.
+
+### Failures and recovery kept distinct
+
+The initial paraphrase fixture's too-strict vector threshold was corrected before
+product import and the corrected missing-runtime RED was preserved. Mandatory
+provider isolation, partial-grant renewal and semantic dismissal each had actual
+causal REDs before corrections. Legacy migration/read RED and unreadable-policy
+RED also remain retained. No frozen SQL, ledger, job row, timeout or failure
+assertion was weakened to manufacture a pass.
+
+The failed 112.839s aggregate exposed five focused fixtures that still expected
+inline provider calls and one restart oracle that required an entire shared
+opportunity list to be empty. Focused tests now invoke the actual dedicated
+embedding worker, then local scans where appropriate; the real queued worker
+lifecycle cases remain separate. Target-pair suppression still asserts exact row
+and event counts, unchanged event timestamp, real stop/restart, old-profile
+receipt denial and a new profile-pinned suggestion for unchanged source content.
+
+Actual pending-request UI REDs demonstrated accepted newer license, threshold and
+query drafts being erased or closed by an older completion. The command-snapshot
+busy guard fixes that cause. The four newer semantic draft cases failed at
+`252d25c` (6.34s), then all eight affected draft/publication cases passed at
+`74c0dcf` (8.25s). Earlier two-case license RED (4.92s), an unsuccessful patch
+invocation from the wrong cwd (same unchanged-source failures, 6.79s), and its
+separate focused four-case GREEN (5.58s) remain in their original logs. They are
+not mislabeled as successful product changes.
+
+### Remaining scope and qualifications
+
+The dependent group viewer, visible unknown-hard clarification, registered
+complementary capability discovery, room/recruitment provenance controls, owner
+plan/application workflows and the complete continuous HP2 journey remain open.
+The requirements editor supports required fields, license IDs and coverage;
+stored freshness, delivery and input-schema fields are conserved, while their
+owner creation/edit controls remain an explicit follow-up. Output remains the
+supported source-catalog JSON contract. No real provider/model relevance,
+independent beneficial ownership, legal/source approval, payment or deployment
+qualification is inferred from these controlled fixtures.
+
+## Historical task and validation records
+
+
 ## Branch and responsibility
 
-Implementation: `capacity_oct25`, new `feat/v0.1-semantic-integration` from current
+Implementation: `semantic_oct26` (resuming the preserved `capacity_oct25` work), new `feat/v0.1-semantic-integration` from current
 `release/v0.1`, at
 `/tmp/undergrid-worktrees/semantic-integration/feat-v0.1-semantic-integration`.
 Preserve clean parked `feat/v0.1-semantic-discovery` at `d37db8e` and its evidence.
 Do not merge the semantic-dependent capacity prototype or overwrite current
 release files with the old two-head diff. Reconcile shared changes explicitly.
 
-Review: `review_oct25`, read-only independent code/evidence review. Root merges
+Review: `review_oct26` (continuing the historical review), read-only independent code/evidence review. Root merges
 reviewed PRs into `release/v0.1`. The publication worker owns a separate owner UI
 feature; integrate only reviewed publication changes before final semantic/UI
 checks, preserving fixed audience, exact expiry and response recovery guards.

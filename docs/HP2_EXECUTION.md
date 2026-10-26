@@ -24,9 +24,12 @@ includes an unmerged semantic dependency and must not be merged wholesale. First
 extract its independent queue behavior onto the current release. Reconcile and
 review semantic discovery only after that prerequisite is proven and merged.
 That prerequisite is now complete in PR101, release `5ea78d1`; its capacity,
-retained-state and HP1 proofs remain in `DISCOVERY_CAPACITY.md`. The next locked
-semantic task is [`SEMANTIC_INTEGRATION.md`](SEMANTIC_INTEGRATION.md). Independent
-owner-publication controls use a separate branch and retain their own gates.
+retained-state and HP1 proofs remain in `DISCOVERY_CAPACITY.md`. The current semantic task is
+[`SEMANTIC_INTEGRATION.md`](SEMANTIC_INTEGRATION.md), owned by `semantic_oct26`
+and reviewed by `review_oct26`. It has current combined domain, UI, static,
+capacity and baseline browser proof, pending final feature review/merge. Owner
+publication and builder opt-in prerequisites are reviewed and merged in PR103
+and PR106; their independent evidence remains in their owning documents.
 
 ## First implementation task: discovery capacity
 
