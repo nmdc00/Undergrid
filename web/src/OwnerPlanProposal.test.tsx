@@ -696,8 +696,8 @@ test("an unchanged revision preserves submillisecond response and task deadlines
     (c) => c.path.endsWith("/plans") && c.init?.method === "POST",
   )!;
   const sent = JSON.parse(String(post.init?.body));
-  expect(sent.respond_by).toBe(times.preciseRespondBy);
-  expect(sent.tasks[0].deadline).toBe(times.preciseDeadline);
+  expect.soft(sent.respond_by).toBe(times.preciseRespondBy);
+  expect.soft(sent.tasks[0].deadline).toBe(times.preciseDeadline);
   expect(Object.keys(sent).sort()).toEqual(
     [
       "parent_version",
