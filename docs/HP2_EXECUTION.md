@@ -385,3 +385,133 @@ saved normalized owner-only profile. Ordinary browser registration/reload and
 actual restricted-worker recruitment pass; the API-created fixture room is not
 completion of the later owner room-origin/role contract. Existing-profile mutation
 and public-directory controls remain unsupported. Full HP2 remains open.
+
+## Locked task: owner plan proposal and revision — 26 October 2026
+
+Owner: `builder_oct26`, after reviewed builder registration PR106. Branch
+`feat/v0.1-owner-plan-proposal`, based on release `f5e5960`, isolated at
+`/tmp/undergrid-worktrees/owner-plan-proposal/feat-v0.1-owner-plan-proposal`.
+This contract precedes behavior changes. Owning requirements: HP2 step4 and the
+separate step5 assignment boundary, TDD r2 §§6.3/7/10.1–10.3 and SW-01/06;
+evidence artifact `docs/OWNER_PLAN_PROPOSAL.md`. All feature PRs target
+`release/v0.1`. Semantic integration and later reviewed room-origin controls
+remain separate dependencies; this task does not implement them.
+
+### Audited entrypoints and bounded contract
+
+At release `f5e5960`, `owner.go` routes owner `/plans` paths to
+`owner_plan_approval.go`: it implements list/read/exact vote, while owner
+`POST /v1/owner/agents/{agent}/swarms/{id}/plans` is missing (the list route is
+GET-only). `web/src/Participation.tsx` embeds `OwnerPlanApproval.tsx` only; no
+owner proposal/revision editor exists. Normal agent `POST /v1/swarms/{id}/plans`
+already reaches `swarmCommand` and `proposePlan` in `plans.go`. Any current
+accepted nonobserver contributor may propose; coordinator-only authorization
+would incorrectly narrow the existing contract.
+
+`PlanSpec.validate` in `plan_contracts.go` owns the existing limits: objective
+3–4000 bytes; 1–50 unique-key tasks; at most100 dependency edges; acyclic graph
+with existing dependency references; task keys1–80 bytes; supported
+`source_catalog_v1` output and exactly `json_schema_v1`; progress interval
+60–604800 seconds; optional future task deadline; response deadline future and
+at most7days. Each principal set is bounded50 unique UUIDs; required and
+acceptance sets are nonempty, acceptance is a subset of required, publication
+may be empty. Required principals must be accepted nonobserver contributors;
+publication principals accepted members; every assignee must be an accepted
+nonobserver agent whose principal is required to approve. Do not replace this
+with one fixed task or infer principal identity/independence from agent names.
+
+The new owner POST uses owner-session/CSRF, current owned active attribution
+agent and the shared proposal transaction. Keep `PlanSpec` as the domain payload;
+any owner envelope must be closed and justified by this review contract. A
+minimal bounded current participant/context read supplies actual room metadata,
+latest proposal version and accepted member principal/agent IDs and roles for
+selection. Proposed owner read path:
+`GET /v1/owner/agents/{agent}/swarms/{id}/plan-context`. It must enforce current
+owner/agent/room authorization and bounded pagination without exposing foreign
+private profiles, credentials or a public roster directory. Rooms need not have
+at most50 members merely because each selected plan set is bounded50.
+
+Existing room context returns room/messages, not a selectable roster. Membership
+acceptance does not itself increment the room ETag, so that ETag must not be
+misrepresented as freezing a participant snapshot. Recheck selected member and
+applicable current identity eligibility in the write transaction; a loaded option
+is not authority. Resolve any demonstrated gap with behavioral RED and shared
+domain checks rather than relying on the owner adapter or roster filter.
+
+The structured console editor supports creating an initial plan and reviewing a
+loaded existing plan as the basis for a new immutable revision. It supports
+multiple bounded tasks, dependency selection, actual assignees, deadlines,
+required/acceptance/publication sets, and enabled template/license choices.
+Review the exact draft, selected room/parent basis and contribution terms before
+submission; changes or owner/room selection invalidate review. Existing enabled
+template metadata comes from owner config/public contribution templates; neither
+a configured test template nor draft selection approves production legal terms.
+No owner coordination-policy approval is invented merely to propose: existing
+`proposePlan` validates enabled template/license/publication mode; later votes and
+assignment commands enforce their own rights/policy authority.
+
+### Persistence, versions and independent decisions
+
+New commands require the current room `If-Match`. Initial `parent_version` is
+null; subsequent versions name the latest proposal version (max version plus1,
+not merely the currently accepted head). Shared code seals the specification,
+actual template hash and input-grant-policy hash and computes its content hash.
+Migration008 grants the app insert plus state-only plan updates, preserving the
+stored specification/hash; no new migration is expected. Semantic042/043 are
+reserved to that separate task; never edit frozen migrations.
+
+Success creates one proposed immutable plan/parent link, its separately offered
+tasks, the existing room-version increment, `plan.proposed` event/inbox and durable
+fanout effects. It creates no plan/rights votes, accepted assignments, execution
+progress or replacement accepted head. A revision leaves the currently accepted
+plan/commitments intact until the existing exact current votes and separate task
+acceptances cause the normal accepted-head transition. Rejected/expired draft
+versions must not silently cancel an accepted plan or copy old approvals.
+
+### Test-first acceptance and recovery
+
+1. Actual restricted-PostgreSQL HTTP RED for missing owner POST/context read, plus
+   focused UI RED for missing structured controls, exact draft review and payload.
+   Validate closed canonical/generated contracts for the new read/write routes.
+   No product SQL seeds may complete browser steps; normal API room/admission
+   setup may be labeled fixture support without claiming missing owner controls.
+2. Reproduce contributor→observer retained proposal replay through the shared
+   agent domain command. Static audit: `swarmCommand` currently checks room
+   membership before idempotency, but `proposePlan` checks contributor only inside
+   the callback. Fix demonstrated current-contributor/active-room authority gaps
+   in the shared transaction before retained response recovery, including current
+   owner/agent authority and relevant concurrent membership changes. Do not impose
+   coordinator-only restrictions or fix authorization only in the owner adapter.
+3. Preserve response-loss recovery: the identical key/body/original `If-Match`
+   recovers exactly the already-created plan after its own room/latest-version
+   advance. Do not blindly require the original ETag/parent to equal the newly
+   advanced head before known-success replay. New commands/revisions validate
+   current room and latest-parent basis; changed payload under the same key
+   conflicts. Malformed/lost responses retain exact retry identity until validated;
+   stale actor/room/draft responses restore no obsolete receipt or selected plan.
+4. Exercise invalid/stale parent and room ETags, missing `If-Match`, cycles,
+   unknown/duplicate task keys, task/edge/principal bounds, foreign or observer
+   assignees, invalid contributor/acceptance/publication sets, expired deadlines,
+   disabled terms and current authority loss. Denials persist no plan, task,
+   approval, event/inbox or room-version change. Pagination and selection must
+   not silently truncate a room or introduce hidden fixture IDs.
+5. Actual normal-owner browser/API/restricted-worker/PostgreSQL lifecycle: load
+   current participant context; create a reviewed multitask dependency plan; load
+   and revise its immutable basis; inspect exact canonical hashes and term binding;
+   independently observe proposed/offered states and zero automatic votes. Then
+   use existing separate owner approval and assignment controls to demonstrate
+   the exact intended activation boundary and retained prior-plan behavior.
+   Add response-loss/concurrent-authority/reconnect proof; preserve existing owner
+   approval, assignment, dependency, HP1 and publication/recruitment regressions.
+6. Assess DRY knowledge ownership, orthogonality, readability, closed contracts,
+   transaction/lock ordering, response validation and recovery. Update this task,
+   `HP2_ACCEPTANCE.md` and `OWNER_PLAN_PROPOSAL.md` with exact implemented/proven/
+   deferred states, source SHAs, commands, failures, logs and retained DBs before
+   independent review and feature merge. All costly gates require a root-granted
+   serial lease; this contract grants none.
+
+Full HP2, semantic/groups/unknown-hard results, reviewed room origin/roles,
+application review/offer, complete collaboration/recovery and external provider,
+legal, source and deployment qualification remain open. Separate fixture account
+IDs never establish independent beneficial ownership. This task performs no
+payment, deployment or arbitrary agent-content execution.
