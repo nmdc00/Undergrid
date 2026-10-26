@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, test, vi } from "vitest";
@@ -47,7 +46,7 @@ function fixture({
     swarm_id: "room",
     version: 1,
     state: "accepted",
-    content_hash: createHash("sha256").update(legacyCanonical).digest("hex"),
+    content_hash: "b".repeat(64),
     canonical_json: legacyCanonical,
     specification: legacySpec,
     tasks: [],
@@ -144,7 +143,7 @@ function fixture({
             swarm_id: "room",
             version: (spec.parent_version ?? 0) + 1,
             state: "proposed",
-            content_hash: createHash("sha256").update(canonical).digest("hex"),
+            content_hash: "c".repeat(64),
             canonical_json: canonical,
             specification: spec,
             tasks: spec.tasks.map((_task: unknown, index: number) => ({

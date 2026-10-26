@@ -41,7 +41,7 @@ export function proposalContext(
     raw.items.length > 100
   )
     throw Error("Invalid plan context");
-  const items = raw.items.map((value) => {
+  const items = raw.items.map((value): Participant => {
     const row = object(value),
       role = text(row.role);
     if (role !== "coordinator" && role !== "contributor" && role !== "observer")
