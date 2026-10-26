@@ -215,7 +215,7 @@ func TestSemanticParaphraseDiscoveryThroughConfiguredWorker(t *testing.T) {
 					t.Fatal(err)
 				}
 				strictID := strictCreated["id"].(string)
-				if err := runner.scanIntentions(context.Background(), strictID); err != nil {
+				if err := embedThenScanSemanticFixture(context.Background(), runner, strictID); err != nil {
 					t.Fatal(err)
 				}
 				code, strictResult := strict.call("GET", "/v1/intents/"+strictID+"/opportunities", "", nil)
@@ -236,7 +236,7 @@ func TestSemanticParaphraseDiscoveryThroughConfiguredWorker(t *testing.T) {
 				if code != 200 {
 					t.Fatal(code, relaxed)
 				}
-				if err := runner.scanIntentions(context.Background(), strictID); err != nil {
+				if err := embedThenScanSemanticFixture(context.Background(), runner, strictID); err != nil {
 					t.Fatal(err)
 				}
 				code, strictResult = strict.call("GET", "/v1/intents/"+strictID+"/opportunities", "", nil)
@@ -350,7 +350,7 @@ func TestSemanticWithdrawalDuringProviderIOLeavesNoEmbeddingOrOpportunity(t *tes
 	defer cancel()
 	done := make(chan error, 1)
 	completed := false
-	go func() { done <- worker.scanIntentions(ctx, id) }()
+	go func() { done <- runSemanticEmbeddingFixture(ctx, worker, id) }()
 	defer func() {
 		unblock()
 		cancel()

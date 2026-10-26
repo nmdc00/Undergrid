@@ -103,11 +103,11 @@ func TestSemanticGroupsRequireEveryCurrentPairAboveSourceThreshold(t *testing.T)
 		t.Fatal(err)
 	}
 	for _, row := range rows {
-		if err := runner.scanIntentions(context.Background(), row["id"].(string)); err != nil {
+		if err := embedThenScanSemanticFixture(context.Background(), runner, row["id"].(string)); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := runner.scanIntentions(context.Background(), rows[0]["id"].(string)); err != nil {
+	if err := embedThenScanSemanticFixture(context.Background(), runner, rows[0]["id"].(string)); err != nil {
 		t.Fatal(err)
 	}
 	path := "/v1/intents/" + rows[0]["id"].(string) + "/compatible-groups"
@@ -153,7 +153,7 @@ func TestSemanticGroupsRequireEveryCurrentPairAboveSourceThreshold(t *testing.T)
 			t.Errorf("retire private query %d %v", code, result)
 		}
 	})
-	if err := runner.scanIntentions(context.Background(), private["id"].(string)); err != nil {
+	if err := embedThenScanSemanticFixture(context.Background(), runner, private["id"].(string)); err != nil {
 		t.Fatal(err)
 	}
 	privatePath := "/v1/intents/" + private["id"].(string) + "/compatible-groups"
@@ -213,11 +213,11 @@ func TestSemanticGroupsRequireEveryCurrentPairAboveSourceThreshold(t *testing.T)
 			t.Fatal(code, current)
 		}
 		rows[i] = current
-		if err := runner.scanIntentions(context.Background(), current["id"].(string)); err != nil {
+		if err := embedThenScanSemanticFixture(context.Background(), runner, current["id"].(string)); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := runner.scanIntentions(context.Background(), rows[0]["id"].(string)); err != nil {
+	if err := embedThenScanSemanticFixture(context.Background(), runner, rows[0]["id"].(string)); err != nil {
 		t.Fatal(err)
 	}
 	code, page = owners[0].call("GET", path, "", nil)

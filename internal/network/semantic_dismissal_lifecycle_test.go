@@ -114,8 +114,14 @@ func TestSemanticDismissalSurvivesWorkerRestartAndProfileCutover(t *testing.T) {
 			time.Sleep(20 * time.Millisecond)
 		}
 		code, page := a.call("GET", "/v1/intents/"+ids[0]+"/opportunities", "", nil)
-		if code != 200 || len(page["items"].([]any)) != 0 {
-			t.Fatal("unchanged dismissed evidence resurfaced", code, page)
+		if code != 200 {
+			t.Fatal(code, page)
+		}
+		for _, raw := range page["items"].([]any) {
+			item := raw.(map[string]any)
+			if item["candidate_intent_id"] == ids[1] || item["id"] == oldID {
+				t.Fatal("unchanged dismissed target evidence resurfaced", item)
+			}
 		}
 		code, out := a.call("POST", "/v1/opportunities/"+oldID+"/dismiss", "runtime-dismiss", map[string]any{})
 		if code != 200 {

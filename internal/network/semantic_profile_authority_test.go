@@ -114,7 +114,7 @@ func semanticPublicProfileAuthority(t *testing.T, change string, inFlight bool) 
 	defer cancel()
 	if inFlight {
 		done := make(chan error, 1)
-		go func() { done <- runner.scanIntentions(ctx, id) }()
+		go func() { done <- runSemanticEmbeddingFixture(ctx, runner, id) }()
 		completed := false
 		defer func() {
 			unblock()
@@ -142,7 +142,7 @@ func semanticPublicProfileAuthority(t *testing.T, change string, inFlight bool) 
 		}
 	} else {
 		revoke()
-		err = runner.scanIntentions(ctx, id)
+		err = runSemanticEmbeddingFixture(ctx, runner, id)
 	}
 	if err != nil {
 		t.Fatal("policy withdrawal should decline the old observation", err)

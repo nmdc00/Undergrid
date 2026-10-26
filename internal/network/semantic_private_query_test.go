@@ -168,7 +168,7 @@ func TestPrivateSemanticQueryRequiresPinnedConsentAndStaysOwnerOnly(t *testing.T
 		t.Fatal(err)
 	}
 	for _, id := range []string{public["id"].(string), private["id"].(string)} {
-		if err := runner.scanIntentions(context.Background(), id); err != nil {
+		if err := embedThenScanSemanticFixture(context.Background(), runner, id); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -223,7 +223,7 @@ func TestPrivateSemanticQueryRequiresPinnedConsentAndStaysOwnerOnly(t *testing.T
 	if code != 200 {
 		t.Fatal(code, changed)
 	}
-	if err := runner.scanIntentions(context.Background(), private["id"].(string)); err != nil {
+	if err := embedThenScanSemanticFixture(context.Background(), runner, private["id"].(string)); err != nil {
 		t.Fatal(err)
 	}
 	mu.Lock()
@@ -255,7 +255,9 @@ func TestPrivateSemanticQueryRequiresPinnedConsentAndStaysOwnerOnly(t *testing.T
 		t.Fatal(code, blockedIntent)
 	}
 	scanDone := make(chan error, 1)
-	go func() { scanDone <- runner.scanIntentions(context.Background(), blockedIntent["id"].(string)) }()
+	go func() {
+		scanDone <- embedThenScanSemanticFixture(context.Background(), runner, blockedIntent["id"].(string))
+	}()
 	select {
 	case <-blocked:
 	case <-time.After(5 * time.Second):
@@ -321,14 +323,14 @@ func TestPrivateSemanticQueryRequiresPinnedConsentAndStaysOwnerOnly(t *testing.T
 		t.Fatal(err)
 	}
 	// A still-running worker holding the previous profile must also fail closed.
-	if err := runner.scanIntentions(context.Background(), pending["id"].(string)); err != nil {
+	if err := embedThenScanSemanticFixture(context.Background(), runner, pending["id"].(string)); err != nil {
 		t.Fatal(err)
 	}
 	runner.semantic, err = semanticConfiguration("development")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := runner.scanIntentions(context.Background(), pending["id"].(string)); err != nil {
+	if err := embedThenScanSemanticFixture(context.Background(), runner, pending["id"].(string)); err != nil {
 		t.Fatal(err)
 	}
 	mu.Lock()
