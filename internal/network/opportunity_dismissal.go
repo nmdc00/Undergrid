@@ -38,8 +38,9 @@ func (s *Service) dismissOpportunity(r *http.Request, tx pgx.Tx, a actor, id str
 		return 0, nil, fail(404, "not_found")
 	}
 	var kind, hash string
+	var evidenceRaw []byte
 	var source, candidate, swarm, role *string
-	err := tx.QueryRow(r.Context(), `SELECT kind,input_hash,source_intent_id::text,candidate_intent_id::text,source_swarm_id::text,role_key FROM opportunities WHERE id=$1 AND recipient_agent_id=$2 FOR UPDATE`, id, a.AgentID).Scan(&kind, &hash, &source, &candidate, &swarm, &role)
+	err := tx.QueryRow(r.Context(), `SELECT kind,input_hash,evidence,source_intent_id::text,candidate_intent_id::text,source_swarm_id::text,role_key FROM opportunities WHERE id=$1 AND recipient_agent_id=$2 FOR UPDATE`, id, a.AgentID).Scan(&kind, &hash, &evidenceRaw, &source, &candidate, &swarm, &role)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return 0, nil, fail(404, "not_found")
 	}
@@ -62,9 +63,30 @@ func (s *Service) dismissOpportunity(r *http.Request, tx pgx.Tx, a actor, id str
 		if err = json.Unmarshal(public, &right); err != nil {
 			return 0, nil, err
 		}
-		evidence := CompareDemand(left, right)
-		if !evidence.Compatible || hash != digest(canonical([]string{*source, sourceHash, *candidate, candidateHash, evidence.Algorithm})) {
-			return 0, nil, fail(404, "not_found")
+		var stored Compatibility
+		if err = json.Unmarshal(evidenceRaw, &stored); err != nil {
+			return 0, nil, err
+		}
+		if stored.Algorithm == "hard-constraints-hybrid-cosine-v1" {
+			provider, err := semanticConfiguration(s.environment)
+			if err != nil {
+				return 0, nil, fail(503, "semantic_policy_unavailable")
+			}
+			if provider == nil || stored.SemanticProfileHash != provider.hash || !compareDemandConstraints(left, right).Compatible || stored.MinimumSimilarity == nil || *stored.MinimumSimilarity != provider.minimumSimilarity(left) {
+				return 0, nil, fail(404, "not_found")
+			}
+			var current bool
+			if err = tx.QueryRow(r.Context(), "SELECT semantic_opportunity_dismissal_current($1,$2)", id, provider.hash).Scan(&current); err != nil {
+				return 0, nil, err
+			}
+			if !current {
+				return 0, nil, fail(404, "not_found")
+			}
+		} else {
+			evidence := CompareDemand(left, right)
+			if !evidence.Compatible || hash != demandOpportunityHash(*source, sourceHash, *candidate, candidateHash, evidence) {
+				return 0, nil, fail(404, "not_found")
+			}
 		}
 	}
 	if kind == "builder_recruitment" {

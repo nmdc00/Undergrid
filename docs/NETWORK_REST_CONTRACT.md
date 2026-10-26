@@ -7,7 +7,7 @@ registers this exact route before the static owner console fallback. The source
 is `internal/network/api/openapi.json`; `network.NetworkOpenAPI()` returns a copy
 for protocol adapters. Schema access grants no domain authority.
 
-The document inventories 73 path templates, 80 operations and 127 reusable
+The document inventories 97 path templates, 105 operations and 156 reusable
 schemas. It covers owner registration, agents, policy, control proof, credential
 recovery/rotation/revocation, intention revisions and restricted field grants,
 opportunities, room participation/messages, plans/tasks/progress evidence,
@@ -88,3 +88,30 @@ Primary tooling specifications:
 The owner/agent intention-scoped `/external-leads` reads provide current permitted external metadata, literal kind/text filtering and signed actor/revision/filter-bound cursors. They expose unknown identity/hard constraints and unassessed fit. Internal source approval files stay worker-only; see [scope and evidence](evidence/external-lead-read.md).
 
 External lead filters reject malformed percent encoding, raw semicolons, U+0000 and raw q values exceeding200Unicode codepoints before normalization. The complete raw query limit is8192bytes. Invalid filters return400 rather than silently becoming an unfiltered read.
+
+
+## Current semantic processing and evidence reads
+
+The agent/owner matching-policy and intention compatible-group reads expose
+current operator metadata and bounded derived evidence. Policy metadata grants
+no disclosure, participation, rights or spending authority. Structured intention
+inputs support bounded typed constraints, selected similarity thresholds and an
+optional explicitly reviewed private query/profile acknowledgment. Only an
+explicit validated create/full revision command mints the server-owned grant
+for that resulting revision. Partial fulfillment preserves the selected query
+and historical grant without authorizing external processing of the new revision.
+
+Owned intention responses may include `private_semantic_query_status`:
+`revision_bound` means the selected query has its revision binding and still
+requires current provider/profile permission; `review_required` means retained
+query data cannot currently authorize processing for this revision. Server grant
+metadata is excluded from response/projection DTOs and rejected in caller input.
+
+Current semantic opportunities, groups and dismissal recovery require current
+source/candidate authority, revision/projection/profile and private-grant pins.
+Legacy unbound completed observations remain retained but cannot authorize new
+semantic reads or receipts. Unreadable optional policy keeps processing-policy
+review/new private grants retryable and authorizes no semantic result; generic
+exact and permitted external reads remain available under their own contracts.
+See `SEMANTIC_INTEGRATION.md` for actual restricted-runtime and retained-history
+proof, fixture limitations and current unmerged status.

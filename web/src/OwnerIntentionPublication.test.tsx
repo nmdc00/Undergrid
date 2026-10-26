@@ -662,3 +662,329 @@ test("a late publication response cannot refresh an expired owner session", asyn
   ).toHaveLength(readsBefore);
   expect(screen.getByRole("link", { name: "Sign in" })).toBeTruthy();
 });
+
+test("creation reviews the actual typed requirements draft and invalidates review after a change", async () => {
+  const requests = fixture();
+  render(<App />);
+  const publish = await preparePublicCreation();
+  await userEvent.click(screen.getByLabelText("Declare coverage"));
+  await userEvent.type(screen.getByLabelText("Required coverage labels"), "EU");
+  const licenses = screen.getByLabelText("Permitted license IDs");
+  await userEvent.clear(licenses);
+  await userEvent.type(licenses, "MIT");
+  expect((publish as HTMLButtonElement).disabled).toBe(true);
+  const preview = screen.getByRole("region", {
+    name: "Public projection preview",
+  });
+  expect(preview.textContent).toContain('"required": [');
+  expect(preview.textContent).toContain("EU");
+  expect(preview.textContent).toContain("MIT");
+  expect(preview.textContent).not.toContain(privateObjective);
+  await userEvent.click(
+    screen.getByLabelText("I reviewed this public projection", { exact: true }),
+  );
+  await userEvent.click(publish);
+  await waitFor(() =>
+    expect(
+      requests.some(
+        (r) => r.path === "/v1/owner/intents" && r.init?.method === "POST",
+      ),
+    ).toBe(true),
+  );
+  const sent = requests.find(
+    (r) => r.path === "/v1/owner/intents" && r.init?.method === "POST",
+  )!;
+  expect(JSON.parse(String(sent.init?.body)).intent.hard_constraints).toEqual({
+    required_fields: ["source_id", "source_url"],
+    license_ids: ["MIT"],
+    coverage: { required: ["EU"], excluded: [] },
+  });
+});
+
+test("public revision reviews edited typed requirements rather than the stored detail", async () => {
+  const requests = fixture("redacted_public");
+  render(<App />);
+  await screen.findByRole("heading", { name: "Your workspace" });
+  await userEvent.click(
+    screen.getByRole("button", { name: "Review intention" }),
+  );
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Edit intention" }),
+  );
+  const form = screen
+    .getByRole("button", { name: "Save new revision" })
+    .closest("form")!;
+  await userEvent.click(
+    within(form).getByLabelText("I reviewed this public projection", {
+      exact: true,
+    }),
+  );
+  await userEvent.click(within(form).getByLabelText("Declare coverage"));
+  await userEvent.type(
+    within(form).getByLabelText("Excluded coverage labels"),
+    "US",
+  );
+  expect(
+    (
+      within(form).getByRole("button", {
+        name: "Save new revision",
+      }) as HTMLButtonElement
+    ).disabled,
+  ).toBe(true);
+  expect(
+    within(form).getByRole("region", { name: "Public projection preview" })
+      .textContent,
+  ).toContain("US");
+  await userEvent.click(
+    within(form).getByLabelText("I reviewed this public projection", {
+      exact: true,
+    }),
+  );
+  await userEvent.click(
+    within(form).getByRole("button", { name: "Save new revision" }),
+  );
+  await waitFor(() =>
+    expect(
+      requests.some(
+        (r) =>
+          r.path === "/v1/owner/intents/intent" && r.init?.method === "PATCH",
+      ),
+    ).toBe(true),
+  );
+  const sent = requests.find(
+    (r) => r.path === "/v1/owner/intents/intent" && r.init?.method === "PATCH",
+  )!;
+  expect(
+    JSON.parse(String(sent.init?.body)).revision.hard_constraints.coverage,
+  ).toEqual({ required: [], excluded: ["US"] });
+});
+
+test.each(["create", "revise"] as const)(
+  "a pending %s response cannot erase a newer typed requirements draft",
+  async (mode) => {
+    fixture(mode === "revise" ? "redacted_public" : "private");
+    const originalFetch = globalThis.fetch;
+    let release = () => {};
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let entered = false;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (...args: Parameters<typeof fetch>) => {
+        const [path, init] = args;
+        if (
+          (mode === "create" &&
+            path === "/v1/owner/intents" &&
+            init?.method === "POST") ||
+          (mode === "revise" &&
+            path === "/v1/owner/intents/intent" &&
+            init?.method === "PATCH")
+        ) {
+          entered = true;
+          await pending;
+        }
+        return originalFetch(...args);
+      }),
+    );
+    render(<App />);
+    let form: HTMLFormElement;
+    if (mode === "create") {
+      const submit = await preparePublicCreation();
+      form = submit.closest("form")!;
+      await userEvent.click(submit);
+    } else {
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Review intention" }),
+      );
+      await userEvent.click(
+        screen.getByRole("button", { name: "Edit intention" }),
+      );
+      const submit = screen.getByRole("button", { name: "Save new revision" });
+      form = submit.closest("form")!;
+      await userEvent.click(
+        within(form).getByLabelText("I reviewed this public projection", {
+          exact: true,
+        }),
+      );
+      await userEvent.click(submit);
+    }
+    await waitFor(() => expect(entered).toBe(true));
+    const licenses = within(form).getByLabelText(
+      "Permitted license IDs",
+    ) as HTMLInputElement;
+    let changedDraft = false;
+    try {
+      // Either pending controls prevent edits, or an accepted newer edit must
+      // survive the response to the older submitted body.
+      if (!licenses.matches(":disabled")) {
+        await userEvent.clear(licenses);
+        await userEvent.type(licenses, "MIT");
+        expect(licenses.value).toBe("MIT");
+        changedDraft = true;
+      }
+    } finally {
+      await act(async () => {
+        release();
+      });
+    }
+    await waitFor(() =>
+      expect(
+        (screen.getByRole("button", { name: "Sign out" }) as HTMLButtonElement)
+          .disabled,
+      ).toBe(false),
+    );
+    if (changedDraft) {
+      const currentForm =
+        mode === "create"
+          ? screen
+              .getByRole("heading", {
+                name: "Create a source-catalog intention",
+              })
+              .closest("form")!
+          : screen
+              .getByRole("button", { name: "Save new revision" })
+              .closest("form")!;
+      expect(
+        (
+          within(currentForm).getByLabelText(
+            "Permitted license IDs",
+          ) as HTMLInputElement
+        ).value,
+      ).toBe("MIT");
+    }
+  },
+);
+
+test.each([
+  ["create", "threshold"],
+  ["revise", "threshold"],
+  ["create", "query"],
+  ["revise", "query"],
+] as const)(
+  "pending %s completion preserves a newer %s draft or prevents its edit",
+  async (mode, field) => {
+    fixture();
+    const originalFetch = globalThis.fetch;
+    let release = () => {};
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let entered = false;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (...args: Parameters<typeof fetch>) => {
+        const [path, init] = args;
+        if (path === "/v1/owner/matching-policy")
+          return new Response(
+            JSON.stringify({
+              enabled: true,
+              allow_private_projections: true,
+              profile_hash: "a".repeat(64),
+              provider_id: "controlled-provider",
+              model: "controlled-model",
+              model_revision: "r1",
+              permission_evidence: "controlled fixture only",
+              privacy_policy_sha256: "b".repeat(64),
+            }),
+            { headers: { "Content-Type": "application/json" } },
+          );
+        if (
+          (mode === "create" &&
+            path === "/v1/owner/intents" &&
+            init?.method === "POST") ||
+          (mode === "revise" &&
+            path === "/v1/owner/intents/intent" &&
+            init?.method === "PATCH")
+        ) {
+          entered = true;
+          await pending;
+        }
+        return originalFetch(...args);
+      }),
+    );
+    render(<App />);
+    await screen.findByRole("heading", { name: "Your workspace" });
+    let submit: HTMLElement;
+    if (mode === "create") {
+      submit = screen.getByRole("button", { name: "Create intention" });
+      const creationForm = submit.closest("form")!;
+      await userEvent.selectOptions(
+        within(creationForm).getByLabelText("Responsible agent", {
+          exact: true,
+        }),
+        "agent",
+      );
+      await userEvent.type(
+        within(creationForm).getByLabelText("Objective", { exact: true }),
+        privateObjective,
+      );
+    } else {
+      await userEvent.click(
+        screen.getByRole("button", { name: "Review intention" }),
+      );
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Edit intention" }),
+      );
+      submit = screen.getByRole("button", { name: "Save new revision" });
+    }
+    const form = submit.closest("form")!;
+    const findDraft = (scope: HTMLElement) =>
+      field === "threshold"
+        ? (within(scope).getByRole("spinbutton", {
+            name: /Minimum semantic similarity/,
+          }) as HTMLInputElement)
+        : (within(scope).getByLabelText(
+            "Selected private matching query",
+          ) as HTMLTextAreaElement);
+    if (field === "query") {
+      await userEvent.click(
+        within(form).getByRole("button", {
+          name: "Review private matching policy",
+        }),
+      );
+      await within(form).findByLabelText("Selected private matching query");
+      await userEvent.type(findDraft(form), "Submitted selected private query");
+      await userEvent.click(
+        within(form).getByLabelText(
+          "Allow this selected query to be processed by this provider profile",
+        ),
+      );
+    } else await userEvent.type(findDraft(form), "0.8");
+    await userEvent.click(submit);
+    await waitFor(() => expect(entered).toBe(true));
+    const newer =
+      field === "threshold" ? "0.9" : "Newer selected private query draft";
+    let changedDraft = false;
+    try {
+      const input = findDraft(form);
+      if (!input.matches(":disabled")) {
+        await userEvent.clear(input);
+        await userEvent.type(input, newer);
+        expect(input.value).toBe(newer);
+        changedDraft = true;
+      }
+    } finally {
+      await act(async () => {
+        release();
+      });
+    }
+    await waitFor(() =>
+      expect(
+        (screen.getByRole("button", { name: "Sign out" }) as HTMLButtonElement)
+          .disabled,
+      ).toBe(false),
+    );
+    if (changedDraft) {
+      const currentForm =
+        mode === "create"
+          ? screen
+              .getByRole("button", { name: "Create intention" })
+              .closest("form")!
+          : screen
+              .getByRole("button", { name: "Save new revision" })
+              .closest("form")!;
+      expect(findDraft(currentForm).value).toBe(newer);
+    }
+  },
+);

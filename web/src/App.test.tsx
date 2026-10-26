@@ -13,6 +13,8 @@ function fixture(
   registered = true,
   intentState = "active",
   intentVisibility = "private",
+  semanticThreshold?: number,
+  privateQuery?: Record<string, unknown>,
 ) {
   const requests: { path: string; init: RequestInit | undefined }[] = [];
   vi.stubGlobal(
@@ -21,6 +23,16 @@ function fixture(
       requests.push({ path, init });
       const values: Record<string, unknown> = {
         "/auth/session": { csrf_token: "session-csrf" },
+        "/v1/owner/matching-policy": {
+          enabled: true,
+          allow_private_projections: true,
+          profile_hash: "a".repeat(64),
+          provider_id: "selected-provider",
+          model: "selected-model",
+          model_revision: "r1",
+          privacy_policy_sha256: "b".repeat(64),
+          permission_evidence: "operator approval",
+        },
         "/v1/owner/config": {
           terms_version: "explicit-test-terms",
           contribution_templates: { templates: [] },
@@ -67,6 +79,10 @@ function fixture(
           version: 1,
           state: intentState,
           objective: "Private catalog",
+          ...(privateQuery ? { private_semantic_query: privateQuery } : {}),
+          ...(semanticThreshold === undefined
+            ? {}
+            : { semantic_minimum_similarity: semanticThreshold }),
           output: { kind: "json_dataset", schema_family: "source_catalog_v1" },
           hard_constraints: {
             required_fields: ["source_id", "source_url"],
@@ -200,7 +216,7 @@ test("shows owner records, renders untrusted names as text, logs out with CSRF",
   );
 });
 test("owner can append a revision or renew while preserving typed fields and ETag", async () => {
-  const requests = fixture(true, "expired");
+  const requests = fixture(true, "expired", "private", 0.99);
   render(<App />);
   await userEvent.click(
     await screen.findByRole("button", { name: "Review intention" }),
@@ -235,6 +251,7 @@ test("owner can append a revision or renew while preserving typed fields and ETa
   expect(JSON.parse(sent.init!.body as string)).toEqual({
     revision: {
       objective: "Renewed private catalog",
+      semantic_minimum_similarity: 0.99,
       output: { kind: "json_dataset", schema_family: "source_catalog_v1" },
       hard_constraints: {
         required_fields: ["source_id", "source_url"],
@@ -302,6 +319,9 @@ test("new intention defaults to private and can explicitly choose restricted vis
   });
   expect((visibility as HTMLSelectElement).value).toBe("private");
   await userEvent.selectOptions(visibility, "restricted");
+  const threshold = screen.getByLabelText("Minimum semantic similarity (0–1)");
+  expect((threshold as HTMLInputElement).value).toBe("");
+  fireEvent.change(threshold, { target: { value: "0.91" } });
   await userEvent.type(
     screen.getByRole("textbox", { name: "Objective" }),
     "Shareable catalog request",
@@ -322,6 +342,9 @@ test("new intention defaults to private and can explicitly choose restricted vis
   expect(JSON.parse(sent.init!.body as string).intent.visibility).toBe(
     "restricted",
   );
+  expect(
+    JSON.parse(sent.init!.body as string).intent.semantic_minimum_similarity,
+  ).toBe(0.91);
   expect(new Headers(sent.init?.headers).get("X-CSRF-Token")).toBe(
     "session-csrf",
   );
@@ -474,3 +497,180 @@ test("the signed-in console exposes private swarm creation alongside participati
   expect(creation.getByLabelText("Responsible agent")).toBeTruthy();
   expect(creation.queryByRole("option", { name: "Public" })).toBeNull();
 });
+
+test("create intention sends only explicitly selected private query with reviewed profile", async () => {
+  const requests = fixture();
+  render(<App />);
+  await userEvent.click(
+    await screen.findByRole("button", {
+      name: "Review private matching policy",
+    }),
+  );
+  await screen.findByText("selected-provider / selected-model / r1");
+  fireEvent.change(screen.getByLabelText("Selected private matching query"), {
+    target: { value: "Selected public citations" },
+  });
+  await userEvent.click(
+    screen.getByLabelText(
+      "Allow this selected query to be processed by this provider profile",
+    ),
+  );
+  await userEvent.type(
+    screen.getByRole("textbox", { name: "Objective" }),
+    "Secret private objective",
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "Create intention" }),
+  );
+  await waitFor(() =>
+    expect(
+      requests.some(
+        (r) => r.path === "/v1/owner/intents" && r.init?.method === "POST",
+      ),
+    ).toBe(true),
+  );
+  const sent = requests.find(
+    (r) => r.path === "/v1/owner/intents" && r.init?.method === "POST",
+  )!;
+  expect(
+    JSON.parse(sent.init!.body as string).intent.private_semantic_query,
+  ).toEqual({
+    projection: "Selected public citations",
+    profile_hash: "a".repeat(64),
+    acknowledge_external_processing: true,
+  });
+});
+test("selected query cannot be submitted before disclosure consent", async () => {
+  const requests = fixture();
+  render(<App />);
+  await userEvent.click(
+    await screen.findByRole("button", {
+      name: "Review private matching policy",
+    }),
+  );
+  await screen.findByLabelText("Selected private matching query");
+  fireEvent.change(screen.getByLabelText("Selected private matching query"), {
+    target: { value: "Selected citations" },
+  });
+  await userEvent.type(
+    screen.getByRole("textbox", { name: "Objective" }),
+    "Private objective",
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "Create intention" }),
+  );
+  expect(
+    requests.some(
+      (r) => r.path === "/v1/owner/intents" && r.init?.method === "POST",
+    ),
+  ).toBe(false);
+  await userEvent.click(
+    screen.getByRole("button", { name: "Remove private matching query" }),
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "Create intention" }),
+  );
+  await waitFor(() =>
+    expect(
+      requests.some(
+        (r) => r.path === "/v1/owner/intents" && r.init?.method === "POST",
+      ),
+    ).toBe(true),
+  );
+  const sent = requests.find(
+    (r) => r.path === "/v1/owner/intents" && r.init?.method === "POST",
+  )!;
+  expect(
+    JSON.parse(sent.init!.body as string).intent.private_semantic_query,
+  ).toBeUndefined();
+});
+
+test.each(["keep", "change", "remove"])(
+  "revision must explicitly %s existing private query",
+  async (decision) => {
+    const query = {
+      projection: "Existing selected query",
+      profile_hash: "a".repeat(64),
+      acknowledge_external_processing: true,
+    };
+    const requests = fixture(true, "active", "private", undefined, query);
+    render(<App />);
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Review intention" }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Edit intention" }),
+    );
+    const form = screen
+      .getByRole("button", { name: "Save new revision" })
+      .closest("form")!;
+    await userEvent.click(
+      within(form).getByRole("button", { name: "Save new revision" }),
+    );
+    expect(
+      requests.some(
+        (r) =>
+          r.path === "/v1/owner/intents/intent" && r.init?.method === "PATCH",
+      ),
+    ).toBe(false);
+    if (decision !== "remove") {
+      await userEvent.click(
+        within(form).getByRole("button", {
+          name: "Review private matching policy",
+        }),
+      );
+      await within(form).findByText("selected-provider / selected-model / r1");
+      expect(
+        (
+          within(form).getByLabelText(
+            "Selected private matching query",
+          ) as HTMLTextAreaElement
+        ).value,
+      ).toBe(query.projection);
+      if (decision === "change")
+        fireEvent.change(
+          within(form).getByLabelText("Selected private matching query"),
+          { target: { value: "Changed selected query" } },
+        );
+      await userEvent.click(
+        within(form).getByLabelText(
+          "Allow this selected query to be processed by this provider profile",
+        ),
+      );
+    } else {
+      await userEvent.click(
+        within(form).getByRole("button", {
+          name: "Remove private matching query",
+        }),
+      );
+    }
+    await userEvent.click(
+      within(form).getByRole("button", { name: "Save new revision" }),
+    );
+    await waitFor(() =>
+      expect(
+        requests.some(
+          (r) =>
+            r.path === "/v1/owner/intents/intent" && r.init?.method === "PATCH",
+        ),
+      ).toBe(true),
+    );
+    const sent = requests.find(
+      (r) =>
+        r.path === "/v1/owner/intents/intent" && r.init?.method === "PATCH",
+    )!;
+    expect(
+      JSON.parse(sent.init!.body as string).revision.private_semantic_query,
+    ).toEqual(
+      decision === "remove"
+        ? undefined
+        : {
+            ...query,
+            projection:
+              decision === "change"
+                ? "Changed selected query"
+                : query.projection,
+          },
+    );
+  },
+);

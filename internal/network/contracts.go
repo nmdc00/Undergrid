@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"strings"
 	"time"
 )
@@ -59,26 +60,43 @@ type Output struct {
 	SchemaFamily string `json:"schema_family"`
 }
 type Constraints struct {
-	RequiredFields []string `json:"required_fields"`
-	LicenseIDs     []string `json:"license_ids"`
+	RequiredFields      []string             `json:"required_fields"`
+	LicenseIDs          []string             `json:"license_ids"`
+	Coverage            *CoverageConstraint  `json:"coverage,omitempty"`
+	Freshness           *FreshnessConstraint `json:"freshness,omitempty"`
+	Delivery            *DeliveryConstraint  `json:"delivery,omitempty"`
+	InputSchemaFamilies *[]string            `json:"input_schema_families,omitempty"`
 }
 type Watch struct {
 	Enabled  bool     `json:"enabled"`
 	Channels []string `json:"channels"`
 }
 type IntentInput struct {
-	Objective       string            `json:"objective"`
-	Output          Output            `json:"output"`
-	HardConstraints Constraints       `json:"hard_constraints"`
-	Preferences     map[string]string `json:"preferences,omitempty"`
-	Visibility      string            `json:"visibility"`
-	PublicSummary   string            `json:"public_summary,omitempty"`
-	Budget          *json.RawMessage  `json:"budget"`
-	Watch           Watch             `json:"watch"`
-	ExpiresAt       time.Time         `json:"expires_at"`
+	processingGrant *semanticProcessingGrant
+	storedRevision  int
+
+	PrivateSemanticQuery      *PrivateSemanticQuery `json:"private_semantic_query,omitempty"`
+	SemanticMinimumSimilarity *float64              `json:"semantic_minimum_similarity,omitempty"`
+	Objective                 string                `json:"objective"`
+	Output                    Output                `json:"output"`
+	HardConstraints           Constraints           `json:"hard_constraints"`
+	Preferences               map[string]string     `json:"preferences,omitempty"`
+	Visibility                string                `json:"visibility"`
+	PublicSummary             string                `json:"public_summary,omitempty"`
+	Budget                    *json.RawMessage      `json:"budget"`
+	Watch                     Watch                 `json:"watch"`
+	ExpiresAt                 time.Time             `json:"expires_at"`
 }
 
 func (i IntentInput) validate() error {
+	if i.PrivateSemanticQuery != nil {
+		if err := i.PrivateSemanticQuery.validate(i.Visibility); err != nil {
+			return err
+		}
+	}
+	if v := i.SemanticMinimumSimilarity; v != nil && (math.IsNaN(*v) || math.IsInf(*v, 0) || *v < 0 || *v > 1) {
+		return fail(422, "invalid_semantic_threshold")
+	}
 	if i.Budget != nil {
 		if err := ValidateBudget(*i.Budget); err != nil {
 			return err
@@ -96,8 +114,8 @@ func (i IntentInput) validate() error {
 	if i.Visibility == "redacted_public" && (len(i.PublicSummary) < 3 || len(i.PublicSummary) > 1000) {
 		return fail(422, "public_summary_required")
 	}
-	if len(i.HardConstraints.RequiredFields) > 50 || len(i.HardConstraints.LicenseIDs) > 20 {
-		return fail(422, "constraint_limit")
+	if err := i.HardConstraints.validate(time.Now()); err != nil {
+		return err
 	}
 	if len(i.Watch.Channels) != 1 || i.Watch.Channels[0] != "inbox" {
 		return fail(422, "unsupported_channel")
