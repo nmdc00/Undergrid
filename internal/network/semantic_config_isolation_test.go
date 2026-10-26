@@ -2,7 +2,11 @@ package network
 
 import (
 	"context"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -14,6 +18,17 @@ func TestRunningWorkerSemanticConfigFailurePreservesExactDiscoveryAndReads(t *te
 	a, b := client(t, s), client(t, s)
 	input := intentFixture()
 	input.Objective = "Local exact config isolation " + NewID()
+	var phase atomic.Int64
+	publisher := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, `{"items":[{"id":"catalogue","version":"%d","url":"https://publisher.example/catalogue","title":%q,"status":"active"}],"next_page":0}`, phase.Load()+1, input.Objective)
+	}))
+	defer publisher.Close()
+	source := SourceConfig{ID: NewID(), Kind: "capability_manifest", Endpoint: "https://publisher.example/capabilities", Publisher: "Controlled publisher", AccessBasis: "fixture access", RepublicationBasis: "fixture redistribution", TombstoneBasis: "fixture tombstone", PublicPermissionNotice: "Permitted fixture title and URL", Fields: []string{"canonical_url", "title"}}
+	refresher := externalNotificationRefresher(t, worker.dsn, source, publisher)
+	if err := refresher.RefreshDue(context.Background()); err != nil {
+		t.Fatal(err)
+	}
 	code, watch := a.call("POST", "/v1/intents", NewID(), input)
 	if code != 201 {
 		t.Fatal(code, watch)
@@ -27,7 +42,7 @@ func TestRunningWorkerSemanticConfigFailurePreservesExactDiscoveryAndReads(t *te
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
-	go func() { done <- RunWorker(ctx, worker.dsn, "development") }()
+	go func() { done <- runWorkerWithSources(ctx, worker.dsn, "development", refresher) }()
 	defer func() {
 		cancel()
 		select {
@@ -74,6 +89,13 @@ func TestRunningWorkerSemanticConfigFailurePreservesExactDiscoveryAndReads(t *te
 	if code != 503 {
 		t.Errorf("unavailable processing policy failed open: %d %v", code, policy)
 	}
+	phase.Store(1)
+	if _, err := db.Exec(context.Background(), "UPDATE undergrid.external_sources SET next_refresh=now() WHERE id=$1", source.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := refresher.RefreshDue(context.Background()); err != nil {
+		t.Fatal(err)
+	}
 	third := client(t, s)
 	code, next := third.call("POST", "/v1/intents", NewID(), public)
 	if code != 201 {
@@ -98,11 +120,17 @@ func TestRunningWorkerSemanticConfigFailurePreservesExactDiscoveryAndReads(t *te
 		if err != nil {
 			t.Fatal(err)
 		}
-		if scanned.After(before) && opportunities == 1 && events == 1 && inbox == 1 {
+		var external, externalEvents, externalInbox int
+		err = db.QueryRow(context.Background(), `SELECT count(*),count(e.id),count(b.event_id) FROM undergrid.opportunities o LEFT JOIN undergrid.events e ON e.aggregate_id=o.id AND e.type='opportunity.available' LEFT JOIN undergrid.inbox b ON b.event_id=e.id WHERE o.source_intent_id=$1 AND o.kind='external_capability' AND o.evidence->>'source_id'=$2 AND o.evidence->>'source_version'='2'`, watch["id"], source.ID).Scan(&external, &externalEvents, &externalInbox)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if scanned.After(before) && opportunities == 1 && events == 1 && inbox == 1 && external == 1 && externalEvents == 1 && externalInbox == 1 {
 			break
 		}
+
 		if time.Now().After(deadline) {
-			t.Errorf("semantic policy outage blocked exact watch: completed_new_scan=%v opportunity/event/inbox=%d/%d/%d", scanned.After(before), opportunities, events, inbox)
+			t.Errorf("semantic policy outage blocked exact watch: completed_new_scan=%v exact=%d/%d/%d externalv2=%d/%d/%d", scanned.After(before), opportunities, events, inbox, external, externalEvents, externalInbox)
 			break
 		}
 		time.Sleep(20 * time.Millisecond)
