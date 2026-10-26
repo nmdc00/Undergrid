@@ -131,7 +131,7 @@ The first capacity task above remains unchanged. The acceptance audit at release
 
 - Intention publication: the audited release offered only private/restricted
   creation. This feature implements and locally proves explicit public creation,
-  fixed-audience summary review and withdrawal, pending review/merge; see
+  fixed-audience summary review and withdrawal, merged in PR103 (`b0d49c7`); see
   `OWNER_INTENTION_PUBLICATION.md`. True same-ID disclosure conversion remains
   unsupported by the published domain contract, not hidden behind fixture SQL.
 - Builder opt-in: owner `POST /v1/agents` accepts `AgentProfile` with public,
@@ -159,7 +159,7 @@ requirements and missing behaviors. Its scoped three-account setup foundation pa
 gate after the capacity worker released its test lease and root granted one. The
 ledger records exact source, commands, retained databases and fixture limitations.
 Public projection was unproven at that foundation checkpoint; the publication
-feature below now has actual local proof, pending merge. The full collaboration
+feature below now has actual local proof and is merged in PR103 (`b0d49c7`). The full collaboration
 journey remains unproven.
 
 ## Parallel owner behavior: explicit intention publication
@@ -226,7 +226,7 @@ room/plan/application flows and external qualification remain open.
 
 ## Locked task: owner-reviewed builder registration — 25 October 2026
 
-Owner: `publication_oct25`, independent of the semantic integration worker.
+Owner: `builder_oct26`, resuming the preserved `publication_oct25` task, independent of the semantic integration worker.
 Branch `feat/v0.1-owner-builder-registration`, based on reviewed release
 `b0d49c7770b007126eb17316f5da5f074708e4bc`, isolated at
 `/tmp/undergrid-worktrees/builder-registration/feat-v0.1-owner-builder-registration`.
@@ -280,3 +280,95 @@ Test-first acceptance and evidence:
    Independent review and scoped PR to `release/v0.1` precede integration. Full HP2,
    public directory, existing-profile mutation and external qualifications stay
    open unless independently implemented and proven.
+
+## Next task contract: reviewed room origin and recruitment roles — 26 October 2026
+
+Status: planned, not implemented or runtime-proven. Semantic integration and
+builder registration remain active prerequisites; this contract starts no new
+behavior or test process. One later feature branch,
+`feat/v0.1-owner-room-origin-recruitment`, must start from the then-current
+reviewed `release/v0.1` in its own isolated worktree. Root assigns its implementer
+and serial test lease after the current dependencies are ready. This contract is
+recorded on `docs/v0.1-room-origin-contract`, based on release `f80460e`, at
+`/tmp/undergrid-worktrees/room-origin-contract/docs-v0.1-room-origin-contract`.
+
+Owning requirements: HP2 steps 2–3, SW-01/02/06 and TDD §§6/9, especially the
+published `POST /v1/swarms` precondition: “visible current opportunity or explicit
+objective.” The reference is provenance; it grants no candidate membership,
+rights, assignment acceptance or spending authority. Objective-only creation
+without an origin remains valid. Supplying an origin alongside an objective must
+not turn a stale or foreign reference into valid provenance.
+
+Static audit at `f80460e` (not a runtime reproduction): `createSwarm` in
+`internal/network/swarms.go` checks a supplied origin's UUID and recipient-row
+existence only. Opportunity RLS in migration 002 restricts the recipient, but
+does not establish current source/candidate eligibility, suggestion state or
+input hash. Owner creation delegates to that same domain command. Thus the code
+contains no current-evidence guard for a retained stale origin. The check also
+sits inside the idempotent callback, so retained command responses bypass it.
+No origin-specific runtime test was found by this audit. Existing opportunity
+listing alone is insufficient as an authority check: the shared-demand query
+checks active/public rows without comparing the stored evidence hash to current
+revisions. These findings need actual behavioral RED before implementation.
+
+Runtime entrypoints and expected effects:
+
+- Owner console creation in `web/src/CreateSwarm.tsx` uses existing
+  `POST /v1/owner/agents/{agent}/swarms`; scoped agent creation uses
+  `POST /v1/swarms`. Both must reach the same transaction-owned validation.
+  Select an actual currently accessible opportunity, disclose its provenance and
+  review the exact objective, nonpublic visibility, full-history policy and
+  bounded recruitment-role specification before submission. Changes invalidate
+  review. Keep public transcript consent and its existing shared-command guard
+  distinct; do not widen the owner's existing private/restricted choices.
+- Preserve existing role limits (at most ten, nonempty key, supported
+  `source_catalog_v1` family and bounded description), policy/quota admission and
+  owner/agent authorization. Review is a UI safeguard, never domain authority.
+- A successful creation persists one swarm with the reviewed origin and roles,
+  one accepted creator/coordinator membership, the existing creation event/inbox
+  effects and durable recruitment work. Other participants remain unadmitted.
+  Private rooms remain ineligible for public recruitment. No new table or
+  migration is planned; justify any later necessity from actual implementation
+  evidence, while preserving frozen migrations and semantic migration ownership.
+
+Required test-first acceptance and failure recovery:
+
+1. Reproduce stale-origin acceptance through actual restricted PostgreSQL HTTP
+   commands before behavior changes. Prove a current eligible origin succeeds;
+   reject foreign, dismissed, withdrawn/expired or inaccessible source/candidate
+   references and changed revision/evidence bindings. Include current semantic
+   profile/projection eligibility after that integration, and current permitted
+   external source/observation evidence for supported external kinds. Cover
+   current actor deactivation/revocation and concurrent eligibility changes with
+   the same relevant authority locks; never obtain private foreign data merely
+   to validate provenance. Denial must commit no swarm, membership, event/inbox
+   or recruitment-job effects.
+2. Test current eligibility before retained-response recovery for commands with
+   an origin, as well as current owner/agent authorization. Under unchanged
+   authority and input, a lost or malformed response must reuse the same key and
+   body, recover the same room and create no duplicate effects. Changed payloads
+   conflict. A stale origin must not become usable through a previously retained
+   key. Keep objective-only retries working without inventing an origin gate.
+3. Write console behavioral RED for missing current-origin/role controls, review
+   invalidation, history disclosure and exact outgoing command. Prove stale
+   actor/selection responses cannot restore an obsolete review or room, and
+   response validation precedes clearing retry identity. Do not silently drop an
+   invalid selected origin and submit an objective-only command instead.
+4. Run an actual owner browser/API/worker lifecycle after dependencies merge:
+   review the current match, create the room with exact origin and role, observe
+   persisted provenance and one attributable eligible builder opportunity.
+   Recruitment receipt creates no invitation acceptance or membership. Preserve
+   separate later invitation/application review and explicit admission steps;
+   fixture setup cannot stand in for the missing owner controls.
+5. Preserve owner isolation, current room/history ACLs, quota/idempotency guards,
+   separate admission/plan/rights/assignment decisions and HP1 recovery. Assess
+   DRY ownership of eligibility rules, orthogonality, readable provenance and
+   transaction/error ownership. Record actual RED/GREEN, source SHA, commands,
+   logs and retained databases in `docs/OWNER_ROOM_ORIGIN_RECRUITMENT.md`; update
+   this task's status and `HP2_ACCEPTANCE.md` before independent review and a
+   scoped feature PR to `release/v0.1` can merge.
+
+This task does not implement complementary capability discovery, application
+review, plan proposal/revision or the full HP2 journey. Account separation and
+controlled recruitment fixtures do not qualify independent beneficial owners,
+provider relevance, legal consent or deployment. Those gates remain open.
