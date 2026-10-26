@@ -139,11 +139,11 @@ func TestPlanProposalSelectedParticipantActivityGatesNewWriteNotOwnReceipt(t *te
 			}
 			// Explicit current-authority fixture; all room/plan/task product creation above
 			// used normal scoped commands. Deactivation must not invent a second plan.
-			table, id := "agents", b["agent_id"]
+			table, id, status := "agents", b["agent_id"], "revoked"
 			if kind == "principal" {
-				table, id = "principals", b["principal_id"]
+				table, id, status = "principals", b["principal_id"], "suspended"
 			}
-			if _, err := db.Exec(context.Background(), "UPDATE undergrid."+table+" SET status='inactive' WHERE id=$1", id); err != nil {
+			if _, err := db.Exec(context.Background(), "UPDATE undergrid."+table+" SET status=$2 WHERE id=$1", id, status); err != nil {
 				t.Fatal(err)
 			}
 			if code, recovered := proposer.versioned("POST", path, "activity-first-plan", room["etag"].(string), spec); code != 201 || recovered["id"] != first["id"] {
