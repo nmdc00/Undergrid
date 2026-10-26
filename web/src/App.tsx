@@ -1,6 +1,10 @@
 import { OwnerInbox } from "./OwnerInbox";
 import type { components } from "./network.generated";
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  PrivateSemanticQuery,
+  type PrivateQuery,
+} from "./PrivateSemanticQuery";
 import { Participation } from "./Participation";
 import { AgentAuthority } from "./AgentAuthority";
 import { OwnerPolicy } from "./OwnerPolicy";
@@ -108,6 +112,7 @@ export function App() {
     ]);
   const [selectedAgent, setSelectedAgent] = useState(""),
     [objective, setObjective] = useState(""),
+    [semanticThreshold, setSemanticThreshold] = useState(""),
     [intentVisibility, setIntentVisibility] =
       useState<components["schemas"]["IntentInput"]["visibility"]>("private"),
     [watch, setWatch] = useState(true),
@@ -126,6 +131,10 @@ export function App() {
     [reviewedCreation, setReviewedCreation] = useState(""),
     [revisionSummary, setRevisionSummary] = useState(""),
     [reviewedRevision, setReviewedRevision] = useState("");
+  const [revisionSemanticThreshold, setRevisionSemanticThreshold] = useState("");
+  const [revisionPrivateQuery, setRevisionPrivateQuery] = useState<PrivateQuery>();
+  const [privateQuery, setPrivateQuery] = useState<PrivateQuery>();
+  const [queryGeneration, setQueryGeneration] = useState(0);
   const generation = useRef(0);
   const [intentionExpiry, setIntentionExpiry] = useState(() =>
     new Date(Date.now() + 30 * 86400000).toISOString(),
@@ -481,6 +490,12 @@ export function App() {
                           ]);
                           setDetail(record);
                           setRevisionObjective(text(record.objective));
+                          setRevisionSemanticThreshold(
+                            typeof record.semantic_minimum_similarity ===
+                              "number"
+                              ? String(record.semantic_minimum_similarity)
+                              : "",
+                          );
                           setRevisionExpiry(
                             localDateTime(text(record.expires_at)),
                           );
@@ -569,6 +584,7 @@ export function App() {
                           disabled={busy}
                           onClick={() => {
                             try {
+                              setRevisionPrivateQuery(undefined);
                               setRevisionVisibility(
                                 intentionVisibility(detail.visibility),
                               );
@@ -607,6 +623,19 @@ export function App() {
                               const previous = detail;
                               const revision = {
                                 objective: revisionObjective,
+                                ...(revisionPrivateQuery
+                                  ? {
+                                      private_semantic_query:
+                                        revisionPrivateQuery,
+                                    }
+                                  : {}),
+                                ...(revisionSemanticThreshold === ""
+                                  ? {}
+                                  : {
+                                      semantic_minimum_similarity: Number(
+                                        revisionSemanticThreshold,
+                                      ),
+                                    }),
                                 output: detail.output,
                                 hard_constraints: detail.hard_constraints,
                                 ...(detail.preferences === undefined
@@ -650,6 +679,12 @@ export function App() {
                               setDetail(out);
                               setEditingRevision(false);
                               setRevisionObjective(text(out.objective));
+                              setRevisionSemanticThreshold(
+                                typeof out.semantic_minimum_similarity ===
+                                  "number"
+                                  ? String(out.semantic_minimum_similarity)
+                                  : "",
+                              );
                               setRevisionExpiry(
                                 localDateTime(text(out.expires_at)),
                               );
@@ -697,6 +732,37 @@ export function App() {
                             onSummary={setRevisionSummary}
                             onReview={setReviewedRevision}
                           />
+                          <label>
+                            Minimum semantic similarity for this intention (0–1)
+                            <input
+                              type="number"
+                              min="0"
+                              max="1"
+                              step="any"
+                              value={revisionSemanticThreshold}
+                              aria-describedby="revision-semantic-threshold-help"
+                              onChange={(e) =>
+                                setRevisionSemanticThreshold(e.target.value)
+                              }
+                            />
+                          </label>
+                          <PrivateSemanticQuery
+                            csrf={csrf}
+                            onChange={setRevisionPrivateQuery}
+                            initialProjection={
+                              detail.private_semantic_query == null
+                                ? ""
+                                : text(
+                                    object(detail.private_semantic_query)
+                                      .projection,
+                                  )
+                            }
+                          />
+                          <p id="revision-semantic-threshold-help">
+                            Optional. Leave blank to use the service default.
+                            Applies when semantic matching is enabled; the score
+                            is not a probability.
+                          </p>
                           <label>
                             Expires at (local time)
                             <input
@@ -951,6 +1017,8 @@ export function App() {
                     const mine = generation.current;
                     const intent = {
                       objective,
+                      ...(privateQuery ? {private_semantic_query: privateQuery} : {}),
+                      ...(semanticThreshold === "" ? {} : {semantic_minimum_similarity:Number(semanticThreshold)}),
                       output: sourceCatalogOutput,
                       hard_constraints: sourceCatalogConstraints,
                       visibility: intentVisibility,
@@ -980,6 +1048,9 @@ export function App() {
                     }
                     if (mine !== generation.current) return;
                     setObjective("");
+                    setPrivateQuery(undefined);
+                    setQueryGeneration((n) => n + 1);
+                    setSemanticThreshold("");
                     setIntentVisibility("private");
                     setPublicSummary("");
                     setReviewedCreation("");
@@ -1030,6 +1101,27 @@ export function App() {
                     onChange={(e) => setObjective(e.target.value)}
                   />
                 </label>
+                <label>
+                  Minimum semantic similarity (0–1)
+                  <input
+                    type="number"
+                    min="0"
+                    max="1"
+                    step="any"
+                    value={semanticThreshold}
+                    aria-describedby="create-semantic-threshold-help"
+                    onChange={(e) => setSemanticThreshold(e.target.value)}
+                  />
+                </label>
+                <PrivateSemanticQuery
+                  key={queryGeneration}
+                  csrf={csrf}
+                  onChange={setPrivateQuery}
+                />
+                <p id="create-semantic-threshold-help">
+                  Optional. Leave blank to use the service default. Applies when
+                  semantic matching is enabled; the score is not a probability.
+                </p>
                 <label className="check">
                   <input
                     type="checkbox"

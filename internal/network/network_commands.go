@@ -23,6 +23,7 @@ type networkCommandArguments struct {
 }
 
 var networkOperations = []networkOperation{
+	{"matching_policy_read", "GET", "/v1/matching-policy"},
 	{"credential_revoke_current", "DELETE", "/v1/credentials/current"},
 	{"contribution_templates", "GET", "/v1/policies/contribution-templates"},
 	{"opportunities_list", "GET", "/v1/opportunities"},
@@ -40,6 +41,7 @@ var networkOperations = []networkOperation{
 	{"intention_revise", "PATCH", "/v1/intents/{id}"},
 	{"intention_partial_satisfaction", "POST", "/v1/intents/{id}/partial-satisfaction"},
 	{"intention_opportunities", "GET", "/v1/intents/{id}/opportunities"},
+	{"intention_compatible_groups", "GET", "/v1/intents/{id}/compatible-groups"},
 	{"intention_external_leads", "GET", "/v1/intents/{id}/external-leads"},
 	{"intention_external_fit_report", "GET", "/v1/intents/{id}/external-fit-report"},
 	{"inbox_read", "GET", "/v1/inbox"},

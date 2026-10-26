@@ -72,12 +72,17 @@ func mutateIntentOnce(r *http.Request, tx pgx.Tx, a actor, environment string) (
 	var id string
 	var version int64
 	var eventType string
+
 	if r.Method == "POST" {
 		var input IntentInput
 		if err = decode(r, &input); err != nil {
 			return 0, nil, err
 		}
+
 		if err = input.validate(); err != nil {
+			return 0, nil, err
+		}
+		if err = validateSemanticConsent(input, environment); err != nil {
 			return 0, nil, err
 		}
 		if err = admitPrincipalResource(ctx, tx, a.PrincipalID, "active_intents"); err != nil {
@@ -156,7 +161,11 @@ func mutateIntentOnce(r *http.Request, tx pgx.Tx, a actor, environment string) (
 			if err = decodeIntentJSON(mutation.Revision, &input); err != nil {
 				return 0, nil, err
 			}
+
 			if err = input.validate(); err != nil {
+				return 0, nil, err
+			}
+			if err = validateSemanticConsent(input, environment); err != nil {
 				return 0, nil, err
 			}
 			if input.Visibility != visibility {
@@ -217,8 +226,17 @@ func finishIntentMutation(ctx context.Context, tx pgx.Tx, a actor, id string, ve
 	if environment != "production" {
 		origin = "release_test"
 	}
+	var document []byte
+	if err = tx.QueryRow(ctx, "SELECT r.document FROM intents i JOIN intent_revisions r ON r.intent_id=i.id AND r.revision=i.current_revision WHERE i.id=$1", id).Scan(&document); err != nil {
+		return nil, err
+	}
+	var input IntentInput
+	if err = json.Unmarshal(document, &input); err != nil {
+		return nil, err
+	}
+	facts := intentMatchingFacts(input)
 	eventID := NewID()
-	if _, err = tx.Exec(ctx, "INSERT INTO events(id,aggregate_kind,aggregate_id,version,principal_id,agent_id,type,facts,origin) VALUES($1,'intent',$2,$3,$4,$5,$6,'{}',$7)", eventID, id, version, a.PrincipalID, a.AgentID, eventType, origin); err != nil {
+	if _, err = tx.Exec(ctx, "INSERT INTO events(id,aggregate_kind,aggregate_id,version,principal_id,agent_id,type,facts,origin) VALUES($1,'intent',$2,$3,$4,$5,$6,$8,$7)", eventID, id, version, a.PrincipalID, a.AgentID, eventType, origin, canonical(facts)); err != nil {
 		return nil, err
 	}
 	var sequence int64

@@ -6,7 +6,9 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -81,6 +83,34 @@ func compareExternalClaim(input IntentInput, claim *capabilityClaim) []declaredC
 		}
 	}
 	add("license_ids", input.HardConstraints.LicenseIDs, licenses, status, reason, "capability_claim.license_ids")
+
+	c := input.HardConstraints
+	if restrictedCoverage(c.Coverage) {
+		want := []string{}
+		for _, v := range c.Coverage.Required {
+			want = append(want, "required: "+v)
+		}
+		for _, v := range c.Coverage.Excluded {
+			want = append(want, "excluded: "+v)
+		}
+		add("coverage", want, nil, "unknown", "typed_requirement_not_declared_in_v1", "capability_claim")
+	}
+	if c.Freshness != nil {
+		add("freshness", []string{"maximum age: " + strconv.FormatInt(c.Freshness.MaxAgeSeconds, 10) + " seconds"}, nil, "unknown", "typed_requirement_not_declared_in_v1", "capability_claim")
+	}
+	if c.Delivery != nil {
+		want := []string{}
+		if c.Delivery.NotBefore != nil {
+			want = append(want, "not before: "+c.Delivery.NotBefore.Format(time.RFC3339))
+		}
+		if c.Delivery.DeliverBy != nil {
+			want = append(want, "deliver by: "+c.Delivery.DeliverBy.Format(time.RFC3339))
+		}
+		add("delivery", want, nil, "unknown", "typed_requirement_not_declared_in_v1", "capability_claim")
+	}
+	if c.InputSchemaFamilies != nil {
+		add("input_schema_families", *c.InputSchemaFamilies, nil, "unknown", "typed_requirement_not_declared_in_v1", "capability_claim")
+	}
 	return rows
 }
 func externalFitIntentID(path string) (string, bool) {

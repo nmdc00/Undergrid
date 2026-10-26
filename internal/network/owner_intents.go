@@ -23,6 +23,10 @@ func (s *Service) ownerIntents(r *http.Request, tx pgx.Tx, principal string) (in
 		return s.ownerPartialSatisfaction(r, tx, principal, id)
 	}
 	collection := r.URL.Path == "/v1/owner/intents"
+	groups := strings.HasSuffix(r.URL.Path, "/compatible-groups")
+	if groups && r.Method != "GET" {
+		return 0, nil, fail(405, "method_not_allowed")
+	}
 	opportunities := strings.HasSuffix(r.URL.Path, "/opportunities")
 	externalLeads := strings.HasSuffix(r.URL.Path, "/external-leads")
 	externalFit := strings.HasSuffix(r.URL.Path, "/external-fit-report")
@@ -107,7 +111,7 @@ func (s *Service) ownerIntents(r *http.Request, tx pgx.Tx, principal string) (in
 		}
 		command.Body = io.NopCloser(bytes.NewReader(canonical(in.Intent)))
 	} else {
-		id = strings.TrimSuffix(strings.TrimSuffix(strings.TrimSuffix(strings.TrimPrefix(command.URL.Path, "/v1/intents/"), "/opportunities"), "/external-leads"), "/external-fit-report")
+		id = strings.TrimSuffix(strings.TrimSuffix(strings.TrimSuffix(strings.TrimSuffix(strings.TrimPrefix(command.URL.Path, "/v1/intents/"), "/opportunities"), "/external-leads"), "/external-fit-report"), "/compatible-groups")
 		if !validID(id) {
 			return 0, nil, fail(404, "not_found")
 		}
@@ -123,6 +127,9 @@ func (s *Service) ownerIntents(r *http.Request, tx pgx.Tx, principal string) (in
 	if err != nil {
 		return 0, nil, err
 	}
+	if groups {
+		return s.compatibleGroups(command, tx, a, id)
+	}
 	if externalFit {
 		return s.externalFitReport(command, tx, a, id)
 	}
@@ -133,7 +140,7 @@ func (s *Service) ownerIntents(r *http.Request, tx pgx.Tx, principal string) (in
 		// This session has already proved ownership of this intention and agent.
 		// Grant only the read capability needed by the shared domain projection.
 		a.Scopes = []string{"intents:read"}
-		return listOpportunities(command, tx, a)
+		return s.listOpportunities(command, tx, a)
 	}
 	if r.Method == "GET" {
 		return getIntent(ctx, tx, a, id)

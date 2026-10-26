@@ -8140,6 +8140,236 @@
           }
         }
       }
+    },
+    "/v1/matching-policy": {
+      "get": {
+        "operationId": "get__v1_matching-policy",
+        "summary": "Review the current semantic provider and disclosure policy",
+        "description": "Current authenticated policy metadata for explicit projection consent. Operator endpoints, keys and test CA configuration are not returned. Profile changes require new consent; provider identity is a configured assertion.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SemanticMatchingPolicy"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; status depends on authentication, visibility, validation, quotas and runtime availability.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "NetworkBearer": []
+          }
+        ]
+      }
+    },
+    "/v1/owner/matching-policy": {
+      "get": {
+        "operationId": "get__v1_owner_matching-policy",
+        "summary": "Review the current semantic provider and disclosure policy",
+        "description": "Current authenticated policy metadata for explicit projection consent. Operator endpoints, keys and test CA configuration are not returned. Profile changes require new consent; provider identity is a configured assertion.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SemanticMatchingPolicy"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; status depends on authentication, visibility, validation, quotas and runtime availability.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OwnerSession": []
+          }
+        ]
+      }
+    },
+    "/v1/intents/{id}/compatible-groups": {
+      "get": {
+        "operationId": "get__v1_intents_id_compatible-groups",
+        "summary": "Read bounded current compatible demand groups",
+        "description": "Read-only, current owned active monitored intention required. Revalidates current revision-bound opportunities and public candidate eligibility. Every pair must satisfy declared hard constraints and either exact declared-outcome comparison or current profile-bound semantic similarity at the source threshold; all members share a declared license option. Principal IDs count once but do not prove independent beneficial owners. Greedy bounded nonexhaustive views; no persisted membership, invitation, rights, provider verification or funding claim. Semantic views are labeled separately and use current approved public pair scores; private selected source queries remain owner-authorized only. No provider I/O or writes.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompatibleGroups"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; status depends on authentication, visibility, validation, quotas and runtime availability.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "NetworkBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/v1/owner/intents/{id}/compatible-groups": {
+      "get": {
+        "operationId": "get__v1_owner_intents_id_compatible-groups",
+        "summary": "Read bounded current compatible demand groups",
+        "description": "Read-only, current owned active monitored intention required. Revalidates current revision-bound opportunities and public candidate eligibility. Every pair must satisfy declared hard constraints and either exact declared-outcome comparison or current profile-bound semantic similarity at the source threshold; all members share a declared license option. Principal IDs count once but do not prove independent beneficial owners. Greedy bounded nonexhaustive views; no persisted membership, invitation, rights, provider verification or funding claim. Semantic views are labeled separately and use current approved public pair scores; private selected source queries remain owner-authorized only. No provider I/O or writes.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompatibleGroups"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; status depends on authentication, visibility, validation, quotas and runtime availability.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OwnerSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -8825,7 +9055,8 @@
                 "type": "array",
                 "items": {
                   "type": "string"
-                }
+                },
+                "maxItems": 50
               },
               {
                 "type": "null"
@@ -8838,7 +9069,56 @@
                 "type": "array",
                 "items": {
                   "type": "string"
-                }
+                },
+                "maxItems": 20
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "coverage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CoverageConstraint"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "freshness": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FreshnessConstraint"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "delivery": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryConstraint"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "input_schema_families": {
+            "anyOf": [
+              {
+                "type": "array",
+                "maxItems": 20,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "minItems": 1
               },
               {
                 "type": "null"
@@ -8953,6 +9233,29 @@
           "expires_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "semantic_minimum_similarity": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "Selected cosine similarity cutoff for this intention; overrides the operator default. Not a probability. Changes require an audited intention revision."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "private_semantic_query": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PrivateSemanticQuery"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -9114,6 +9417,29 @@
           "current_revision": {
             "type": "integer",
             "minimum": 1
+          },
+          "semantic_minimum_similarity": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "Selected cosine similarity cutoff for this intention; overrides the operator default. Not a probability. Changes require an audited intention revision."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "private_semantic_query": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PrivateSemanticQuery"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -9325,7 +9651,62 @@
             }
           },
           "algorithm": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "hard-constraints-exact-v1",
+              "hard-constraints-hybrid-cosine-v1"
+            ]
+          },
+          "similarity": {
+            "type": "number",
+            "minimum": -1,
+            "maximum": 1,
+            "description": "Cosine similarity of the pinned approved projections; not a confidence probability, truth claim or delivery assurance."
+          },
+          "semantic_profile_hash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "model": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "model_revision": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "source_projection_hash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "description": "Hash of the approved public projection or owner-selected private query; never a private intention document fingerprint."
+          },
+          "candidate_projection_hash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "text_rank": {
+            "type": "number",
+            "minimum": 0,
+            "description": "PostgreSQL full-text rank, not a probability."
+          },
+          "constraint_evidence": {
+            "type": "array",
+            "maxItems": 7,
+            "items": {
+              "$ref": "#/components/schemas/ConstraintAssessment"
+            }
+          },
+          "combined_constraints": {
+            "$ref": "#/components/schemas/CombinedDemandConstraints",
+            "readOnly": true
+          },
+          "minimum_similarity": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Effective source-intention cosine cutoff used for this semantic match; not a probability."
           }
         },
         "required": [
@@ -9334,7 +9715,31 @@
           "reasons",
           "algorithm"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "algorithm": {
+                  "const": "hard-constraints-hybrid-cosine-v1"
+                }
+              },
+              "required": [
+                "algorithm"
+              ]
+            },
+            "then": {
+              "required": [
+                "similarity",
+                "semantic_profile_hash",
+                "model",
+                "model_revision",
+                "source_projection_hash",
+                "candidate_projection_hash"
+              ]
+            }
+          }
+        ]
       },
       "DemandOpportunity": {
         "type": "object",
@@ -12650,7 +13055,11 @@
               "output_kind",
               "schema_family",
               "required_field",
-              "license_ids"
+              "license_ids",
+              "coverage",
+              "freshness",
+              "delivery",
+              "input_schema_families"
             ]
           },
           "requested": {
@@ -13518,6 +13927,433 @@
           }
         },
         "description": "Private server-owned last owner-declared action. Historical if the current revision differs from result_revision. This does not verify a provider, rights, or non-field constraints."
+      },
+      "CoverageConstraint": {
+        "type": "object",
+        "properties": {
+          "required": {
+            "type": "array",
+            "maxItems": 50,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          "excluded": {
+            "type": "array",
+            "maxItems": 50,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        },
+        "required": [
+          "required",
+          "excluded"
+        ],
+        "additionalProperties": false,
+        "description": "Exact declared scope identifiers; no geographic containment or factual coverage is inferred."
+      },
+      "CombinedCoverageConstraint": {
+        "type": "object",
+        "properties": {
+          "required": {
+            "type": "array",
+            "maxItems": 100,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          "excluded": {
+            "type": "array",
+            "maxItems": 100,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        },
+        "required": [
+          "required",
+          "excluded"
+        ],
+        "additionalProperties": false,
+        "description": "Exact declared scope identifiers; no geographic containment or factual coverage is inferred."
+      },
+      "FreshnessConstraint": {
+        "type": "object",
+        "properties": {
+          "max_age_seconds": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 31536000
+          }
+        },
+        "required": [
+          "max_age_seconds"
+        ],
+        "additionalProperties": false
+      },
+      "DeliveryConstraint": {
+        "type": "object",
+        "properties": {
+          "not_before": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deliver_by": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "anyOf": [
+          {
+            "required": [
+              "not_before"
+            ]
+          },
+          {
+            "required": [
+              "deliver_by"
+            ]
+          }
+        ],
+        "additionalProperties": false,
+        "description": "Declared delivery window; no automatic commitment. A supplied end must be in the future and no earlier than the start."
+      },
+      "CombinedDemandConstraints": {
+        "type": "object",
+        "properties": {
+          "required_fields": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 100
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "license_ids": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 20
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "coverage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CombinedCoverageConstraint"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "freshness": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FreshnessConstraint"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "delivery": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryConstraint"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "input_schema_families": {
+            "anyOf": [
+              {
+                "type": "array",
+                "maxItems": 20,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "minItems": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "required_fields",
+          "license_ids"
+        ],
+        "additionalProperties": false,
+        "description": "Read-only combination of declared requirements, not verified capability, accepted work, rights or spending authority."
+      },
+      "ConstraintAssessment": {
+        "type": "object",
+        "properties": {
+          "dimension": {
+            "type": "string",
+            "enum": [
+              "output",
+              "license_ids",
+              "required_fields",
+              "coverage",
+              "freshness",
+              "delivery",
+              "input_schema_families"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "aligned",
+              "incompatible",
+              "unknown"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "dimension",
+          "status",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "PrivateSemanticQuery": {
+        "type": "object",
+        "properties": {
+          "projection": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 1000,
+            "description": "Explicitly selected provider input, at most1000 UTF-8 bytes. Never automatically populated from private objectives or budgets."
+          },
+          "profile_hash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "acknowledge_external_processing": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": [
+          "projection",
+          "profile_hash",
+          "acknowledge_external_processing"
+        ],
+        "additionalProperties": false
+      },
+      "SemanticMatchingPolicy": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "profile_hash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "provider_id": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "model_revision": {
+            "type": "string"
+          },
+          "dimensions": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4096
+          },
+          "permission_evidence": {
+            "type": "string"
+          },
+          "privacy_policy_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "allow_public_projections": {
+            "type": "boolean"
+          },
+          "allow_private_projections": {
+            "type": "boolean"
+          },
+          "default_minimum_similarity": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "enabled": {
+                  "const": true
+                }
+              },
+              "required": [
+                "enabled"
+              ]
+            },
+            "then": {
+              "required": [
+                "enabled",
+                "profile_hash",
+                "provider_id",
+                "model",
+                "model_revision",
+                "dimensions",
+                "permission_evidence",
+                "privacy_policy_sha256",
+                "allow_public_projections",
+                "allow_private_projections",
+                "default_minimum_similarity"
+              ]
+            }
+          }
+        ]
+      },
+      "CompatibleGroupMember": {
+        "type": "object",
+        "properties": {
+          "intent_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "principal_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "hard_constraints": {
+            "$ref": "#/components/schemas/Constraints"
+          }
+        },
+        "required": [
+          "intent_id",
+          "principal_id",
+          "hard_constraints"
+        ],
+        "additionalProperties": false
+      },
+      "CompatibleGroup": {
+        "type": "object",
+        "properties": {
+          "members": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 21,
+            "items": {
+              "$ref": "#/components/schemas/CompatibleGroupMember"
+            }
+          },
+          "common_license_ids": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 20,
+            "uniqueItems": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "comparison_mode": {
+            "type": "string",
+            "enum": [
+              "exact_declared_outcome",
+              "pairwise_semantic_and_hard_constraints"
+            ]
+          },
+          "identity_assurance": {
+            "const": "common_control_unknown"
+          }
+        },
+        "required": [
+          "members",
+          "common_license_ids",
+          "comparison_mode",
+          "identity_assurance"
+        ],
+        "additionalProperties": false
+      },
+      "CompatibleGroups": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "maxItems": 10,
+            "items": {
+              "$ref": "#/components/schemas/CompatibleGroup"
+            }
+          },
+          "candidate_limit": {
+            "const": 20
+          },
+          "group_limit": {
+            "const": 10
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "limitations": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "bounded_nonexhaustive_views",
+                "principal_ids_do_not_prove_independent_owners"
+              ]
+            },
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "items",
+          "candidate_limit",
+          "group_limit",
+          "truncated",
+          "limitations"
+        ],
+        "additionalProperties": false
       }
     },
     "securitySchemes": {
