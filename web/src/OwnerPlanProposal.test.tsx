@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, test, vi } from "vitest";
 import { Participation } from "./Participation";
+import { OwnerPlanProposal } from "./OwnerPlanProposal";
 
 function fixture({
   malformedFirst = false,
@@ -83,7 +84,12 @@ function fixture({
         };
       if (path.endsWith("/plan-context"))
         value = {
-          swarm: { id: "room", state: "active", version: 1, etag: '"1"' },
+          swarm: {
+            id: "room",
+            state: "active",
+            version: legacyPlan ? 3 : 1,
+            etag: legacyPlan ? '"3"' : '"1"',
+          },
           latest_plan: legacyPlan
             ? {
                 id: legacy.id,
@@ -136,7 +142,7 @@ function fixture({
           receipts.set(key, {
             id: `plan-${receipts.size + 1}`,
             swarm_id: "room",
-            version: 1,
+            version: (spec.parent_version ?? 0) + 1,
             state: "proposed",
             content_hash: createHash("sha256").update(canonical).digest("hex"),
             canonical_json: canonical,
@@ -192,7 +198,7 @@ test("a current owner room offers a structured plan proposal using loaded partic
 });
 
 async function openEditor() {
-  render(
+  const view = render(
     <Participation
       agents={[{ id: "agent-a", name: "Owned agent", status: "active" }]}
       csrf="plan-owner-csrf"
@@ -209,6 +215,7 @@ async function openEditor() {
     await screen.findByRole("button", { name: "Load plan context" }),
   );
   await screen.findByRole("textbox", { name: "Plan objective" });
+  return view;
 }
 async function fillDependentDraft() {
   await userEvent.type(
@@ -394,5 +401,221 @@ test("nullable compatibility does not accept a missing required-principal array"
     }),
   );
   await screen.findByRole("alert");
+  expect(screen.queryByRole("textbox", { name: "Plan objective" })).toBeNull();
+});
+
+test("a loaded immutable plan becomes an explicit new parent-bound proposal", async () => {
+  const calls = fixture({ legacyPlan: true });
+  const view = render(
+    <Participation
+      agents={[{ id: "agent-a", name: "Owned agent", status: "active" }]}
+      csrf="revision-parent-owner"
+      onUnauthorized={vi.fn()}
+    />,
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "Load participation" }),
+  );
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Open room" }),
+  );
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Load plan context" }),
+  );
+  await userEvent.click(
+    await screen.findByRole("button", {
+      name: "Load latest plan for revision",
+    }),
+  );
+  const objective = await screen.findByRole("textbox", {
+    name: "Plan objective",
+  });
+  await userEvent.clear(objective);
+  await userEvent.type(objective, "A new independently reviewed revision");
+  await userEvent.click(screen.getByLabelText("I reviewed this plan proposal"));
+  await userEvent.click(screen.getByRole("button", { name: "Propose plan" }));
+  await screen.findByText(/Plan proposed: plan-1/);
+  const post = calls.find(
+    (c) => c.path.endsWith("/plans") && c.init?.method === "POST",
+  )!;
+  const sent = JSON.parse(String(post.init?.body));
+  expect(sent.parent_version).toBe(1);
+  expect(new Headers(post.init?.headers).get("If-Match")).toBe('"3"');
+  expect(sent.tasks[0].depends_on).toEqual([]);
+  expect(sent.tasks[0].deadline).toBe("2030-02-01T00:00:35.123Z");
+  expect(sent.publication_principals).toBeNull();
+  view.unmount();
+});
+
+test("participant pagination adds the next page without silently truncating selectable assignees", async () => {
+  const calls = fixture();
+  const original = globalThis.fetch;
+  const cursor = "11111111-1111-4111-8111-111111111111";
+  const first = [
+    {
+      id: "member-a",
+      agent_id: "agent-a",
+      principal_id: "owner-a",
+      role: "coordinator",
+    },
+    {
+      id: "member-c",
+      agent_id: "agent-c",
+      principal_id: "owner-c",
+      role: "contributor",
+    },
+    ...Array.from({ length: 98 }, (_, i) => ({
+      id: `member-${i}`,
+      agent_id: `observer-${i}`,
+      principal_id: `observer-owner-${i}`,
+      role: "observer",
+    })),
+  ];
+  const pages: string[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (path: string, init?: RequestInit) => {
+      if (path.includes("/plan-context")) {
+        pages.push(path);
+        return new Response(
+          JSON.stringify({
+            swarm: { id: "room", state: "active", version: 1, etag: '"1"' },
+            latest_plan: null,
+            items: path.includes("?after=")
+              ? [
+                  {
+                    id: "member-last",
+                    agent_id: "agent-last",
+                    principal_id: "owner-last",
+                    role: "contributor",
+                  },
+                ]
+              : first,
+            next_after: path.includes("?after=") ? "" : cursor,
+            limit: 100,
+          }),
+        );
+      }
+      return original(path, init);
+    }),
+  );
+  await openEditor();
+  await fillDependentDraft();
+  await userEvent.click(screen.getByLabelText("I reviewed this plan proposal"));
+  await userEvent.click(
+    screen.getByRole("button", { name: "More plan participants" }),
+  );
+  expect(
+    (screen.getByLabelText("I reviewed this plan proposal") as HTMLInputElement)
+      .checked,
+  ).toBe(false);
+  await userEvent.selectOptions(
+    screen.getByLabelText("Task 2 assignee"),
+    "agent-last",
+  );
+  await userEvent.click(screen.getByLabelText("Required approval: owner-last"));
+  await userEvent.click(screen.getByLabelText("I reviewed this plan proposal"));
+  await userEvent.click(screen.getByRole("button", { name: "Propose plan" }));
+  await screen.findByText(/Plan proposed: plan-1/);
+  expect(pages[1]).toContain(`?after=${cursor}`);
+  const post = calls.find(
+    (c) => c.path.endsWith("/plans") && c.init?.method === "POST",
+  )!;
+  expect(JSON.parse(String(post.init?.body)).tasks[1].assignee_agent_id).toBe(
+    "agent-last",
+  );
+});
+
+test("a late participant context cannot restore another owner's draft", async () => {
+  fixture();
+  const original = globalThis.fetch;
+  let complete!: () => void;
+  const waiting = new Promise<void>((resolve) => {
+    complete = resolve;
+  });
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (path: string, init?: RequestInit) => {
+      if (path.endsWith("/plan-context")) await waiting;
+      return original(path, init);
+    }),
+  );
+  const view = render(
+    <OwnerPlanProposal
+      agent="agent-a"
+      swarm="room"
+      csrf="old-owner"
+      onUnauthorized={vi.fn()}
+    />,
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "Load plan context" }),
+  );
+  view.rerender(
+    <OwnerPlanProposal
+      agent="new-agent"
+      swarm="new-room"
+      csrf="new-owner"
+      onUnauthorized={vi.fn()}
+    />,
+  );
+  await act(async () => {
+    complete();
+    await waiting;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  expect(screen.queryByRole("textbox", { name: "Plan objective" })).toBeNull();
+  expect(
+    screen.queryByRole("list", { name: "Accepted plan participants" }),
+  ).toBeNull();
+  expect(
+    (
+      screen.getByRole("button", {
+        name: "Load plan context",
+      }) as HTMLButtonElement
+    ).disabled,
+  ).toBe(false);
+});
+
+test("a late committed proposal reply cannot restore a receipt after changing owner context", async () => {
+  const calls = fixture();
+  const original = globalThis.fetch;
+  let complete!: () => void;
+  const waiting = new Promise<void>((resolve) => {
+    complete = resolve;
+  });
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (path: string, init?: RequestInit) => {
+      if (path.endsWith("/plans") && init?.method === "POST") await waiting;
+      return original(path, init);
+    }),
+  );
+  const view = await openEditor();
+  await fillDependentDraft();
+  await userEvent.click(screen.getByLabelText("I reviewed this plan proposal"));
+  await userEvent.click(screen.getByRole("button", { name: "Propose plan" }));
+  view.rerender(
+    <Participation
+      agents={[
+        { id: "new-agent", name: "Another owner agent", status: "active" },
+      ]}
+      csrf="new-owner-session"
+      onUnauthorized={vi.fn()}
+    />,
+  );
+  await act(async () => {
+    complete();
+    await waiting;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  await waitFor(() =>
+    expect(
+      calls.filter(
+        (c) => c.path.endsWith("/plans") && c.init?.method === "POST",
+      ),
+    ).toHaveLength(1),
+  );
+  expect(screen.queryByText(/Plan proposed: plan-1/)).toBeNull();
   expect(screen.queryByRole("textbox", { name: "Plan objective" })).toBeNull();
 });
