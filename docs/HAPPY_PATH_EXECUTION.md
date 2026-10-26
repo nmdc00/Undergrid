@@ -137,7 +137,7 @@ never align due to semantic score, revocation blocks current reads/replay,
 canonical locks prevent stale policy acceptance, and receipt/chat never grants
 participation or rights. Prove restart, decline and no duplicate effects.
 
-Current evidence at release `b0d49c7`: the independently extracted discovery
+Current evidence at release `3bb46eb`: the independently extracted discovery
 capacity fix is reviewed and merged in PR101, preserving the five-second bound,
 accepted work and HP1 behavior. Post-merge watcher/shutdown race checks passed
 10.625 seconds and the console build passed; exact logs are
@@ -145,14 +145,23 @@ accepted work and HP1 behavior. Post-merge watcher/shutdown race checks passed
 `/tmp/undergrid-capacity-release-5ea78d1-web-build-20261025.log`.
 The three-owner private setup foundation is merged in PR100; it does not prove
 publication or collaboration. Room participation/messages and owner plan/assignment
-decisions are merged. Semantic/groups/viewer remain on dependent branches, with
-the next reconciliation contract in [`SEMANTIC_INTEGRATION.md`](SEMANTIC_INTEGRATION.md).
+decisions are merged. Semantic/profile/typed-hard-constraint integration and
+pairwise group reads are reviewed and merged in PR107. Combined domain proof
+passed 36 top-level cases plus 40 subcases; current capacity and four baseline
+browser regressions also passed. See
+[`SEMANTIC_INTEGRATION.md`](SEMANTIC_INTEGRATION.md) for exact sources, logs,
+preserved failures and post-merge checks. The dependent group viewer remains
+unmerged; these proofs do not complete the continuous HP2 journey.
 Owner publication is reviewed and merged in PR103: explicit public creation,
 fixed-audience summary revision and withdrawal have an actual three-owner
 browser/API/PostgreSQL proof; see `OWNER_INTENTION_PUBLICATION.md`. Withdrawal
-retains history and is not a private conversion. Complementary discovery,
-unknown-hard clarification and owner profile/room/plan/application controls still
-require their actual journeys and reviewed integration. HP2 remains open.
+retains history and is not a private conversion. Owner-reviewed builder profile
+registration and saved acknowledgement are reviewed and merged in PR106, with
+actual worker recruitment proof; see `OWNER_BUILDER_REGISTRATION.md`. This does
+not supply a public directory or existing-profile editor. Complementary
+discovery, visible unknown-hard clarification, the group viewer and owner
+room/plan/application controls still require their actual journeys and reviewed
+integration. HP2 remains open.
 
 Public qualification: externally operated participants and independent REST/MCP/A2A
 clients with actual outcomes, clearly labeled release-test evidence.
@@ -301,20 +310,22 @@ remaining gate. Do not start multiple unrelated happy paths in parallel.
 ## Immediate checkpoint
 
 Mapping is complete for all six paths. HP1 is locally closed; **HP2 is active**.
-The capacity prerequisite and explicit owner-publication feature are reviewed and
-merged. Current work is semantic integration against the release and reviewed
-builder registration; neither is claimed complete. The full HP2 journey remains
-unproven. Finish its remaining discovery, room, recruitment, application, plan
-and assignment steps before starting HP3.
+Capacity, owner publication, builder registration and semantic integration are
+reviewed and merged through PR107 (`3bb46eb`). Current implementation work is
+owner plan proposal/revision; room-origin/recruitment-role controls have a locked
+contract and audit, with implementation not yet started. The full HP2 journey
+remains unproven. Finish its remaining discovery, room, recruitment, application,
+plan and assignment steps before starting HP3.
 
 On 26 October, fetched `main...develop` divergence remains `0 1`. Release PR62
 remains open; no release promotion or deployment is implied by feature merges.
 
 | Current responsibility | Branch / worktree | Required evidence |
 | --- | --- | --- |
-| Semantic integration (`semantic_oct26`) | `feat/v0.1-semantic-integration`; `/tmp/undergrid-worktrees/semantic-integration/feat-v0.1-semantic-integration` | `SEMANTIC_INTEGRATION.md`: actual behavioral RED, current consent/profile/dismissal, slow-provider isolation and retained HP1/capacity proof. |
-| Builder registration (`builder_oct26`) | `feat/v0.1-owner-builder-registration`; `/tmp/undergrid-worktrees/builder-registration/feat-v0.1-owner-builder-registration` | Task contract `04f91de` in `HP2_EXECUTION.md`; owner profile acknowledgment, explicit reviewed opt-ins, normal recruitment and authority/recovery proof. |
-| Integration (`root`) | `release/v0.1`; documentation corrections on `docs/v0.1-happy-path-checkpoint` in its isolated worktree | Review task diffs and evidence before feature PR merges; serialize costly gates and preserve full-path acceptance. |
+| Owner plan proposal/revision (`builder_oct26`) | `feat/v0.1-owner-plan-proposal`; `/tmp/undergrid-worktrees/owner-plan-proposal/feat-v0.1-owner-plan-proposal` | Current branch `fa8b37b` reconciles PR107. Prove reviewed bounded drafts, current participant authority, exact receipt recovery, accepted initial plan then separately approved/assigned revision. `HP2_EXECUTION.md` owns the contract; full browser lifecycle and final review remain pending. |
+| Room origin/recruitment audit (`root`, with read-only review) | Planned `feat/v0.1-owner-room-origin-recruitment`; no implementation worktree assigned | Locked contract in `HP2_EXECUTION.md`; current-visible origin authority, role/history review and actual attributable recruitment still require behavioral RED and implementation. An audit is not runtime proof. |
+| Completed prerequisites | Semantic `feat/v0.1-semantic-integration` and builder `feat/v0.1-owner-builder-registration`; preserved isolated worktrees | PR107 and PR106 are reviewed and merged. `SEMANTIC_INTEGRATION.md` and `OWNER_BUILDER_REGISTRATION.md` retain exact sources, failures and proof boundaries. |
+| Integration (`root`) | `release/v0.1`; this checkpoint on `docs/v0.1-hp2-semantic-merge-checkpoint` in its isolated worktree | Review task diffs and evidence before feature PR merges; serialize costly gates and preserve full-path acceptance. |
 
 These are resumed responsibilities after the prior worker tree ended. Existing
 worktrees, failed gates and retained databases remain evidence. Real provider,
