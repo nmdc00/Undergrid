@@ -260,7 +260,16 @@ func (s *Service) listOpportunities(r *http.Request, tx pgx.Tx, a actor) (int, a
 	rows, err := tx.Query(r.Context(), `SELECT o.id,o.source_intent_id,o.candidate_intent_id,o.evidence,o.input_hash,sr.content_hash,p.content_hash,COALESCE(sr.embedding_projection_hash,''),COALESCE(cm.projection_hash,''),COALESCE(sr.embedding_profile_hash,''),COALESCE(cm.profile_hash,'') FROM opportunities o JOIN public_intents() p ON p.id=o.candidate_intent_id JOIN intents i ON i.id=o.source_intent_id JOIN intent_revisions sr ON sr.intent_id=i.id AND sr.revision=i.current_revision LEFT JOIN public_semantic_metadata() cm ON cm.id=p.id WHERE o.recipient_agent_id=$1 AND o.state='suggested' AND i.state='active' AND i.expires_at>now() AND o.input_hash=encode(sha256(convert_to(array_to_json(ARRAY[o.source_intent_id::text,sr.content_hash,o.candidate_intent_id::text,p.content_hash,o.evidence->>'algorithm'] || CASE WHEN o.evidence->>'algorithm'='hard-constraints-hybrid-cosine-v1' THEN ARRAY[o.evidence->>'semantic_profile_hash'] ELSE ARRAY[]::text[] END)::text,'UTF8')),'hex')
  AND (o.evidence->>'algorithm'<>'hard-constraints-hybrid-cosine-v1' OR (
  o.evidence->>'source_projection_hash'=sr.embedding_projection_hash AND o.evidence->>'candidate_projection_hash'=cm.projection_hash
- AND o.evidence->>'semantic_profile_hash'=sr.embedding_profile_hash AND o.evidence->>'semantic_profile_hash'=cm.profile_hash AND o.evidence->>'semantic_profile_hash'=$4))
+ AND o.evidence->>'semantic_profile_hash'=sr.embedding_profile_hash AND o.evidence->>'semantic_profile_hash'=cm.profile_hash AND o.evidence->>'semantic_profile_hash'=$4
+ AND (i.visibility='redacted_public' OR (
+  i.visibility IN ('private','restricted')
+  AND sr.document#>>'{semantic_processing_grant,revision}'=i.current_revision::text
+  AND sr.document#>>'{semantic_processing_grant,profile_hash}'=$4
+  AND sr.document#>>'{private_semantic_query,profile_hash}'=$4
+  AND sr.document#>>'{private_semantic_query,acknowledge_external_processing}'='true'
+  AND sr.document#>>'{semantic_processing_grant,projection_hash}'=sr.embedding_projection_hash
+  AND sr.embedding_projection_hash=encode(sha256(convert_to(sr.document#>>'{private_semantic_query,projection}','UTF8')),'hex')
+ ))))
  AND ((o.evidence#>>'{combined_constraints,delivery,deliver_by}') IS NULL OR (o.evidence#>>'{combined_constraints,delivery,deliver_by}')::timestamptz>clock_timestamp())
  AND ($2='' OR CASE WHEN $3 THEN o.id::text=$2 ELSE o.source_intent_id::text=$2 END) ORDER BY o.created_at,o.id LIMIT 100`, a.AgentID, id, single, profile)
 	if err != nil {
