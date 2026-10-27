@@ -1,11 +1,13 @@
 # Owner plan proposal and immutable revision
 
-This HP2 step 4 feature is on `feat/v0.1-owner-plan-proposal`, currently
-`9040113`, with reviewed release `862063d` and its policy-draft prerequisite
-integrated. It is not merged. The owner plan lifecycle browser journey now
-passes; retained/static/contract checks pass and final review/merge remain. The task contract and original
-acceptance requirements are in `HP2_EXECUTION.md`, “Locked task: owner plan
-proposal and revision”.
+This HP2 step 4 feature is reviewed and merged in [PR110](https://github.com/nmdc00/Undergrid/pull/110)
+at release `2099a763efb4323562a1b1a2f39544fe191f43a9`. Final feature head
+`bebf1bc` contains only documentation changes after tested runtime/frontend
+`9040113`. That runtime already integrates the reviewed policy-draft prerequisite
+PR109/release `862063d`. The owner plan lifecycle browser, retained domain/static/contract gates
+and focused post-merge checks pass. This closes the bounded owner-plan feature,
+not the complete HP2 journey. The original task contract is in `HP2_EXECUTION.md`,
+“Locked task: owner plan proposal and revision”.
 
 ## Implemented behavior
 
@@ -137,7 +139,7 @@ rejection passed, while the expiry fixture incorrectly attempted a worker sweep
 through the intentionally app-only service. The correction changes only the test's
 worker identity, not production grants or API privileges.
 
-## Final retained gates and remaining review
+## Final retained gates and review
 
 On clean `4390c8d` (only four documentation files differ from tested runtime
 `9040113`), the combined retained race gate passed 21 top-level tests and
@@ -171,7 +173,7 @@ No financial database or production identity is involved. A SHA-256/size index
 of 12 retained success/failure logs is
 `/tmp/undergrid-owner-plan-validation-oct27.json`.
 
-Final independent review and the feature PR merge to `release/v0.1` remain.
+Final independent review approved `bebf1bc`; PR110 is merged to `release/v0.1`.
 Documentation-only updates after `4390c8d` do not change the tested runtime.
 No deployment or protected-branch promotion is implied by this feature proof.
 
@@ -179,3 +181,22 @@ The feature does not complete room-origin/recruitment controls, missing group
 viewer/discovery/editor steps or the continuous HP2 journey. Test-only enabled
 terms do not qualify legal terms, a real provider, independent participants or
 production deployment. Those explicit gates remain open.
+
+## Post-merge release checks — 27 October 2026
+
+Root validated exact release `2099a763efb4323562a1b1a2f39544fe191f43a9`:
+
+- Proposal/policy UI: 15 tests in two files passed in 10.57 seconds,
+  `/tmp/undergrid-plan-release-2099a76-ui-oct27.log`.
+- Coupled TypeScript/Vite/build manifest passed; Vite 1.53 seconds,
+  `/tmp/undergrid-plan-release-2099a76-build-oct27.log`. Source hash `cee2140e986e18731b5afb3d98a605e6c4aae4b3de0e2f92a233f8aa2f71f01c`
+  and JavaScript hash `c631b0016566cf03bb85eef8a967f5f020812cf7e30c8528fa2f16649110fe1b`
+  match the previously proven browser runtime.
+- Restricted PostgreSQL actual owner proposal/context contract and rejected/expired
+  revision lifecycle: two top-level tests and two subcases passed in 4.064 seconds,
+  `/tmp/undergrid-plan-release-2099a76-domain-oct27.jsonl`.
+  Genuine database `plan_release_2099a76_oct27` applied migration 044 normally.
+
+These integration checks do not substitute for or relabel the complete passing
+feature browser. Its retained artifacts and failures remain above. No protected
+branch promotion, deployment or external qualification is implied by this merge.

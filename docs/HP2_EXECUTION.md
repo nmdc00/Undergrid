@@ -621,3 +621,24 @@ for sources, logs, genuine retained databases, failure history and remaining
 merge gates. This is feature-level local proof, not the complete HP2 journey.
 The first browser resource failure and subsequent policy-refresh race failure
 remain preserved separately; no browser bounds or authority checks were relaxed.
+
+### Owner-plan merge checkpoint — 27 October 2026
+
+PR110 is reviewed and merged at release `2099a76`, final feature head `bebf1bc`.
+The actual two-plan owner browser was proven on runtime `9040113`; subsequent
+feature commits changed documentation only. Retained race checks passed 21
+top-level tests and 16 subcases in 57.479 seconds; canonical 160-schema/parity,
+tagged vet and Go build passed. Root post-merge checks passed 15 UI tests in
+10.57 seconds, coupled TypeScript/Vite/manifest (Vite 1.53 seconds) and two
+restricted PostgreSQL top-level contract/lifecycle cases plus two subcases in
+4.064 seconds. Exact logs, genuine databases and provenance are retained in
+`OWNER_PLAN_PROPOSAL.md`. No new tests are needed for this documentation-only
+merge checkpoint.
+
+HP2 remains active: room-origin/recruitment-role controls are on their separate
+implementation branch, pending full acceptance/final review/merge; group UI,
+complementary registered capability discovery, unknown-hard clarification,
+remaining typed requirement editing and application review/admission still need
+their owning outcomes. The full discovery-to-accepted-plan HP2 journey and
+external qualification remain unproven. Do not reopen the completed plan feature
+or count its scoped API room fixture as completed room-origin controls.
