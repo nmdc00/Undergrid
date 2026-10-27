@@ -38,6 +38,39 @@ function constraintLabels(raw: unknown, limit: number, minimum = 0): string[] {
     invalid();
   return values;
 }
+// Check the published RFC3339 shape without normalizing evidence or losing its
+// offset/fraction. JavaScript Date accepts rollovers and rejects leap seconds.
+function deliveryTimestamp(raw: unknown): string {
+  const value = text(raw);
+  const match =
+    /^(\d{4})-(\d\d)-(\d\d)[Tt](\d\d):(\d\d):(\d\d)(?:\.\d+)?([Zz]|([+-])(\d\d):(\d\d))$/.exec(
+      value,
+    );
+  if (!match) invalid();
+  const [year, month, day, hour, minute, second] = match
+    .slice(1, 7)
+    .map(Number);
+  const zoneHour = match[9] === undefined ? 0 : Number(match[9]);
+  const zoneMinute = match[10] === undefined ? 0 : Number(match[10]);
+  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  if (
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > days[month - 1] ||
+    hour > 23 ||
+    minute > 59 ||
+    second > 60 ||
+    zoneHour > 23 ||
+    zoneMinute > 59
+  )
+    invalid();
+  const offset = (match[8] === "-" ? -1 : 1) * (zoneHour * 60 + zoneMinute);
+  const utcMinute = (((hour * 60 + minute - offset) % 1440) + 1440) % 1440;
+  if (second === 60 && utcMinute !== 1439) invalid();
+  return value;
+}
 function constraints(raw: unknown): ObjectValue {
   const value = closed(raw, [
     "required_fields",
@@ -73,22 +106,7 @@ function constraints(raw: unknown): ObjectValue {
     const parsed: ObjectValue = {};
     for (const key of ["not_before", "deliver_by"]) {
       if (d[key] === undefined) continue;
-      const date = text(d[key]);
-      if (
-        !/^\d{4}-\d\d-\d\d[Tt]\d\d:\d\d:\d\d(?:\.\d+)?(?:[Zz]|[+-]\d\d:\d\d)$/.test(
-          date,
-        ) ||
-        !Number.isFinite(Date.parse(date))
-      )
-        invalid();
-      // Date.parse normalizes some impossible calendar days (e.g. February 30).
-      // Validate the written calendar without changing its precision or offset.
-      const [year, month, day] = date.slice(0, 10).split("-").map(Number);
-      const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
-      const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-      if (month < 1 || month > 12 || day < 1 || day > days[month - 1])
-        invalid();
-      parsed[key] = date;
+      parsed[key] = deliveryTimestamp(d[key]);
     }
     if (!Object.keys(parsed).length) invalid();
     result.delivery = parsed;

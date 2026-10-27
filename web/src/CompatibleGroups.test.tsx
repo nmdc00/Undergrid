@@ -27,7 +27,7 @@ function page() {
             hard_constraints: {
               required_fields: ["citation_id"],
               license_ids: ["CC0-1.0"],
-              coverage: { required: ["EU"], excluded: [] },
+              coverage: { required: ["EU"], excluded: [] as string[] },
               freshness: { max_age_seconds: 3600 },
               delivery: { deliver_by: "2030-01-01T00:00:00Z" },
               input_schema_families: ["source_catalog_v1"],
@@ -267,6 +267,8 @@ test.each([
 ])("canonical group constraint %s is rejected", async (fault) => {
   const value = page();
   const constraints = value.items[0].members[1].hard_constraints;
+  if (!constraints.coverage || !constraints.delivery)
+    throw new Error("Detailed fixture constraints required");
   if (fault === "duplicate limitation")
     value.limitations = [
       "bounded_nonexhaustive_views",
@@ -313,9 +315,9 @@ test("canonical null constraints and Unicode codepoint boundaries remain display
     delivery: null,
     input_schema_families: null,
   });
-  value.items[0].members[1].hard_constraints.coverage.required = [
-    "🌍".repeat(128),
-  ];
+  const coverage = value.items[0].members[1].hard_constraints.coverage;
+  if (!coverage) throw new Error("Fixture coverage required");
+  coverage.required = ["🌍".repeat(128)];
   value.items[0].members[1].hard_constraints.input_schema_families = [
     "🌍".repeat(128),
   ];
@@ -331,30 +333,30 @@ test("canonical null constraints and Unicode codepoint boundaries remain display
   expect(screen.queryByRole("alert")).toBeNull();
 });
 
-test("impossible delivery calendar dates are rejected rather than normalized", async () => {
-  const value = page();
-  value.items[0].members[1].hard_constraints.delivery.deliver_by =
-    "2030-02-30T00:00:00Z";
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async () => response(value)),
-  );
-  mount();
-  await userEvent.click(
-    screen.getByRole("button", { name: "View compatible groups" }),
-  );
-  await screen.findByRole("alert");
-  expect(screen.queryByText(candidate)).toBeNull();
-});
-
-test.each([
-  "2032-02-29T00:00:00.123456789+05:45",
-  "2032-02-29t00:00:00.123456789z",
-])(
-  "valid delivery precision and offset %s remain unchanged",
-  async (timestamp) => {
+const deliveryCases: [string, string, boolean][] = [
+  ["impossible February day", "2030-02-30T00:00:00Z", false],
+  ["nonleap century", "2100-02-29T00:00:00Z", false],
+  ["clock rollover", "2030-01-01T24:00:00Z", false],
+  ["minute overflow", "2030-01-01T00:60:00Z", false],
+  ["second overflow", "2030-01-01T23:59:61Z", false],
+  ["leap second outside UTC day end", "2016-12-31T12:59:60Z", false],
+  ["zone hour overflow", "2030-01-01T00:00:00+24:00", false],
+  ["zone minute overflow", "2030-01-01T00:00:00+01:60", false],
+  ["missing zone", "2030-01-01T00:00:00", false],
+  ["leap century", "2000-02-29T00:00:00Z", true],
+  ["nanosecond offset", "2032-02-29T00:00:00.123456789+05:45", true],
+  ["lowercase timestamp", "2032-02-29t00:00:00.123456789z", true],
+  ["unknown local offset", "2030-01-01T00:00:00-00:00", true],
+  ["UTC leap second", "2016-12-31T23:59:60Z", true],
+  ["offset leap second", "2017-01-01T00:59:60+01:00", true],
+];
+test.each(deliveryCases)(
+  "delivery timestamp %s follows its published format",
+  async (_name, timestamp, valid) => {
     const value = page();
-    value.items[0].members[1].hard_constraints.delivery.deliver_by = timestamp;
+    const delivery = value.items[0].members[1].hard_constraints.delivery;
+    if (!delivery) throw new Error("Fixture delivery required");
+    delivery.deliver_by = timestamp;
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => response(value)),
@@ -363,8 +365,13 @@ test.each([
     await userEvent.click(
       screen.getByRole("button", { name: "View compatible groups" }),
     );
-    await screen.findByText(candidate);
-    expect(screen.getByText((text) => text.includes(timestamp))).toBeTruthy();
-    expect(screen.queryByRole("alert")).toBeNull();
+    if (valid) {
+      await screen.findByText(candidate);
+      expect(screen.getByText((text) => text.includes(timestamp))).toBeTruthy();
+      expect(screen.queryByRole("alert")).toBeNull();
+    } else {
+      await screen.findByRole("alert");
+      expect(screen.queryByText(candidate)).toBeNull();
+    }
   },
 );
