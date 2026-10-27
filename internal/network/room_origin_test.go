@@ -106,7 +106,7 @@ func TestRoomOriginRejectsRetainedIneligibleSharedEvidenceBeforeCreation(t *test
 		if ownerLane {
 			lane = "owner"
 		}
-		for _, change := range []string{"dismissed", "source-withdrawn", "candidate-withdrawn", "source-revised", "candidate-revised", "candidate-agent-revoked"} {
+		for _, change := range []string{"dismissed", "source-withdrawn", "candidate-withdrawn", "source-revised", "candidate-revised", "candidate-agent-revoked", "candidate-principal-revoked", "source-expired", "candidate-expired", "source-paused"} {
 			t.Run(lane+"/"+change, func(t *testing.T) {
 				x := roomOriginFixture(t)
 				switch change {
@@ -137,6 +137,23 @@ func TestRoomOriginRejectsRetainedIneligibleSharedEvidenceBeforeCreation(t *test
 					input.Visibility = "redacted_public"
 					input.PublicSummary = "Different current candidate " + NewID()
 					code, out := x.peer.versioned("PATCH", "/v1/intents/"+x.candidate["id"].(string), NewID(), x.candidate["etag"].(string), map[string]any{"revision": input})
+					if code != 200 {
+						t.Fatal(code, out)
+					}
+				case "candidate-principal-revoked":
+					if _, err := x.db.Exec(context.Background(), "UPDATE undergrid.principals SET status='suspended' WHERE id=(SELECT principal_id FROM undergrid.agents WHERE id=$1)", x.candidateAgent); err != nil {
+						t.Fatal(err)
+					}
+				case "source-expired":
+					if _, err := x.db.Exec(context.Background(), "UPDATE undergrid.intents SET expires_at=clock_timestamp()-interval '1 second' WHERE id=$1", x.source["id"]); err != nil {
+						t.Fatal(err)
+					}
+				case "candidate-expired":
+					if _, err := x.db.Exec(context.Background(), "UPDATE undergrid.intents SET expires_at=clock_timestamp()-interval '1 second' WHERE id=$1", x.candidate["id"]); err != nil {
+						t.Fatal(err)
+					}
+				case "source-paused":
+					code, out := x.owner.versioned("PATCH", "/v1/intents/"+x.source["id"].(string), NewID(), x.source["etag"].(string), map[string]any{"state": "paused"})
 					if code != 200 {
 						t.Fatal(code, out)
 					}
