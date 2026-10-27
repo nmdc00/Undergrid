@@ -102,6 +102,22 @@ if (process.argv.includes('--semantic-discovery')) {
  console.log(`Validated ${cases.length} actual semantic HTTP cases and independent projection/pinning denials`);
  process.exit(0);
 }
+if (process.argv.includes('--owner-plan-proposal')) {
+ const created=cases.find(c=>c.method==='POST'&&c.path.endsWith('/plans')&&c.status===201);
+ const roster=cases.find(c=>c.method==='GET'&&c.path.endsWith('/plan-context')&&c.status===200&&c.response.items?.length);
+ if (!created||!roster) throw Error('Missing actual owner plan/context lifecycle');
+ const request=validateSchema(document.paths['/v1/owner/agents/{agent_id}/swarms/{id}/plans'].post.requestBody.content['application/json'].schema);
+ if (request({...created.request,principal_id:baseline.id})||request({...created.request,parent_version:'1'})) throw Error('Owner proposal authority/type bypass');
+ const context=validateSchema({$ref:'#/components/schemas/OwnerPlanProposalContext'});
+ for (const field of ['profile','credentials']) {
+  const invalid=structuredClone(roster.response);invalid.items[0][field]={private:'forbidden'};
+  if (context(invalid)) throw Error('Owner proposal roster privacy bypass: '+field);
+ }
+ const plan=validateSchema({$ref:'#/components/schemas/Plan'});
+ if (plan({...created.response,version:'1'})) throw Error('Owner proposal version type bypass');
+ console.log(`Validated ${cases.length} actual owner plan/context cases and independent authority/privacy/type denials`);
+ process.exit(0);
+}
 if (process.argv.includes('--owner-swarm-creation')) {
  const created=cases.find(c=>c.method==='POST'&&c.path.endsWith('/swarms')&&c.status===201);
  if (!created) throw Error('Missing actual owner swarm creation lifecycle');

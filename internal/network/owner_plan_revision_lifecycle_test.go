@@ -2,8 +2,11 @@ package network
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // The proposed replacement must never inherit an accepted plan's authority or
@@ -76,10 +79,15 @@ func TestOwnerPlanUnacceptedRevisionPreservesAcceptedCommitments(t *testing.T) {
 					}
 				}
 			} else {
+				role := "plan_expiry_worker_" + strings.ReplaceAll(NewID(), "-", "")
+				if _, err := db.Exec(ctx, "CREATE ROLE "+pgx.Identifier{role}.Sanitize()+" LOGIN NOSUPERUSER NOBYPASSRLS; GRANT undergrid_worker TO "+pgx.Identifier{role}.Sanitize()); err != nil {
+					t.Fatal(err)
+				}
+				worker := New(networkFixtureRoleDSN(t, db, role), "development", nil)
 				// Exercise the production sweep clock argument without rewriting deadlines,
 				// plan specifications or product state. Old progress deadlines are 24h away.
 				for range 2 {
-					if err := s.SweepCoordinationDeadlines(ctx, spec.RespondBy.Add(time.Second)); err != nil {
+					if err := worker.SweepCoordinationDeadlines(ctx, spec.RespondBy.Add(time.Second)); err != nil {
 						t.Fatal(err)
 					}
 				}
