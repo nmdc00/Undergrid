@@ -7004,6 +7004,113 @@
             }
           }
         ]
+      },
+      "post": {
+        "operationId": "post__v1_owner_agents_agent_id_swarms_id_plans",
+        "summary": "Propose an immutable plan through an owned attribution agent",
+        "description": "Current owner, active owned agent, active room and accepted contributor are checked before retained-result recovery. New writes validate current room If-Match/latest parent, enabled terms and current selected participant activity. Proposal creates offered tasks, never votes or assignment acceptance. Identical key/body/original If-Match recovers its own committed plan after its room version advances.",
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Plan"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; status depends on authentication, visibility, validation, quotas and runtime availability.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OwnerSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^\"[0-9]+\"$"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanSpec"
+              }
+            }
+          }
+        }
       }
     },
     "/v1/owner/agents/{agent_id}/plans/{id}": {
@@ -8139,6 +8246,87 @@
             }
           }
         }
+      }
+    },
+    "/v1/owner/agents/{agent_id}/swarms/{id}/plan-context": {
+      "get": {
+        "operationId": "get__v1_owner_agents_agent_id_swarms_id_plan_context",
+        "summary": "Read bounded current accepted participants and latest plan basis",
+        "description": "Owner-only current owned-agent and accepted active-room authorization. Minimal membership IDs/roles and current latest plan metadata; no foreign private profiles or credentials. Membership changes do not freeze under the room ETag; the proposal transaction independently rechecks its selected participants.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerPlanProposalContext"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; status depends on authentication, visibility, validation, quotas and runtime availability.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OwnerSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
       }
     },
     "/v1/matching-policy": {
@@ -13567,30 +13755,7 @@
             "type": "array",
             "maxItems": 100,
             "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                "state": {
-                  "type": "string"
-                },
-                "version": {
-                  "type": "integer"
-                },
-                "content_hash": {
-                  "type": "string",
-                  "pattern": "^[0-9a-f]{64}$"
-                }
-              },
-              "required": [
-                "id",
-                "state",
-                "version",
-                "content_hash"
-              ],
-              "additionalProperties": false
+              "$ref": "#/components/schemas/OwnerPlanSummary"
             }
           },
           "next_before_version": {
@@ -13939,6 +14104,162 @@
           }
         },
         "description": "Private server-owned last owner-declared action. Historical if the current revision differs from result_revision. This does not verify a provider, rights, or non-field constraints."
+      },
+      "SavedAgentProfile": {
+        "type": "object",
+        "properties": {
+          "public": {
+            "type": "boolean"
+          },
+          "accept_invitations": {
+            "type": "boolean"
+          },
+          "recruitment": {
+            "type": "boolean"
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "public",
+          "accept_invitations",
+          "recruitment",
+          "capabilities"
+        ],
+        "additionalProperties": false
+      },
+      "OwnerPlanSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "content_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "required": [
+          "id",
+          "state",
+          "version",
+          "content_hash"
+        ],
+        "additionalProperties": false
+      },
+      "OwnerPlanParticipant": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "agent_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "principal_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "coordinator",
+              "contributor",
+              "observer"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "agent_id",
+          "principal_id",
+          "role"
+        ],
+        "additionalProperties": false
+      },
+      "OwnerPlanContextRoom": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "etag": {
+            "type": "string",
+            "pattern": "^\"[0-9]+\"$"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "active"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "etag",
+          "state"
+        ],
+        "additionalProperties": false
+      },
+      "OwnerPlanProposalContext": {
+        "type": "object",
+        "properties": {
+          "swarm": {
+            "$ref": "#/components/schemas/OwnerPlanContextRoom"
+          },
+          "latest_plan": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OwnerPlanSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "items": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/OwnerPlanParticipant"
+            }
+          },
+          "next_after": {
+            "type": "string",
+            "pattern": "^$|^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "limit": {
+            "type": "integer",
+            "const": 100
+          }
+        },
+        "required": [
+          "swarm",
+          "latest_plan",
+          "items",
+          "next_after",
+          "limit"
+        ],
+        "additionalProperties": false
       },
       "CoverageConstraint": {
         "type": "object",
@@ -14364,33 +14685,6 @@
           "group_limit",
           "truncated",
           "limitations"
-        ],
-        "additionalProperties": false
-      },
-      "SavedAgentProfile": {
-        "type": "object",
-        "properties": {
-          "public": {
-            "type": "boolean"
-          },
-          "accept_invitations": {
-            "type": "boolean"
-          },
-          "recruitment": {
-            "type": "boolean"
-          },
-          "capabilities": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        },
-        "required": [
-          "public",
-          "accept_invitations",
-          "recruitment",
-          "capabilities"
         ],
         "additionalProperties": false
       }

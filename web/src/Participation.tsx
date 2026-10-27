@@ -1,3 +1,4 @@
+import { OwnerPlanProposal } from "./OwnerPlanProposal";
 import { OwnerRoomMessage } from "./OwnerRoomMessage";
 import { OwnerPlanApproval } from "./OwnerPlanApproval";
 import { InviteMember } from "./InviteMember";
@@ -321,6 +322,13 @@ export function Participation({
       {history && (
         <article>
           <h3>{history.objective}</h3>
+          <OwnerPlanProposal
+            key={`proposal:${csrf}:${agent}:${history.id}`}
+            agent={agent}
+            swarm={history.id}
+            csrf={csrf}
+            onUnauthorized={onUnauthorized}
+          />
           <OwnerPlanApproval
             agent={agent}
             swarm={history.id}

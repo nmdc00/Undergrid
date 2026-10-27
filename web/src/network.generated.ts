@@ -1643,7 +1643,11 @@ export interface paths {
          */
         get: operations["owner_plan_get_list"];
         put?: never;
-        post?: never;
+        /**
+         * Propose an immutable plan through an owned attribution agent
+         * @description Current owner, active owned agent, active room and accepted contributor are checked before retained-result recovery. New writes validate current room If-Match/latest parent, enabled terms and current selected participant activity. Proposal creates offered tasks, never votes or assignment acceptance. Identical key/body/original If-Match recovers its own committed plan after its room version advances.
+         */
+        post: operations["post__v1_owner_agents_agent_id_swarms_id_plans"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1884,6 +1888,26 @@ export interface paths {
          * @description Current intention actor and permitted capability source are reauthorized before receipt recovery. Exact request/If-Match/report pins bind the original immutable revision. Server computes a nonempty remaining field set and preserves all other constraints; no provider verification or rights consent is inferred.
          */
         post: operations["post__v1_owner_intents_id_partial_satisfaction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/agents/{agent_id}/swarms/{id}/plan-context": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read bounded current accepted participants and latest plan basis
+         * @description Owner-only current owned-agent and accepted active-room authorization. Minimal membership IDs/roles and current latest plan metadata; no foreign private profiles or credentials. Membership changes do not freeze under the room ETag; the proposal transaction independently rechecks its selected participants.
+         */
+        get: operations["get__v1_owner_agents_agent_id_swarms_id_plan_context"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3236,13 +3260,7 @@ export interface components {
             terms_url: string;
         };
         OwnerPlanPage: {
-            items: {
-                /** Format: uuid */
-                id: string;
-                state: string;
-                version: number;
-                content_hash: string;
-            }[];
+            items: components["schemas"]["OwnerPlanSummary"][];
             next_before_version: string;
         };
         OwnerPlanApproval: {
@@ -3315,6 +3333,45 @@ export interface components {
             projection_hash: string;
             report_hash: string;
             command_digest: string;
+        };
+        SavedAgentProfile: {
+            public: boolean;
+            accept_invitations: boolean;
+            recruitment: boolean;
+            capabilities: string[];
+        };
+        OwnerPlanSummary: {
+            /** Format: uuid */
+            id: string;
+            state: string;
+            version: number;
+            content_hash: string;
+        };
+        OwnerPlanParticipant: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            agent_id: string;
+            /** Format: uuid */
+            principal_id: string;
+            /** @enum {string} */
+            role: "coordinator" | "contributor" | "observer";
+        };
+        OwnerPlanContextRoom: {
+            /** Format: uuid */
+            id: string;
+            version: number;
+            etag: string;
+            /** @enum {string} */
+            state: "active";
+        };
+        OwnerPlanProposalContext: {
+            swarm: components["schemas"]["OwnerPlanContextRoom"];
+            latest_plan: components["schemas"]["OwnerPlanSummary"] | null;
+            items: components["schemas"]["OwnerPlanParticipant"][];
+            next_after: string;
+            /** @constant */
+            limit: 100;
         };
         /** @description Exact declared scope identifiers; no geographic containment or factual coverage is inferred. */
         CoverageConstraint: {
@@ -3395,12 +3452,6 @@ export interface components {
             group_limit: 10;
             truncated: boolean;
             limitations: ("bounded_nonexhaustive_views" | "principal_ids_do_not_prove_independent_owners")[];
-        };
-        SavedAgentProfile: {
-            public: boolean;
-            accept_invitations: boolean;
-            recruitment: boolean;
-            capabilities: string[];
         };
     };
     responses: never;
@@ -6887,6 +6938,50 @@ export interface operations {
             };
         };
     };
+    post__v1_owner_agents_agent_id_swarms_id_plans: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+                "If-Match": string;
+                "X-CSRF-Token": string;
+            };
+            path: {
+                id: string;
+                agent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanSpec"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            201: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Plan"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     owner_plan_get_review: {
         parameters: {
             query?: never;
@@ -7375,6 +7470,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PrivateIntent"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get__v1_owner_agents_agent_id_swarms_id_plan_context: {
+        parameters: {
+            query?: {
+                after?: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+                agent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OwnerPlanProposalContext"];
                 };
             };
             /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
