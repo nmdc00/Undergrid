@@ -47,6 +47,7 @@ the actual owner-plan browser remains a separate integration gate.
 
 One disabled fieldset owns the form's existing shared pending-state rule; policy
 knowledge stays in the existing save/domain command. No new abstraction or
-network/financial dependency is introduced. Implemented and locally checked; root reviewed the bounded code/test scope.
-Final documentation review and a feature PR to `release/v0.1` remain pending. The original
-owner-plan browser failures remain preserved separately.
+network/financial dependency is introduced. Implemented and locally checked; root
+reviewed the bounded code/test scope. [PR109](https://github.com/nmdc00/Undergrid/pull/109)
+targets `release/v0.1`; final documentation review and merge remain pending. The
+original owner-plan browser failures remain preserved separately.

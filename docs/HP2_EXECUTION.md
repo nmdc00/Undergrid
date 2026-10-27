@@ -402,10 +402,9 @@ format selector is implied; the current domain supports source-catalog JSON.
 
 ## HP2 prerequisite: freeze coordination-policy inputs during workspace refresh
 
-The real owner-plan browser exposed a race while completing initial agent setup:
-the console allowed policy edits while its intention-creation workspace action
-was still busy, then
-the refreshed policy record replaced that draft. The Save button alone was
+The real owner-plan browser exposed a race after its initial intention POST:
+the console allowed policy edits while the resulting workspace refresh was still
+busy, then the refreshed policy record replaced that draft. The Save button alone was
 disabled. This prerequisite belongs to HP2 steps 1/4 and the existing versioned
 owner coordination-policy contract; it grants no plan, rights or spending consent.
 
