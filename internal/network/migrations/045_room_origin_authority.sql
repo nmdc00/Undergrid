@@ -11,6 +11,14 @@ BEGIN
  SELECT * INTO o FROM undergrid.opportunities WHERE id=target
   AND recipient_agent_id=undergrid.actor_agent() AND state='suggested' FOR SHARE NOWAIT;
  IF NOT FOUND THEN RETURN false; END IF;
+ -- Pin coordinator identity before deriving its principal/agent lock set.
+ -- Coordinator succession owns this same room row and must not cut over
+ -- between our identity lookup and the current-authority check.
+ IF o.kind='builder_recruitment' THEN
+  PERFORM 1 FROM undergrid.swarms s WHERE s.id=o.source_swarm_id
+   AND s.state='active' AND s.visibility<>'private' FOR SHARE NOWAIT;
+  IF NOT FOUND THEN RETURN false; END IF;
+ END IF;
  linked_intents:=array_remove(ARRAY[o.source_intent_id,o.candidate_intent_id],NULL);
  SELECT array_agg(DISTINCT id ORDER BY id) INTO linked_agents FROM (
   SELECT o.recipient_agent_id AS id
@@ -72,9 +80,7 @@ BEGIN
    AND c.content_hash=o.external_observation_hash AND c.source_fingerprint=o.external_source_fingerprint
    AND c.source_version=o.evidence->>'source_version');
  ELSIF o.kind='builder_recruitment' THEN
-  PERFORM 1 FROM undergrid.swarms s WHERE s.id=o.source_swarm_id AND s.state='active'
-   AND s.visibility<>'private' FOR SHARE NOWAIT;
-  RETURN FOUND;
+  RETURN true;
  END IF;
  RETURN false;
 END;

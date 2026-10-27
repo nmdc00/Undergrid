@@ -66,6 +66,21 @@ func (s *Service) swarmCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, e
 			}
 		}
 	}
+	if r.URL.Path == "/v1/swarms" {
+		request, err := readIdempotencyRequest(r, true)
+		if err != nil {
+			return 0, nil, err
+		}
+		restoreIdempotencyBody(r, request)
+		var input SwarmInput
+		if err = decode(r, &input); err != nil {
+			return 0, nil, err
+		}
+		restoreIdempotencyBody(r, request)
+		if err = s.requireCurrentRoomOrigin(r, tx, a, input.OriginOpportunityID); err != nil {
+			return 0, nil, err
+		}
+	}
 	return idempotent(r, tx, a, func() (int, any, error) {
 		if r.URL.Path == "/v1/swarms" {
 			return s.createSwarm(r, tx, a)
@@ -109,18 +124,6 @@ func (s *Service) createSwarm(r *http.Request, tx pgx.Tx, a actor) (int, any, er
 	for _, role := range in.RecruitmentRoles {
 		if role.Key == "" || role.SchemaFamily != "source_catalog_v1" || len(role.Description) > 1000 {
 			return 0, nil, fail(422, "invalid_recruitment_role")
-		}
-	}
-	if in.OriginOpportunityID != "" {
-		var exists bool
-		if !validID(in.OriginOpportunityID) {
-			return 0, nil, fail(422, "invalid_opportunity")
-		}
-		if err := tx.QueryRow(r.Context(), "SELECT EXISTS(SELECT 1 FROM opportunities WHERE id=$1 AND recipient_agent_id=$2)", in.OriginOpportunityID, a.AgentID).Scan(&exists); err != nil {
-			return 0, nil, err
-		}
-		if !exists {
-			return 0, nil, fail(404, "not_found")
 		}
 	}
 	if err := admitPrincipalResource(r.Context(), tx, a.PrincipalID, "active_swarms"); err != nil {
