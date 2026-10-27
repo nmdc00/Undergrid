@@ -7,10 +7,12 @@ or external provider/relevance qualification.
 
 ## Authoritative current checkpoint — 26 October
 
-Feature `feat/v0.1-semantic-integration`, current frozen source `5a36e5a`, remains
-unmerged. Independent code review has found no remaining material issue; final
-evidence reconciliation, approval and merge are still pending. HP2 and full v0.1
-remain open, with external qualifications separate.
+Feature `feat/v0.1-semantic-integration` completed independent final review and
+merged in [PR107](https://github.com/nmdc00/Undergrid/pull/107), release
+`3bb46eb`. Tested runtime source remains `5a36e5a`; final feature head `b106eff`
+changes eight documentation files only. HP2 and full v0.1 remain open, with
+external qualifications separate. No main promotion or deployment follows from
+this feature merge.
 
 Current implementation closes the locked integration defects: dedicated bounded
 embedding workers keep local scans out of provider I/O; explicit create/full
@@ -42,6 +44,21 @@ Go implementation or canonical API delta. The broad Go proof remains scoped to
 that unchanged backend. Current UI/busy behavior has its separate current suite,
 build and browser gates. The detailed dated checkpoints below are retained
 history, not claims that their previously pending fixes remain unimplemented.
+
+### Post-merge checks on exact release `3bb46eb`
+
+Root independently ran the scoped integration checks after PR107 merged:
+
+| Check | Actual terminal result | Retained log |
+| --- | --- | --- |
+| Focused publication/command-snapshot UI | 18 tests / one file PASS, 15.64s | `/tmp/undergrid-semantic-release-3bb46eb-ui-oct26.log` |
+| TypeScript/Vite production build | PASS, Vite 1.50s | `/tmp/undergrid-semantic-release-3bb46eb-build-oct26.log` |
+| Focused restricted-PostgreSQL semantic/partial-consent integration | Three top-level cases PASS, package 5.696s | `/tmp/undergrid-semantic-release-3bb46eb-domain-oct26.jsonl` |
+
+These checks validate the merged seams at that release SHA. They do not expand
+the earlier broad suites' scope, replace the full HP2 journey or qualify an
+external provider. The failed aggregates and separate remediation below remain
+part of the evidence.
 
 ### Actual browser databases and artifacts
 
