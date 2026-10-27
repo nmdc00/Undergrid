@@ -1,6 +1,7 @@
 package network
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"os"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -532,9 +534,22 @@ func TestRoomOriginCurrentForeignAuthorityMustRemainLockedThroughCreationAndRepl
 				t.Fatal(err)
 			}
 			before := x.effects(t)
-			code, out := x.create(t, true, "authority-locked-origin", body)
-			if code != 500 || out["error"].(map[string]any)["retryable"] != true {
-				t.Errorf("foreign authority contention did not preserve retryable rollback: %d %v", code, out)
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			request := httptest.NewRequest("POST", "/v1/owner/agents/"+x.agent+"/swarms", bytes.NewReader(canonical(body))).WithContext(ctx)
+			request.Header.Set("X-Test-Owner", x.owner.owner)
+			request.Header.Set("Idempotency-Key", "authority-locked-origin")
+			response := httptest.NewRecorder()
+			started := time.Now()
+			x.service.ServeHTTP(response, request)
+			var out map[string]any
+			if err = json.Unmarshal(response.Body.Bytes(), &out); err != nil {
+				t.Fatal(err)
+			}
+			code := response.Code
+			failure, _ := out["error"].(map[string]any)
+			if code != 500 || failure["retryable"] != true || time.Since(started) > 2*time.Second {
+				t.Errorf("foreign authority contention did not preserve bounded retryable rollback: %d %v elapsed=%s", code, out, time.Since(started))
 			}
 			if after := x.effects(t); !reflect.DeepEqual(before, after) {
 				t.Fatal("contended origin committed effects", before, after)
