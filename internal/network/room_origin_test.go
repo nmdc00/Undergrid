@@ -516,7 +516,7 @@ func TestRoomOriginCurrentForeignAuthorityMustRemainLockedThroughCreationAndRepl
 			}
 			before := x.effects(t)
 			code, out := x.create(t, true, "authority-locked-origin", body)
-			if code != 500 || out["retryable"] != true {
+			if code != 500 || out["error"].(map[string]any)["retryable"] != true {
 				t.Errorf("foreign authority contention did not preserve retryable rollback: %d %v", code, out)
 			}
 			if after := x.effects(t); !reflect.DeepEqual(before, after) {
