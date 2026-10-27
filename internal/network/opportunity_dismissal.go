@@ -48,31 +48,17 @@ func (s *Service) dismissOpportunity(r *http.Request, tx pgx.Tx, a actor, id str
 		return 0, nil, err
 	}
 	if kind == "shared_demand" {
-		var raw, public []byte
-		var sourceHash, candidateHash string
-		if err = tx.QueryRow(r.Context(), `SELECT r.document,r.content_hash FROM intents i JOIN intent_revisions r ON r.intent_id=i.id AND r.revision=i.current_revision WHERE i.id=$1`, *source).Scan(&raw, &sourceHash); err != nil {
-			return 0, nil, err
-		}
-		if err = tx.QueryRow(r.Context(), "SELECT projection,content_hash FROM public_intents() WHERE id=$1", *candidate).Scan(&public, &candidateHash); err != nil {
-			return 0, nil, err
-		}
-		var left, right IntentInput
-		if err = json.Unmarshal(raw, &left); err != nil {
-			return 0, nil, err
-		}
-		if err = json.Unmarshal(public, &right); err != nil {
-			return 0, nil, err
-		}
 		var stored Compatibility
 		if err = json.Unmarshal(evidenceRaw, &stored); err != nil {
 			return 0, nil, err
 		}
+		var provider *semanticProvider
 		if stored.Algorithm == "hard-constraints-hybrid-cosine-v1" {
-			provider, err := semanticConfiguration(s.environment)
+			provider, err = semanticConfiguration(s.environment)
 			if err != nil {
 				return 0, nil, fail(503, "semantic_policy_unavailable")
 			}
-			if provider == nil || stored.SemanticProfileHash != provider.hash || !compareDemandConstraints(left, right).Compatible || stored.MinimumSimilarity == nil || *stored.MinimumSimilarity != provider.minimumSimilarity(left) {
+			if provider == nil {
 				return 0, nil, fail(404, "not_found")
 			}
 			var current bool
@@ -82,39 +68,17 @@ func (s *Service) dismissOpportunity(r *http.Request, tx pgx.Tx, a actor, id str
 			if !current {
 				return 0, nil, fail(404, "not_found")
 			}
-		} else {
-			evidence := CompareDemand(left, right)
-			if !evidence.Compatible || hash != demandOpportunityHash(*source, sourceHash, *candidate, candidateHash, evidence) {
-				return 0, nil, fail(404, "not_found")
-			}
+		}
+		if err = requireDemandOpportunityEvidence(r, tx, *source, *candidate, hash, stored, provider); err != nil {
+			return 0, nil, err
 		}
 	}
 	if kind == "builder_recruitment" {
-		var raw, profileRaw []byte
-		if err = tx.QueryRow(r.Context(), "SELECT recruitment_roles FROM swarms WHERE id=$1", *swarm).Scan(&raw); err != nil {
+		if err = requireRecruitmentOpportunityEvidence(r, tx, *swarm, *role, a.AgentID, hash); err != nil {
 			return 0, nil, err
-		}
-		if err = tx.QueryRow(r.Context(), "SELECT profile FROM agents WHERE id=$1", a.AgentID).Scan(&profileRaw); err != nil {
-			return 0, nil, err
-		}
-		var roles []RecruitmentRole
-		var profile AgentProfile
-		if err = json.Unmarshal(raw, &roles); err != nil {
-			return 0, nil, err
-		}
-		if err = json.Unmarshal(profileRaw, &profile); err != nil {
-			return 0, nil, err
-		}
-		valid := false
-		for _, offered := range roles {
-			if offered.Key == *role && profile.Public && profile.Recruitment && slices.Contains(profile.Capabilities, offered.SchemaFamily) && hash == recruitmentInputHash(*swarm, offered, a.AgentID, profile) {
-				valid = true
-			}
-		}
-		if !valid {
-			return 0, nil, fail(404, "not_found")
 		}
 	}
+
 	return idempotent(r, tx, a, func() (int, any, error) {
 		var input map[string]json.RawMessage
 		if err := decode(r, &input); err != nil {
