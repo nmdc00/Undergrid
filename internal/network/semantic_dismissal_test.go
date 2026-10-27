@@ -1,8 +1,12 @@
 package network
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -54,6 +58,40 @@ func TestSemanticSuggestionDismissalRequiresCurrentEvidenceBeforeReplay(t *testi
 		t.Fatal("not semantic", evidence)
 	}
 	path := "/v1/opportunities/" + item["id"].(string) + "/dismiss"
+	// A worker or current policy command may hold foreign authority. This is
+	// a retryable transaction failure, not a successful dismissal or receipt.
+	held, err := db.Begin(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer held.Rollback(context.Background())
+	if _, err = held.Exec(context.Background(), "SELECT p.id FROM undergrid.principals p JOIN undergrid.intents i ON i.principal_id=p.id WHERE i.id=$1 FOR UPDATE OF p", ids[1]); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	request := httptest.NewRequest("POST", path, bytes.NewReader(canonical(map[string]any{}))).WithContext(ctx)
+	request.Header.Set("Authorization", "Bearer "+a.token)
+	request.Header.Set("Idempotency-Key", "semantic-dismiss")
+	response := httptest.NewRecorder()
+	started := time.Now()
+	s.ServeHTTP(response, request)
+	var failure map[string]any
+	if err = json.Unmarshal(response.Body.Bytes(), &failure); err != nil {
+		t.Fatal(err)
+	}
+	problem, _ := failure["error"].(map[string]any)
+	if response.Code != 500 || problem["retryable"] != true || time.Since(started) > 2*time.Second {
+		t.Fatalf("semantic foreign authority contention must roll back promptly: %d %v elapsed=%s", response.Code, failure, time.Since(started))
+	}
+	var state string
+	var effects int
+	if err = db.QueryRow(context.Background(), `SELECT state,(SELECT count(*) FROM undergrid.events WHERE aggregate_id=$1 AND type='opportunity.dismissed')+(SELECT count(*) FROM undergrid.idempotency WHERE operation=$2 AND key='semantic-dismiss') FROM undergrid.opportunities WHERE id=$1`, item["id"], "POST "+path).Scan(&state, &effects); err != nil || state != "suggested" || effects != 0 {
+		t.Fatal("contended semantic dismissal committed effects", state, effects, err)
+	}
+	if err = held.Rollback(context.Background()); err != nil {
+		t.Fatal(err)
+	}
 	for range 2 {
 		code, out := a.call("POST", path, "semantic-dismiss", map[string]any{})
 		if code != 200 || out["state"] != "dismissed" {

@@ -3,14 +3,17 @@ import { test, expect, type BrowserContext } from "@playwright/test";
 // Actual network app/session/API. Separate modes prove setup, publication or
 // reviewed builder registration/recruitment; none proves the full HP2 journey.
 test(
-  process.env.UNDERGRID_HP2_BUILDER_REGISTRATION === "1"
-    ? "owner reviews builder declarations and receives worker recruitment without admission"
-    : process.env.UNDERGRID_HP2_OWNER_PUBLICATION === "1"
-      ? "owner publishes a selected projection and revokes its foreign read through the console"
-      : "three controlled owners receive separate scoped agents and private watches",
+  process.env.UNDERGRID_HP2_ROOM_ORIGIN === "1"
+    ? "owner selects a current match, recovers a reviewed room, and receives recruitment without admission"
+    : process.env.UNDERGRID_HP2_BUILDER_REGISTRATION === "1"
+      ? "owner reviews builder declarations and receives worker recruitment without admission"
+      : process.env.UNDERGRID_HP2_OWNER_PUBLICATION === "1"
+        ? "owner publishes a selected projection and revokes its foreign read through the console"
+        : "three controlled owners receive separate scoped agents and private watches",
   async ({ browser }) => {
+    const roomOrigin = process.env.UNDERGRID_HP2_ROOM_ORIGIN === "1";
     const builderRegistration =
-      process.env.UNDERGRID_HP2_BUILDER_REGISTRATION === "1";
+      roomOrigin || process.env.UNDERGRID_HP2_BUILDER_REGISTRATION === "1";
     const publication = process.env.UNDERGRID_HP2_OWNER_PUBLICATION === "1";
     const issuer = process.env.UNDERGRID_HP2_ISSUER_URL;
     if (!issuer) throw new Error("HP2 requires the controlled issuer URL");
@@ -112,7 +115,11 @@ test(
         if (label !== "builder-c") {
           await page
             .getByLabel("Objective", { exact: true })
-            .fill(`Private environmental catalogue requirements ${label}`);
+            .fill(
+              roomOrigin && label === "buyer-a"
+                ? "Shared environmental catalogue"
+                : `Private environmental catalogue requirements ${label}`,
+            );
           await expect(
             page.getByRole("combobox", {
               name: "Intention visibility",
@@ -124,7 +131,10 @@ test(
               exact: true,
             }),
           ).toBeChecked();
-          if (publication && label === "buyer-a") {
+          const publicIntention =
+            (publication && label === "buyer-a") ||
+            (roomOrigin && label === "buyer-b");
+          if (publicIntention) {
             await page
               .getByRole("combobox", {
                 name: "Intention visibility",
@@ -133,13 +143,19 @@ test(
               .selectOption("redacted_public");
             await page
               .getByRole("textbox", { name: "Public summary", exact: true })
-              .fill("Public environmental catalogue");
+              .fill(
+                roomOrigin
+                  ? "Shared environmental catalogue"
+                  : "Public environmental catalogue",
+              );
             const preview = page.getByRole("region", {
               name: "Public projection preview",
               exact: true,
             });
             await expect(preview).toContainText(
-              "Public environmental catalogue",
+              roomOrigin
+                ? "Shared environmental catalogue"
+                : "Public environmental catalogue",
             );
             await expect(preview).not.toContainText(
               "Private environmental catalogue requirements",
@@ -167,7 +183,7 @@ test(
           expect(own.status()).toBe(200);
           const record = await own.json();
           expect(record.visibility).toBe(
-            publication && label === "buyer-a" ? "redacted_public" : "private",
+            publicIntention ? "redacted_public" : "private",
           );
           expect(record.state).toBe("active");
           expect(record.watch.enabled).toBe(true);
@@ -234,14 +250,12 @@ test(
             exact: true,
           }),
         ).toHaveCount(0);
-        const revisionForm = ownerPage
-          .locator("form")
-          .filter({
-            has: ownerPage.getByRole("heading", {
-              name: "New intention revision",
-              exact: true,
-            }),
-          });
+        const revisionForm = ownerPage.locator("form").filter({
+          has: ownerPage.getByRole("heading", {
+            name: "New intention revision",
+            exact: true,
+          }),
+        });
         await revisionForm
           .getByRole("textbox", { name: "Public summary", exact: true })
           .fill("Updated public environmental catalogue");
@@ -336,19 +350,130 @@ test(
               headers: { Authorization: `Bearer ${actors[owner].token}` },
             },
           );
-          expect(inaccessible.status()).toBe(404);
+          expect(inaccessible.status()).toBe(
+            roomOrigin && target.agent === actors[1].agent ? 200 : 404,
+          );
         }
       }
       if (builderRegistration) {
         const creator = contexts[0].pages()[0];
-        const response = await creator.request.post("/v1/swarms", {
-          headers: {
-            Authorization: `Bearer ${actors[0].token}`,
-            "Idempotency-Key": "hp2-builder-role-room",
-          },
-          data: {
+        let room: { id: string };
+        if (roomOrigin) {
+          let selected = "";
+          await expect
+            .poll(
+              async () => {
+                const response = await creator.request.get(
+                  `/v1/intents/${actors[0].intent}/opportunities`,
+                  { headers: { Authorization: `Bearer ${actors[0].token}` } },
+                );
+                expect(response.status()).toBe(200);
+                const result = await response.json();
+                const matching = result.items.filter(
+                  (item: { id: string; candidate_intent_id: string }) =>
+                    item.candidate_intent_id === actors[1].intent,
+                );
+                if (matching.length === 1) selected = matching[0].id;
+                return matching.length;
+              },
+              { timeout: 5000 },
+            )
+            .toBe(1);
+          await creator
+            .getByRole("button", { name: "Review intention", exact: true })
+            .click();
+          await creator
+            .getByRole("button", {
+              name: "Create swarm from this match",
+              exact: true,
+            })
+            .click();
+          const form = creator.getByRole("region", {
+            name: "Create swarm",
+            exact: true,
+          });
+          await expect(
+            form.getByRole("combobox", {
+              name: "Responsible agent",
+              exact: true,
+            }),
+          ).toHaveValue(actors[0].agent);
+          await expect(
+            form.getByRole("combobox", {
+              name: "Responsible agent",
+              exact: true,
+            }),
+          ).toBeDisabled();
+          await form
+            .getByLabel("Swarm objective", { exact: true })
+            .fill("Build the bounded declared catalogue");
+          await form
+            .getByRole("combobox", { name: "Swarm visibility", exact: true })
+            .selectOption("restricted");
+          await form
+            .getByRole("button", { name: "Add recruitment role", exact: true })
+            .click();
+          await form
+            .getByLabel("Role key", { exact: true })
+            .fill("catalog-builder");
+          await form
+            .getByLabel("Role description", { exact: true })
+            .fill("Build and validate catalogue data");
+          await expect(
+            form.getByRole("region", {
+              name: "Room creation review",
+              exact: true,
+            }),
+          ).toContainText(selected);
+          await form
+            .getByLabel(
+              "I understand admitted members can read the full room history.",
+              { exact: true },
+            )
+            .check();
+          await form
+            .getByLabel("I reviewed this room setup", { exact: true })
+            .check();
+          const path = `/v1/owner/agents/${actors[0].agent}/swarms`;
+          let originalBody: string | null = null,
+            originalKey: string | undefined,
+            committed: { id: string } | undefined;
+          await creator.route(`**${path}`, async (route) => {
+            originalBody = route.request().postData();
+            originalKey = route.request().headers()["idempotency-key"];
+            const response = await route.fetch();
+            expect(response.status()).toBe(201);
+            committed = await response.json();
+            await route.abort("failed");
+          });
+          await form
+            .getByRole("button", { name: "Create swarm", exact: true })
+            .click();
+          await expect(form.getByRole("alert")).toContainText(
+            "could not be confirmed",
+          );
+          await creator.unroute(`**${path}`);
+          const retry = creator.waitForResponse(
+            (response) =>
+              new URL(response.url()).pathname === path &&
+              response.request().method() === "POST",
+          );
+          await form
+            .getByRole("button", { name: "Create swarm", exact: true })
+            .click();
+          const recovered = await retry;
+          expect(recovered.status()).toBe(201);
+          room = await recovered.json();
+          expect(room.id).toBe(committed!.id);
+          expect(recovered.request().postData()).toBe(originalBody);
+          expect(recovered.request().headers()["idempotency-key"]).toBe(
+            originalKey,
+          );
+          expect(JSON.parse(originalBody!)).toEqual({
             objective: "Build the bounded declared catalogue",
             visibility: "restricted",
+            history_policy: "full",
+            origin_opportunity_id: selected,
             recruitment_roles: [
               {
                 key: "catalog-builder",
@@ -356,10 +481,36 @@ test(
                 description: "Build and validate catalogue data",
               },
             ],
-          },
-        });
-        expect(response.status()).toBe(201);
-        const room = await response.json();
+          });
+          await expect(form.getByRole("status")).toContainText(room.id);
+          await creator.reload();
+          await expect(
+            creator.getByRole("heading", {
+              name: "Your workspace",
+              exact: true,
+            }),
+          ).toBeVisible();
+        } else {
+          const response = await creator.request.post("/v1/swarms", {
+            headers: {
+              Authorization: `Bearer ${actors[0].token}`,
+              "Idempotency-Key": "hp2-builder-role-room",
+            },
+            data: {
+              objective: "Build the bounded declared catalogue",
+              visibility: "restricted",
+              recruitment_roles: [
+                {
+                  key: "catalog-builder",
+                  schema_family: "source_catalog_v1",
+                  description: "Build and validate catalogue data",
+                },
+              ],
+            },
+          });
+          expect(response.status()).toBe(201);
+          room = await response.json();
+        }
         const builder = contexts[2].pages()[0];
         let offers: { items: { swarm_id: string; role_key: string }[] } = {
           items: [],

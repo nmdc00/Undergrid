@@ -21,6 +21,7 @@ const (
 	hp2Publication
 	hp2Builder
 	hp2PlanProposal
+	hp2RoomOrigin
 )
 
 func TestHP2LiveOwnerPlanProposalRevisionAndRecovery(t *testing.T) {

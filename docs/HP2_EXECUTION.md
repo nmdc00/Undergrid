@@ -286,9 +286,59 @@ Test-first acceptance and evidence:
 
 ## Next task contract: reviewed room origin and recruitment roles — 26 October 2026
 
-Status: planned, not implemented or runtime-proven. Semantic integration and
-builder registration remain active prerequisites; this contract starts no new
-behavior or test process. One later feature branch,
+Status: implemented and locally proven after semantic PR107, plan PR110 and
+prerequisite policy PR109; final review/feature merge pending. Current implementer
+`room_oct27` resumes the preserved `semantic_oct26` branch; independent review
+`review_oct27` and root inspect authority, evidence and integration. Branch
+`feat/v0.1-owner-room-origin-recruitment`, isolated worktree
+`/tmp/undergrid-worktrees/room-origin/feat-v0.1-owner-room-origin-recruitment`.
+Root-granted serial leases produced actual RED/GREEN, full UI, browser, retained
+runtime and static evidence in `OWNER_ROOM_ORIGIN_RECRUITMENT.md`. The older
+planning and static-audit checkpoint below remains history; PR107 makes
+shared-demand reads compare current input/profile/projection hashes.
+
+All four existing supplied origin kinds must be validated: `shared_demand`,
+`external_request`, `external_capability`, `builder_recruitment`. The UI can start
+from current owned-intention results; it needs no group viewer or new generic
+read route. A selected origin pins the actual owned recipient agent. Selection,
+agent/session/context or command-field changes invalidate review; accepted newer
+drafts cannot be erased by older completions. Command fields freeze while their
+snapshot is pending, and generation checks reject stale results.
+
+Origin eligibility is checked in the shared domain transaction **before retained
+idempotent response recovery**, not only before a new insert. Unchanged current
+origin plus identical body/key recovers the same room; changed input conflicts.
+Stale, dismissed, foreign, revoked, expired or changed source/candidate/hash/profile
+origins deny recovery and produce no new effects. Objective-only commands retain
+their existing creation/retry behavior.
+
+Do not reuse migration040/043 dismissal eligibility wholesale: shared-demand
+visible/current provenance does not require an active watch, although dismissal
+and computed-group contracts do. Include a positive otherwise-current shared
+origin with monitoring disabled. External kinds retain the existing monitored,
+current permitted-source/observation/revision contract. Recruitment origins bind
+the active public/restricted source room/coordinator and current recipient role,
+profile and recruitment hash; receipt is neither admission nor rights consent.
+
+Forward migration **045 belongs to this feature and is now frozen after normal
+application**, following the plan feature's frozen044. A narrow boolean/current-eligibility NOWAIT authority-lock helper is
+permitted only where actual restricted application RLS prevents safely locking
+foreign principal/agent/intention/source rows. It may not expose private foreign
+rows, broaden table grants or change frozen040–044. Keep payload/current-evidence
+validation in the shared domain, not owner adapters.
+
+Review exactly the selected origin, objective, private/restricted visibility,
+full-history disclosure and bounded zero-to-ten existing supported recruitment
+roles. The existing created id/version/visibility/history response is sufficient;
+no new DTO/read route is authorized merely for convenience. Verify persisted
+origin/roles independently in the runtime proof. The parked group viewer at
+`8f03ecd` remains preserved as a separate five-file feature delta.
+
+Write actual restricted HTTP and console behavioral REDs before corrections,
+then prove an actual normal-owner selected-match → reviewed restricted room with
+origin and role → restricted-worker recruitment opportunity/event/inbox journey.
+No browser product rows may be seeded and no additional member may be admitted.
+All failure, retry, current-authority and unchanged HP1 checks remain mandatory. One later feature branch,
 `feat/v0.1-owner-room-origin-recruitment`, must start from the then-current
 reviewed `release/v0.1` in its own isolated worktree. Root assigns its implementer
 and serial test lease after the current dependencies are ready. This contract is
@@ -594,3 +644,30 @@ remaining typed requirement editing and application review/admission still need
 their owning outcomes. The full discovery-to-accepted-plan HP2 journey and
 external qualification remain unproven. Do not reopen the completed plan feature
 or count its scoped API room fixture as completed room-origin controls.
+
+### Room-origin and recruitment-role local proof — 27 October 2026
+
+Current owner controls and the shared domain current-origin precondition are
+implemented on `feat/v0.1-owner-room-origin-recruitment`. The branch normally
+integrates policy `862063d`, plan `2099a76` and documentation `054a269`. Actual
+RED reproduced stale origin 201/writes and obsolete receipt recovery through both
+owner and agent commands; missing console selection also failed before changes.
+Reviewed frozen 045 locks current provenance without broad foreign reads; shared
+evidence helpers preserve distinct room-versus-dismissal monitoring/state rules.
+
+Actual Chromium selected current A→B demand, reviewed the exact restricted room
+origin/role/history, lost a real committed response and recovered the same body,
+key and room. A real restricted worker emitted one C recruitment opportunity,
+event and inbox item without extra admission. Race package passed 20.111s on
+`857e07e`; full UI passed 163 cases on runtime integration `c95c0b9`. Final
+restricted race gates passed 17 top-level/36 subcases in 83.752s on test-only
+`2950d02`. The retained two-plan owner browser, canonical 160-schema/generated
+parity, tagged vet and Go build also pass. Original selector and semantic
+NOWAIT-contention fixture failures remain separately retained; no product code,
+authority oracle or runtime bound was weakened by their test-only corrections.
+
+See `OWNER_ROOM_ORIGIN_RECRUITMENT.md` for exact commands, source/artifact hashes,
+retained databases, log index, quality assessment and limits. Final evidence review
+and feature merge are pending. HP2 remains open for group UI, complementary
+registered capabilities, unknown-hard clarification, remaining typed owner
+requirements, application review/offer and its complete continuous journey.

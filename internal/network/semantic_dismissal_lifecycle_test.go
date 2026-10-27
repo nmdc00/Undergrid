@@ -170,16 +170,26 @@ func TestSemanticDismissalSurvivesWorkerRestartAndProfileCutover(t *testing.T) {
 			t.Fatal(code, out)
 		}
 	}
+	var newProfileSuggestion map[string]any
 	run(func() {
-		item := currentSuggestion()
-		if item["id"] == oldID || item["evidence"].(map[string]any)["semantic_profile_hash"] != currentProfile.hash {
-			t.Fatal("profile change did not produce new pinned suggestion", item)
-		}
-		code, out := a.call("POST", "/v1/opportunities/"+item["id"].(string)+"/dismiss", "new-profile-dismiss", map[string]any{})
-		if code != 200 {
-			t.Fatal(code, out)
+		newProfileSuggestion = currentSuggestion()
+		if newProfileSuggestion["id"] == oldID || newProfileSuggestion["evidence"].(map[string]any)["semantic_profile_hash"] != currentProfile.hash {
+			t.Fatal("profile change did not produce new pinned suggestion", newProfileSuggestion)
 		}
 	})
+	// Discovery above uses the real restarted worker. Await its existing bounded
+	// shutdown before this strict successful receipt assertion: concurrent
+	// foreign authority contention is intentionally retryable (55P03), proved
+	// separately with a held lock, zero effects and exact-key recovery.
+	code, out = a.call("POST", "/v1/opportunities/"+newProfileSuggestion["id"].(string)+"/dismiss", "new-profile-dismiss", map[string]any{})
+	if code != 200 {
+		t.Fatal(code, out)
+	}
+	var newDismissals, newReceipts int
+	if err = db.QueryRow(context.Background(), `SELECT (SELECT count(*) FROM undergrid.events WHERE aggregate_id=$1 AND type='opportunity.dismissed'),(SELECT count(*) FROM undergrid.idempotency WHERE key='new-profile-dismiss' AND operation=$2)`, newProfileSuggestion["id"], "POST /v1/opportunities/"+newProfileSuggestion["id"].(string)+"/dismiss").Scan(&newDismissals, &newReceipts); err != nil || newDismissals != 1 || newReceipts != 1 {
+		t.Fatal("current profile dismissal must commit exactly once", newDismissals, newReceipts, err)
+	}
+
 	var sameSourceInput bool
 	if err = db.QueryRow(context.Background(), "SELECT (SELECT content_hash FROM undergrid.intent_revisions WHERE intent_id=$1 AND revision=1)=(SELECT content_hash FROM undergrid.intent_revisions WHERE intent_id=$1 AND revision=2)", ids[0]).Scan(&sameSourceInput); err != nil {
 		t.Fatal(err)

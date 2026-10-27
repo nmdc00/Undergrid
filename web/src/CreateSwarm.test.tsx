@@ -42,6 +42,7 @@ test("successful but unusable creation recovers the original room command", asyn
   await userEvent.click(
     screen.getByLabelText(/I understand.*full room history/i),
   );
+  await userEvent.click(screen.getByLabelText("I reviewed this room setup"));
   await userEvent.click(screen.getByRole("button", { name: "Create swarm" }));
   await screen.findByRole("alert");
   await userEvent.click(screen.getByRole("button", { name: "Create swarm" }));
@@ -108,6 +109,7 @@ test("owner explicitly selects a responsible active agent and acknowledges full 
   await userEvent.click(
     screen.getByLabelText(/I understand.*full room history/i),
   );
+  await userEvent.click(screen.getByLabelText("I reviewed this room setup"));
   await userEvent.click(screen.getByRole("button", { name: "Create swarm" }));
   await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
   const [path, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];
@@ -124,7 +126,7 @@ test("owner explicitly selects a responsible active agent and acknowledges full 
   await waitFor(() => expect(created).toHaveBeenCalledWith("b", "room"));
   expect(document.querySelector("script")).toBeNull();
 });
-test("changing selected agent suppresses a late create response and clears private form data", async () => {
+test("changing the owner session suppresses a late create response and clears private form data", async () => {
   let finish!: (response: Response) => void;
   vi.stubGlobal(
     "fetch",
@@ -136,7 +138,7 @@ test("changing selected agent suppresses a late create response and clears priva
     ),
   );
   const created = vi.fn();
-  render(
+  const view = render(
     <CreateSwarm
       agents={agents}
       csrf="csrf"
@@ -155,16 +157,24 @@ test("changing selected agent suppresses a late create response and clears priva
   await userEvent.click(
     screen.getByLabelText(/I understand.*full room history/i),
   );
+  await userEvent.click(screen.getByLabelText("I reviewed this room setup"));
   await userEvent.click(screen.getByRole("button", { name: "Create swarm" }));
-  await userEvent.selectOptions(
-    screen.getByLabelText("Responsible agent"),
-    "b",
+  expect(screen.getByLabelText("Responsible agent").matches(":disabled")).toBe(
+    true,
+  );
+  view.rerender(
+    <CreateSwarm
+      agents={agents}
+      csrf="new-owner-session"
+      onUnauthorized={vi.fn()}
+      onCreated={created}
+    />,
   );
   finish(
     new Response(
       JSON.stringify({
         id: "old-room",
-        visibility: "restricted",
+        visibility: "private",
         history_policy: "full",
         version: 1,
         etag: '"1"',
@@ -195,6 +205,7 @@ test("session loss clears the creation data and returns owner control", async ()
   await userEvent.click(
     screen.getByLabelText(/I understand.*full room history/i),
   );
+  await userEvent.click(screen.getByLabelText("I reviewed this room setup"));
   await userEvent.click(screen.getByRole("button", { name: "Create swarm" }));
   await waitFor(() => expect(denied).toHaveBeenCalledTimes(1));
   expect(
@@ -246,6 +257,7 @@ test("uncertain creation retries preserve the command identity", async () => {
   await userEvent.click(
     screen.getByLabelText(/I understand.*full room history/i),
   );
+  await userEvent.click(screen.getByLabelText("I reviewed this room setup"));
   await userEvent.click(screen.getByRole("button", { name: "Create swarm" }));
   await screen.findByRole("alert");
   await userEvent.click(screen.getByRole("button", { name: "Create swarm" }));
@@ -271,6 +283,7 @@ test("agent removal clears private draft and disables submission", async () => {
   await userEvent.click(
     screen.getByLabelText(/I understand.*full room history/i),
   );
+  await userEvent.click(screen.getByLabelText("I reviewed this room setup"));
   view.rerender(
     <CreateSwarm
       agents={agents.filter((a) => a.id !== "a")}
@@ -329,9 +342,170 @@ test("private remains the initial default and restricted needs an explicit choic
   await userEvent.click(
     screen.getByLabelText(/I understand.*full room history/i),
   );
+  await userEvent.click(screen.getByLabelText("I reviewed this room setup"));
   await userEvent.click(screen.getByRole("button", { name: "Create swarm" }));
   await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
   const [, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];
   expect(JSON.parse(init.body as string).visibility).toBe("restricted");
   expect(await screen.findByText(/Swarm room created/)).toBeTruthy();
+});
+
+const selectedOrigin = {
+  agent: "a",
+  context: "reviewed-current-match-1",
+  opportunity: {
+    id: "current-match",
+    kind: "shared_demand",
+    origin: "registered_intent",
+  },
+};
+async function reviewedSelectedDraft() {
+  await userEvent.type(
+    screen.getByLabelText("Swarm objective"),
+    "Exact selected-match room",
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "Add recruitment role" }),
+  );
+  await userEvent.type(screen.getByLabelText("Role key"), "builder");
+  await userEvent.type(
+    screen.getByLabelText("Role description"),
+    "Build the reviewed catalog",
+  );
+  await userEvent.click(
+    screen.getByLabelText(/I understand.*full room history/i),
+  );
+  await userEvent.click(screen.getByLabelText("I reviewed this room setup"));
+}
+
+test("a pending selected-match command freezes every captured room input", async () => {
+  let finish!: (r: Response) => void;
+  const fetch = vi.fn(
+    () =>
+      new Promise<Response>((resolve) => {
+        finish = resolve;
+      }),
+  );
+  vi.stubGlobal("fetch", fetch);
+  render(
+    <CreateSwarm
+      agents={agents}
+      csrf="pending-selected-origin"
+      origin={selectedOrigin}
+      onUnauthorized={vi.fn()}
+      onClearOrigin={vi.fn()}
+    />,
+  );
+  await reviewedSelectedDraft();
+  await userEvent.click(screen.getByRole("button", { name: "Create swarm" }));
+  for (const label of [
+    "Responsible agent",
+    "Swarm objective",
+    "Swarm visibility",
+    "Role key",
+    "Role schema family",
+    "Role description",
+    "I reviewed this room setup",
+  ]) {
+    expect(screen.getByLabelText(label).matches(":disabled")).toBe(true);
+  }
+  expect(
+    screen
+      .getByRole("button", { name: "Clear selected match" })
+      .matches(":disabled"),
+  ).toBe(true);
+  await userEvent.type(
+    screen.getByLabelText("Role description"),
+    " newer draft",
+  );
+  expect(
+    (screen.getByLabelText("Role description") as HTMLTextAreaElement).value,
+  ).toBe("Build the reviewed catalog");
+  finish(
+    new Response(
+      JSON.stringify({
+        id: "room",
+        version: 1,
+        etag: '"1"',
+        visibility: "private",
+        history_policy: "full",
+      }),
+      { status: 201 },
+    ),
+  );
+  await screen.findByText(/Swarm room created/);
+  expect(
+    JSON.parse(
+      (fetch.mock.calls[0] as unknown as [string, RequestInit])[1]
+        .body as string,
+    ).origin_opportunity_id,
+  ).toBe("current-match");
+});
+
+test("a replaced match context suppresses a late room response and preserves the newer draft", async () => {
+  let finish!: (r: Response) => void;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          finish = resolve;
+        }),
+    ),
+  );
+  const created = vi.fn();
+  const view = render(
+    <CreateSwarm
+      agents={agents}
+      csrf="selected-context-change"
+      origin={selectedOrigin}
+      onUnauthorized={vi.fn()}
+      onCreated={created}
+    />,
+  );
+  await reviewedSelectedDraft();
+  await userEvent.click(screen.getByRole("button", { name: "Create swarm" }));
+  view.rerender(
+    <CreateSwarm
+      agents={agents}
+      csrf="selected-context-change"
+      origin={{
+        ...selectedOrigin,
+        context: "reviewed-current-match-2",
+        opportunity: { ...selectedOrigin.opportunity, id: "new-match" },
+      }}
+      onUnauthorized={vi.fn()}
+      onCreated={created}
+    />,
+  );
+  await userEvent.type(
+    screen.getByLabelText("Swarm objective"),
+    "A newer current-match draft",
+  );
+  finish(
+    new Response(
+      JSON.stringify({
+        id: "old-room",
+        version: 1,
+        etag: '"1"',
+        visibility: "private",
+        history_policy: "full",
+      }),
+      { status: 201 },
+    ),
+  );
+  await waitFor(() =>
+    expect(
+      (screen.getByLabelText("Swarm objective") as HTMLTextAreaElement).value,
+    ).toBe("A newer current-match draft"),
+  );
+  expect(created).not.toHaveBeenCalled();
+  expect(screen.queryByText(/Swarm old-room created/)).toBeNull();
+  expect(
+    (screen.getByLabelText("I reviewed this room setup") as HTMLInputElement)
+      .checked,
+  ).toBe(false);
+  expect(
+    screen.getByRole("button", { name: "Create swarm" }).matches(":disabled"),
+  ).toBe(true);
 });
