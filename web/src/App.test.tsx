@@ -674,3 +674,82 @@ test.each(["keep", "change", "remove"])(
     );
   },
 );
+
+test("active monitored intention opens a read-only compatible group view", async () => {
+  const requests = fixture();
+  const baseFetch = globalThis.fetch;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (path: string, init?: RequestInit) => {
+      if (path === "/v1/owner/intents/intent/compatible-groups") {
+        requests.push({ path, init });
+        return new Response(
+          JSON.stringify({
+            items: [],
+            candidate_limit: 20,
+            group_limit: 10,
+            truncated: false,
+            limitations: [
+              "bounded_nonexhaustive_views",
+              "principal_ids_do_not_prove_independent_owners",
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+      return baseFetch(path, init);
+    }),
+  );
+  render(<App />);
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Review intention" }),
+  );
+  await userEvent.click(
+    await screen.findByRole("button", { name: "View compatible groups" }),
+  );
+  expect(await screen.findByText(/No current compatible groups/)).toBeTruthy();
+  const call = requests.find((r) => r.path.endsWith("/compatible-groups"));
+  expect(call?.init?.method).toBe("GET");
+  expect(call?.init?.credentials).toBe("same-origin");
+  expect(
+    requests.filter((r) => r.path.endsWith("/compatible-groups")),
+  ).toHaveLength(1);
+});
+
+test.each(["paused", "watch-off"])(
+  "group viewer is unavailable for %s intentions",
+  async (condition) => {
+    const requests = fixture(
+      true,
+      condition === "paused" ? "paused" : "active",
+    );
+    const baseFetch = globalThis.fetch;
+    if (condition === "watch-off")
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (path: string, init?: RequestInit) => {
+          const response = await baseFetch(path, init);
+          if (path !== "/v1/owner/intents/intent") return response;
+          const body = await response.json();
+          return new Response(
+            JSON.stringify({
+              ...body,
+              watch: { enabled: false, channels: ["inbox"] },
+            }),
+            { status: 200 },
+          );
+        }),
+      );
+    render(<App />);
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Review intention" }),
+    );
+    await screen.findByRole("button", { name: "Close intention" });
+    expect(
+      screen.queryByRole("button", { name: "View compatible groups" }),
+    ).toBeNull();
+    expect(requests.some((r) => r.path.endsWith("/compatible-groups"))).toBe(
+      false,
+    );
+  },
+);
