@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"reflect"
 	"testing"
 
@@ -385,6 +386,98 @@ func TestRoomOriginRecruitmentRequiresCurrentRoomAndRecipientProfile(t *testing.
 			var members int
 			if err = db.QueryRow(context.Background(), "SELECT count(*) FROM undergrid.memberships WHERE swarm_id=$1 AND agent_id=$2", source["id"], me["agent_id"]).Scan(&members); err != nil || members != 0 {
 				t.Fatal("origin admitted builder to source room", members, err)
+			}
+		})
+	}
+}
+
+func TestRoomOriginSemanticEvidenceRemainsBoundToCurrentProcessingProfile(t *testing.T) {
+	for _, visibility := range []string{"redacted_public", "private"} {
+		t.Run(visibility, func(t *testing.T) {
+			provider, _ := controlledSemanticConsent(t)
+			s, db, worker, _ := externalNotificationFixture(t)
+			worker.semantic = provider
+			owner, peer := collaborationClient(t, s), collaborationClient(t, s)
+			_, me := owner.call("GET", "/v1/me", "", nil)
+			inputs := []IntentInput{intentFixture(), intentFixture()}
+			inputs[0].Visibility = visibility
+			inputs[0].PublicSummary = "Environmental regulation reference catalog"
+			if visibility == "private" {
+				inputs[0].PublicSummary = ""
+				inputs[0].PrivateSemanticQuery = &PrivateSemanticQuery{Projection: "Environmental regulation reference catalog", ProfileHash: provider.hash, AcknowledgeExternalProcessing: true}
+			}
+			inputs[1].Visibility = "redacted_public"
+			inputs[1].PublicSummary = "Climate agency citation directory"
+			ids := []string{}
+			for n, c := range []testClient{owner, peer} {
+				code, out := c.call("POST", "/v1/intents", NewID(), inputs[n])
+				if code != 201 {
+					t.Fatal(code, out)
+				}
+				ids = append(ids, out["id"].(string))
+			}
+			conn, err := pgx.Connect(context.Background(), worker.dsn)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer conn.Close(context.Background())
+			if _, err = conn.Exec(context.Background(), "SET ROLE undergrid_worker;SET search_path=undergrid,pg_catalog"); err != nil {
+				t.Fatal(err)
+			}
+			for _, id := range ids {
+				if err = worker.ensureSemanticEmbedding(context.Background(), conn, id); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err = worker.scanIntentCandidate(context.Background(), conn, ids[0], ids[1], true); err != nil {
+				t.Fatal(err)
+			}
+			code, page := owner.call("GET", "/v1/intents/"+ids[0]+"/opportunities", "", nil)
+			if code != 200 {
+				t.Fatal(code, page)
+			}
+			origin := ""
+			for _, raw := range page["items"].([]any) {
+				row := raw.(map[string]any)
+				if row["candidate_intent_id"] == ids[1] && row["evidence"].(map[string]any)["algorithm"] == "hard-constraints-hybrid-cosine-v1" {
+					origin = row["id"].(string)
+				}
+			}
+			if origin == "" {
+				t.Fatal("genuine current semantic suggestion missing", page)
+			}
+			x := &roomOriginFixtureState{service: s, worker: worker, db: db, owner: owner, agent: me["agent_id"].(string), principal: me["principal_id"].(string), origin: origin}
+			body := x.body()
+			code, room := x.create(t, true, "semantic-origin-retry", body)
+			if code != 201 {
+				t.Fatal(code, room)
+			}
+			code, replay := x.create(t, true, "semantic-origin-retry", body)
+			if code != 201 || !reflect.DeepEqual(room, replay) {
+				t.Fatal("current semantic receipt failed", code, replay)
+			}
+			path := os.Getenv("UNDERGRID_SEMANTIC_CONFIG_FILE")
+			raw, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var cfg map[string]any
+			if err = json.Unmarshal(raw, &cfg); err != nil {
+				t.Fatal(err)
+			}
+			cfg["provider_id"] = "room-current-profile-cutover"
+			if err = os.WriteFile(path, canonical(cfg), 0600); err != nil {
+				t.Fatal(err)
+			}
+			before := x.effects(t)
+			for _, key := range []string{"semantic-origin-retry", "semantic-origin-new"} {
+				code, out := x.create(t, true, key, body)
+				if code != 404 {
+					t.Errorf("obsolete semantic processing profile accepted room or receipt: %d %v", code, out)
+				}
+			}
+			if after := x.effects(t); !reflect.DeepEqual(before, after) {
+				t.Fatal("obsolete semantic evidence committed effects", before, after)
 			}
 		})
 	}
