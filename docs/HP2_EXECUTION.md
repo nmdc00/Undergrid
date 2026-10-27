@@ -558,3 +558,18 @@ change; focused policy/App regressions and TypeScript/production build are the
 local gates. Evidence/status live in
 [`OWNER_POLICY_BUSY_DRAFT.md`](OWNER_POLICY_BUSY_DRAFT.md). Independent review and
 a feature PR to `release/v0.1` precede integration into the owner-plan browser.
+
+### Owner-plan proof checkpoint — 27 October 2026
+
+The feature integrates reviewed policy-draft prerequisite PR109/release `862063d`
+as `9040113`. The continuous actual owner plan journey now passes: two immutable
+multi-task plan activations, individual exact-hash votes, separate assignment
+acceptances, prior accepted-head preservation after every partial revision
+decision, actual worker restart and reconnect. Go race package passed 29.067s;
+Playwright aggregate passed 26.3s. Separate restricted HTTP reject/expiry guards
+preserve the entire prior accepted plan/task snapshot; actual context/proposal
+wire contracts pass independent negative oracles. See `OWNER_PLAN_PROPOSAL.md`
+for sources, logs, genuine retained databases, failure history and remaining
+merge gates. This is feature-level local proof, not the complete HP2 journey.
+The first browser resource failure and subsequent policy-refresh race failure
+remain preserved separately; no browser bounds or authority checks were relaxed.
