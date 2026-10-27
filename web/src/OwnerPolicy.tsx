@@ -85,6 +85,7 @@ export function OwnerPolicy({
         <p>No contribution templates are configured.</p>
       )}
       <form onSubmit={submit}>
+        <fieldset disabled={busy}>
         <label className="check">
           <input type="checkbox" checked={draft.allow_coordinator_succession}
             onChange={(event) => setDraft({ ...draft, allow_coordinator_succession: event.target.checked })} />
@@ -170,6 +171,7 @@ export function OwnerPolicy({
           particular plan, publication or payment.
         </p>
         <button disabled={busy}>Save policy</button>
+        </fieldset>
       </form>
     </section>
   );

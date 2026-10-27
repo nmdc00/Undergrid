@@ -398,3 +398,29 @@ requirements are conserved. Their explicit owner create/edit controls remain an
 atomic follow-up before full HP2 closure, with test-first payload/preview/review
 invalidation and exact unedited timestamp preservation. No unsupported output
 format selector is implied; the current domain supports source-catalog JSON.
+
+
+## HP2 prerequisite: freeze coordination-policy inputs during workspace refresh
+
+The real owner-plan browser exposed a race after its initial intention POST:
+the console allowed policy edits while the resulting workspace refresh was still
+busy, then the refreshed policy record replaced that draft. The Save button alone was
+disabled. This prerequisite belongs to HP2 steps 1/4 and the existing versioned
+owner coordination-policy contract; it grants no plan, rights or spending consent.
+
+Task branch `feat/v0.1-owner-policy-busy-draft`, based on release `6a93b05`, owns
+`web/src/OwnerPolicy.tsx` and its behavioral tests. Its isolated worktree is
+`/tmp/undergrid-worktrees/owner-policy-busy/feat-v0.1-owner-policy-busy-draft`.
+Acceptance: all six policy input kinds remain disabled throughout the parent's
+busy workspace action; attempted edits cannot create an apparently editable
+draft that a pending refresh discards. Controls reenable after refreshed state
+loads and explicit subsequent edits reach the existing save callback. Existing
+succession opt-in defaults and retained consent must remain unchanged.
+
+The real runtime entrypoint is the owner-console policy form. Persistence remains
+the existing versioned policy command; this fix adds no database effects, grants,
+migrations or financial coupling. Behavioral RED precedes the disabled-fieldset
+change; focused policy/App regressions and TypeScript/production build are the
+local gates. Evidence/status live in
+[`OWNER_POLICY_BUSY_DRAFT.md`](OWNER_POLICY_BUSY_DRAFT.md). Independent review and
+a feature PR to `release/v0.1` precede integration into the owner-plan browser.
