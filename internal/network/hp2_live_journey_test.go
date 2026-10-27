@@ -5,6 +5,7 @@ package network
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -22,18 +23,22 @@ import (
 // This is an opt-in setup foundation, not the complete HP2 journey. The second
 // tag avoids adding unfinished HP2 expectations to HP1's established live gate.
 func TestHP2LiveThreeOwnerScopedSetupFoundation(t *testing.T) {
-	hp2LiveOwnerSetup(t, false, false)
+	hp2LiveOwnerSetup(t, false, false, false)
 }
 
 func TestHP2LiveOwnerPublicationAndWithdrawal(t *testing.T) {
-	hp2LiveOwnerSetup(t, true, false)
+	hp2LiveOwnerSetup(t, true, false, false)
 }
 
 func TestHP2LiveOwnerBuilderRegistrationAndRecruitment(t *testing.T) {
-	hp2LiveOwnerSetup(t, false, true)
+	hp2LiveOwnerSetup(t, false, true, false)
 }
 
-func hp2LiveOwnerSetup(t *testing.T, publication, builderRegistration bool) {
+func TestHP2LiveOwnerSelectedMatchRoomAndRecruitment(t *testing.T) {
+	hp2LiveOwnerSetup(t, false, false, true)
+}
+
+func hp2LiveOwnerSetup(t *testing.T, publication, builderRegistration, roomOrigin bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	adminDSN := hp1RunDatabase(t, ctx)
@@ -128,8 +133,12 @@ func hp2LiveOwnerSetup(t *testing.T, publication, builderRegistration bool) {
 	if publication {
 		browser.Env = append(browser.Env, "UNDERGRID_HP2_OWNER_PUBLICATION=1")
 	}
-	if builderRegistration {
-		browser.Env = append(browser.Env, "UNDERGRID_HP2_BUILDER_REGISTRATION=1")
+	if builderRegistration || roomOrigin {
+		if roomOrigin {
+			browser.Env = append(browser.Env, "UNDERGRID_HP2_ROOM_ORIGIN=1")
+		} else {
+			browser.Env = append(browser.Env, "UNDERGRID_HP2_BUILDER_REGISTRATION=1")
+		}
 		workerRole := "hp2_worker_" + strings.ReplaceAll(NewID(), "-", "")
 		if _, err = admin.Exec(ctx, "CREATE ROLE "+pgx.Identifier{workerRole}.Sanitize()+" LOGIN NOSUPERUSER NOBYPASSRLS; GRANT undergrid_worker TO "+pgx.Identifier{workerRole}.Sanitize()); err != nil {
 			t.Fatal(err)
@@ -158,8 +167,8 @@ func hp2LiveOwnerSetup(t *testing.T, publication, builderRegistration bool) {
 	}
 	// Read-only normalized attribution and effect checks. Names encode fixture
 	// identities only; separate accounts do not establish independent ownership.
-	rows, err := admin.Query(ctx, `SELECT p.subject,count(DISTINCT a.id),count(DISTINCT c.id),count(DISTINCT i.id),bool_and(COALESCE(CASE WHEN $1 AND p.subject='hp2-controlled-buyer-a' THEN i.visibility='redacted_public' AND i.state='withdrawn' AND NOT i.watch_enabled ELSE i.visibility='private' AND i.state='active' AND i.watch_enabled END,true))
- FROM undergrid.principals p LEFT JOIN undergrid.agents a ON a.principal_id=p.id LEFT JOIN undergrid.credentials c ON c.agent_id=a.id LEFT JOIN undergrid.intents i ON i.principal_id=p.id GROUP BY p.subject ORDER BY p.subject`, publication)
+	rows, err := admin.Query(ctx, `SELECT p.subject,count(DISTINCT a.id),count(DISTINCT c.id),count(DISTINCT i.id),bool_and(COALESCE(CASE WHEN $1 AND p.subject='hp2-controlled-buyer-a' THEN i.visibility='redacted_public' AND i.state='withdrawn' AND NOT i.watch_enabled WHEN $2 AND p.subject='hp2-controlled-buyer-b' THEN i.visibility='redacted_public' AND i.state='active' AND i.watch_enabled ELSE i.visibility='private' AND i.state='active' AND i.watch_enabled END,true))
+ FROM undergrid.principals p LEFT JOIN undergrid.agents a ON a.principal_id=p.id LEFT JOIN undergrid.credentials c ON c.agent_id=a.id LEFT JOIN undergrid.intents i ON i.principal_id=p.id GROUP BY p.subject ORDER BY p.subject`, publication, roomOrigin)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -195,13 +204,13 @@ func hp2LiveOwnerSetup(t *testing.T, publication, builderRegistration bool) {
 		t.Fatal(err)
 	}
 	expectedCollaborationEffects := 0
-	if builderRegistration {
+	if builderRegistration || roomOrigin {
 		expectedCollaborationEffects = 2
 	} // one fixture/API-created room and its creator membership
 	if collaborationEffects != expectedCollaborationEffects {
 		t.Fatalf("setup fabricated %d collaboration effects", collaborationEffects)
 	}
-	if builderRegistration {
+	if builderRegistration || roomOrigin {
 		var profiles, opportunities, events, inbox, completedRecruitmentJobs, foreignMemberships, plans, tasks, approvals int
 		if err = admin.QueryRow(ctx, `SELECT
    (SELECT count(*) FROM undergrid.agents a JOIN undergrid.principals p ON p.id=a.principal_id WHERE p.subject='hp2-controlled-builder-c' AND a.profile='{"public":true,"accept_invitations":false,"recruitment":true,"capabilities":["source_catalog_v1"]}'::jsonb),
@@ -215,6 +224,28 @@ func hp2LiveOwnerSetup(t *testing.T, publication, builderRegistration bool) {
 		}
 		if profiles != 1 || opportunities != 1 || events != 1 || inbox != 1 || completedRecruitmentJobs < 1 || foreignMemberships != 0 || plans != 0 || tasks != 0 || approvals != 0 {
 			t.Fatalf("builder profile/recruitment effects: profile=%d opp/event/inbox=%d/%d/%d completedjobs=%d memberships=%d plans/tasks/approvals=%d/%d/%d", profiles, opportunities, events, inbox, completedRecruitmentJobs, foreignMemberships, plans, tasks, approvals)
+		}
+	}
+	if roomOrigin {
+		var savedOrigin, kind, sourceSubject, candidateSubject string
+		var roles []byte
+		var createdRooms, creatorMemberships, receipts int
+		if err = admin.QueryRow(ctx, `SELECT s.origin_opportunity_id::text,o.kind,sp.subject,cp.subject,s.recruitment_roles,
+         (SELECT count(*) FROM undergrid.swarms),
+         (SELECT count(*) FROM undergrid.memberships WHERE state='accepted' AND role='coordinator'),
+         (SELECT count(*) FROM undergrid.idempotency WHERE operation='POST /v1/swarms')
+         FROM undergrid.swarms s JOIN undergrid.opportunities o ON o.id=s.origin_opportunity_id
+         JOIN undergrid.intents si ON si.id=o.source_intent_id JOIN undergrid.principals sp ON sp.id=si.principal_id
+         JOIN undergrid.intents ci ON ci.id=o.candidate_intent_id JOIN undergrid.principals cp ON cp.id=ci.principal_id`).Scan(&savedOrigin, &kind, &sourceSubject, &candidateSubject, &roles, &createdRooms, &creatorMemberships, &receipts); err != nil {
+			t.Fatal(err)
+		}
+		expected := canonical([]RecruitmentRole{{Key: "catalog-builder", SchemaFamily: "source_catalog_v1", Description: "Build and validate catalogue data"}})
+		var stored []RecruitmentRole
+		if err = json.Unmarshal(roles, &stored); err != nil {
+			t.Fatal(err)
+		}
+		if !validID(savedOrigin) || kind != "shared_demand" || sourceSubject != "hp2-controlled-buyer-a" || candidateSubject != "hp2-controlled-buyer-b" || !bytes.Equal(canonical(stored), expected) || createdRooms != 1 || creatorMemberships != 1 || receipts != 1 {
+			t.Fatalf("reviewed origin/roles/recovery effects: origin=%s kind=%s source=%s candidate=%s roles=%s rooms/member/receipts=%d/%d/%d", savedOrigin, kind, sourceSubject, candidateSubject, roles, createdRooms, creatorMemberships, receipts)
 		}
 	}
 	if publication {

@@ -349,3 +349,163 @@ test("private remains the initial default and restricted needs an explicit choic
   expect(JSON.parse(init.body as string).visibility).toBe("restricted");
   expect(await screen.findByText(/Swarm room created/)).toBeTruthy();
 });
+
+const selectedOrigin = {
+  agent: "a",
+  context: "reviewed-current-match-1",
+  opportunity: {
+    id: "current-match",
+    kind: "shared_demand",
+    origin: "registered_intent",
+  },
+};
+async function reviewedSelectedDraft() {
+  await userEvent.type(
+    screen.getByLabelText("Swarm objective"),
+    "Exact selected-match room",
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "Add recruitment role" }),
+  );
+  await userEvent.type(screen.getByLabelText("Role key"), "builder");
+  await userEvent.type(
+    screen.getByLabelText("Role description"),
+    "Build the reviewed catalog",
+  );
+  await userEvent.click(
+    screen.getByLabelText(/I understand.*full room history/i),
+  );
+  await userEvent.click(screen.getByLabelText("I reviewed this room setup"));
+}
+
+test("a pending selected-match command freezes every captured room input", async () => {
+  let finish!: (r: Response) => void;
+  const fetch = vi.fn(
+    () =>
+      new Promise<Response>((resolve) => {
+        finish = resolve;
+      }),
+  );
+  vi.stubGlobal("fetch", fetch);
+  render(
+    <CreateSwarm
+      agents={agents}
+      csrf="pending-selected-origin"
+      origin={selectedOrigin}
+      onUnauthorized={vi.fn()}
+      onClearOrigin={vi.fn()}
+    />,
+  );
+  await reviewedSelectedDraft();
+  await userEvent.click(screen.getByRole("button", { name: "Create swarm" }));
+  for (const label of [
+    "Responsible agent",
+    "Swarm objective",
+    "Swarm visibility",
+    "Role key",
+    "Role schema family",
+    "Role description",
+    "I reviewed this room setup",
+  ]) {
+    expect(screen.getByLabelText(label).matches(":disabled")).toBe(true);
+  }
+  expect(
+    screen
+      .getByRole("button", { name: "Clear selected match" })
+      .matches(":disabled"),
+  ).toBe(true);
+  await userEvent.type(
+    screen.getByLabelText("Role description"),
+    " newer draft",
+  );
+  expect(
+    (screen.getByLabelText("Role description") as HTMLTextAreaElement).value,
+  ).toBe("Build the reviewed catalog");
+  finish(
+    new Response(
+      JSON.stringify({
+        id: "room",
+        version: 1,
+        etag: '"1"',
+        visibility: "private",
+        history_policy: "full",
+      }),
+      { status: 201 },
+    ),
+  );
+  await screen.findByText(/Swarm room created/);
+  expect(
+    JSON.parse(
+      (fetch.mock.calls[0] as unknown as [string, RequestInit])[1]
+        .body as string,
+    ).origin_opportunity_id,
+  ).toBe("current-match");
+});
+
+test("a replaced match context suppresses a late room response and preserves the newer draft", async () => {
+  let finish!: (r: Response) => void;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          finish = resolve;
+        }),
+    ),
+  );
+  const created = vi.fn();
+  const view = render(
+    <CreateSwarm
+      agents={agents}
+      csrf="selected-context-change"
+      origin={selectedOrigin}
+      onUnauthorized={vi.fn()}
+      onCreated={created}
+    />,
+  );
+  await reviewedSelectedDraft();
+  await userEvent.click(screen.getByRole("button", { name: "Create swarm" }));
+  view.rerender(
+    <CreateSwarm
+      agents={agents}
+      csrf="selected-context-change"
+      origin={{
+        ...selectedOrigin,
+        context: "reviewed-current-match-2",
+        opportunity: { ...selectedOrigin.opportunity, id: "new-match" },
+      }}
+      onUnauthorized={vi.fn()}
+      onCreated={created}
+    />,
+  );
+  await userEvent.type(
+    screen.getByLabelText("Swarm objective"),
+    "A newer current-match draft",
+  );
+  finish(
+    new Response(
+      JSON.stringify({
+        id: "old-room",
+        version: 1,
+        etag: '"1"',
+        visibility: "private",
+        history_policy: "full",
+      }),
+      { status: 201 },
+    ),
+  );
+  await waitFor(() =>
+    expect(
+      (screen.getByLabelText("Swarm objective") as HTMLTextAreaElement).value,
+    ).toBe("A newer current-match draft"),
+  );
+  expect(created).not.toHaveBeenCalled();
+  expect(screen.queryByText(/Swarm old-room created/)).toBeNull();
+  expect(
+    (screen.getByLabelText("I reviewed this room setup") as HTMLInputElement)
+      .checked,
+  ).toBe(false);
+  expect(
+    screen.getByRole("button", { name: "Create swarm" }).matches(":disabled"),
+  ).toBe(true);
+});
