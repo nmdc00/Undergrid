@@ -31,14 +31,14 @@ test("policy draft inputs freeze while a workspace action refreshes their record
  const category=screen.getByRole("checkbox",{name:"Permit JSON dataset tasks"});
  const maximum=screen.getByLabelText("Maximum active tasks");
  const expiry=screen.getByLabelText("Policy expires at (UTC)");
- for(const control of [consent,template,license,category,maximum,expiry]) expect(control).toBeDisabled();
+ for(const control of [consent,template,license,category,maximum,expiry]) expect(control.matches(":disabled")).toBe(true);
  await userEvent.click(consent);
  await userEvent.type(maximum,"8");
  expect((consent as HTMLInputElement).checked).toBe(false);
- expect(maximum).toHaveValue(0);
+ expect((maximum as HTMLInputElement).value).toBe("0");
  expect(save).not.toHaveBeenCalled();
  rerender(<OwnerPolicy record={{...initial}} templates={templates} busy={false} save={save}/>);
- for(const control of [consent,template,license,category,maximum,expiry]) expect(control).toBeEnabled();
+ for(const control of [consent,template,license,category,maximum,expiry]) expect(control.matches(":disabled")).toBe(false);
  await userEvent.click(consent);
  await userEvent.clear(maximum);
  await userEvent.type(maximum,"8");
