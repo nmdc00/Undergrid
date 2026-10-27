@@ -42,6 +42,7 @@ test("successful but unusable creation recovers the original room command", asyn
   await userEvent.click(
     screen.getByLabelText(/I understand.*full room history/i),
   );
+  await userEvent.click(screen.getByLabelText("I reviewed this room setup"));
   await userEvent.click(screen.getByRole("button", { name: "Create swarm" }));
   await screen.findByRole("alert");
   await userEvent.click(screen.getByRole("button", { name: "Create swarm" }));
@@ -108,6 +109,7 @@ test("owner explicitly selects a responsible active agent and acknowledges full 
   await userEvent.click(
     screen.getByLabelText(/I understand.*full room history/i),
   );
+  await userEvent.click(screen.getByLabelText("I reviewed this room setup"));
   await userEvent.click(screen.getByRole("button", { name: "Create swarm" }));
   await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
   const [path, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];
@@ -124,7 +126,7 @@ test("owner explicitly selects a responsible active agent and acknowledges full 
   await waitFor(() => expect(created).toHaveBeenCalledWith("b", "room"));
   expect(document.querySelector("script")).toBeNull();
 });
-test("changing selected agent suppresses a late create response and clears private form data", async () => {
+test("changing the owner session suppresses a late create response and clears private form data", async () => {
   let finish!: (response: Response) => void;
   vi.stubGlobal(
     "fetch",
@@ -136,7 +138,7 @@ test("changing selected agent suppresses a late create response and clears priva
     ),
   );
   const created = vi.fn();
-  render(
+  const view = render(
     <CreateSwarm
       agents={agents}
       csrf="csrf"
@@ -155,16 +157,24 @@ test("changing selected agent suppresses a late create response and clears priva
   await userEvent.click(
     screen.getByLabelText(/I understand.*full room history/i),
   );
+  await userEvent.click(screen.getByLabelText("I reviewed this room setup"));
   await userEvent.click(screen.getByRole("button", { name: "Create swarm" }));
-  await userEvent.selectOptions(
-    screen.getByLabelText("Responsible agent"),
-    "b",
+  expect(screen.getByLabelText("Responsible agent").matches(":disabled")).toBe(
+    true,
+  );
+  view.rerender(
+    <CreateSwarm
+      agents={agents}
+      csrf="new-owner-session"
+      onUnauthorized={vi.fn()}
+      onCreated={created}
+    />,
   );
   finish(
     new Response(
       JSON.stringify({
         id: "old-room",
-        visibility: "restricted",
+        visibility: "private",
         history_policy: "full",
         version: 1,
         etag: '"1"',
@@ -195,6 +205,7 @@ test("session loss clears the creation data and returns owner control", async ()
   await userEvent.click(
     screen.getByLabelText(/I understand.*full room history/i),
   );
+  await userEvent.click(screen.getByLabelText("I reviewed this room setup"));
   await userEvent.click(screen.getByRole("button", { name: "Create swarm" }));
   await waitFor(() => expect(denied).toHaveBeenCalledTimes(1));
   expect(
@@ -246,6 +257,7 @@ test("uncertain creation retries preserve the command identity", async () => {
   await userEvent.click(
     screen.getByLabelText(/I understand.*full room history/i),
   );
+  await userEvent.click(screen.getByLabelText("I reviewed this room setup"));
   await userEvent.click(screen.getByRole("button", { name: "Create swarm" }));
   await screen.findByRole("alert");
   await userEvent.click(screen.getByRole("button", { name: "Create swarm" }));
@@ -271,6 +283,7 @@ test("agent removal clears private draft and disables submission", async () => {
   await userEvent.click(
     screen.getByLabelText(/I understand.*full room history/i),
   );
+  await userEvent.click(screen.getByLabelText("I reviewed this room setup"));
   view.rerender(
     <CreateSwarm
       agents={agents.filter((a) => a.id !== "a")}
@@ -329,6 +342,7 @@ test("private remains the initial default and restricted needs an explicit choic
   await userEvent.click(
     screen.getByLabelText(/I understand.*full room history/i),
   );
+  await userEvent.click(screen.getByLabelText("I reviewed this room setup"));
   await userEvent.click(screen.getByRole("button", { name: "Create swarm" }));
   await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
   const [, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];

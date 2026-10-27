@@ -346,7 +346,7 @@ func TestRoomOriginExternalKindsRequireCurrentSourceBeforeReceiptRecovery(t *tes
 }
 
 func TestRoomOriginRecruitmentRequiresCurrentRoomAndRecipientProfile(t *testing.T) {
-	for _, change := range []string{"archived-room", "private-room", "revoked-coordinator", "recipient-optout", "changed-role"} {
+	for _, change := range []string{"archived-room", "private-room", "revoked-coordinator", "recipient-optout", "changed-role", "coordinator-cutover"} {
 		t.Run(change, func(t *testing.T) {
 			s, db, worker, _ := externalNotificationFixture(t)
 			organizer, builder := collaborationClient(t, s), collaborationClient(t, s)
@@ -388,6 +388,48 @@ func TestRoomOriginRecruitmentRequiresCurrentRoomAndRecipientProfile(t *testing.
 				_, err = db.Exec(context.Background(), `UPDATE undergrid.agents SET profile=jsonb_set(profile,'{recruitment}','false') WHERE id=$1`, me["agent_id"])
 			case "changed-role":
 				_, err = db.Exec(context.Background(), `UPDATE undergrid.swarms SET recruitment_roles=jsonb_set(recruitment_roles,'{0,description}','"Changed role"') WHERE id=$1`, source["id"])
+			case "coordinator-cutover":
+				successor := collaborationClient(t, s)
+				_, identity := successor.call("GET", "/v1/me", "", nil)
+				admin, e := pgx.ConnectConfig(context.Background(), db.Config().Copy())
+				if e != nil {
+					t.Fatal(e)
+				}
+				defer admin.Close(context.Background())
+				held, e := admin.Begin(context.Background())
+				if e != nil {
+					t.Fatal(e)
+				}
+				defer held.Rollback(context.Background())
+				if _, e = held.Exec(context.Background(), "UPDATE undergrid.swarms SET coordinator_agent_id=$2 WHERE id=$1", source["id"], identity["agent_id"]); e != nil {
+					t.Fatal(e)
+				}
+				ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+				defer cancel()
+				request := httptest.NewRequest("POST", "/v1/owner/agents/"+x.agent+"/swarms", bytes.NewReader(canonical(body))).WithContext(ctx)
+				request.Header.Set("X-Test-Owner", x.owner.owner)
+				request.Header.Set("Idempotency-Key", "recruit-origin-retry")
+				contendedBefore := x.effects(t)
+				response := httptest.NewRecorder()
+				started := time.Now()
+				s.ServeHTTP(response, request)
+				var outcome map[string]any
+				if e = json.Unmarshal(response.Body.Bytes(), &outcome); e != nil {
+					t.Fatal(e)
+				}
+				failure, _ := outcome["error"].(map[string]any)
+				if response.Code != 500 || failure["retryable"] != true || time.Since(started) > 2*time.Second {
+					t.Fatalf("coordinator cutover must hold current room before deriving authority: %d %v elapsed=%s", response.Code, outcome, time.Since(started))
+				}
+				if after := x.effects(t); !reflect.DeepEqual(contendedBefore, after) {
+					t.Fatal("coordinator cutover contention committed effects", contendedBefore, after)
+				}
+				if e = held.Commit(context.Background()); e != nil {
+					t.Fatal(e)
+				}
+				// Once succession commits, only the new coordinator's current
+				// authority may authorize this still-retained origin.
+				_, err = db.Exec(context.Background(), "UPDATE undergrid.agents SET status='revoked' WHERE id=$1", identity["agent_id"])
 			}
 			if err != nil {
 				t.Fatal(err)

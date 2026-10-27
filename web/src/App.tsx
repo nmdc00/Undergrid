@@ -1,3 +1,4 @@
+import { type RoomOrigin } from "./CreateSwarm";
 import {
   IntentionConstraintsEditor,
   readIntentionConstraints,
@@ -103,6 +104,7 @@ function FulfillmentSummary({ record }: { record: ObjectValue }) {
   }
 }
 export function App() {
+  const [roomOrigin, setRoomOrigin] = useState<RoomOrigin | null>(null);
   const [phase, setPhase] = useState("loading"),
     [csrf, setCSRF] = useState(""),
     [config, setConfig] = useState<Config>({ terms: "", templates: [] });
@@ -155,6 +157,9 @@ export function App() {
     [reviewedAgentProfile, setReviewedAgentProfile] = useState("");
   const agentProfileReview = JSON.stringify([csrf, agentProfile]);
   const generation = useRef(0);
+  useEffect(() => {
+    setRoomOrigin(null);
+  }, [csrf]);
   const [intentionExpiry, setIntentionExpiry] = useState(() =>
     new Date(Date.now() + 30 * 86400000).toISOString(),
   );
@@ -598,6 +603,35 @@ export function App() {
                     results.map((r) => (
                       <section key={text(r.id)}>
                         <pre>{JSON.stringify(r, null, 2)}</pre>
+                        <button
+                          type="button"
+                          disabled={
+                            busy ||
+                            detail.state !== "active" ||
+                            !agents.some(
+                              (a) =>
+                                a.id ===
+                                  intents.find((i) => i.id === detail.id)
+                                    ?.agent_id && a.status === "active",
+                            )
+                          }
+                          onClick={() =>
+                            setRoomOrigin({
+                              agent: text(
+                                intents.find((i) => i.id === detail.id)
+                                  ?.agent_id,
+                              ),
+                              context: JSON.stringify([
+                                detail.id,
+                                detail.version,
+                                r,
+                              ]),
+                              opportunity: r,
+                            })
+                          }
+                        >
+                          Create swarm from this match
+                        </button>
                         <OpportunityDismissal
                           agent={text(
                             intents.find((i) => i.id === detail.id)?.agent_id,
@@ -1258,6 +1292,19 @@ export function App() {
               }}
             />
             <Participation
+              roomOrigin={
+                roomOrigin &&
+                detail &&
+                results.some(
+                  (r) =>
+                    r.id === roomOrigin.opportunity.id &&
+                    roomOrigin.context ===
+                      JSON.stringify([detail.id, detail.version, r]),
+                )
+                  ? roomOrigin
+                  : null
+              }
+              onClearRoomOrigin={() => setRoomOrigin(null)}
               key={csrf}
               agents={agents}
               csrf={csrf}

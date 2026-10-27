@@ -1,7 +1,7 @@
 import { OwnerRoomMessage } from "./OwnerRoomMessage";
 import { OwnerPlanApproval } from "./OwnerPlanApproval";
 import { InviteMember } from "./InviteMember";
-import { CreateSwarm } from "./CreateSwarm";
+import { CreateSwarm, type RoomOrigin } from "./CreateSwarm";
 import { useEffect, useRef, useState } from "react";
 import { ApiError, object, request, text, type ObjectValue } from "./api";
 
@@ -40,10 +40,14 @@ export function Participation({
   agents,
   csrf,
   onUnauthorized,
+  roomOrigin,
+  onClearRoomOrigin,
 }: {
   agents: ObjectValue[];
   csrf: string;
   onUnauthorized: () => void;
+  roomOrigin?: RoomOrigin | null;
+  onClearRoomOrigin?: () => void;
 }) {
   const active = agents.filter((a) => a.status === "active");
   const [agent, setAgent] = useState(active[0] ? text(active[0].id) : "");
@@ -232,6 +236,8 @@ export function Participation({
     <section>
       <h2>Swarm participation</h2>
       <CreateSwarm
+        origin={roomOrigin}
+        onClearOrigin={onClearRoomOrigin}
         agents={agents}
         csrf={csrf}
         onUnauthorized={onUnauthorized}
