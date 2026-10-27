@@ -482,3 +482,63 @@ func TestRoomOriginSemanticEvidenceRemainsBoundToCurrentProcessingProfile(t *tes
 		})
 	}
 }
+
+func TestRoomOriginCurrentForeignAuthorityMustRemainLockedThroughCreationAndReplay(t *testing.T) {
+	for _, retained := range []bool{false, true} {
+		name := "new"
+		if retained {
+			name = "retained"
+		}
+		t.Run(name, func(t *testing.T) {
+			x := roomOriginFixture(t)
+			body := x.body()
+			if retained {
+				code, out := x.create(t, true, "authority-locked-origin", body)
+				if code != 201 {
+					t.Fatal(code, out)
+				}
+			}
+			// Use a dedicated administrator connection only to stage an uncommitted
+			// revocation. The command itself still uses the restricted application role.
+			adminConfig := x.db.Config().Copy()
+			admin, err := pgx.ConnectConfig(context.Background(), adminConfig)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer admin.Close(context.Background())
+			tx, err := admin.Begin(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer tx.Rollback(context.Background())
+			if _, err = tx.Exec(context.Background(), "UPDATE undergrid.agents SET status='revoked' WHERE id=$1", x.candidateAgent); err != nil {
+				t.Fatal(err)
+			}
+			before := x.effects(t)
+			code, out := x.create(t, true, "authority-locked-origin", body)
+			if code != 500 || out["retryable"] != true {
+				t.Errorf("foreign authority contention did not preserve retryable rollback: %d %v", code, out)
+			}
+			if after := x.effects(t); !reflect.DeepEqual(before, after) {
+				t.Fatal("contended origin committed effects", before, after)
+			}
+			if err = tx.Rollback(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			code, out = x.create(t, true, "authority-locked-origin", body)
+			if code != 201 {
+				t.Fatal("same-key retry after authority rollback failed", code, out)
+			}
+			changed := x.body()
+			changed["objective"] = "A genuinely different reviewed objective"
+			before = x.effects(t)
+			code, out = x.create(t, true, "authority-locked-origin", changed)
+			if code != 409 {
+				t.Fatal("changed retained command did not conflict", code, out)
+			}
+			if after := x.effects(t); !reflect.DeepEqual(before, after) {
+				t.Fatal("changed replay committed effects", before, after)
+			}
+		})
+	}
+}
