@@ -3,6 +3,9 @@ package network
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"testing"
 
@@ -244,5 +247,145 @@ func TestRoomOriginForeignAndObjectiveOnlyControlsRemainDistinct(t *testing.T) {
 	}
 	if after := x.effects(t); !reflect.DeepEqual(before, after) {
 		t.Fatal("objective-only retry duplicated effects", before, after)
+	}
+}
+
+// Controlled HTTPS data exercises both real adapters and restricted worker writes;
+// it is not source or provider qualification.
+func TestRoomOriginExternalKindsRequireCurrentSourceBeforeReceiptRecovery(t *testing.T) {
+	for _, kind := range []string{"github_requests", "capability_manifest"} {
+		t.Run(kind, func(t *testing.T) {
+			s, db, worker, _ := externalNotificationFixture(t)
+			owner := collaborationClient(t, s)
+			_, me := owner.call("GET", "/v1/me", "", nil)
+			input := intentFixture()
+			input.Objective = "Room external provenance " + NewID()
+			code, source := owner.call("POST", "/v1/intents", NewID(), input)
+			if code != 201 {
+				t.Fatal(code, source)
+			}
+			publisher := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if kind == "github_requests" {
+					fmt.Fprintf(w, `[{"id":271,"html_url":"https://github.com/fixture/project/issues/271","title":%q,"updated_at":"2026-10-23T00:00:00Z","state":"open","labels":[{"name":"undergrid"}]}]`, input.Objective)
+					return
+				}
+				fmt.Fprintf(w, `{"items":[{"id":"lead","version":"1","url":"https://publisher.example/lead","title":%q,"status":"active"}],"next_page":0}`, input.Objective)
+			}))
+			defer publisher.Close()
+			cfg := SourceConfig{ID: NewID(), Kind: kind, Endpoint: "https://publisher.example/feed", Publisher: "Controlled publisher", AccessBasis: "fixture access", RepublicationBasis: "fixture redistribution", TombstoneBasis: "fixture tombstone", PublicPermissionNotice: "Permitted title and URL", Fields: []string{"canonical_url", "title"}}
+			if kind == "github_requests" {
+				cfg.Endpoint = "https://api.github.com/repos/fixture/project/issues"
+				cfg.Labels = []string{"undergrid"}
+			}
+			refresher := externalNotificationRefresher(t, worker.dsn, cfg, publisher)
+			if err := refresher.RefreshDue(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			if err := worker.ScanDueIntentions(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			code, page := owner.call("GET", "/v1/intents/"+source["id"].(string)+"/opportunities", "", nil)
+			if code != 200 {
+				t.Fatal(code, page)
+			}
+			origin := ""
+			for _, raw := range page["items"].([]any) {
+				row := raw.(map[string]any)
+				if row["kind"] == "external_capability" || row["kind"] == "external_request" {
+					origin = row["id"].(string)
+				}
+			}
+			if origin == "" {
+				t.Fatal("actual external origin absent", page)
+			}
+			x := &roomOriginFixtureState{service: s, worker: worker, db: db, owner: owner, agent: me["agent_id"].(string), principal: me["principal_id"].(string), origin: origin}
+			body := x.body()
+			code, room := x.create(t, true, "external-origin-retry", body)
+			if code != 201 {
+				t.Fatal("current external origin denied", code, room)
+			}
+			code, replay := x.create(t, true, "external-origin-retry", body)
+			if code != 201 || !reflect.DeepEqual(room, replay) {
+				t.Fatal("current external receipt failed", code, replay)
+			}
+			if _, err := db.Exec(context.Background(), `UPDATE undergrid.external_sources SET config=jsonb_set(config,'{PublicPermissionNotice}','""') WHERE id=$1`, cfg.ID); err != nil {
+				t.Fatal(err)
+			}
+			before := x.effects(t)
+			for _, key := range []string{"external-origin-retry", "external-origin-new"} {
+				code, out := x.create(t, true, key, body)
+				if code != 404 {
+					t.Errorf("removed source permission accepted room or receipt: %d %v", code, out)
+				}
+			}
+			if after := x.effects(t); !reflect.DeepEqual(before, after) {
+				t.Fatal("ineligible external origin committed effects", before, after)
+			}
+		})
+	}
+}
+
+func TestRoomOriginRecruitmentRequiresCurrentRoomAndRecipientProfile(t *testing.T) {
+	for _, change := range []string{"archived-room", "private-room", "revoked-coordinator", "recipient-optout", "changed-role"} {
+		t.Run(change, func(t *testing.T) {
+			s, db, worker, _ := externalNotificationFixture(t)
+			organizer, builder := collaborationClient(t, s), collaborationClient(t, s)
+			role := RecruitmentRole{Key: "builder", SchemaFamily: "source_catalog_v1", Description: "Build the declared catalog"}
+			code, source := organizer.call("POST", "/v1/swarms", NewID(), map[string]any{"objective": "Recruitment provenance " + NewID(), "visibility": "restricted", "recruitment_roles": []RecruitmentRole{role}})
+			if code != 201 {
+				t.Fatal(code, source)
+			}
+			_, me := builder.call("GET", "/v1/me", "", nil)
+			workerDB, err := pgx.Connect(context.Background(), worker.dsn)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer workerDB.Close(context.Background())
+			if _, err = workerDB.Exec(context.Background(), "SET ROLE undergrid_worker; SET search_path=undergrid,pg_catalog"); err != nil {
+				t.Fatal(err)
+			}
+			if _, err = worker.recruitOne(context.Background(), workerDB, source["id"].(string), role, me["agent_id"].(string), me["principal_id"].(string)); err != nil {
+				t.Fatal(err)
+			}
+			var origin string
+			if err = db.QueryRow(context.Background(), "SELECT id FROM undergrid.opportunities WHERE source_swarm_id=$1 AND recipient_agent_id=$2", source["id"], me["agent_id"]).Scan(&origin); err != nil {
+				t.Fatal(err)
+			}
+			x := &roomOriginFixtureState{service: s, worker: worker, db: db, owner: builder, agent: me["agent_id"].(string), principal: me["principal_id"].(string), origin: origin}
+			body := x.body()
+			code, room := x.create(t, true, "recruit-origin-retry", body)
+			if code != 201 {
+				t.Fatal(code, room)
+			}
+			switch change {
+			case "archived-room":
+				_, err = db.Exec(context.Background(), "UPDATE undergrid.swarms SET state='archived' WHERE id=$1", source["id"])
+			case "private-room":
+				_, err = db.Exec(context.Background(), "UPDATE undergrid.swarms SET visibility='private' WHERE id=$1", source["id"])
+			case "revoked-coordinator":
+				_, err = db.Exec(context.Background(), "UPDATE undergrid.agents SET status='revoked' WHERE id=(SELECT coordinator_agent_id FROM undergrid.swarms WHERE id=$1)", source["id"])
+			case "recipient-optout":
+				_, err = db.Exec(context.Background(), `UPDATE undergrid.agents SET profile=jsonb_set(profile,'{recruitment}','false') WHERE id=$1`, me["agent_id"])
+			case "changed-role":
+				_, err = db.Exec(context.Background(), `UPDATE undergrid.swarms SET recruitment_roles=jsonb_set(recruitment_roles,'{0,description}','"Changed role"') WHERE id=$1`, source["id"])
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			before := x.effects(t)
+			for _, key := range []string{"recruit-origin-retry", "recruit-origin-new"} {
+				code, out := x.create(t, true, key, body)
+				if code != 404 {
+					t.Errorf("stale recruitment %s accepted room or receipt: %d %v", change, code, out)
+				}
+			}
+			if after := x.effects(t); !reflect.DeepEqual(before, after) {
+				t.Fatal("stale recruitment committed effects", before, after)
+			}
+			var members int
+			if err = db.QueryRow(context.Background(), "SELECT count(*) FROM undergrid.memberships WHERE swarm_id=$1 AND agent_id=$2", source["id"], me["agent_id"]).Scan(&members); err != nil || members != 0 {
+				t.Fatal("origin admitted builder to source room", members, err)
+			}
+		})
 	}
 }
