@@ -137,7 +137,7 @@ never align due to semantic score, revocation blocks current reads/replay,
 canonical locks prevent stale policy acceptance, and receipt/chat never grants
 participation or rights. Prove restart, decline and no duplicate effects.
 
-Current evidence at release `3bb46eb`: the independently extracted discovery
+Current evidence at release `2099a76`: the independently extracted discovery
 capacity fix is reviewed and merged in PR101, preserving the five-second bound,
 accepted work and HP1 behavior. Post-merge watcher/shutdown race checks passed
 10.625 seconds and the console build passed; exact logs are
@@ -160,8 +160,13 @@ registration and saved acknowledgement are reviewed and merged in PR106, with
 actual worker recruitment proof; see `OWNER_BUILDER_REGISTRATION.md`. This does
 not supply a public directory or existing-profile editor. Complementary
 discovery, visible unknown-hard clarification, the group viewer and owner
-room/plan/application controls still require their actual journeys and reviewed
-integration. HP2 remains open.
+room-origin/application controls still require their actual journeys and reviewed
+integration. Owner plan proposal/revision is reviewed and merged in PR110 at
+`2099a76`: the actual three-owner two-plan browser lifecycle passes, with exact
+votes, separate assignment acceptance, immutable revision activation and real
+worker restart/recovery. Retained rejection/expiry/authority guards and post-merge
+checks also pass; see `OWNER_PLAN_PROPOSAL.md`. This bounded feature proof uses
+explicit API room/invitation setup and does not complete HP2. HP2 remains open.
 
 Public qualification: externally operated participants and independent REST/MCP/A2A
 clients with actual outcomes, clearly labeled release-test evidence.
@@ -310,22 +315,25 @@ remaining gate. Do not start multiple unrelated happy paths in parallel.
 ## Immediate checkpoint
 
 Mapping is complete for all six paths. HP1 is locally closed; **HP2 is active**.
-Capacity, owner publication, builder registration and semantic integration are
-reviewed and merged through PR107 (`3bb46eb`). Current implementation work is
-owner plan proposal/revision; room-origin/recruitment-role controls have a locked
-contract and audit, with implementation not yet started. The full HP2 journey
-remains unproven. Finish its remaining discovery, room, recruitment, application,
-plan and assignment steps before starting HP3.
+Capacity, owner publication, builder registration, semantic integration and owner
+plan proposal/revision are reviewed and merged through PR110 (`2099a76`), including
+policy-draft refresh protection in PR109. The plan feature has actual continuous
+two-plan acceptance/revision/restart proof and focused post-merge checks.
+Room-origin/recruitment-role implementation is active on its isolated branch;
+full acceptance, final review and merge remain pending. The complete HP2 journey
+remains unproven. Finish its remaining discovery, group/clarification, room,
+recruitment and application outcomes, then prove their integration with the
+merged plan/assignment steps before starting HP3.
 
 On 26 October, fetched `main...develop` divergence remains `0 1`. Release PR62
 remains open; no release promotion or deployment is implied by feature merges.
 
 | Current responsibility | Branch / worktree | Required evidence |
 | --- | --- | --- |
-| Owner plan proposal/revision (`builder_oct26`) | `feat/v0.1-owner-plan-proposal`; `/tmp/undergrid-worktrees/owner-plan-proposal/feat-v0.1-owner-plan-proposal` | Current branch `fa8b37b` reconciles PR107. Prove reviewed bounded drafts, current participant authority, exact receipt recovery, accepted initial plan then separately approved/assigned revision. `HP2_EXECUTION.md` owns the contract; full browser lifecycle and final review remain pending. |
-| Room origin/recruitment audit (`root`, with read-only review) | Planned `feat/v0.1-owner-room-origin-recruitment`; no implementation worktree assigned | Locked contract in `HP2_EXECUTION.md`; current-visible origin authority, role/history review and actual attributable recruitment still require behavioral RED and implementation. An audit is not runtime proof. |
+| Completed owner plan proposal/revision | `feat/v0.1-owner-plan-proposal`; `/tmp/undergrid-worktrees/owner-plan-proposal/feat-v0.1-owner-plan-proposal` retained | Reviewed and merged in PR110/release `2099a76`. Actual browser on `9040113` passed 29.067s; retained race guards passed 21 top-level/16 subcases in 57.479s. Post-merge UI/build and restricted lifecycle/contract checks pass. `OWNER_PLAN_PROPOSAL.md` owns exact proof and limits. |
+| Active room origin/recruitment implementation | `feat/v0.1-owner-room-origin-recruitment`; `/tmp/undergrid-worktrees/room-origin/feat-v0.1-owner-room-origin-recruitment` | Locked contract in `HP2_EXECUTION.md`; current-visible origin authority, reviewed roles/history and attributable recruitment are under implementation and validation. Full acceptance, final review and merge remain pending; no full-path completion claim. |
 | Completed prerequisites | Semantic `feat/v0.1-semantic-integration` and builder `feat/v0.1-owner-builder-registration`; preserved isolated worktrees | PR107 and PR106 are reviewed and merged. `SEMANTIC_INTEGRATION.md` and `OWNER_BUILDER_REGISTRATION.md` retain exact sources, failures and proof boundaries. |
-| Integration (`root`) | `release/v0.1`; this checkpoint on `docs/v0.1-hp2-semantic-merge-checkpoint` in its isolated worktree | Review task diffs and evidence before feature PR merges; serialize costly gates and preserve full-path acceptance. |
+| Integration (`root`) | `release/v0.1`; this checkpoint on `docs/v0.1-plan-merge-checkpoint` in its isolated worktree | Review task diffs and evidence before feature PR merges; serialize costly gates and preserve full-path acceptance. |
 
 These are resumed responsibilities after the prior worker tree ended. Existing
 worktrees, failed gates and retained databases remain evidence. Real provider,
