@@ -160,8 +160,10 @@ registration and saved acknowledgement are reviewed and merged in PR106, with
 actual worker recruitment proof; see `OWNER_BUILDER_REGISTRATION.md`. This does
 not supply a public directory or existing-profile editor. Complementary
 discovery, visible unknown-hard clarification, the group viewer and owner
-room-origin/application controls still require their actual journeys and reviewed
-integration. Owner plan proposal/revision is reviewed and merged in PR110 at
+application controls still require their actual journeys and reviewed integration.
+Owner room-origin/role controls have actual selected-match → reviewed room →
+restricted-worker recruitment proof on their feature branch; final review/merge
+remain pending in `OWNER_ROOM_ORIGIN_RECRUITMENT.md`. Owner plan proposal/revision is reviewed and merged in PR110 at
 `2099a76`: the actual three-owner two-plan browser lifecycle passes, with exact
 votes, separate assignment acceptance, immutable revision activation and real
 worker restart/recovery. Retained rejection/expiry/authority guards and post-merge
@@ -331,7 +333,7 @@ remains open; no release promotion or deployment is implied by feature merges.
 | Current responsibility | Branch / worktree | Required evidence |
 | --- | --- | --- |
 | Completed owner plan proposal/revision | `feat/v0.1-owner-plan-proposal`; `/tmp/undergrid-worktrees/owner-plan-proposal/feat-v0.1-owner-plan-proposal` retained | Reviewed and merged in PR110/release `2099a76`. Actual browser on `9040113` passed 29.067s; retained race guards passed 21 top-level/16 subcases in 57.479s. Post-merge UI/build and restricted lifecycle/contract checks pass. `OWNER_PLAN_PROPOSAL.md` owns exact proof and limits. |
-| Active room origin/recruitment implementation | `feat/v0.1-owner-room-origin-recruitment`; `/tmp/undergrid-worktrees/room-origin/feat-v0.1-owner-room-origin-recruitment` | Locked contract in `HP2_EXECUTION.md`; current-visible origin authority, reviewed roles/history and attributable recruitment are under implementation and validation. Full acceptance, final review and merge remain pending; no full-path completion claim. |
+| Active room origin/recruitment implementation | `feat/v0.1-owner-room-origin-recruitment`; `/tmp/undergrid-worktrees/room-origin/feat-v0.1-owner-room-origin-recruitment` | Locally proven: actual selected-match → reviewed restricted room → lost-response exact recovery → worker recruitment without admission, race package 20.111s on `857e07e`; full UI 163 cases, restricted 17 top-level/36-subcase aggregate and retained owner-plan browser pass. `OWNER_ROOM_ORIGIN_RECRUITMENT.md` owns exact evidence and preserved failures. Final review/merge remain pending; no full-path completion claim. |
 | Completed prerequisites | Semantic `feat/v0.1-semantic-integration` and builder `feat/v0.1-owner-builder-registration`; preserved isolated worktrees | PR107 and PR106 are reviewed and merged. `SEMANTIC_INTEGRATION.md` and `OWNER_BUILDER_REGISTRATION.md` retain exact sources, failures and proof boundaries. |
 | Integration (`root`) | `release/v0.1`; this checkpoint on `docs/v0.1-plan-merge-checkpoint` in its isolated worktree | Review task diffs and evidence before feature PR merges; serialize costly gates and preserve full-path acceptance. |
 
