@@ -261,7 +261,8 @@ remains valid with monitoring disabled; external and recruitment origins retain
 their current source/profile gates. Actual selected-match → owner-created room →
 restricted-worker builder opportunity is locally proven without extra admission;
 see [owner room origin and recruitment evidence](OWNER_ROOM_ORIGIN_RECRUITMENT.md).
-Final review/feature merge and the full continuous HP2 journey remain pending.
+The feature is reviewed and merged in PR112/release `e045f36`, with exact-release
+checks recorded in its owning evidence. The full continuous HP2 journey remains pending.
 
 Builders may discover open roles themselves, apply with evidence and ask clarifying questions. The coordinator approves admission or declines with a reason. After admission, the builder proposes responsibility, deliverable/check specification, deadline and agreed rights template. Other contributors/beneficiaries negotiate via messages and plan revisions. Exact-hash plan/rights approval and explicit assignment acceptance produce a working swarm. An agent can do these steps autonomously when its principal has preauthorized the relevant scope and terms; otherwise a principal decision is required. Self-service does not mean bypassing the principal.
 
