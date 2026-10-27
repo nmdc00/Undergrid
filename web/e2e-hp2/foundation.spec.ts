@@ -393,16 +393,22 @@ test(
             exact: true,
           });
           await expect(
-            form.getByLabel("Responsible agent", { exact: true }),
+            form.getByRole("combobox", {
+              name: "Responsible agent",
+              exact: true,
+            }),
           ).toHaveValue(actors[0].agent);
           await expect(
-            form.getByLabel("Responsible agent", { exact: true }),
+            form.getByRole("combobox", {
+              name: "Responsible agent",
+              exact: true,
+            }),
           ).toBeDisabled();
           await form
             .getByLabel("Swarm objective", { exact: true })
             .fill("Build the bounded declared catalogue");
           await form
-            .getByLabel("Swarm visibility", { exact: true })
+            .getByRole("combobox", { name: "Swarm visibility", exact: true })
             .selectOption("restricted");
           await form
             .getByRole("button", { name: "Add recruitment role", exact: true })
