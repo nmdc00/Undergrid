@@ -330,3 +330,41 @@ test("canonical null constraints and Unicode codepoint boundaries remain display
   expect(await screen.findByText(candidate)).toBeTruthy();
   expect(screen.queryByRole("alert")).toBeNull();
 });
+
+test("impossible delivery calendar dates are rejected rather than normalized", async () => {
+  const value = page();
+  value.items[0].members[1].hard_constraints.delivery.deliver_by =
+    "2030-02-30T00:00:00Z";
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => response(value)),
+  );
+  mount();
+  await userEvent.click(
+    screen.getByRole("button", { name: "View compatible groups" }),
+  );
+  await screen.findByRole("alert");
+  expect(screen.queryByText(candidate)).toBeNull();
+});
+
+test.each([
+  "2032-02-29T00:00:00.123456789+05:45",
+  "2032-02-29t00:00:00.123456789z",
+])(
+  "valid delivery precision and offset %s remain unchanged",
+  async (timestamp) => {
+    const value = page();
+    value.items[0].members[1].hard_constraints.delivery.deliver_by = timestamp;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => response(value)),
+    );
+    mount();
+    await userEvent.click(
+      screen.getByRole("button", { name: "View compatible groups" }),
+    );
+    await screen.findByText(candidate);
+    expect(screen.getByText((text) => text.includes(timestamp))).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+  },
+);
