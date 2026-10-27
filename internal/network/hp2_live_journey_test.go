@@ -22,18 +22,20 @@ import (
 // This is an opt-in setup foundation, not the complete HP2 journey. The second
 // tag avoids adding unfinished HP2 expectations to HP1's established live gate.
 func TestHP2LiveThreeOwnerScopedSetupFoundation(t *testing.T) {
-	hp2LiveOwnerSetup(t, false, false)
+	hp2LiveOwnerSetup(t, hp2Foundation)
 }
 
 func TestHP2LiveOwnerPublicationAndWithdrawal(t *testing.T) {
-	hp2LiveOwnerSetup(t, true, false)
+	hp2LiveOwnerSetup(t, hp2Publication)
 }
 
 func TestHP2LiveOwnerBuilderRegistrationAndRecruitment(t *testing.T) {
-	hp2LiveOwnerSetup(t, false, true)
+	hp2LiveOwnerSetup(t, hp2Builder)
 }
 
-func hp2LiveOwnerSetup(t *testing.T, publication, builderRegistration bool) {
+func hp2LiveOwnerSetup(t *testing.T, mode hp2SetupMode) {
+	publication, builderRegistration := mode == hp2Publication, mode == hp2Builder
+	planProposal := mode == hp2PlanProposal
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	adminDSN := hp1RunDatabase(t, ctx)
@@ -87,6 +89,11 @@ func hp2LiveOwnerSetup(t *testing.T, publication, builderRegistration bool) {
 	if err = service.ConfigureCredentialIssuance("hp2-fixture-key", bytes.Repeat([]byte{23}, 32)); err != nil {
 		t.Fatal(err)
 	}
+	if planProposal {
+		enableTestTerms(t, service)
+		stopPlanWorker := hp2PlanOracle(t, ctx, mux, admin)
+		defer stopPlanWorker()
+	}
 	mux.HandleFunc("/auth/login", login.Start)
 	mux.HandleFunc("/auth/callback", func(w http.ResponseWriter, r *http.Request) {
 		login.Callback(w, r.WithContext(oidc.ClientContext(r.Context(), issuer.Client())))
@@ -122,7 +129,11 @@ func hp2LiveOwnerSetup(t *testing.T, publication, builderRegistration bool) {
 		t.Fatal(err)
 	}
 	t.Logf("Retained HP2 browser artifacts: %s", artifacts)
-	browser := exec.CommandContext(ctx, node, filepath.Join(root, "web", "node_modules", "@playwright", "test", "cli.js"), "test", "--config", "playwright.hp2.config.ts")
+	scenarioFile := "e2e-hp2/foundation.spec.ts"
+	if planProposal {
+		scenarioFile = "e2e-hp2/plan-proposal.spec.ts"
+	}
+	browser := exec.CommandContext(ctx, node, filepath.Join(root, "web", "node_modules", "@playwright", "test", "cli.js"), "test", scenarioFile, "--config", "playwright.hp2.config.ts")
 	browser.Dir = filepath.Join(root, "web")
 	browser.Env = append(os.Environ(), "UNDERGRID_HP1_BASE_URL="+app.URL, "UNDERGRID_HP2_ISSUER_URL="+issuer.URL, "UNDERGRID_TEST_CHROMIUM="+chromium, "UNDERGRID_HP1_BROWSER_ARTIFACTS="+artifacts)
 	if publication {
@@ -198,6 +209,10 @@ func hp2LiveOwnerSetup(t *testing.T, publication, builderRegistration bool) {
 	if builderRegistration {
 		expectedCollaborationEffects = 2
 	} // one fixture/API-created room and its creator membership
+	if planProposal {
+		expectedCollaborationEffects = 22
+		assertHP2PlanFinalState(t, ctx, admin)
+	}
 	if collaborationEffects != expectedCollaborationEffects {
 		t.Fatalf("setup fabricated %d collaboration effects", collaborationEffects)
 	}

@@ -66,6 +66,15 @@ func (s *Service) swarmCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, e
 			}
 		}
 	}
+	if strings.HasSuffix(r.URL.Path, "/plans") {
+		parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+		if len(parts) != 4 || !validID(parts[2]) {
+			return 0, nil, fail(404, "not_found")
+		}
+		if err := requirePlanProposer(r.Context(), tx, a, parts[2]); err != nil {
+			return 0, nil, err
+		}
+	}
 	return idempotent(r, tx, a, func() (int, any, error) {
 		if r.URL.Path == "/v1/swarms" {
 			return s.createSwarm(r, tx, a)

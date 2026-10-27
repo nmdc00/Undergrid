@@ -59,16 +59,30 @@ func planResult(ctx context.Context, tx pgx.Tx, p storedPlan) (any, error) {
 	}
 	return map[string]any{"id": p.id, "swarm_id": p.swarm, "state": p.state, "version": p.version, "content_hash": p.hash, "canonical_json": string(canonical(p.sealed)), "specification": p.sealed.Plan, "tasks": tasks}, nil
 }
+
+// Current proposer authority precedes idempotency, while original version/parent
+// checks stay inside the new-write callback so its own committed receipt recovers.
+func requirePlanProposer(ctx context.Context, tx pgx.Tx, a actor, swarm string) error {
+	if err := roomAuthority(ctx, tx, a, swarm, false); err != nil {
+		return err
+	}
+	var role string
+	err := tx.QueryRow(ctx, "SELECT role FROM memberships WHERE swarm_id=$1 AND agent_id=$2 AND state='accepted' FOR SHARE", swarm, a.AgentID).Scan(&role)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return fail(403, "contributor_required")
+	}
+	if err != nil {
+		return err
+	}
+	if role == "observer" {
+		return fail(403, "contributor_required")
+	}
+	return nil
+}
+
 func (s *Service) proposePlan(r *http.Request, tx pgx.Tx, a actor, swarm string) (int, any, error) {
-	if err := roomAuthority(r.Context(), tx, a, swarm, false); err != nil {
+	if err := requirePlanProposer(r.Context(), tx, a, swarm); err != nil {
 		return 0, nil, err
-	}
-	var contributor bool
-	if err := tx.QueryRow(r.Context(), "SELECT swarm_contributor($1)", swarm).Scan(&contributor); err != nil {
-		return 0, nil, err
-	}
-	if !contributor {
-		return 0, nil, fail(403, "contributor_required")
 	}
 	var in PlanSpec
 	if err := decode(r, &in); err != nil {
@@ -148,6 +162,19 @@ func (s *Service) proposePlan(r *http.Request, tx pgx.Tx, a actor, swarm string)
 		if !ok || !slices.Contains(in.RequiredPrincipals, principal) {
 			return 0, nil, fail(422, "assignee_must_approve_plan")
 		}
+	}
+	agentsToLock := make([]string, 0, len(in.Tasks))
+	for _, task := range in.Tasks {
+		if !slices.Contains(agentsToLock, task.AssigneeAgentID) {
+			agentsToLock = append(agentsToLock, task.AssigneeAgentID)
+		}
+	}
+	var currentParticipants bool
+	if err := tx.QueryRow(r.Context(), "SELECT lock_plan_proposal_participants($1,$2::uuid[],$3::uuid[],$4::uuid[])", swarm, agentsToLock, in.RequiredPrincipals, in.PublicationPrincipals).Scan(&currentParticipants); err != nil {
+		return 0, nil, err
+	}
+	if !currentParticipants {
+		return 0, nil, fail(409, "plan_participants_not_current")
 	}
 	in.RespondBy = in.RespondBy.UTC()
 	sealed := sealedPlan{Plan: in, TemplateHash: template.SHA256, InputGrantPolicyHash: inputGrantPolicyHash(template)}

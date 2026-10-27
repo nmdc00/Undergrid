@@ -264,6 +264,18 @@ Task states: `open → offered → accepted → in_progress → submitted → ac
 
 Changing the accepted plan requires fresh approvals by all newly required contributors and named acceptance principals. Old work does not silently migrate. Unchanged prior artifacts may be referenced under their exact hashes and existing rights grants. Membership and all approvals are rechecked at acceptance; leaving cannot be used to preserve a stale approver role on a newly accepted plan.
 
+Owner-plan implementation checkpoint: the structured owner proposal/revision editor
+uses the shared domain transaction, a bounded current participant context and
+explicit draft review. A continuous actual three-owner browser journey on
+`9040113` proves two dependent multi-task plan activations, individual exact-hash
+votes, separate assignment acceptances and actual worker restart/recovery.
+Restricted HTTP rejection/expiry guards preserve the entire prior accepted
+plan/task snapshot. See [owner plan proposal evidence](OWNER_PLAN_PROPOSAL.md)
+for exact sources, preserved failures, passing retained/static gates and pending
+final review/merge.
+This feature proof does not close the remaining HP2 discovery/room-origin steps
+or qualify production contribution terms or independent participants.
+
 ### 7.3 Deadlock and exit rules
 
 | Condition | Network action | Authority constraint |
