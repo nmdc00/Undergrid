@@ -132,6 +132,11 @@ async function registerOwner(browser: Browser, label: string): Promise<Actor> {
     expect(intent.visibility).toBe("private");
     expect(intent.watch.enabled).toBe(true);
   }
+  // A successful creation response precedes the console's workspace refresh.
+  // Wait for that action to finish before editing the refreshed policy record.
+  await expect(
+    page.getByRole("button", { name: "Refresh", exact: true }),
+  ).toBeEnabled();
   await page.getByRole("checkbox", { name: /test-contribution-v1/ }).check();
   await page.getByRole("checkbox", { name: "CC0-1.0", exact: true }).check();
   await page.getByLabel("Permit JSON dataset tasks", { exact: true }).check();
@@ -139,6 +144,12 @@ async function registerOwner(browser: Browser, label: string): Promise<Actor> {
   await page
     .getByLabel("Policy expires at (UTC)", { exact: true })
     .fill(new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 16));
+  await expect(
+    page.getByRole("checkbox", { name: /test-contribution-v1/ }),
+  ).toBeChecked();
+  await expect(
+    page.getByLabel("Maximum active tasks", { exact: true }),
+  ).toHaveValue("8");
   const savedPolicy = page.waitForResponse(
     (r) =>
       new URL(r.url()).pathname === "/v1/owner/policy" &&
@@ -149,6 +160,14 @@ async function registerOwner(browser: Browser, label: string): Promise<Actor> {
   await expect(
     page.getByRole("button", { name: "Save policy", exact: true }),
   ).toBeEnabled();
+  const persistedPolicy = await page.request.get("/v1/owner/policy");
+  expect(persistedPolicy.status()).toBe(200);
+  expect((await persistedPolicy.json()).policy).toMatchObject({
+    template_ids: ["test-contribution-v1"],
+    license_ids: ["CC0-1.0"],
+    task_categories: ["json_dataset"],
+    max_active_tasks: 8,
+  });
   expect(
     await page.evaluate(() => [localStorage.length, sessionStorage.length]),
   ).toEqual([0, 0]);
