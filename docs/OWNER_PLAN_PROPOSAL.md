@@ -3,7 +3,7 @@
 This HP2 step 4 feature is on `feat/v0.1-owner-plan-proposal`, currently
 `9040113`, with reviewed release `862063d` and its policy-draft prerequisite
 integrated. It is not merged. The owner plan lifecycle browser journey now
-passes; final retained checks and review remain. The task contract and original
+passes; retained/static/contract checks pass and final review/merge remain. The task contract and original
 acceptance requirements are in `HP2_EXECUTION.md`, “Locked task: owner plan
 proposal and revision”.
 
@@ -137,12 +137,43 @@ rejection passed, while the expiry fixture incorrectly attempted a worker sweep
 through the intentionally app-only service. The correction changes only the test's
 worker identity, not production grants or API privileges.
 
-## Remaining merge gates and limits
+## Final retained gates and remaining review
 
-Run retained owner proposal/approval/assignment/dependency/authority guards,
-canonical contract checks, static checks and final independent review. Update
-this evidence with exact tested
-sources and terminal results before a feature PR to `release/v0.1` can merge.
+On clean `4390c8d` (only four documentation files differ from tested runtime
+`9040113`), the combined retained race gate passed 21 top-level tests and
+16 subcases in 57.479 seconds. It covers owner proposal/context/replay, selected
+participant activity and contention, exact approval/rights separation, assignment
+authority/decline/expiry, canonical-lock waits, rejected/expired revisions and
+transitive dependency preservation. Genuine database `undergrid_plan_retained_oct27`
+was copied from the preserved current network template, then migrated normally
+through frozen 044. No product rows or migration ledger were rewritten.
+
+Exact selector:
+
+```sh
+go test -race ./internal/network -run '^Test(OwnerPlan.*|PlanProposal.*|OwnerAssignment.*|ExactPlanApprovalAndIndependentAssignmentAcceptance|PlanDependencyContract|Withdrawal(DurablyBlocksTransitiveDependencies|DependencyEvidenceRecoveryAndReplacement|SerializesWithDownstreamProgress|DependencyBlockingPreservesVerifiedEvidence))$' -count=1 -timeout=5m -json
+```
+
+Log: `/tmp/undergrid-owner-plan-4390c8d-retained-domain-oct27.jsonl`.
+`npm run contract:check` passed Redocly lint, compilation of 160 canonical
+JSON Schema components and generated TypeScript parity; log
+`/tmp/undergrid-owner-plan-4390c8d-contract-oct27.log`. All-package
+`go vet -tags=hp1_live,hp2_live ./...` and `go build ./...` both exited zero;
+logs `/tmp/undergrid-owner-plan-4390c8d-vet-oct27.log` and
+`/tmp/undergrid-owner-plan-4390c8d-go-build-oct27.log`.
+
+The current gates used the installed Go toolchain with
+`GOCACHE=/tmp/undergrid-gocache`, `GOMODCACHE=/tmp/undergrid-gomod` and
+`GOTMPDIR=/dev/shm/undergrid-gotmp`; the cache path is a symlink to shared memory.
+Browser runs additionally used the existing Chromium/browser-library fixture and
+`UNDERGRID_HP1_ADMIN_DATABASE_URL` for the separate port-55502 network cluster.
+No financial database or production identity is involved. A SHA-256/size index
+of 12 retained success/failure logs is
+`/tmp/undergrid-owner-plan-validation-oct27.json`.
+
+Final independent review and the feature PR merge to `release/v0.1` remain.
+Documentation-only updates after `4390c8d` do not change the tested runtime.
+No deployment or protected-branch promotion is implied by this feature proof.
 
 The feature does not complete room-origin/recruitment controls, missing group
 viewer/discovery/editor steps or the continuous HP2 journey. Test-only enabled

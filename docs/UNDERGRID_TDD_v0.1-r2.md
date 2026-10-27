@@ -271,7 +271,8 @@ explicit draft review. A continuous actual three-owner browser journey on
 votes, separate assignment acceptances and actual worker restart/recovery.
 Restricted HTTP rejection/expiry guards preserve the entire prior accepted
 plan/task snapshot. See [owner plan proposal evidence](OWNER_PLAN_PROPOSAL.md)
-for exact sources, preserved failures and pending final checks/review/merge.
+for exact sources, preserved failures, passing retained/static gates and pending
+final review/merge.
 This feature proof does not close the remaining HP2 discovery/room-origin steps
 or qualify production contribution terms or independent participants.
 
