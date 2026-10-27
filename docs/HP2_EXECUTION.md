@@ -286,10 +286,10 @@ Test-first acceptance and evidence:
 
 ## Next task contract: reviewed room origin and recruitment roles — 26 October 2026
 
-Status: implemented and locally proven after semantic PR107, plan PR110 and
-prerequisite policy PR109; final review/feature merge pending. Current implementer
-`room_oct27` resumes the preserved `semantic_oct26` branch; independent review
-`review_oct27` and root inspect authority, evidence and integration. Branch
+Status: implemented, locally proven, reviewed and merged in PR112/release
+`e045f36`, after semantic PR107, plan PR110 and prerequisite policy PR109. Implementer
+`room_oct27` resumed the preserved `semantic_oct26` branch; independent review
+`review_oct27` and root reviewed authority, evidence and integration. Branch
 `feat/v0.1-owner-room-origin-recruitment`, isolated worktree
 `/tmp/undergrid-worktrees/room-origin/feat-v0.1-owner-room-origin-recruitment`.
 Root-granted serial leases produced actual RED/GREEN, full UI, browser, retained
@@ -637,9 +637,9 @@ restricted PostgreSQL top-level contract/lifecycle cases plus two subcases in
 `OWNER_PLAN_PROPOSAL.md`. No new tests are needed for this documentation-only
 merge checkpoint.
 
-HP2 remains active: room-origin/recruitment-role controls are on their separate
-implementation branch, pending full acceptance/final review/merge; group UI,
-complementary registered capability discovery, unknown-hard clarification,
+At this historical owner-plan checkpoint, room-origin/recruitment-role controls
+were pending. PR112 and its merge checkpoint below now supersede that status;
+group UI, complementary registered capability discovery, unknown-hard clarification,
 remaining typed requirement editing and application review/admission still need
 their owning outcomes. The full discovery-to-accepted-plan HP2 journey and
 external qualification remain unproven. Do not reopen the completed plan feature
@@ -668,6 +668,27 @@ authority oracle or runtime bound was weakened by their test-only corrections.
 
 See `OWNER_ROOM_ORIGIN_RECRUITMENT.md` for exact commands, source/artifact hashes,
 retained databases, log index, quality assessment and limits. Final evidence review
-and feature merge are pending. HP2 remains open for group UI, complementary
-registered capabilities, unknown-hard clarification, remaining typed owner
+and feature merge are complete in PR112/release `e045f36`. HP2 remains open for
+group UI, complementary registered capabilities, unknown-hard clarification, remaining typed owner
 requirements, application review/offer and its complete continuous journey.
+
+### Room-origin reviewed merge checkpoint — 27 October 2026
+
+PR112 merged reviewed final feature `d84a1c9` into release `e045f36`. Its source
+and evidence were independently reviewed, including the exact 21-log hash index,
+original failed aggregates and test-only contention remediation. Root post-merge
+checks passed 12 UI cases in 8.73s, coupled TypeScript/Vite/manifest (Vite 1.44s)
+and restricted current response recovery/watch-disabled positive controls: two
+top-level cases plus two subcases in 6.000s. Source and JavaScript hashes match the
+proven feature runtime. `OWNER_ROOM_ORIGIN_RECRUITMENT.md` records exact logs and
+normally migrated `room_release_e045f36_oct27`.
+
+The next active HP2 feature is `feat/v0.1-owner-compatible-groups`, isolated at
+`/tmp/undergrid-worktrees/owner-compatible-groups/feat-v0.1-owner-compatible-groups`.
+Its complete implementation/local proof/reviewed merge remain pending; preserved
+older viewer code is not itself completion evidence. Complementary registered
+capabilities, unknown-hard clarification, typed owner requirement controls,
+application review/offer and the complete continuous HP2 journey remain open.
+External provider/source/legal/cohort/deployment and release promotion gates are
+unchanged. This documentation-only checkpoint closes room-feature bookkeeping,
+not HP2 or the full TDD.

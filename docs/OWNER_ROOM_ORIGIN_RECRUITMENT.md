@@ -1,7 +1,8 @@
 # Owner room origin and recruitment roles
 
-Status: implemented and locally proven on `feat/v0.1-owner-room-origin-recruitment`;
-final independent review/feature PR merge pending. HP2 steps 2–3; SW-01/02/06;
+Status: implemented, locally proven, independently reviewed and merged in
+[PR112](https://github.com/nmdc00/Undergrid/pull/112) at release `e045f36`, final
+feature head `d84a1c9`. HP2 steps 2–3; SW-01/02/06;
 TDD §§6/9. This is a bounded journey, not full HP2 closure or external qualification.
 The branch normally integrates plan PR110/release `2099a76` and documentation
 checkpoint `054a269`. Its locked task contract is in `HP2_EXECUTION.md`.
@@ -217,10 +218,42 @@ they grant no domain authority. Atomic effects, bounded contention and exact
 recovery are directly exercised. No financial/provider abstraction or deployment
 coupling was added.
 
-Final independent evidence review and feature PR merge to `release/v0.1` remain
-pending. HP2 still needs group viewing, complementary registered capability
+Final independent evidence review and feature PR merge to `release/v0.1` are
+complete. HP2 still needs group viewing, complementary registered capability
 discovery, unknown-hard clarification, remaining typed requirement controls,
 application review/offer and the complete continuous discovery-to-accepted-plan
 journey. Separate controlled accounts do not prove independent beneficial owners.
 Source/provider/legal/cohort/deployment qualification and release promotion remain
 separate open gates.
+
+## Reviewed merge and exact release checks — 27 October 2026
+
+PR112 merged at `2026-10-27 18:04:41 UTC`, release
+`e045f366e30323f891cb518e9d66e472b845d206`, from reviewed final feature head
+`d84a1c9fc33d6e9b7d0171d93ac89fbaf92f933d`. Root and independent review verified
+all 21 evidence-index log hashes, the six-document-only delta from final tested
+`2950d02`, and unchanged frozen 044/045 hashes before merge.
+
+Root exact-release checks passed:
+
+- Twelve room/creation UI cases in **8.73 seconds**, two files.
+- Coupled strict TypeScript/Vite/manifest, Vite **1.44 seconds**. Release manifest
+  records exact `e045f36`; source SHA256 `24844a3dc491229b91f640116c4e08ba68bedb831e138fc32e363ba2e478203d`
+  and JavaScript SHA256 `b9b495a2895be8cc6475e37b9e734f488e5416bf1f7d8521a2f77683941daa35`
+  match the proven feature runtime.
+- Restricted PostgreSQL **two top-level cases plus two subcases in 6.000 seconds**:
+  current owner/agent retained response recovery and the visible current shared
+  origin with monitoring disabled. Database `room_release_e045f36_oct27` uses the
+  real network fixture on port 55502; its normal ledger contains both 044 and 045.
+
+Exact logs were independently read for this documentation checkpoint:
+
+- `/tmp/undergrid-room-release-e045f36-ui-oct27.log`
+- `/tmp/undergrid-room-release-e045f36-build-oct27.log`
+- `/tmp/undergrid-room-release-e045f36-domain-oct27.jsonl`
+
+The owner-compatible-group viewer is the next active HP2 feature on
+`feat/v0.1-owner-compatible-groups`, in its own isolated worktree. This checkpoint
+changes documentation only and requires no contrived product tests. Room feature
+bookkeeping is complete; the full HP2 journey and remaining external/release gates
+are still open. No promotion or deployment is implied.
