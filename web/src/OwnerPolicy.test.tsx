@@ -27,7 +27,7 @@ test("policy draft inputs freeze while a workspace action refreshes their record
  const {rerender}=render(<OwnerPolicy record={initial} templates={templates} busy={true} save={save}/>);
  const consent=screen.getByRole("checkbox",{name:"Permit coordinator succession approval and acceptance"});
  const template=screen.getByRole("checkbox",{name:/test-contribution-v1/});
- const license=screen.getByRole("checkbox",{name:"CC0-1.0",exact:true});
+ const license=screen.getByRole("checkbox",{name:"CC0-1.0"});
  const category=screen.getByRole("checkbox",{name:"Permit JSON dataset tasks"});
  const maximum=screen.getByLabelText("Maximum active tasks");
  const expiry=screen.getByLabelText("Policy expires at (UTC)");
