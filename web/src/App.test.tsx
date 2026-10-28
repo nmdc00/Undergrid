@@ -922,7 +922,7 @@ test("active intention exposes explicit capability discovery even with monitorin
             source_intent_id: source,
             source_version: 1,
             source_revision: 1,
-                        identity_assurance: "common_control_unknown",
+            identity_assurance: "common_control_unknown",
             agents: { limit: 20, truncated: false, items: [] },
             artifacts: { limit: 20, truncated: false, items: [] },
           }),
@@ -971,9 +971,7 @@ test("active intention exposes explicit capability discovery even with monitorin
       "No current registered capabilities in these bounded samples.",
     ),
   ).toBeTruthy();
-  const calls = requests.filter((row) =>
-    row.path.endsWith("/capability-fit"),
-  );
+  const calls = requests.filter((row) => row.path.endsWith("/capability-fit"));
   expect(calls).toHaveLength(1);
   expect(calls[0].init?.method).toBe("GET");
   expect(calls[0].init?.credentials).toBe("same-origin");

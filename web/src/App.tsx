@@ -1,3 +1,4 @@
+import { CapabilityDiscovery } from "./CapabilityDiscovery";
 import { ConstraintClarifications } from "./ConstraintClarifications";
 import { CompatibleGroups } from "./CompatibleGroups";
 import { type RoomOrigin } from "./CreateSwarm";
@@ -659,6 +660,21 @@ export function App() {
                   {detail.state === "active" && (
                     <ConstraintClarifications
                       key={`requirements:${text(detail.id)}:${String(detail.version)}`}
+                      intentionID={text(detail.id)}
+                      sourceVersion={Number(detail.version)}
+                      csrf={csrf}
+                      onUnauthorized={() => {
+                        generation.current++;
+                        setSecret("");
+                        setCSRF("");
+                        setDetail(null);
+                        setPhase("signed-out");
+                      }}
+                    />
+                  )}
+                  {detail.state === "active" && (
+                    <CapabilityDiscovery
+                      key={`capabilities:${text(detail.id)}:${String(detail.version)}`}
                       intentionID={text(detail.id)}
                       sourceVersion={Number(detail.version)}
                       csrf={csrf}

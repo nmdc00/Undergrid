@@ -248,3 +248,35 @@ one case/29 skipped in2.99s. Original log:
 `/tmp/undergrid-capability-fit-app-red-oct28.log`. No component import or matcher
 failure substitutes for this behavioral RED. Owner UI implementation and actual
 browser acceptance are still pending.
+
+## Owner capability viewer checkpoint — 28 October 2026
+
+The actual missing App control RED now has a working explicit viewer for active
+owned sources, including monitoring-off intentions. Separate agent/artifact
+samples render inert declarations and per-requirement requested/declared facts,
+unknown/conflicting status, principal attribution, artifact version and immutable
+hashes. No link, execution, invitation, membership or payment action is introduced.
+The viewer states unknown common control and limits on competence, rights,
+availability and willingness. Closed runtime validation rejects extra/private
+fields, malformed IDs/hashes/classes/bounds, duplicate agent principals,
+misbound source/version and incoherent hard-fit summaries. This defensive trust
+boundary remains independent of server-side schema/domain enforcement.
+
+First App/component gate passes45 cases in12.09s. Expanded component proof
+passes25 in2.19s, covering artifact rendering/privacy/hash/status rejection,
+refresh404 clearing and late200/401 after session/source-version/selection change.
+The first TypeScript gate exposed implicit-return inference in test mutation
+callbacks; explicit unknown return annotations fix that fixture issue, and the
+corrected TypeScript gate passes. Final App/component aggregate passes55 in12.40s.
+An attempted test append initially used an incorrect working directory and made
+no change; it is not product RED. Source was corrected in the feature worktree.
+
+- `/tmp/undergrid-capability-ui-first-green-oct28.log`
+- `/tmp/undergrid-capability-ui-extended-oct28.log`
+- `/tmp/undergrid-capability-ui-tsc-oct28.log` (test type errors)
+- `/tmp/undergrid-capability-ui-tsc-corrected-oct28.log`
+- `/tmp/undergrid-capability-ui-checkpoint-oct28.log`
+
+The UI is implemented and unit-proven, not yet browser-proven. The actual normal-
+owner capability journey, multi-artifact bound/concurrency proof, final full UI,
+retained runtime gates, review and merge remain required. HP2 stays active.
