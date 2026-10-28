@@ -420,3 +420,56 @@ retains only its exact uncertain deadline. No financial credentials, database
 connections or provider identities are introduced. Remaining full-runtime proof
 and final review are required before merge; passing UI fixtures are not provider,
 independent-owner or continuous HP2 qualification.
+
+## Actual normal-owner admission journey — 28 October 2026
+
+Frozen `f56edb0dfbdcf66ef4198f9b256ea745728a3156` passes the actual
+three-owner Chromium/session/API/PostgreSQL/worker application journey in22.049s
+(browser20.2s). Setup uses the existing normal owner room-origin scenario: A
+reviews B's current matching public intention, creates a restricted room with a
+published role, and recovers a deliberately lost room-creation response. C
+normally registers a public, recruitment-opted-in declared builder profile while
+foreign invitations remain OFF. The actual restricted worker creates recruitment.
+
+C uses the new owner controls to review the current role, submit explicit refs,
+and reload pending applications. A opens the room, reviews immutable claims and
+explicit full-history disclosure, then offers that exact application. The harness
+lets the real offer commit and deliberately aborts the response; a UI retry
+recovers the same body/key without another offer event. C's agent cannot read
+history before application or after offer. After reload, C separately reviews
+and accepts the invitation, reloads again and opens the room. Foreign owner B
+cannot read C's applications. No SQL mutation, pasted ID or administrator action
+completes the application/offer/admission flow.
+
+Read-only SQL independently confirms exactly one application and retained explicit
+claims, accepted builder membership version3, one applied event, one offered
+event, the original recruitment opportunity/event/inbox, a completed real worker
+job, and zero plans/tasks/approvals. Browser cases remain controlled account
+fixtures, not independent beneficial-owner/provider or full-HP2 qualification.
+The complete HP2 plan/rights/assignment/restart journey remains a separate gate.
+
+- `/tmp/undergrid-owner-applications-live-build-oct28.log`
+- `/tmp/undergrid-owner-applications-live-first-oct28.jsonl` (PASS, not a failed attempt)
+- Retained database `hp1_run_3941e057ebd24bacbaa1dd5dcc745012`, network port55502
+- Retained browser artifacts `/tmp/undergrid-hp2-browser-36404218`
+- Frontend source SHA256 `0ec62e536b8de9a486874199af45e91ef92374b74bce72855c08cc361e822d32`
+- Built JavaScript SHA256 `608485f6455ae143536b0a00693f026296d85291e33ca146fd7bc9855ade670b`
+
+Final backend/static/regression review, any missing bounded-read proof and reviewed
+merge remain pending. This is a successful bounded feature journey, not full-path
+closure or release promotion.
+
+Final integrated backend gate on fresh normal-migrated
+`owner_applications_final_oct28` passes13 top-level cases plus15 subcases in61.049s.
+It includes normal101-applicant paging, oversized immutable claim projection,
+reviewed submission/offer, target contention rollback/recovery, current revocation,
+expiry and legacy builder admission. Go vet/build both pass. Logs:
+`/tmp/undergrid-owner-applications-final-backend-oct28.jsonl`,
+`/tmp/undergrid-owner-applications-vet-oct28.log`,
+`/tmp/undergrid-owner-applications-go-build-oct28.log`.
+
+Retained actual room-origin/recruitment and two-plan proposal/revision/restart
+browser regressions both pass on frozen `f56edb0`; combined package elapsed
+50.405s. Exact proof is retained in
+`/tmp/undergrid-owner-applications-retained-room-plan-oct28.jsonl`.
+No full HP2 closure, reviewed merge, release promotion or deployment is claimed.
