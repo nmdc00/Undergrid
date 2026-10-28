@@ -156,3 +156,25 @@ original failures remain retained.
 This extends the partial backend implementation; canonical/finite-protocol
 publication, UI/browser acceptance, complete bounds/authority tests and final
 review/merge remain open. The full capability feature and HP2 are not closed.
+
+## Combined backend proof and bounded-fixture limit — 28 October 2026
+
+The first combined run on long-lived `clarification_guards_oct28` failed26.997s:
+repeated normal registrations had accumulated more than20 active public
+principals. The bounded deterministic sample legitimately omitted the newly
+registered builder, contradicting this test's controlled-population assumption.
+This is not fixed by increasing limits, deleting records or weakening assertions.
+Original log `/tmp/undergrid-capability-artifact-combined-backend-oct28.jsonl`
+remains retained. Final capability acceptance gates must use a fresh controlled
+population (public profile retirement/editing is not yet a normal owner feature).
+
+Created retained `capability_backend_oct28` by normal CREATE DATABASE TEMPLATE
+`undergrid_hp1_template`, then applied the real remaining migrations normally.
+Unchanged source/test aggregate passes on that genuine fresh fixture:
+`/tmp/undergrid-capability-artifact-fresh-combined-backend-oct28.jsonl`.
+Database creation log: `/tmp/undergrid-capability-backend-db-oct28.log`.
+The aggregate includes artifact publication/conflict/identity-loss/held-state
+proof, owner/agent public declarations and zero-effect guards, plus all existing
+clarification authority, lock recovery, canonical HTTP and MCP/A2A regressions.
+Capability-specific canonical/finite protocols and user-interface proof remain
+pending, as do dedicated bounds/contention tests. No full feature closure claim.
