@@ -180,3 +180,24 @@ Logs: `/tmp/undergrid-constraint-clarification-bounds-oct28.jsonl` and
 `/tmp/undergrid-constraint-clarification-bounds-refactor-oct28.jsonl`.
 Both use retained `clarification_guards_oct28`; no worker/provider qualification
 is inferred. The actual owner browser journey and final feature gates remain open.
+
+## Live browser harness checkpoint — 28 October 2026
+
+`393cfae` adds the normal three-owner missing-coverage → publisher revision →
+refresh/reload scenario, a separate HP2 mode, and independent normalized revision,
+watch and zero-opportunity/collaboration oracles. Tagged harness compilation,
+TypeScript and the coupled production build passed. The first browser run failed
+108.121s: the harness reviewed C's public projection before adding coverage, so
+current product review invalidation correctly disabled submission. `4464501`
+moves public review after all edits and also reviews the revised publication.
+Its build passed; the second browser run failed94.044s because the harness tried
+to edit B without first opening the intention detail. `2e8fa2d` adds that normal
+review step; it has not yet been rerun. These are harness failures, not product
+RED or passing journey evidence. Existing90-second browser and three-minute
+helper bounds remain unchanged.
+
+Original logs: `/tmp/undergrid-clarification-browser-393cfae-oct28.jsonl` and
+`/tmp/undergrid-clarification-browser-4464501-oct28.jsonl`. Retained artifact
+folders: `/tmp/undergrid-hp2-browser-2717199456` and
+`/tmp/undergrid-hp2-browser-1299341547`. No fixture reset or product SQL seed
+completed either journey. Final live journey proof remains required.
