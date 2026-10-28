@@ -704,8 +704,20 @@ response/calendar corrections. Current runtime `f4828c5` has a passing actual
 three-owner nontransitive-view/source-revision journey (39.308s), seven-group/two-
 subcase restricted domain gate (23.115s), canonical/static proof, and retained
 room/plan browser proof (72.192s). Full UI 197 and focused final parser 41 are
-accurately distinguished in `OWNER_COMPATIBLE_GROUPS.md`. Final review/feature
-merge remains; the local viewer does not close HP2. Next missing outcomes remain
+accurately distinguished in `OWNER_COMPATIBLE_GROUPS.md`. PR114 is reviewed and merged at release `bc6ddda`; the local viewer does not close HP2. Next missing outcomes remain
 unknown-hard clarification, complementary registered capability discovery,
 remaining typed requirement editing, applications review/offer and complete
 continuous discovery-to-accepted-plan acceptance. External gates remain separate.
+
+
+### Group-viewer merge checkpoint — 28 October 2026
+
+PR114/release `bc6ddda` closes the bounded group viewer after reviewed source,
+actual three-owner/revision proof, retained domain and room/plan browser gates.
+Exact merged-release checks passed: viewer41 in14.08s, coupledbuild1.52s with
+matching source/asset hashes, and restricted three-top-level/two-subcase current
+read/identity/nontransitivity checks in20.456s. See `OWNER_COMPATIBLE_GROUPS.md`.
+Visible unknown-hard clarification is the next active HP2 requirement; its
+contract must distinguish absent hard evidence from semantic comparison pending
+and incompatibility. Complementary capabilities, typed controls, applications and
+continuous HP2 integration remain open; external qualification is separate.
