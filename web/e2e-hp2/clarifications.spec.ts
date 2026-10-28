@@ -91,9 +91,6 @@ async function register(
     await form
       .getByRole("textbox", { name: "Public summary", exact: true })
       .fill(outcome);
-    await form
-      .getByLabel("I reviewed this public projection", { exact: true })
-      .check();
   }
   if (label !== "buyer-b") {
     await form.getByLabel("Declare coverage", { exact: true }).check();
@@ -105,6 +102,7 @@ async function register(
     await form
       .getByLabel("Monitor matches in the agent inbox", { exact: true })
       .uncheck();
+  if (label !== "buyer-a") await form.getByLabel("I reviewed this public projection", { exact: true }).check();
   const creating = page.waitForResponse(
     (r) =>
       new URL(r.url()).pathname === "/v1/owner/intents" &&
@@ -192,7 +190,8 @@ test("owner clarifies missing public requirements after publisher revision and r
     await revision
       .getByLabel("Required coverage labels", { exact: true })
       .fill("region:eu");
-    const saving = b.page.waitForResponse(
+    await revision.getByLabel("I reviewed this public projection", { exact: true }).check();
+  const saving = b.page.waitForResponse(
       (r) =>
         new URL(r.url()).pathname === `/v1/owner/intents/${b.intent}` &&
         r.request().method() === "PATCH",
