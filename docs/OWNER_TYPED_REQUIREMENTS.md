@@ -46,3 +46,35 @@ into authorization or make group/capability/demand mechanisms share fit semantic
 No behavior or proof is claimed by this contract. Applications and complete
 continuous HP2 acceptance remain separate required work; external qualification
 and reserved legal/source/provider/deployment approvals remain explicit.
+
+## First editor implementation checkpoint — 28 October 2026
+
+Test-only `2b37dae` reaches genuine RED:9 failures/1 passing preservation case
+in1.17s. Missing freshness/delivery/input controls fail, and malformed response
+freshness/range/calendar/empty/duplicate examples incorrectly pass the old reader.
+The shared editor now exposes explicit optional declarations and removes only
+the selected dimension. Freshness uses bounded integer seconds; delivery uses
+raw timezone-bearing strings with at least one native required bound; input
+alternatives require a nonempty input. The existing domain remains authoritative
+for all range/order/expiry/label policy and422 behavior.
+
+readIntentionConstraints first invokes shared declared-constraint validation,
+then retains nullable fields and exact original timestamp strings. It no longer
+independently uses Date.parse for calendar acceptance. First focused gate passes
+10 cases in1.95s; existing App plus editor gate passes40 in12.27s.
+
+The first TypeScript gate exposed an existing generator limitation: the delivery
+schema's required-bound union widens to unknown. A narrow local editor delivery
+model, validated at ingress, fixes the type boundary without changing the wire
+schema or bypassing it with any casts. Corrected TypeScript and whitespace checks
+pass. This final type/comment-only correction does not alter tested UI behavior.
+
+- `/tmp/undergrid-typed-requirements-initial-red-oct28.log`
+- `/tmp/undergrid-typed-requirements-first-green-oct28.log`
+- `/tmp/undergrid-typed-requirements-app-first-oct28.log`
+- `/tmp/undergrid-typed-requirements-tsc-oct28.log` (generated unknown-type gap)
+- `/tmp/undergrid-typed-requirements-tsc-model-oct28.log`
+
+Creation/revision submitted-body integration, actual browser/persistence proof,
+complete focused/full regression gates, review and merge remain pending. This is
+an implementation checkpoint, not full typed-controls or HP2 closure.

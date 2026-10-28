@@ -1,8 +1,17 @@
 import { useState } from "react";
 import type { components } from "./network.generated";
 import { object } from "./api";
+import { readDeclaredConstraints } from "./declared-constraints";
 
-export type IntentionConstraints = components["schemas"]["Constraints"];
+// The generator widens DeliveryConstraint to unknown for its required-bound
+// union. This editor model is narrowed by readIntentionConstraints at ingress;
+// an empty draft is allowed while the owner enters the first bound.
+export type IntentionConstraints = Omit<
+  components["schemas"]["Constraints"],
+  "delivery"
+> & {
+  delivery?: { not_before?: string; deliver_by?: string } | null;
+};
 function labels(value: unknown): string[] | null {
   if (value === null) return null;
   if (
@@ -15,6 +24,7 @@ function labels(value: unknown): string[] | null {
 // Preserve every supported typed dimension. This checks the response shape;
 // the domain command remains responsible for transition and constraint policy.
 export function readIntentionConstraints(value: unknown): IntentionConstraints {
+  readDeclaredConstraints(value);
   const raw = object(value);
   const result: IntentionConstraints = {
     required_fields: labels(raw.required_fields),
@@ -51,7 +61,7 @@ export function readIntentionConstraints(value: unknown): IntentionConstraints {
       for (const key of ["not_before", "deliver_by"] as const) {
         const bound = delivery[key];
         if (bound !== undefined) {
-          if (typeof bound !== "string" || !Number.isFinite(Date.parse(bound)))
+          if (typeof bound !== "string")
             throw new Error("Invalid delivery; reload the intention");
           resultDelivery[key] = bound;
         }
@@ -72,11 +82,13 @@ function LabelsInput({
   label,
   value,
   limit,
+  required = false,
   onChange,
 }: {
   label: string;
   value: string[] | null;
   limit: number;
+  required?: boolean;
   onChange: (value: string[]) => void;
 }) {
   const [draft, setDraft] = useState((value ?? []).join(", "));
@@ -84,6 +96,7 @@ function LabelsInput({
     <label>
       {label}
       <input
+        required={required}
         maxLength={limit * 130}
         value={draft}
         onChange={(event) => {
@@ -166,6 +179,115 @@ export function IntentionConstraintsEditor({
             }
           />
         </>
+      )}
+      <label>
+        <input
+          type="checkbox"
+          checked={value.freshness != null}
+          onChange={(event) => {
+            if (event.target.checked)
+              onChange({ ...value, freshness: { max_age_seconds: 3600 } });
+            else {
+              const { freshness: _freshness, ...rest } = value;
+              onChange(rest);
+            }
+          }}
+        />
+        Declare freshness requirement
+      </label>
+      {value.freshness != null && (
+        <label>
+          Maximum data age (seconds)
+          <input
+            type="number"
+            min={1}
+            max={31536000}
+            step={1}
+            required
+            value={value.freshness.max_age_seconds}
+            onChange={(event) =>
+              onChange({
+                ...value,
+                freshness: { max_age_seconds: Number(event.target.value) },
+              })
+            }
+          />
+        </label>
+      )}
+      <label>
+        <input
+          type="checkbox"
+          checked={value.delivery != null}
+          onChange={(event) => {
+            if (event.target.checked) onChange({ ...value, delivery: {} });
+            else {
+              const { delivery: _delivery, ...rest } = value;
+              onChange(rest);
+            }
+          }}
+        />
+        Set delivery window
+      </label>
+      {value.delivery != null && (
+        <>
+          <p>
+            Enter RFC3339 timestamps with a timezone. At least one bound is
+            required. Exact fractions and offsets are preserved; the service
+            checks ordering and expiry.
+          </p>
+          {(
+            [
+              ["not_before", "Not before (RFC3339)"],
+              ["deliver_by", "Deliver by (RFC3339)"],
+            ] as const
+          ).map(([field, label]) => (
+            <label key={field}>
+              {label}
+              <input
+                type="text"
+                maxLength={128}
+                required={
+                  field === "not_before" &&
+                  !value.delivery?.not_before &&
+                  !value.delivery?.deliver_by
+                }
+                value={value.delivery?.[field] ?? ""}
+                onChange={(event) => {
+                  const delivery = { ...value.delivery };
+                  if (event.target.value) delivery[field] = event.target.value;
+                  else delete delivery[field];
+                  onChange({ ...value, delivery });
+                }}
+              />
+            </label>
+          ))}
+        </>
+      )}
+      <label>
+        <input
+          type="checkbox"
+          checked={value.input_schema_families != null}
+          onChange={(event) => {
+            if (event.target.checked)
+              onChange({ ...value, input_schema_families: [] });
+            else {
+              const { input_schema_families: _input, ...rest } = value;
+              onChange(rest);
+            }
+          }}
+        />
+        Declare input schema alternatives
+      </label>
+      {value.input_schema_families != null && (
+        <LabelsInput
+          label="Permitted input schema families"
+          value={value.input_schema_families}
+          limit={20}
+          required
+          onChange={(input_schema_families) =>
+            onChange({ ...value, input_schema_families })
+          }
+        />
       )}
     </fieldset>
   );
