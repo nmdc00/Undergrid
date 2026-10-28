@@ -67,3 +67,16 @@ This is a scoped implementation contract, not evidence that the feature exists.
 Typed requirement controls, applications and continuous HP2 acceptance remain
 separate required work. No external source/provider/legal/deployment approval is
 implied. Existing public contracts and frozen migrations remain intact.
+
+## Initial behavioral RED — 28 October 2026
+
+Test-only `c1974fe` passes normal restricted-API owner/agent registration,
+public builder profile creation and private watch-disabled source creation, then
+both owner and agent capability-fit reads fail404. The one-parent/two-subcase
+HTTP test fails0.631s for the missing operation, not a broken fixture. No behavior
+has been implemented. Original log:
+`/tmp/undergrid-capability-fit-initial-http-red-oct28.jsonl`.
+The retained network fixture is `clarification_guards_oct28` on55502; normal owner
+withdrawal retires the test source without deleting evidence. The separate
+financial sandbox is untouched. Implementation and all required acceptance gates
+above remain pending.
