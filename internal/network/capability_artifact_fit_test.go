@@ -1,6 +1,9 @@
 package network
 
-import "testing"
+import (
+	"context"
+	"testing"
+)
 
 func TestCapabilityFitDiscoversOnlyNormallyPublishedArtifactMetadata(t *testing.T) {
 	x := newArtifactScenario(t)
@@ -79,5 +82,42 @@ func TestCapabilityFitDiscoversOnlyNormallyPublishedArtifactMetadata(t *testing.
 	}
 	if !found {
 		t.Fatal("normally published capability absent", id)
+	}
+	// Declared license contradictions remain incompatible without inspecting bytes.
+	revised := input
+	revised.HardConstraints.LicenseIDs = []string{"ODC-BY-1.0"}
+	if code, out := reader.versioned("PATCH", "/v1/intents/"+sourceID, NewID(), source["etag"].(string), map[string]any{"revision": revised}); code != 200 {
+		t.Fatal(code, out)
+	}
+	checkConflict := func() {
+		t.Helper()
+		found := false
+		for _, raw := range read() {
+			row := raw.(map[string]any)
+			if row["artifact_id"] == id {
+				found = true
+				if row["hard_status"] != "incompatible" {
+					t.Fatal("license contradiction aligned", row)
+				}
+			}
+		}
+		if !found {
+			t.Fatal("published license vanished", id)
+		}
+	}
+	checkConflict()
+	// Adversarial identity/state faults are not SQL publication seeds or proof of
+	// an operator case workflow. Existing published licenses survive identity loss.
+	if _, err := x.db.Exec(context.Background(), `UPDATE undergrid.principals SET status='suspended' WHERE id=$1`, x.principals[2]); err != nil {
+		t.Fatal(err)
+	}
+	checkConflict()
+	if _, err := x.db.Exec(context.Background(), `UPDATE undergrid.artifacts SET state='held' WHERE id=$1`, id); err != nil {
+		t.Fatal(err)
+	}
+	for _, raw := range read() {
+		if raw.(map[string]any)["artifact_id"] == id {
+			t.Fatal("held capability exposed", raw)
+		}
 	}
 }

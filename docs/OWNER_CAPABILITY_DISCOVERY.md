@@ -118,3 +118,41 @@ source passed the full aggregate21.811s. Original failure remains preserved.
 All runs retain `clarification_guards_oct28` on the isolated network fixture.
 No public artifact/provider qualification or complete capability discovery is
 claimed. The feature remains unmerged and HP2 remains active.
+
+## Published-artifact lifecycle checkpoint — 28 October 2026
+
+Test-only `18f4cd0` constructs the actual restricted-API room, independent plan/
+rights votes, accepted assignment, upload/finalization, real executable fixed
+verifier worker, designated acceptance and exact publication consents. Its first
+run exposed a genuine projection bug: valid public profiles with null capability
+arrays caused SQL22023/HTTP500. That6.905s failure is retained; it is not the
+missing-artifact sample RED. Forward migration047 fixes nullable arrays without
+rewriting applied046. Migration047 is frozen at SHA256
+`ae04a89fb94f580a3705e7143306a380577e5cfa354b6da430c882a6f2b0f0fd`.
+
+The unchanged lifecycle then reached the intended missing-artifact-sample failure.
+After implementing the bounded existing-RLS published-artifact projection, the
+lifecycle passed5.473s: verified/accepted but unpublished content stays absent;
+normal publication exposes immutable content/manifest hashes and permitted title,
+schema/license metadata. No content, input lineage, room/task/plan or private
+rights context is selected. The existing asymmetric capability evaluator explains
+known schema/license facts and honest missing fields/coverage; structural checks
+are not factual, legal or provider verification. Agent row resources are closed
+before the second query, including when the agent sample truncates.
+
+Expanded lifecycle checks pass5.925s: a normal source revision to disjoint license
+options yields incompatible evidence. Adversarial producer suspension retains
+published license availability; an explicit held-state fault removes the artifact
+from discovery. These mutable test faults are not SQL publication seeds or proof
+of an implemented operator-case workflow. Publication itself uses only normal
+commands and the actual local unqualified verifier. All fixture databases and
+original failures remain retained.
+
+- `/tmp/undergrid-capability-artifact-http-red-oct28.jsonl` (null-array defect)
+- `/tmp/undergrid-capability-artifact-sample-red-oct28.jsonl` (missing sample RED)
+- `/tmp/undergrid-capability-artifact-first-green-oct28.jsonl`
+- `/tmp/undergrid-capability-artifact-current-guards-oct28.jsonl`
+
+This extends the partial backend implementation; canonical/finite-protocol
+publication, UI/browser acceptance, complete bounds/authority tests and final
+review/merge remain open. The full capability feature and HP2 are not closed.

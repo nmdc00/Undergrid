@@ -24,11 +24,12 @@ type publicAgentSample struct {
 	Items     []publicAgentFit `json:"items"`
 }
 type capabilityFitReport struct {
-	SourceIntentID    string            `json:"source_intent_id"`
-	SourceVersion     int64             `json:"source_version"`
-	SourceRevision    int               `json:"source_revision"`
-	IdentityAssurance string            `json:"identity_assurance"`
-	Agents            publicAgentSample `json:"agents"`
+	SourceIntentID    string                   `json:"source_intent_id"`
+	SourceVersion     int64                    `json:"source_version"`
+	SourceRevision    int                      `json:"source_revision"`
+	IdentityAssurance string                   `json:"identity_assurance"`
+	Agents            publicAgentSample        `json:"agents"`
+	Artifacts         artifactCapabilitySample `json:"artifacts"`
 }
 
 func (s *Service) capabilityFit(r *http.Request, tx pgx.Tx, a actor, id string) (int, any, error) {
@@ -72,6 +73,11 @@ func (s *Service) capabilityFit(r *http.Request, tx pgx.Tx, a actor, id string) 
 		report.Agents.Items = append(report.Agents.Items, item)
 	}
 	if err = rows.Err(); err != nil {
+		return 0, nil, err
+	}
+	rows.Close()
+	report.Artifacts, err = loadArtifactCapabilitySample(r, tx, a, source)
+	if err != nil {
 		return 0, nil, err
 	}
 	return 200, report, nil
