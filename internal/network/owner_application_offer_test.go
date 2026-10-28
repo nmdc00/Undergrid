@@ -9,6 +9,7 @@ import (
 func TestOwnerApplicationReviewedOfferStillRequiresApplicantAdmission(t *testing.T) {
 	s, db := ownerSwarmCreationFixture(t)
 	organizer, builder := collaborationClient(t, s), collaborationClient(t, s)
+	observeOwnerApplicationContract(t, &organizer, &builder)
 	code, room := organizer.call("POST", "/v1/swarms", NewID(), map[string]any{"objective": "Reviewed application offer", "visibility": "restricted", "recruitment_roles": []any{map[string]any{"key": "builder", "schema_family": "source_catalog_v1", "description": "Declared role"}}})
 	if code != 201 {
 		t.Fatal(code, room)
@@ -16,9 +17,20 @@ func TestOwnerApplicationReviewedOfferStillRequiresApplicantAdmission(t *testing
 	_, who := builder.call("GET", "/v1/me", "", nil)
 	_, coord := organizer.call("GET", "/v1/me", "", nil)
 	swarm := room["id"].(string)
-	code, application := builder.call("POST", "/v1/swarms/"+swarm+"/applications", NewID(), map[string]any{"role_key": "builder", "capability_refs": []string{"source_catalog_v1"}})
+	code, application := ownerCallMatch(builder, "POST", "/v1/owner/agents/"+who["agent_id"].(string)+"/swarms/"+swarm+"/applications", NewID(), room["etag"].(string), map[string]any{"role_key": "builder", "capability_refs": []string{"source_catalog_v1"}})
 	if code != 201 {
 		t.Fatal(code, application)
+	}
+	for _, view := range []struct {
+		c    testClient
+		path string
+	}{
+		{builder, "/v1/owner/agents/" + who["agent_id"].(string) + "/applications"},
+		{organizer, "/v1/owner/agents/" + coord["agent_id"].(string) + "/swarms/" + swarm + "/applications"},
+	} {
+		if status, out := ownerCallMatch(view.c, "GET", view.path, "", "", nil); status != 200 {
+			t.Fatal(status, out)
+		}
 	}
 	path := "/v1/owner/agents/" + coord["agent_id"].(string) + "/swarms/" + swarm + "/applications/" + application["id"].(string) + "/offer"
 	body := map[string]any{"application_version": 1, "role": "contributor", "respond_by": time.Now().Add(time.Hour), "history_policy": "full"}

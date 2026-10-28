@@ -339,3 +339,36 @@ ownership and network/sandbox separation are unchanged. No frozen migration was
 modified. Canonical owner contracts, remaining read guards and the actual owner
 UI/browser application lifecycle remain required. This feature is unmerged and
 HP2 remains open.
+
+## Canonical owner application contract checkpoint — 28 October 2026
+
+Test-only `7fa4229` proves all six owner recruitment/application operations were
+missing from the canonical public document (RED0.010s). Separate application and
+reviewed-offer inputs, bounded recruitment/pending pages and closed claim/review
+schemas are now published; owner session, CSRF, idempotency and required room
+If-Match are explicit. The offer input binds application_version and forbids a
+caller-selected agent_id. Existing path/schema semantics are unchanged.
+
+Actual normal HTTP fixture proof on retained `owner_application_contract_oct28`
+validates recruitment list/selected/current opt-out, owner application creation,
+both pending collections, reviewed offer, history denial and separate admission
+using pinned independent Ajv. Independent negatives reject transcript fields,
+string application versions, partial history and caller-selected offer targets.
+The first combined3.435s attempt reached schema validation but failed because the
+shared validator default requires an unrelated published-artifact lifecycle.
+A dedicated owner-applications mode retains all common per-response validation
+and adds the authority negatives; the unchanged actual cases pass3.590s.
+
+Public-operation header/input test passes. Redocly lint passes; all175 schema
+components compile and generated TypeScript parity passes. Both package manifests
+match release before linking existing dependencies. No new dependencies, provider
+qualification or UI completion is claimed. Source work remains local/unmerged;
+normal-owner application UI, continuous browser/worker proof, remaining pagination
+and authority coverage, and final integration/review are still required.
+
+- `/tmp/undergrid-owner-application-openapi-red-oct28.jsonl`
+- `/tmp/undergrid-owner-application-openapi-green-oct28.jsonl`
+- `/tmp/undergrid-owner-application-contract-lifecycle-oct28.jsonl` (validator mode failure)
+- `/tmp/undergrid-owner-application-contract-lifecycle-green-oct28.jsonl`
+- `/tmp/undergrid-owner-application-contract-generate-oct28.log`
+- `/tmp/undergrid-owner-application-contract-check-oct28.log`

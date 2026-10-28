@@ -1,7 +1,12 @@
 package network
 
 import (
+	"bytes"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"os/exec"
+	"strings"
 	"testing"
 )
 
@@ -65,4 +70,37 @@ func TestOpenAPIOwnerApplicationOperations(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Independently validate actual owner response bytes, not domain helper structs.
+func observeOwnerApplicationContract(t *testing.T, clients ...*testClient) {
+	t.Helper()
+	var cases []map[string]any
+	observe := func(r *http.Request, w *httptest.ResponseRecorder, body any) {
+		if !strings.HasPrefix(r.URL.Path, "/v1/owner/") {
+			return
+		}
+		var response any
+		if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+			t.Fatal(err)
+		}
+		cases = append(cases, map[string]any{"method": r.Method, "path": r.URL.String(), "request": body, "response": response, "status": w.Code, "request_id": w.Header().Get("X-Request-ID"), "etag": w.Header().Get("ETag")})
+	}
+	for _, c := range clients {
+		c.observe = observe
+	}
+	t.Cleanup(func() {
+		if t.Failed() {
+			return
+		}
+		raw, err := json.Marshal(cases)
+		if err != nil {
+			t.Fatal(err)
+		}
+		cmd := exec.Command("node", "../../web/scripts/validate-network-contract.mjs", "--owner-applications")
+		cmd.Stdin = bytes.NewReader(raw)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Errorf("actual owner application contract: %v\n%s", err, out)
+		}
+	})
 }

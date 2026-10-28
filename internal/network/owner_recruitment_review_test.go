@@ -8,6 +8,7 @@ import (
 func TestOwnerRecruitmentReviewPinsCurrentRoleAndRejectsStaleProfile(t *testing.T) {
 	s, db := ownerSwarmCreationFixture(t)
 	organizer, builder, foreign := collaborationClient(t, s), collaborationClient(t, s), client(t, s)
+	observeOwnerApplicationContract(t, &builder, &foreign)
 	code, room := organizer.call("POST", "/v1/swarms", NewID(), map[string]any{"objective": "Current owner recruitment review", "visibility": "restricted", "recruitment_roles": []any{map[string]any{"key": "builder", "schema_family": "source_catalog_v1", "description": "Build the declared catalogue"}}})
 	if code != 201 {
 		t.Fatal(code, room)
