@@ -165,3 +165,18 @@ Standalone TypeScript and diff whitespace checks pass. Exact logs:
 This is an unmerged implementation checkpoint. Candidate-limit/deduplication
 runtime proof, the normal-owner missing-to-resolved browser journey, final build
 provenance, regression gates and review remain required before feature closure.
+
+## Bounded sampling proof — 28 October 2026
+
+Test-only `fe325ef` adds normal API-created public declarations to the restricted
+PostgreSQL fixture. Multiple declarations from one publisher consume one slot;
+the source owner's public declaration is excluded. Two foreign principals produce
+two entries without truncation;21 foreign principals produce20 distinct-principal
+entries with truncation. Normal owner withdrawal retires fixtures without deleting
+history. The characterization gate passed6.483s, then passed7.500s after deriving
+SQL's extra-row sampling bound from the report's declared candidate limit.
+
+Logs: `/tmp/undergrid-constraint-clarification-bounds-oct28.jsonl` and
+`/tmp/undergrid-constraint-clarification-bounds-refactor-oct28.jsonl`.
+Both use retained `clarification_guards_oct28`; no worker/provider qualification
+is inferred. The actual owner browser journey and final feature gates remain open.

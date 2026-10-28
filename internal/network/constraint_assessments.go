@@ -58,7 +58,7 @@ func (s *Service) constraintAssessments(r *http.Request, tx pgx.Tx, a actor, id 
 	if err = json.Unmarshal(raw, &source); err != nil {
 		return 0, nil, err
 	}
-	rows, err := tx.Query(r.Context(), `SELECT DISTINCT ON (principal_id) id,principal_id,version,projection FROM public_intents() WHERE principal_id<>$1 ORDER BY principal_id,id LIMIT 21`, a.PrincipalID)
+	rows, err := tx.Query(r.Context(), `SELECT DISTINCT ON (principal_id) id,principal_id,version,projection FROM public_intents() WHERE principal_id<>$1 ORDER BY principal_id,id LIMIT $2`, a.PrincipalID, report.CandidateLimit+1)
 	if err != nil {
 		return 0, nil, err
 	}
