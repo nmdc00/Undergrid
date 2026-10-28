@@ -22,6 +22,7 @@ const (
 	hp2Builder
 	hp2PlanProposal
 	hp2RoomOrigin
+	hp2CompatibleGroups
 )
 
 func TestHP2LiveOwnerPlanProposalRevisionAndRecovery(t *testing.T) {

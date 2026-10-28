@@ -272,7 +272,9 @@ test("credential issuance is one-time display and never persisted in browser sto
     await screen.findByLabelText("Agent name"),
     "New listener",
   );
-  await userEvent.click(screen.getByLabelText("I reviewed this declared profile"));
+  await userEvent.click(
+    screen.getByLabelText("I reviewed this declared profile"),
+  );
   await userEvent.click(screen.getByRole("button", { name: "Register agent" }));
   await screen.findByText("ug_one_time_secret");
   expect(storage).not.toHaveBeenCalled();
@@ -672,5 +674,157 @@ test.each(["keep", "change", "remove"])(
                 : query.projection,
           },
     );
+  },
+);
+
+test("active monitored intention opens a read-only compatible group view", async () => {
+  const requests = fixture();
+  const baseFetch = globalThis.fetch;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (path: string, init?: RequestInit) => {
+      if (path === "/v1/owner/intents/intent/compatible-groups") {
+        requests.push({ path, init });
+        return new Response(
+          JSON.stringify({
+            items: [],
+            candidate_limit: 20,
+            group_limit: 10,
+            truncated: false,
+            limitations: [
+              "bounded_nonexhaustive_views",
+              "principal_ids_do_not_prove_independent_owners",
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+      return baseFetch(path, init);
+    }),
+  );
+  render(<App />);
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Review intention" }),
+  );
+  await userEvent.click(
+    await screen.findByRole("button", { name: "View compatible groups" }),
+  );
+  expect(await screen.findByText(/No current compatible groups/)).toBeTruthy();
+  const call = requests.find((r) => r.path.endsWith("/compatible-groups"));
+  expect(call?.init?.method).toBe("GET");
+  expect(call?.init?.credentials).toBe("same-origin");
+  expect(
+    requests.filter((r) => r.path.endsWith("/compatible-groups")),
+  ).toHaveLength(1);
+});
+
+test.each(["paused", "watch-off"])(
+  "group viewer is unavailable for %s intentions",
+  async (condition) => {
+    const requests = fixture(
+      true,
+      condition === "paused" ? "paused" : "active",
+    );
+    const baseFetch = globalThis.fetch;
+    if (condition === "watch-off")
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (path: string, init?: RequestInit) => {
+          const response = await baseFetch(path, init);
+          if (path !== "/v1/owner/intents/intent") return response;
+          const body = await response.json();
+          return new Response(
+            JSON.stringify({
+              ...body,
+              watch: { enabled: false, channels: ["inbox"] },
+            }),
+            { status: 200 },
+          );
+        }),
+      );
+    render(<App />);
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Review intention" }),
+    );
+    await screen.findByRole("button", { name: "Close intention" });
+    expect(
+      screen.queryByRole("button", { name: "View compatible groups" }),
+    ).toBeNull();
+    expect(requests.some((r) => r.path.endsWith("/compatible-groups"))).toBe(
+      false,
+    );
+  },
+);
+
+test.each([200, 401])(
+  "new source revision discards a pending group response with status %s",
+  async (status) => {
+    const requests = fixture();
+    const baseFetch = globalThis.fetch;
+    let version = 1;
+    let finish!: (response: Response) => void;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (path: string, init?: RequestInit) => {
+        if (path === "/v1/owner/intents/intent/compatible-groups") {
+          requests.push({ path, init });
+          return new Promise<Response>((resolve) => {
+            finish = resolve;
+          });
+        }
+        const response = await baseFetch(path, init);
+        if (path !== "/v1/owner/intents/intent") return response;
+        return new Response(
+          JSON.stringify({
+            ...(await response.json()),
+            version,
+            etag: `"${version}"`,
+          }),
+          { status: 200 },
+        );
+      }),
+    );
+    render(<App />);
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Review intention" }),
+    );
+    await userEvent.click(
+      await screen.findByRole("button", { name: "View compatible groups" }),
+    );
+    version = 2;
+    await userEvent.click(
+      screen.getByRole("button", { name: "Review intention" }),
+    );
+    await screen.findByRole("button", { name: "View compatible groups" });
+    finish(
+      new Response(
+        JSON.stringify(
+          status === 200
+            ? {
+                items: [],
+                candidate_limit: 20,
+                group_limit: 10,
+                truncated: false,
+                limitations: [
+                  "bounded_nonexhaustive_views",
+                  "principal_ids_do_not_prove_independent_owners",
+                ],
+              }
+            : { error: { code: "expired_session" } },
+        ),
+        { status },
+      ),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(screen.queryByText(/No current compatible groups/)).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(
+      screen.getByRole("heading", { name: "Your workspace" }),
+    ).toBeTruthy();
+    expect(
+      screen
+        .getByRole("button", { name: "View compatible groups" })
+        .matches(":disabled"),
+    ).toBe(false);
   },
 );

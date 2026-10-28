@@ -1,3 +1,4 @@
+import { CompatibleGroups } from "./CompatibleGroups";
 import { type RoomOrigin } from "./CreateSwarm";
 import {
   IntentionConstraintsEditor,
@@ -654,6 +655,21 @@ export function App() {
                       </section>
                     ))
                   )}
+                  {detail.state === "active" &&
+                    object(detail.watch).enabled === true && (
+                      <CompatibleGroups
+                        key={`groups:${text(detail.id)}:${String(detail.version)}`}
+                        intentionID={text(detail.id)}
+                        csrf={csrf}
+                        onUnauthorized={() => {
+                          generation.current++;
+                          setSecret("");
+                          setCSRF("");
+                          setDetail(null);
+                          setPhase("signed-out");
+                        }}
+                      />
+                    )}
                   {detail.state === "active" && (
                     <ExternalLeads
                       key={`${text(detail.id)}:${String(detail.version)}`}

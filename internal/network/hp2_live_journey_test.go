@@ -36,6 +36,7 @@ func hp2LiveOwnerSetup(t *testing.T, mode hp2SetupMode) {
 	publication, builderRegistration := mode == hp2Publication, mode == hp2Builder
 	planProposal := mode == hp2PlanProposal
 	roomOrigin := mode == hp2RoomOrigin
+	groupInspection := mode == hp2CompatibleGroups
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
@@ -134,16 +135,19 @@ func hp2LiveOwnerSetup(t *testing.T, mode hp2SetupMode) {
 	if planProposal {
 		scenarioFile = "e2e-hp2/plan-proposal.spec.ts"
 	}
+	if groupInspection {
+		scenarioFile = "e2e-hp2/groups.spec.ts"
+	}
 	browser := exec.CommandContext(ctx, node, filepath.Join(root, "web", "node_modules", "@playwright", "test", "cli.js"), "test", scenarioFile, "--config", "playwright.hp2.config.ts")
 	browser.Dir = filepath.Join(root, "web")
 	browser.Env = append(os.Environ(), "UNDERGRID_HP1_BASE_URL="+app.URL, "UNDERGRID_HP2_ISSUER_URL="+issuer.URL, "UNDERGRID_TEST_CHROMIUM="+chromium, "UNDERGRID_HP1_BROWSER_ARTIFACTS="+artifacts)
 	if publication {
 		browser.Env = append(browser.Env, "UNDERGRID_HP2_OWNER_PUBLICATION=1")
 	}
-	if builderRegistration || roomOrigin {
+	if builderRegistration || roomOrigin || groupInspection {
 		if roomOrigin {
 			browser.Env = append(browser.Env, "UNDERGRID_HP2_ROOM_ORIGIN=1")
-		} else {
+		} else if builderRegistration {
 			browser.Env = append(browser.Env, "UNDERGRID_HP2_BUILDER_REGISTRATION=1")
 		}
 		workerRole := "hp2_worker_" + strings.ReplaceAll(NewID(), "-", "")
@@ -174,8 +178,8 @@ func hp2LiveOwnerSetup(t *testing.T, mode hp2SetupMode) {
 	}
 	// Read-only normalized attribution and effect checks. Names encode fixture
 	// identities only; separate accounts do not establish independent ownership.
-	rows, err := admin.Query(ctx, `SELECT p.subject,count(DISTINCT a.id),count(DISTINCT c.id),count(DISTINCT i.id),bool_and(COALESCE(CASE WHEN $1 AND p.subject='hp2-controlled-buyer-a' THEN i.visibility='redacted_public' AND i.state='withdrawn' AND NOT i.watch_enabled WHEN $2 AND p.subject='hp2-controlled-buyer-b' THEN i.visibility='redacted_public' AND i.state='active' AND i.watch_enabled ELSE i.visibility='private' AND i.state='active' AND i.watch_enabled END,true))
- FROM undergrid.principals p LEFT JOIN undergrid.agents a ON a.principal_id=p.id LEFT JOIN undergrid.credentials c ON c.agent_id=a.id LEFT JOIN undergrid.intents i ON i.principal_id=p.id GROUP BY p.subject ORDER BY p.subject`, publication, roomOrigin)
+	rows, err := admin.Query(ctx, `SELECT p.subject,count(DISTINCT a.id),count(DISTINCT c.id),count(DISTINCT i.id),bool_and(COALESCE(CASE WHEN $1 AND p.subject='hp2-controlled-buyer-a' THEN i.visibility='redacted_public' AND i.state='withdrawn' AND NOT i.watch_enabled WHEN ($2 AND p.subject='hp2-controlled-buyer-b') OR ($3 AND p.subject IN ('hp2-controlled-buyer-b','hp2-controlled-builder-c')) THEN i.visibility='redacted_public' AND i.state='active' AND i.watch_enabled ELSE i.visibility='private' AND i.state='active' AND i.watch_enabled END,true))
+ FROM undergrid.principals p LEFT JOIN undergrid.agents a ON a.principal_id=p.id LEFT JOIN undergrid.credentials c ON c.agent_id=a.id LEFT JOIN undergrid.intents i ON i.principal_id=p.id GROUP BY p.subject ORDER BY p.subject`, publication, roomOrigin, groupInspection)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -189,7 +193,7 @@ func hp2LiveOwnerSetup(t *testing.T, mode hp2SetupMode) {
 			t.Fatal(err)
 		}
 		expectedIntents := 1
-		if subject == "hp2-controlled-builder-c" {
+		if subject == "hp2-controlled-builder-c" && !groupInspection {
 			expectedIntents = 0
 		}
 		if agents != 1 || credentials != 1 || intents != expectedIntents || !expectedState {
@@ -220,6 +224,9 @@ func hp2LiveOwnerSetup(t *testing.T, mode hp2SetupMode) {
 	}
 	if collaborationEffects != expectedCollaborationEffects {
 		t.Fatalf("setup fabricated %d collaboration effects", collaborationEffects)
+	}
+	if groupInspection {
+		assertHP2GroupInspectionState(t, ctx, admin)
 	}
 	if builderRegistration || roomOrigin {
 		var profiles, opportunities, events, inbox, completedRecruitmentJobs, foreignMemberships, plans, tasks, approvals int
