@@ -115,3 +115,16 @@ review/new private grants retryable and authorizes no semantic result; generic
 exact and permitted external reads remain available under their own contracts.
 See `SEMANTIC_INTEGRATION.md` for actual restricted-runtime and retained-history
 proof, fixture limitations and current unmerged status.
+
+
+## Registered-demand hard-evidence clarification
+
+Agent GET `/v1/intents/{id}/constraint-assessments` and owned-session equivalent
+return `DemandConstraintReport`: current source identity/version/revision, a
+nonexhaustive twenty-public-principal limit, truncation/unknown-common-control
+labels and per-dimension evidence. `hard_status` is aligned/unknown/incompatible;
+`clarification_required` identifies absent declarations. Outcome comparison is
+separately same-declared-outcome or not-evaluated; no semantic result is invented.
+Explicit inspection works with monitoring disabled. Private or noncurrent public
+candidates are excluded. Reports create no matching notifications or collaboration
+authority. See `OWNER_CONSTRAINT_CLARIFICATION.md` for pending feature gates.

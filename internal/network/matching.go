@@ -32,13 +32,7 @@ func CompareDemand(a, b IntentInput) Compatibility {
 	if !e.Compatible {
 		return e
 	}
-	text := func(i IntentInput) string {
-		if i.PublicSummary != "" {
-			return strings.ToLower(strings.TrimSpace(i.PublicSummary))
-		}
-		return strings.ToLower(strings.TrimSpace(i.Objective))
-	}
-	if text(a) != text(b) {
+	if declaredOutcome(a) != declaredOutcome(b) {
 		e.Compatible = false
 		e.Status = "needs_clarification"
 		e.Reasons = []string{"semantic_comparison_pending"}
@@ -46,4 +40,13 @@ func CompareDemand(a, b IntentInput) Compatibility {
 	}
 	e.Reasons = append([]string{"same_declared_outcome"}, e.Reasons...)
 	return e
+}
+
+// A private source stays within its authorized transaction; candidates use only
+// their approved public projection. This compares declarations, not semantics.
+func declaredOutcome(i IntentInput) string {
+	if i.PublicSummary != "" {
+		return strings.ToLower(strings.TrimSpace(i.PublicSummary))
+	}
+	return strings.ToLower(strings.TrimSpace(i.Objective))
 }

@@ -721,3 +721,19 @@ Visible unknown-hard clarification is the next active HP2 requirement; its
 contract must distinguish absent hard evidence from semantic comparison pending
 and incompatibility. Complementary capabilities, typed controls, applications and
 continuous HP2 integration remain open; external qualification is separate.
+
+
+### Owner unknown-hard clarification checkpoint — 28 October 2026
+
+`feat/v0.1-owner-constraint-clarifications` implements explicit owner/agent and
+finite MCP/A2A current hard-evidence reads, independently of monitoring. Real
+HTTP RED precedes implementation; source/candidate authority, bounded distinct
+principals, historical matching bytes and stale UI contexts are covered. Frozen
+`ecead15` passes the actual normal three-owner missing-coverage → reviewed public
+revision → resolved read/reload journey in16.634s, with no opportunities or
+collaboration authority. Full UI233, restricted9-top-level/16-subcase suite,
+canonical162 schemas, tagged vet/build and retained group/room/plan browsers pass.
+The latter aggregate passes67.397s. `OWNER_CONSTRAINT_CLARIFICATION.md` retains
+exact source/build/database/artifact evidence and both failed harness runs.
+Review and merge are pending. Complementary registered capabilities, remaining
+typed requirement editing, applications and continuous HP2 acceptance remain open.

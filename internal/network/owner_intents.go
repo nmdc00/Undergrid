@@ -24,7 +24,8 @@ func (s *Service) ownerIntents(r *http.Request, tx pgx.Tx, principal string) (in
 	}
 	collection := r.URL.Path == "/v1/owner/intents"
 	groups := strings.HasSuffix(r.URL.Path, "/compatible-groups")
-	if groups && r.Method != "GET" {
+	assessments := strings.HasSuffix(r.URL.Path, "/constraint-assessments")
+	if (groups || assessments) && r.Method != "GET" {
 		return 0, nil, fail(405, "method_not_allowed")
 	}
 	opportunities := strings.HasSuffix(r.URL.Path, "/opportunities")
@@ -112,6 +113,7 @@ func (s *Service) ownerIntents(r *http.Request, tx pgx.Tx, principal string) (in
 		command.Body = io.NopCloser(bytes.NewReader(canonical(in.Intent)))
 	} else {
 		id = strings.TrimSuffix(strings.TrimSuffix(strings.TrimSuffix(strings.TrimSuffix(strings.TrimPrefix(command.URL.Path, "/v1/intents/"), "/opportunities"), "/external-leads"), "/external-fit-report"), "/compatible-groups")
+		id = strings.TrimSuffix(id, "/constraint-assessments")
 		if !validID(id) {
 			return 0, nil, fail(404, "not_found")
 		}
@@ -126,6 +128,10 @@ func (s *Service) ownerIntents(r *http.Request, tx pgx.Tx, principal string) (in
 	a, err := lockOwnerAgent(ctx, tx, principal, agent)
 	if err != nil {
 		return 0, nil, err
+	}
+	if assessments {
+		a.Scopes = []string{"intents:read"}
+		return s.constraintAssessments(command, tx, a, id)
 	}
 	if groups {
 		return s.compatibleGroups(command, tx, a, id)

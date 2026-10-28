@@ -210,8 +210,12 @@ PR114/release `bc6ddda`.
 The actual three-owner license counterexample produces separate two-member
 views; source revision/reload removes obsolete evidence without creating
 collaboration authority. See `OWNER_COMPATIBLE_GROUPS.md` for exact browser,
-restricted-role, UI and retained-gate evidence. Unknown-hard clarification and
-the full continuous HP2 journey remain separate unfinished outcomes.
+restricted-role, UI and retained-gate evidence. Explicit current unknown-hard
+clarification is implemented and locally proven on
+`feat/v0.1-owner-constraint-clarifications` (`ecead15`): normal owner publication
+revision resolves missing coverage without semantic inference or authority
+effects. See `OWNER_CONSTRAINT_CLARIFICATION.md`; review/merge remain pending.
+The full continuous HP2 journey remains unfinished.
 
 
 Intent states: `active ↔ paused`, `active/paused → withdrawn|expired|satisfied`. Explicit satisfied transitions are implemented through the shared versioned owner/agent command, with monitoring stopped and immutable history retained; see `evidence/intention-satisfaction.md` for scoped proof. Renew expired via a new revision; withdrawn creates a new ID if reposted. Pausing stops monitoring without discarding the immutable revision’s watch preference; resuming restores the current revision’s explicit preference, including disabled watches (see `evidence/watch-resume.md`). Watch defaults on for active intents, with a visible expiry (proposed 90 days) and renewal reminder. Query-time eligibility applies even if jobs lag. Publication/revision events trigger jobs; a 15-minute sweep repairs missed work. Committed public candidates also drive bounded durable candidate-to-watcher refresh independently of global repair, preserving the five-second existing-watcher worker gate; see `docs/evidence/committed-watch-refresh.md`. Opportunities and inbox rows dedupe by input revisions, recipient and kind. Watches survive outages; unmatched status is not an error.

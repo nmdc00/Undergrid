@@ -37,6 +37,7 @@ func hp2LiveOwnerSetup(t *testing.T, mode hp2SetupMode) {
 	planProposal := mode == hp2PlanProposal
 	roomOrigin := mode == hp2RoomOrigin
 	groupInspection := mode == hp2CompatibleGroups
+	clarification := mode == hp2Clarifications
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
@@ -138,13 +139,16 @@ func hp2LiveOwnerSetup(t *testing.T, mode hp2SetupMode) {
 	if groupInspection {
 		scenarioFile = "e2e-hp2/groups.spec.ts"
 	}
+	if clarification {
+		scenarioFile = "e2e-hp2/clarifications.spec.ts"
+	}
 	browser := exec.CommandContext(ctx, node, filepath.Join(root, "web", "node_modules", "@playwright", "test", "cli.js"), "test", scenarioFile, "--config", "playwright.hp2.config.ts")
 	browser.Dir = filepath.Join(root, "web")
 	browser.Env = append(os.Environ(), "UNDERGRID_HP1_BASE_URL="+app.URL, "UNDERGRID_HP2_ISSUER_URL="+issuer.URL, "UNDERGRID_TEST_CHROMIUM="+chromium, "UNDERGRID_HP1_BROWSER_ARTIFACTS="+artifacts)
 	if publication {
 		browser.Env = append(browser.Env, "UNDERGRID_HP2_OWNER_PUBLICATION=1")
 	}
-	if builderRegistration || roomOrigin || groupInspection {
+	if builderRegistration || roomOrigin || groupInspection || clarification {
 		if roomOrigin {
 			browser.Env = append(browser.Env, "UNDERGRID_HP2_ROOM_ORIGIN=1")
 		} else if builderRegistration {
@@ -178,8 +182,8 @@ func hp2LiveOwnerSetup(t *testing.T, mode hp2SetupMode) {
 	}
 	// Read-only normalized attribution and effect checks. Names encode fixture
 	// identities only; separate accounts do not establish independent ownership.
-	rows, err := admin.Query(ctx, `SELECT p.subject,count(DISTINCT a.id),count(DISTINCT c.id),count(DISTINCT i.id),bool_and(COALESCE(CASE WHEN $1 AND p.subject='hp2-controlled-buyer-a' THEN i.visibility='redacted_public' AND i.state='withdrawn' AND NOT i.watch_enabled WHEN ($2 AND p.subject='hp2-controlled-buyer-b') OR ($3 AND p.subject IN ('hp2-controlled-buyer-b','hp2-controlled-builder-c')) THEN i.visibility='redacted_public' AND i.state='active' AND i.watch_enabled ELSE i.visibility='private' AND i.state='active' AND i.watch_enabled END,true))
- FROM undergrid.principals p LEFT JOIN undergrid.agents a ON a.principal_id=p.id LEFT JOIN undergrid.credentials c ON c.agent_id=a.id LEFT JOIN undergrid.intents i ON i.principal_id=p.id GROUP BY p.subject ORDER BY p.subject`, publication, roomOrigin, groupInspection)
+	rows, err := admin.Query(ctx, `SELECT p.subject,count(DISTINCT a.id),count(DISTINCT c.id),count(DISTINCT i.id),bool_and(COALESCE(CASE WHEN $4 AND p.subject='hp2-controlled-buyer-a' THEN i.visibility='private' AND i.state='active' AND NOT i.watch_enabled WHEN $1 AND p.subject='hp2-controlled-buyer-a' THEN i.visibility='redacted_public' AND i.state='withdrawn' AND NOT i.watch_enabled WHEN ($2 AND p.subject='hp2-controlled-buyer-b') OR ($3 AND p.subject IN ('hp2-controlled-buyer-b','hp2-controlled-builder-c')) THEN i.visibility='redacted_public' AND i.state='active' AND i.watch_enabled ELSE i.visibility='private' AND i.state='active' AND i.watch_enabled END,true))
+ FROM undergrid.principals p LEFT JOIN undergrid.agents a ON a.principal_id=p.id LEFT JOIN undergrid.credentials c ON c.agent_id=a.id LEFT JOIN undergrid.intents i ON i.principal_id=p.id GROUP BY p.subject ORDER BY p.subject`, publication, roomOrigin, groupInspection || clarification, clarification)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,7 +197,7 @@ func hp2LiveOwnerSetup(t *testing.T, mode hp2SetupMode) {
 			t.Fatal(err)
 		}
 		expectedIntents := 1
-		if subject == "hp2-controlled-builder-c" && !groupInspection {
+		if subject == "hp2-controlled-builder-c" && !groupInspection && !clarification {
 			expectedIntents = 0
 		}
 		if agents != 1 || credentials != 1 || intents != expectedIntents || !expectedState {
@@ -228,6 +232,22 @@ func hp2LiveOwnerSetup(t *testing.T, mode hp2SetupMode) {
 	if groupInspection {
 		assertHP2GroupInspectionState(t, ctx, admin)
 	}
+	if clarification {
+		var revisions, sourceWatch, publisherRevision, opportunities int
+		var resolved bool
+		if err = admin.QueryRow(ctx, `SELECT
+    (SELECT count(*) FROM undergrid.intent_revisions),
+    (SELECT count(*) FROM undergrid.intents i JOIN undergrid.principals p ON p.id=i.principal_id WHERE p.subject='hp2-controlled-buyer-a' AND i.watch_enabled),
+    (SELECT current_revision FROM undergrid.intents i JOIN undergrid.principals p ON p.id=i.principal_id WHERE p.subject='hp2-controlled-buyer-b'),
+    (SELECT count(*) FROM undergrid.opportunities),
+    (SELECT r.document->'hard_constraints'->'coverage'->'required'='["region:eu"]'::jsonb FROM undergrid.intents i JOIN undergrid.principals p ON p.id=i.principal_id JOIN undergrid.intent_revisions r ON r.intent_id=i.id AND r.revision=i.current_revision WHERE p.subject='hp2-controlled-buyer-b')`).Scan(&revisions, &sourceWatch, &publisherRevision, &opportunities, &resolved); err != nil {
+			t.Fatal(err)
+		}
+		if revisions != 4 || sourceWatch != 0 || publisherRevision != 2 || opportunities != 0 || !resolved {
+			t.Fatalf("clarification effects: revisions=%d sourceWatch=%d publisherRevision=%d opportunities=%d resolved=%v", revisions, sourceWatch, publisherRevision, opportunities, resolved)
+		}
+	}
+
 	if builderRegistration || roomOrigin {
 		var profiles, opportunities, events, inbox, completedRecruitmentJobs, foreignMemberships, plans, tasks, approvals int
 		if err = admin.QueryRow(ctx, `SELECT

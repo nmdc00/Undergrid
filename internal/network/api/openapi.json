@@ -8558,6 +8558,132 @@
           }
         ]
       }
+    },
+    "/v1/intents/{id}/constraint-assessments": {
+      "get": {
+        "operationId": "get__v1_intents_id_constraint-assessments",
+        "summary": "Read current registered-demand hard-evidence reports",
+        "description": "Owned active unexpired source; explicit inspection also works without monitoring. At most20 current foreign public-principal declarations, with nonexhaustive truncation and unknown common control. Hard alignment, missing declarations and incompatibility are separate from outcome similarity; different prose is not evaluated semantically here. No provider calls, matching notifications or collaboration authority.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemandConstraintReport"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; status depends on authentication, visibility, validation, quotas and runtime availability.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "NetworkBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/v1/owner/intents/{id}/constraint-assessments": {
+      "get": {
+        "operationId": "get__v1_owner_intents_id_constraint-assessments",
+        "summary": "Read current registered-demand hard-evidence reports",
+        "description": "Owned active unexpired source; explicit inspection also works without monitoring. At most20 current foreign public-principal declarations, with nonexhaustive truncation and unknown common control. Hard alignment, missing declarations and incompatibility are separate from outcome similarity; different prose is not evaluated semantically here. No provider calls, matching notifications or collaboration authority.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemandConstraintReport"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; status depends on authentication, visibility, validation, quotas and runtime availability.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OwnerSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -14687,6 +14813,276 @@
           "limitations"
         ],
         "additionalProperties": false
+      },
+      "DemandConstraintItem": {
+        "type": "object",
+        "properties": {
+          "candidate_intent_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "candidate_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "principal_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "public_summary": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "output": {
+            "$ref": "#/components/schemas/Output"
+          },
+          "hard_constraints": {
+            "$ref": "#/components/schemas/Constraints"
+          },
+          "hard_status": {
+            "type": "string",
+            "enum": [
+              "aligned",
+              "unknown",
+              "incompatible"
+            ]
+          },
+          "outcome_comparison": {
+            "type": "string",
+            "enum": [
+              "same_declared_outcome",
+              "not_evaluated"
+            ]
+          },
+          "clarification_required": {
+            "type": "boolean"
+          },
+          "constraint_evidence": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 7,
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/components/schemas/ConstraintAssessment"
+            }
+          }
+        },
+        "required": [
+          "candidate_intent_id",
+          "candidate_version",
+          "principal_id",
+          "public_summary",
+          "output",
+          "hard_constraints",
+          "hard_status",
+          "outcome_comparison",
+          "clarification_required",
+          "constraint_evidence"
+        ],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "hard_status": {
+                  "const": "aligned"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "constraint_evidence": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "status": {
+                        "const": "aligned"
+                      }
+                    },
+                    "required": [
+                      "status"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "hard_status": {
+                  "const": "unknown"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "constraint_evidence": {
+                  "type": "array",
+                  "contains": {
+                    "type": "object",
+                    "properties": {
+                      "status": {
+                        "const": "unknown"
+                      }
+                    },
+                    "required": [
+                      "status"
+                    ]
+                  },
+                  "not": {
+                    "contains": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "const": "incompatible"
+                        }
+                      },
+                      "required": [
+                        "status"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "hard_status": {
+                  "const": "incompatible"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "constraint_evidence": {
+                  "type": "array",
+                  "contains": {
+                    "type": "object",
+                    "properties": {
+                      "status": {
+                        "const": "incompatible"
+                      }
+                    },
+                    "required": [
+                      "status"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "constraint_evidence": {
+                  "type": "array",
+                  "contains": {
+                    "type": "object",
+                    "properties": {
+                      "status": {
+                        "const": "unknown"
+                      }
+                    },
+                    "required": [
+                      "status"
+                    ]
+                  }
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "clarification_required": {
+                  "const": true
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "clarification_required": {
+                  "const": false
+                }
+              }
+            }
+          }
+        ]
+      },
+      "DemandConstraintReport": {
+        "type": "object",
+        "properties": {
+          "source_intent_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "source_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "source_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "registered_demand_hard_evidence_v1"
+            ]
+          },
+          "identity_assurance": {
+            "type": "string",
+            "enum": [
+              "common_control_unknown"
+            ]
+          },
+          "candidate_limit": {
+            "type": "integer",
+            "const": 20
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "items": {
+            "type": "array",
+            "maxItems": 20,
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/components/schemas/DemandConstraintItem"
+            }
+          }
+        },
+        "required": [
+          "source_intent_id",
+          "source_version",
+          "source_revision",
+          "scope",
+          "identity_assurance",
+          "candidate_limit",
+          "truncated",
+          "items"
+        ],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "truncated": {
+                  "const": true
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "items": {
+                  "minItems": 20
+                }
+              }
+            }
+          }
+        ]
       }
     },
     "securitySchemes": {

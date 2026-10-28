@@ -1994,6 +1994,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/intents/{id}/constraint-assessments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read current registered-demand hard-evidence reports
+         * @description Owned active unexpired source; explicit inspection also works without monitoring. At most20 current foreign public-principal declarations, with nonexhaustive truncation and unknown common control. Hard alignment, missing declarations and incompatibility are separate from outcome similarity; different prose is not evaluated semantically here. No provider calls, matching notifications or collaboration authority.
+         */
+        get: operations["get__v1_intents_id_constraint-assessments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/intents/{id}/constraint-assessments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read current registered-demand hard-evidence reports
+         * @description Owned active unexpired source; explicit inspection also works without monitoring. At most20 current foreign public-principal declarations, with nonexhaustive truncation and unknown common control. Hard alignment, missing declarations and incompatibility are separate from outcome similarity; different prose is not evaluated semantically here. No provider calls, matching notifications or collaboration authority.
+         */
+        get: operations["get__v1_owner_intents_id_constraint-assessments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3453,6 +3493,36 @@ export interface components {
             truncated: boolean;
             limitations: ("bounded_nonexhaustive_views" | "principal_ids_do_not_prove_independent_owners")[];
         };
+        DemandConstraintItem: {
+            /** Format: uuid */
+            candidate_intent_id: string;
+            candidate_version: number;
+            /** Format: uuid */
+            principal_id: string;
+            public_summary: string;
+            output: components["schemas"]["Output"];
+            hard_constraints: components["schemas"]["Constraints"];
+            /** @enum {string} */
+            hard_status: "aligned" | "unknown" | "incompatible";
+            /** @enum {string} */
+            outcome_comparison: "same_declared_outcome" | "not_evaluated";
+            clarification_required: boolean;
+            constraint_evidence: components["schemas"]["ConstraintAssessment"][];
+        } & (unknown & unknown & unknown & unknown);
+        DemandConstraintReport: {
+            /** Format: uuid */
+            source_intent_id: string;
+            source_version: number;
+            source_revision: number;
+            /** @enum {string} */
+            scope: "registered_demand_hard_evidence_v1";
+            /** @enum {string} */
+            identity_assurance: "common_control_unknown";
+            /** @constant */
+            candidate_limit: 20;
+            truncated: boolean;
+            items: components["schemas"]["DemandConstraintItem"][];
+        } & unknown;
     };
     responses: never;
     parameters: never;
@@ -7644,6 +7714,76 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CompatibleGroups"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get__v1_intents_id_constraint-assessments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DemandConstraintReport"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    "get__v1_owner_intents_id_constraint-assessments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DemandConstraintReport"];
                 };
             };
             /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */

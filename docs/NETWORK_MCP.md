@@ -14,6 +14,7 @@ come from the canonical [network REST contract](NETWORK_REST_CONTRACT.md), with
 closed tool argument envelopes and only reachable shared schema definitions.
 Examples include `network_me`, `intention_create`, `intention_read`,
 `intention_revise`, `intention_external_leads`, `intention_external_fit_report`,
+`intention_constraint_assessments`,
 `intention_partial_satisfaction`, `inbox_read`, `agent_context`, swarm membership/messages,
 plans/tasks/progress, coordinator proposal/read/approval/acceptance, artifact
 references/rights/publication, and private reports.
@@ -103,3 +104,11 @@ domain command records an explicit owner declaration and immutable unmet remaind
 it grants no provider, rights or participation assurance. Exact retries remain
 subject to current actor/source authority and the command's resulting head. See
 [partial satisfaction](PARTIAL_SATISFACTION.md) for the contract and actual proof.
+
+
+`intention_constraint_assessments` is an explicit bounded hard-evidence read for
+an owned active unexpired intention. It requires `intents:read`; monitoring is
+separate. A public declaration's hard alignment/absence/conflict does not claim
+outcome similarity, competence or rights. The report performs no provider call
+or matching notification. Current authority is enforced in the same domain read
+as REST/A2A; source and candidate versions describe the current snapshot.
