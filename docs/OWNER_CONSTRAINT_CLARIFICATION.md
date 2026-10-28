@@ -201,3 +201,62 @@ Original logs: `/tmp/undergrid-clarification-browser-393cfae-oct28.jsonl` and
 folders: `/tmp/undergrid-hp2-browser-2717199456` and
 `/tmp/undergrid-hp2-browser-1299341547`. No fixture reset or product SQL seed
 completed either journey. Final live journey proof remains required.
+
+## Actual normal-owner journey — 28 October 2026
+
+Frozen `ecead15` passes the complete new Chromium/API/restricted-worker/real-PG
+scenario: package16.634s, browser case13.6s. A privately declares EU coverage with
+monitoring off; B publicly omits coverage; C publicly declares EU coverage but a
+conflicting license. A explicitly reads unknown B and incompatible C. B opens the
+normal intention detail, edits coverage and reviews the final public projection;
+A refreshes and reloads, seeing aligned B at version2 while C remains incompatible
+and source version stays1. Separate controlled OIDC accounts prove attribution,
+not independent beneficial ownership. No SQL product seeds complete the journey.
+
+Independent normalized checks prove four immutable intention revisions, B current
+revision2 and EU coverage, A monitoring off, zero opportunities and zero combined
+rooms/memberships/plans/approvals/tasks. The actual restricted worker starts and
+stops under the existing bounds; this is local runtime proof, not provider proof.
+
+- Log: `/tmp/undergrid-clarification-browser-ecead15-oct28.jsonl`
+- Build: `/tmp/undergrid-clarification-browser-ecead15-build-oct28.log`
+- Retained DB: `hp1_run_68fc79199b744311a224c446fda58cab`
+- Artifacts: `/tmp/undergrid-hp2-browser-1697825902`
+- Frontend source SHA256: `239a79547f9f25328e83450415c0612177706a3b31d3faed830d1880fbd635d8`
+- Production JS SHA256: `7a4e087c0ca5dc3190f2551440c43032c44370f4645462e299230ae4a4c0231b`
+
+This closes the missing-to-resolved browser acceptance step. Final regressions,
+review and merge remain pending; the complete continuous HP2 journey remains open.
+
+## Final-feature regression checkpoint — 28 October 2026
+
+At runtime/frontend `ecead15`, all233 UI cases across21 files passed76.19s.
+The complete clarification domain/authority/finite-protocol/actual-HTTP-contract
+suite passed9 top-level cases and16 subcases in24.676s on the retained restricted
+network fixture. Canonical lint, all162 schemas and generated-type parity pass.
+
+- `/tmp/undergrid-clarification-ecead15-full-ui-oct28.log`
+- `/tmp/undergrid-clarification-ecead15-authority-protocol-contract-oct28.jsonl`
+- `/tmp/undergrid-clarification-ecead15-contract-oct28.log`
+
+Quality review confirms REST, owner, MCP and A2A route to one authorization-bearing
+transactional read; the shared hard-evidence evaluator preserves historical
+matching bytes under characterization. Candidate disclosure stays behind existing
+`public_intents()` rather than a new privileged repository. Shared frontend
+constraint parsing centralizes contract knowledge while monitoring and current
+read policy remain distinct. Late responses cannot revive old session/source
+contexts. This read creates no opportunity or collaboration authority. No migration,
+provider request, financial credential or deployment is introduced.
+
+The retained group/room/plan browser aggregate passes67.397s at `ecead15`, with
+individual cases18.83s/18.13s/30.42s. Tagged `go vet` and `go build ./...` pass;
+six pure typed-hard/nontransitive-group regressions pass as well. Logs:
+
+- `/tmp/undergrid-clarification-ecead15-retained-browsers-oct28.jsonl`
+- `/tmp/undergrid-clarification-ecead15-vet-oct28.log`
+- `/tmp/undergrid-clarification-ecead15-go-build-oct28.log`
+- `/tmp/undergrid-clarification-ecead15-hard-group-unit-oct28.jsonl`
+
+No fresh independent agent review is claimed while workers remain quota-limited.
+Root reviewed the scoped diff and actual proof under the implementation skill;
+remote PR integration and exact merged-release checks are still pending.
