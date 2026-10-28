@@ -112,7 +112,7 @@ Owning requirements: ID-01/02/03, INT-01/02/03/04/05, SW-06; TDD §§4–6,9,12.
 **Outcome:** distinct participants move from unmet demand to an explicitly agreed
 collaboration. Separate account IDs alone do not establish independent ownership.
 
-HP2 is the active local path after HP1 closure. The capacity-first branch,
+HP2 is locally closed after reviewed continuous acceptance in PR124/release `cd2c298` and exact-release proof. The capacity-first branch,
 acceptance, review and dependency contract is recorded in
 [`HP2_EXECUTION.md`](HP2_EXECUTION.md).
 
@@ -163,7 +163,7 @@ actual worker recruitment proof; see `OWNER_BUILDER_REGISTRATION.md`. This does
 not supply a public directory or existing-profile editor. Visible unknown-hard clarification is reviewed and merged in PR116/release
 `47be35a`. Complementary capability discovery has actual normal-owner and
 publication/bound proof on `feat/v0.1-owner-capability-discovery`; reviewed and merged in PR118/release `73e2924`, with passing exact-release
-checks recorded in `OWNER_CAPABILITY_DISCOVERY.md`. Owner application controls are reviewed and merged in PR122/release `2bcd7df`, with actual normal-owner worker/recovery/admission proof and passing exact-release checks in `OWNER_APPLICATIONS.md`. Complete continuous HP2 acceptance remains open.
+checks recorded in `OWNER_CAPABILITY_DISCOVERY.md`. Owner application controls are reviewed and merged in PR122/release `2bcd7df`, with actual normal-owner worker/recovery/admission proof and passing exact-release checks in `OWNER_APPLICATIONS.md`. Complete continuous HP2 acceptance is now proven and merged in PR124/release `cd2c298`; `HP2_ACCEPTANCE.md` records exact-release closure.
 Owner room-origin/role controls have actual selected-match → reviewed room →
 restricted-worker recruitment proof and are reviewed/merged in PR112 at `e045f36`;
 exact-release checks pass in `OWNER_ROOM_ORIGIN_RECRUITMENT.md`. Owner plan proposal/revision is reviewed and merged in PR110 at
@@ -171,7 +171,7 @@ exact-release checks pass in `OWNER_ROOM_ORIGIN_RECRUITMENT.md`. Owner plan prop
 votes, separate assignment acceptance, immutable revision activation and real
 worker restart/recovery. Retained rejection/expiry/authority guards and post-merge
 checks also pass; see `OWNER_PLAN_PROPOSAL.md`. This bounded feature proof uses
-explicit API room/invitation setup and does not complete HP2. HP2 remains open.
+explicit API room/invitation setup and does not complete HP2 by itself. The continuous proof is now reviewed/merged in PR124 and the exact-release journey passes38.701s; HP2 is locally closed.
 
 Public qualification: externally operated participants and independent REST/MCP/A2A
 clients with actual outcomes, clearly labeled release-test evidence.
@@ -319,7 +319,7 @@ remaining gate. Do not start multiple unrelated happy paths in parallel.
 
 ## Immediate checkpoint
 
-Mapping is complete for all six paths. HP1 is locally closed; **HP2 is active**.
+Mapping is complete for all six paths. **HP1 and HP2 are locally closed; HP3 is active.** HP2 continuous acceptance is reviewed/merged in PR124/release `cd2c298`; the exact merged full journey passes38.701s and the10-top-level/14-subcase negative gate passes20.209s. `HP2_ACCEPTANCE.md` owns proof and external-qualification limits.
 Capacity, owner publication, builder registration, semantic integration and owner
 plan proposal/revision are reviewed and merged through PR110 (`2099a76`), including
 policy-draft refresh protection in PR109. The plan feature has actual continuous
@@ -334,10 +334,9 @@ missing-to-resolved evidence; reviewed and merged in PR116/release `47be35a`.
 Exact merged-release UI/build/HTTP/recovery checks pass. Complementary registered capability discovery is reviewed and merged in
 PR118/release `73e2924`. Typed requirement controls are implemented and locally
 proven on `feat/v0.1-owner-typed-requirements` (`ee34f63`); reviewed and merged in PR120/release `e7579cd`; exact-release checks pass in
-`OWNER_TYPED_REQUIREMENTS.md`. Applications are reviewed and merged in PR122/release `2bcd7df`; actual normal-owner worker/recovery/admission proof and exact-release checks pass in `OWNER_APPLICATIONS.md`. Complete continuous HP2 acceptance remains open. See
+`OWNER_TYPED_REQUIREMENTS.md`. Applications are reviewed and merged in PR122/release `2bcd7df`; actual normal-owner worker/recovery/admission proof and exact-release checks pass in `OWNER_APPLICATIONS.md`. Complete continuous HP2 acceptance is now proven and merged in PR124/release `cd2c298`; `HP2_ACCEPTANCE.md` records exact-release closure. See
 `OWNER_CONSTRAINT_CLARIFICATION.md`.
-The complete HP2 journey remains unproven. Owner application outcomes are merged in PR122. Prove
-the continuous journey with merged room/plan/assignment steps before starting HP3.
+The complete HP2 journey is now proven, reviewed and merged in PR124, with passing exact-release validation. Owner applications merged in PR122. Continue HP3 from the accepted-plan state; retain all HP2 authority/recovery gates and external qualification tracking.
 
 On 26 October, fetched `main...develop` divergence remains `0 1`. Release PR62
 remains open; no release promotion or deployment is implied by feature merges.
