@@ -27,3 +27,11 @@ resource reference is the intention's readable `/v1/intents/{id}` path, rather
 than the POST-only action path. GetTask obtains a currently authorized intention
 snapshot; the receipt never stores historical private response/audit or command bodies.
 See [partial-satisfaction contract and proof](../PARTIAL_SATISFACTION.md).
+
+
+`intention_constraint_assessments` takes only the intention `id` and uses the
+shared current hard-evidence read. It does not call providers or create a match.
+A2A's minimal receipt retains only the safe relative read path/digests; GetTask
+recomputes an authorized current report, including changed public declarations.
+Noncurrent/unauthorized sources suppress the resource snapshot rather than
+recovering historical report content. Receipt acknowledgement grants no rights.

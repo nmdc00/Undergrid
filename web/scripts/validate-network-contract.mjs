@@ -43,6 +43,35 @@ const baseline={id:'a8391ea6-5003-401e-85e1-47c116fe3da0',version:1,etag:'"1"',s
 if (!publicIntent(baseline)) throw Error('Independent public fixture invalid');
 if (publicIntent({...baseline,budget:{amount_minor:100,currency:'EUR',kind:'stated_budget'}})) throw Error('Public budget leak permitted');
 if (publicIntent({...baseline,version:'1'})) throw Error('String version permitted');
+if (process.argv.includes('--constraint-assessments')) {
+ const actual=cases.find(c=>c.status===200&&c.path.endsWith('/constraint-assessments')&&c.response.items?.some(x=>x.hard_status==='unknown'));
+ if (!actual) throw Error('Missing actual unknown-hard report');
+ const validate=validateSchema({$ref:'#/components/schemas/DemandConstraintReport'});
+ for (const c of cases.filter(c=>c.status===200&&c.path.endsWith('/constraint-assessments'))) {
+  const id=new URL(c.path,'https://contract.test').pathname.split('/').at(-2);
+  if (c.response.source_intent_id!==id) throw Error('Report not bound to actual requested source');
+ }
+ for (const mutate of [
+  x=>x.scope='verified_match',
+  x=>x.identity_assurance='verified_independent_owners',
+  x=>x.source_version='1',
+  x=>x.private_semantic_query={projection:'secret'},
+  x=>x.items[0].budget={amount_minor:1},
+  x=>x.items[0].hard_status='compatible',
+  x=>x.items.find(i=>i.hard_status==='unknown').hard_status='aligned',
+  x=>x.items.find(i=>i.hard_status==='unknown').clarification_required=false,
+  x=>x.items[0].candidate_version=0,
+  x=>x.candidate_limit=21
+ ]) {
+  const invalid=structuredClone(actual.response);mutate(invalid);
+  if (validate(invalid)) throw Error('Constraint report negative oracle accepted');
+ }
+ const oversized=structuredClone(actual.response);
+ oversized.items=Array.from({length:21},(_,i)=>({...structuredClone(actual.response.items[0]),candidate_intent_id:`00000000-0000-4000-8000-${String(i).padStart(12,'0')}`,principal_id:`10000000-0000-4000-8000-${String(i).padStart(12,'0')}`}));
+ if (validate(oversized)) throw Error('Unbounded candidate report permitted');
+ console.log(`Validated ${cases.length} actual hard-evidence HTTP cases and independent privacy/status/bounds denials`);
+ process.exit(0);
+}
 if (process.argv.includes('--compatible-groups')) {
  const actual=cases.find(c=>c.path.endsWith('/compatible-groups')&&c.status===200&&c.response.items?.length);
  if (!actual) throw Error('Missing actual compatible-group response');

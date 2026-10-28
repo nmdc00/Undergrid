@@ -105,3 +105,35 @@ sampling tests, canonical schemas/generated types/actual wire validation, finite
 MCP/A2A read adapters, owner UI with stale-response recovery, actual normal-owner
 clarification-to-revision browser proof, retained runtime/static gates and final
 review/merge. The feature is unmerged and HP2 is still open.
+
+## Authority and protocol checkpoint — 28 October 2026
+
+Six top-level cases/14 subcases passed10.647s against real restricted PostgreSQL:
+source ownership/state/expiry/revocation, current publisher revision/withdrawal/
+revocation, explicit monitoring-off inspection, writer-only vs owner attribution,
+and a bounded held-source-lock500/rollback/read-recovery case. Fixture retirement
+uses normal owner withdrawals without deleting evidence. Log:
+`/tmp/undergrid-constraint-clarification-authority-first-oct28.jsonl`.
+
+Test-only `88e6e37` then produced actual protocol RED14.866s: MCP unknown tool and
+A2A unregistered operation. The existing finite registry now delegates the new
+read to the same domain operation. Two canonical paths and two shared report
+schemas bring the contract to162 schemas; lint/compilation/generated parity pass.
+The first generation command used the wrong working directory and did not run;
+its log is retained separately from successful generation and is not behavioral RED.
+
+Actual MCP/A2A parity and captured HTTP contract cases passed19.012s. Extended
+coverage then passed eight top-level/16 subcases in32.649s, including foreign MCP
+and A2A receipt denials, closed tool arguments, current A2A resource snapshots
+after publisher revision, minimal receipt storage and source-pause suppression.
+Independent HTTP validation rejects private extra fields, contradictory evidence,
+incorrect identity/scope, invalid versions and oversized reports. Logs:
+
+- `/tmp/undergrid-constraint-clarification-88e6e37-protocol-red-oct28.jsonl`
+- `/tmp/undergrid-constraint-clarification-protocol-contract-green-oct28.jsonl`
+- `/tmp/undergrid-constraint-clarification-authority-protocol-contract-oct28.jsonl`
+- `/tmp/undergrid-constraint-clarification-contract-first-oct28.log`
+
+These are local controlled-fixture protocol checks, not external-client/provider
+qualification. Owner UI, actual browser flow, bounded-sampling tests and final
+retained/static/review/merge gates remain pending.

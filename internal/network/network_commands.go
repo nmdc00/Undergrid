@@ -42,6 +42,7 @@ var networkOperations = []networkOperation{
 	{"intention_partial_satisfaction", "POST", "/v1/intents/{id}/partial-satisfaction"},
 	{"intention_opportunities", "GET", "/v1/intents/{id}/opportunities"},
 	{"intention_compatible_groups", "GET", "/v1/intents/{id}/compatible-groups"},
+	{"intention_constraint_assessments", "GET", "/v1/intents/{id}/constraint-assessments"},
 	{"intention_external_leads", "GET", "/v1/intents/{id}/external-leads"},
 	{"intention_external_fit_report", "GET", "/v1/intents/{id}/external-fit-report"},
 	{"inbox_read", "GET", "/v1/inbox"},
