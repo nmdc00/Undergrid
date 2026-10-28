@@ -353,3 +353,34 @@ before the artifact query. The parent plus21 subcases pass120.159s.
 All planned feature-specific local acceptance checks now have proof. Final
 integration regressions, scoped review and remote merge remain pending. Full HP2
 and external/legal/storage/provider/deployment qualification remain open.
+
+## Final integration and scoped review — 28 October 2026
+
+Frozen `330bf46` has the same runtime/frontend as browser-proven `4fa9b66`;
+subsequent changes add test proof and documentation only. On fresh normally copied
+`capability_final_oct28`, the combined capability and retained clarification gate
+passes17 top-level/26 subcases in41.776s. Dedicated controlled agent/21-artifact
+bounds are intentionally separate, because their populated samples invalidate
+small-population test assumptions. Tagged vet, Go build and coupled frontend
+build pass. The four retained actual clarification/group/room/plan browser
+journeys pass88.922s on the same frozen source and build manifest. Existing
+per-case browser/helper/shutdown bounds are unchanged.
+
+- `/tmp/undergrid-capability-330bf46-final-backend-oct28.jsonl`
+- `/tmp/undergrid-capability-330bf46-vet-oct28.log`
+- `/tmp/undergrid-capability-330bf46-go-build-oct28.log`
+- `/tmp/undergrid-capability-330bf46-build-oct28.log`
+- `/tmp/undergrid-capability-330bf46-retained-browsers-oct28.jsonl`
+- Validation size/SHA256 index: `/tmp/undergrid-capability-validation-oct28.json`
+- Retained21-publication blob root: `/tmp/undergrid-capability-bound-blobs-1079466549`
+
+Root reviewed the actual scoped diff and proof. Authorization-bearing read logic
+and current source locks are shared, while asymmetric capability evidence remains
+distinct from symmetric demand alignment. Public projection grants select only
+explicit disclosure; published license survival remains separate from identity
+status. Closed inert UI validation and request generations protect the browser
+boundary. No finance credential, content execution, generic registry or arbitrary
+provider adapter is introduced. Migration046 and the null-safe forward047 retain
+their recorded hashes. No fresh independent-agent review is claimed while workers
+remain quota-limited. All authorized local feature gates pass; PR merge and exact
+merged-release checks remain pending. Full HP2 remains open.

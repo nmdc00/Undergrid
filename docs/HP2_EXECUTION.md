@@ -747,3 +747,19 @@ HTTP/lock recovery checks pass. Full feature evidence and preserved failures are
 in `OWNER_CONSTRAINT_CLARIFICATION.md`. Next: complementary registered capability
 discovery; remaining typed controls, applications and continuous HP2 acceptance
 still follow within the active path. No promotion or deployment occurred.
+
+
+### Complementary capability local checkpoint — 28 October 2026
+
+`feat/v0.1-owner-capability-discovery` implements explicit current owner/agent
+REST/MCP/A2A capability reads and the owner viewer, separating public schema
+declarations from published immutable artifact evidence. Source scope/authority,
+unknown hard fit, passive opt-in declarations, held artifact eligibility and
+published-license survival are proven. Normal-owner Chromium discovery/reload/
+pause-resume passes19.011s on `4fa9b66`; full UI259 passes77.00s. On frozen
+`330bf46`, final backend17 top-level/26 subcases passes41.776s and tagged vet,
+Go build and coupled frontend build pass. Dedicated agent and21-normal-artifact
+bound gates pass, with retained blobs and no SQL publication seeds.
+`OWNER_CAPABILITY_DISCOVERY.md` owns exact evidence and original failures.
+Review/merge remain pending; remaining typed controls, applications and complete
+continuous HP2 acceptance remain open. No external qualification is inferred.
