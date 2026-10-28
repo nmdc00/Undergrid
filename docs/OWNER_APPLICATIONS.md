@@ -372,3 +372,51 @@ and authority coverage, and final integration/review are still required.
 - `/tmp/undergrid-owner-application-contract-lifecycle-green-oct28.jsonl`
 - `/tmp/undergrid-owner-application-contract-generate-oct28.log`
 - `/tmp/undergrid-owner-application-contract-check-oct28.log`
+
+## Owner application UI checkpoint — 28 October 2026
+
+Test-only `959701c` adds an empty component and three behavioral scenarios. The
+valid test run fails all3 because recruitment/application/offer controls are
+absent (1.35s); earlier wrong-directory shell commands created no files and are
+not behavioral RED evidence. The owner UI now supports current recruitment list
+and selected-role review, explicit declared capability references and role/history
+acknowledgment, room-version-pinned application submission, and reload of owned
+pending applications. Current room views expose the coordinator pending queue,
+retained immutable claims/unknown/over-budget disclosure and a separate reviewed
+application offer. Existing participation owns applicant acceptance/decline.
+No application or offer is presented as admission or assignment/rights/spending
+consent. Untrusted declarations render as React text, never executable content.
+
+The concrete application-contract leaf rejects unknown fields, invalid identity,
+version/ETag mismatch, malformed evidence, contradictory claim states, misbound
+role claims, duplicate IDs and overlong pages. Session, agent and room changes
+clear review and invalidate late responses. Pending reads are bound to the owned
+agent or selected room. Empty recruitment windows preserve the advancing cursor.
+Current server authority remains decisive; conflicts clear stale review, denied
+reads clear contextual data, and offer retries retain their exact deadline/body
+so the shared request helper recovers the original idempotency key.
+
+First3 application scenarios plus4 retained participation cases pass7/3.78s;
+TypeScript passes. Expanded focused gate passes18/4.24s, covering empty-window
+traversal, delayed responses on actor change, conflict clearing, five malformed
+packet cases, historical/over-budget disclosure and expired offers. Full console
+suite/build results follow below when terminal. Actual normal-owner browser/worker
+acceptance remains unproven and this feature is still unmerged.
+
+- `/tmp/undergrid-owner-applications-ui-red-oct28.log`
+- `/tmp/undergrid-owner-applications-ui-first-green-oct28.log`
+- `/tmp/undergrid-owner-applications-tsc-oct28.log`
+- `/tmp/undergrid-owner-applications-ui-guards-final-oct28.log`
+
+Full console gate is terminal PASS:286 tests across24 files in84.40s, including
+all retained owner journeys' component tests. TypeScript plus production Vite
+build passes. Logs are `/tmp/undergrid-owner-applications-full-ui-oct28.log` and
+`/tmp/undergrid-owner-applications-web-build-oct28.log`.
+Quality assessment: domain transactions continue to own admission/current authority;
+the component only presents reviewed commands. One concrete parser owns application
+and recruitment boundary checks, separate from command retry and view state.
+The existing shared request helper owns idempotency keys; the offer component
+retains only its exact uncertain deadline. No financial credentials, database
+connections or provider identities are introduced. Remaining full-runtime proof
+and final review are required before merge; passing UI fixtures are not provider,
+independent-owner or continuous HP2 qualification.

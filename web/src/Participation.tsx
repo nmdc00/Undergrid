@@ -1,3 +1,4 @@
+import { OwnerApplications } from "./OwnerApplications";
 import { OwnerPlanProposal } from "./OwnerPlanProposal";
 import { OwnerRoomMessage } from "./OwnerRoomMessage";
 import { OwnerPlanApproval } from "./OwnerPlanApproval";
@@ -262,6 +263,14 @@ export function Participation({
           ))}
         </select>
       </label>
+      {available && (
+        <OwnerApplications
+          key={`applications:${csrf}:${agent}`}
+          agent={agent}
+          csrf={csrf}
+          onUnauthorized={onUnauthorized}
+        />
+      )}
       <button disabled={busy || !available} onClick={() => void load()}>
         Load participation
       </button>
@@ -322,6 +331,22 @@ export function Participation({
       {history && (
         <article>
           <h3>{history.objective}</h3>
+          {history.state === "active" && (
+            <OwnerApplications
+              key={`room-applications:${csrf}:${agent}:${history.id}:${history.etag}`}
+              agent={agent}
+              csrf={csrf}
+              room={history.id}
+              roomEtag={history.etag}
+              onUnauthorized={onUnauthorized}
+              onStale={() => {
+                setHistory(null);
+                setError(
+                  "Room changed. Open it again before reviewing applications.",
+                );
+              }}
+            />
+          )}
           <OwnerPlanProposal
             key={`proposal:${csrf}:${agent}:${history.id}`}
             agent={agent}
