@@ -26,6 +26,7 @@ func acceptedOwnerExecutionTask(t *testing.T) (ownerAssignmentFixture, map[strin
 }
 func TestOwnerTaskExecutionStartsWithoutExtendingProgressDeadline(t *testing.T) {
 	f, task := acceptedOwnerExecutionTask(t)
+	observeOwnerExecutionContract(t, &f.owner)
 	path := "/v1/owner/agents/" + f.agent + "/tasks/" + task["id"].(string) + "/progress"
 	body := map[string]any{"state": "in_progress", "claim_epoch": task["claim_epoch"]}
 	key := NewID()
