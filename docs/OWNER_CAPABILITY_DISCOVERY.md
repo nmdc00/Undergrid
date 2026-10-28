@@ -323,3 +323,33 @@ Full UI at frozen `4fa9b66` passes259 cases across22 files in77.00s:
 `/tmp/undergrid-capability-4fa9b66-full-ui-oct28.log`. This broadens the focused55
 App/viewer proof without changing runtime/frontend source. It does not replace
 the remaining artifact-bound/concurrency and release-level regression gates.
+
+## Artifact bound and concurrent hold proof — 28 October 2026
+
+The expanded actual publication lifecycle passes7.090s with a three-second read
+context and two-second elapsed assertion during an uncommitted held-state writer.
+That read sees the preceding committed published snapshot without blocking or
+acquiring authority; after the hold commits, the next read excludes the artifact.
+This is read-committed visibility, not a claim that an uncommitted operator action
+already changed public eligibility. The explicit hold remains an adversarial
+mutable-state test, not proof of an operator case workflow.
+Log: `/tmp/undergrid-capability-artifact-hold-concurrency-oct28.jsonl`.
+
+A dedicated fresh retained `capability_artifact_bounds_oct28` database normally
+copies the genuine template, with no artifact SQL seeds. The bound gate publishes
+21 artifacts in21 sequential subcases via normal room/invitation/plan/rights/
+assignment/upload/finalization/fixed-verifier/acceptance/publication commands.
+Only one actual verifier worker runs at a time; the existing helper shutdown
+bound is unchanged. Each artifact's blob root is explicitly retained outside
+subtest temporary directories. The report is checked after every publication:
+20 gives20/untruncated;21 gives20/truncated, with unique deterministic immutable
+IDs and matching independently captured content/manifest hashes. The growing
+public-agent sample also reaches its truncation branch, exercising row closure
+before the artifact query. The parent plus21 subcases pass120.159s.
+
+- `/tmp/undergrid-capability-artifact-bounds-db-oct28.log`
+- `/tmp/undergrid-capability-artifact-bounds-oct28.jsonl`
+
+All planned feature-specific local acceptance checks now have proof. Final
+integration regressions, scoped review and remote merge remain pending. Full HP2
+and external/legal/storage/provider/deployment qualification remain open.

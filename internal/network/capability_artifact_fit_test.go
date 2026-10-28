@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestCapabilityFitDiscoversOnlyNormallyPublishedArtifactMetadata(t *testing.T) {
@@ -58,9 +59,20 @@ func TestCapabilityFitDiscoversOnlyNormallyPublishedArtifactMetadata(t *testing.
 	}
 	read := func() []any {
 		t.Helper()
-		code, report := reader.call("GET", "/v1/intents/"+sourceID+"/capability-fit", "", nil)
-		if code != 200 {
-			t.Fatal(code, report)
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		request := httptest.NewRequest(http.MethodGet, "/v1/intents/"+sourceID+"/capability-fit", nil).WithContext(ctx)
+		request.Header.Set("Authorization", "Bearer "+reader.token)
+		request.Header.Set("X-Test-Owner", reader.owner)
+		recorder := httptest.NewRecorder()
+		x.s.ServeHTTP(recorder, request)
+		reader.observe(request, recorder, nil)
+		var report map[string]any
+		if err := json.Unmarshal(recorder.Body.Bytes(), &report); err != nil {
+			t.Fatal(err)
+		}
+		if recorder.Code != 200 {
+			t.Fatal(recorder.Code, report)
 		}
 		sample, ok := report["artifacts"].(map[string]any)
 		if !ok {
@@ -129,7 +141,22 @@ func TestCapabilityFitDiscoversOnlyNormallyPublishedArtifactMetadata(t *testing.
 		t.Fatal(err)
 	}
 	checkConflict()
-	if _, err := x.db.Exec(context.Background(), `UPDATE undergrid.artifacts SET state='held' WHERE id=$1`, id); err != nil {
+	held, err := x.db.Begin(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer held.Rollback(context.Background())
+	if _, err = held.Exec(context.Background(), `UPDATE undergrid.artifacts SET state='held' WHERE id=$1`, id); err != nil {
+		t.Fatal(err)
+	}
+	// A pending hold is not committed visibility. The read sees the preceding
+	// published snapshot without waiting for the writer or acquiring authority.
+	started := time.Now()
+	checkConflict()
+	if time.Since(started) > 2*time.Second {
+		t.Fatal("pending hold blocked read", time.Since(started))
+	}
+	if err = held.Commit(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	for _, raw := range read() {
