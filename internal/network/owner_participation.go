@@ -17,6 +17,8 @@ func (s *Service) ownerParticipation(r *http.Request, tx pgx.Tx, principal strin
 	if len(parts) < 5 || parts[0] != "v1" || parts[1] != "owner" || parts[2] != "agents" || !validID(parts[3]) {
 		return 0, nil, fail(404, "not_found")
 	}
+	recruitment := len(parts) == 5 && parts[4] == "recruitment"
+	recruitmentItem := len(parts) == 6 && parts[4] == "recruitment" && validID(parts[5])
 	creation := len(parts) == 5 && parts[4] == "swarms"
 	collection := len(parts) == 5 && parts[4] == "participation"
 	invitation := len(parts) == 6 && parts[4] == "invitations" && validID(parts[5])
@@ -27,7 +29,7 @@ func (s *Service) ownerParticipation(r *http.Request, tx pgx.Tx, principal strin
 	application := len(parts) == 7 && parts[4] == "swarms" && validID(parts[5]) && parts[6] == "applications"
 	message := len(parts) == 7 && parts[4] == "swarms" && validID(parts[5]) && parts[6] == "messages"
 	response := len(parts) == 7 && parts[4] == "swarms" && validID(parts[5]) && parts[6] == "membership-response"
-	if !creation && !collection && !invitation && !context && !response && !inviteMember && !message && !application && !applicationCollection && !offer {
+	if !creation && !collection && !invitation && !context && !response && !inviteMember && !message && !application && !applicationCollection && !offer && !recruitment && !recruitmentItem {
 		return 0, nil, fail(404, "not_found")
 	}
 	if application {
@@ -44,6 +46,13 @@ func (s *Service) ownerParticipation(r *http.Request, tx pgx.Tx, principal strin
 	a, err := lockOwnerAgent(r.Context(), tx, principal, parts[3])
 	if err != nil {
 		return 0, nil, err
+	}
+	if recruitment || recruitmentItem {
+		opportunity := ""
+		if recruitmentItem {
+			opportunity = parts[5]
+		}
+		return s.ownerRecruitmentReview(r, tx, a, opportunity)
 	}
 	if creation {
 		return s.ownerCreateSwarm(r, tx, a)

@@ -15,6 +15,11 @@ func (s *Service) requireCurrentRoomOrigin(r *http.Request, tx pgx.Tx, a actor, 
 	if id == "" {
 		return nil
 	}
+	return s.requireCurrentOpportunityEvidence(r, tx, a, id)
+}
+
+// Shared current provenance; callers separately own read/action permission.
+func (s *Service) requireCurrentOpportunityEvidence(r *http.Request, tx pgx.Tx, a actor, id string) error {
 	if !validID(id) {
 		return fail(422, "invalid_opportunity")
 	}

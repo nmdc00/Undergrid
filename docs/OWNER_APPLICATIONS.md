@@ -277,3 +277,41 @@ Page and preview limits are defined once in the domain read.
 Current recruitment review, remaining actor/read recovery guards, canonical owner
 contracts, complete normal-owner UI/browser proof and final integration/review
 remain required. This feature and full HP2 remain unmerged/open.
+
+## Current owner recruitment review checkpoint — 28 October 2026
+
+Test-only `6c8a87a` normally creates a visible room and a registered builder, then
+runs the actual recruitment scan under a separate restricted worker login on fresh
+retained `owner_recruitment_reads_oct28`. No opportunity SQL seed is used. After
+that valid setup, missing owner review fails404 (RED1.040s). Direct scan invocation
+is backend fixture proof, not a claim that the normal browser/worker-loop journey
+has completed or that providers/independent users are qualified.
+
+Owner GET `/v1/owner/agents/{agent}/recruitment` and selected
+`/v1/owner/agents/{agent}/recruitment/{opportunity}` now expose only current own-
+recipient recruitment evidence, permitted objective/role, visibility/full-history
+policy and reviewed room version/ETag. The list uses a bounded50-candidate UUID
+window and next_after advances by scanned candidate ID, including stale candidates;
+this permits continued traversal without claiming that an empty window is the
+whole network. Rows are closed before current-evidence queries. Current authority
+locks remain NOWAIT and errors are not disguised as stale evidence.
+
+The existing room-origin helper delegates to a shared current-opportunity evidence
+method, preserving optional origin semantics while giving this read the same
+role/profile/hash and locked current-room checks. A controlled recruitment-profile
+opt-out invalidates the selected packet and removes the stale list item. The first
+attempt failed1.255s because a pointer error match missed this codebase's value-
+returned problem type, propagating404 instead of an empty list. That implementation
+failure remains retained. Corrected current-review gate passes1.239s; existing
+room-origin recruitment eligibility regression passes8.339s.
+
+- `/tmp/undergrid-owner-recruitment-db-oct28.log`
+- `/tmp/undergrid-owner-recruitment-review-red-oct28.jsonl`
+- `/tmp/undergrid-owner-recruitment-review-first-green-oct28.jsonl` (error-match failure)
+- `/tmp/undergrid-owner-recruitment-review-current-green-oct28.jsonl`
+- `/tmp/undergrid-owner-recruitment-origin-regression-oct28.jsonl`
+
+Before feature closure, align the older generic agent recruitment listing with
+current role/profile evidence without changing its published response shape;
+finish stale-window/pagination/authority proof, canonical owner contracts and the
+normal-owner UI/browser lifecycle. The feature remains unmerged and HP2 open.
