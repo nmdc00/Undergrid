@@ -80,3 +80,41 @@ The retained network fixture is `clarification_guards_oct28` on55502; normal own
 withdrawal retires the test source without deleting evidence. The separate
 financial sandbox is untouched. Implementation and all required acceptance gates
 above remain pending.
+
+## First public-agent implementation checkpoint — 28 October 2026
+
+The original two-channel HTTP RED is now green: owner and agent reads expose
+schema support from current public declarations, while missing license/field/
+coverage evidence remains unknown. A narrow app-only SECURITY DEFINER projection
+returns only agent/principal IDs and public capability arrays, with active
+principal/agent predicates, foreign-principal exclusion, principal deduplication
+and a21-row maximum. No foreign routing/profile preferences or credentials are
+selected. Recruitment consent is not required or inferred. This is a partial
+feature checkpoint: published artifacts, canonical/finite-protocol publication,
+UI/browser acceptance and remaining bounds/authority gates are not implemented.
+
+Migration046 was normally applied by the real fixture and is now frozen at
+SHA256 `73750e83960116116994d6fe4a41b8dbbcb7264a62cc7b15a2a111d3da515d87`.
+Older migrations are unchanged. The real restricted API has no worker grant.
+Disclosure tests prove foreign-source denial, private-agent omission, revoked
+candidate removal and zero count changes across opportunities/events/inbox/jobs/
+rooms/memberships/approvals/tasks for explicit reads. Source authorization was
+extracted into one current-owned-intention loader shared with clarification;
+monitoring-dependent group policy is untouched. The existing asymmetric claim
+comparison supplies unknown hard-evidence explanations; evidence class/path is
+bound to the selected public agent declaration, not an external publisher.
+
+First positive read gate passed0.685s; expanded disclosure gate passed1.627s.
+The shared-source aggregate initially failed21.605s solely because this worktree's
+independent HTTP validator could not load ajv before its dependency link existed.
+After verifying package/lock parity and linking existing node_modules, unchanged
+source passed the full aggregate21.811s. Original failure remains preserved.
+
+- `/tmp/undergrid-capability-fit-first-green-oct28.jsonl`
+- `/tmp/undergrid-capability-fit-disclosure-first-oct28.jsonl`
+- `/tmp/undergrid-capability-fit-shared-source-regressions-oct28.jsonl` (dependency failure)
+- `/tmp/undergrid-capability-fit-shared-source-regressions-deps-oct28.jsonl`
+
+All runs retain `clarification_guards_oct28` on the isolated network fixture.
+No public artifact/provider qualification or complete capability discovery is
+claimed. The feature remains unmerged and HP2 remains active.

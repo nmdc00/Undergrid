@@ -1,6 +1,10 @@
 package network
 
-import "testing"
+import (
+	"context"
+	"strings"
+	"testing"
+)
 
 func TestCapabilityFitReadsPublicBuilderDeclarationsWithoutInventingAuthority(t *testing.T) {
 	s, db := ownerSwarmCreationFixture(t)
@@ -61,5 +65,58 @@ func TestCapabilityFitReadsPublicBuilderDeclarationsWithoutInventingAuthority(t 
 				t.Fatal("current public builder absent", report)
 			}
 		})
+	}
+}
+
+func TestCapabilityFitRechecksDisclosureAndCreatesNoEffects(t *testing.T) {
+	s, db := ownerSwarmCreationFixture(t)
+	owner, builder, foreign := client(t, s), collaborationClient(t, s), client(t, s)
+	_, who := builder.call("GET", "/v1/me", "", nil)
+	_, private := foreign.call("GET", "/v1/me", "", nil)
+	input := intentFixture()
+	input.Watch.Enabled = false
+	code, source := owner.call("POST", "/v1/intents", NewID(), input)
+	if code != 201 {
+		t.Fatal(code, source)
+	}
+	id := source["id"].(string)
+	t.Cleanup(func() { retireClarificationFixture(t, db, owner, id) })
+	path := "/v1/owner/intents/" + id + "/capability-fit"
+	if code, out := ownerCallMatch(foreign, "GET", path, "", "", nil); code != 404 {
+		t.Fatal("foreign source readable", code, out)
+	}
+	const effects = `SELECT (SELECT count(*) FROM undergrid.opportunities)+(SELECT count(*) FROM undergrid.events)+(SELECT count(*) FROM undergrid.inbox)+(SELECT count(*) FROM undergrid_queue.river_job)+(SELECT count(*) FROM undergrid.swarms)+(SELECT count(*) FROM undergrid.memberships)+(SELECT count(*) FROM undergrid.approvals)+(SELECT count(*) FROM undergrid.tasks)`
+	var before, after int
+	if err := db.QueryRow(context.Background(), effects).Scan(&before); err != nil {
+		t.Fatal(err)
+	}
+	read := func() map[string]any {
+		t.Helper()
+		code, out := ownerCallMatch(owner, "GET", path, "", "", nil)
+		if code != 200 {
+			t.Fatal(code, out)
+		}
+		if strings.Contains(string(canonical(out)), private["agent_id"].(string)) {
+			t.Fatal("private agent exposed", out)
+		}
+		for _, key := range []string{`"endpoint"`, `"token"`, `"accept_invitations"`, `"recruitment"`, `"owner"`} {
+			if strings.Contains(string(canonical(out)), key) {
+				t.Fatal("unselected disclosure", key, out)
+			}
+		}
+		return out
+	}
+	read()
+	if err := db.QueryRow(context.Background(), effects).Scan(&after); err != nil || before != after {
+		t.Fatal("read effects", before, after, err)
+	}
+	if _, err := db.Exec(context.Background(), `UPDATE undergrid.agents SET status='revoked' WHERE id=$1`, who["agent_id"]); err != nil {
+		t.Fatal(err)
+	}
+	out := read()
+	for _, raw := range out["agents"].(map[string]any)["items"].([]any) {
+		if raw.(map[string]any)["agent_id"] == who["agent_id"] {
+			t.Fatal("revoked declaration retained", out)
+		}
 	}
 }
