@@ -737,3 +737,13 @@ The latter aggregate passes67.397s. `OWNER_CONSTRAINT_CLARIFICATION.md` retains
 exact source/build/database/artifact evidence and both failed harness runs.
 Review and merge are pending. Complementary registered capabilities, remaining
 typed requirement editing, applications and continuous HP2 acceptance remain open.
+
+
+### Clarification merge checkpoint — 28 October 2026
+
+PR116/release `47be35a` closes the explicit unknown-hard clarification feature.
+Exact-release UI23, coupled build with unchanged source/asset hashes, and actual
+HTTP/lock recovery checks pass. Full feature evidence and preserved failures are
+in `OWNER_CONSTRAINT_CLARIFICATION.md`. Next: complementary registered capability
+discovery; remaining typed controls, applications and continuous HP2 acceptance
+still follow within the active path. No promotion or deployment occurred.

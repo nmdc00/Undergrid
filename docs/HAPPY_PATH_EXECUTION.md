@@ -329,7 +329,9 @@ UI/build/current-authority checks. The owner-compatible-group viewer is now acti
 on `feat/v0.1-owner-compatible-groups`; implementation, local proof and reviewed merge are complete in PR114/release
 `bc6ddda`. Visible unknown-hard clarification is implemented and locally proven on
 `feat/v0.1-owner-constraint-clarifications` (`ecead15`), with actual normal-owner
-missing-to-resolved evidence; review and merge remain pending. See
+missing-to-resolved evidence; reviewed and merged in PR116/release `47be35a`.
+Exact merged-release UI/build/HTTP/recovery checks pass. Complementary registered
+capability discovery is the next HP2 task. See
 `OWNER_CONSTRAINT_CLARIFICATION.md`.
 The complete HP2 journey remains unproven. Finish remaining group/clarification,
 complementary capability, typed requirement and application outcomes, then prove
