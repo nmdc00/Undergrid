@@ -135,3 +135,34 @@ This is an unmerged backend checkpoint. Current recruitment review, bounded
 applicant/coordinator reads, reviewed offer controls/current-target guards,
 contention/recovery, canonical owner contracts, normal UI/browser proof and final
 regressions/review remain required. Full HP2 and external qualification stay open.
+
+## Applicant and coordinator read checkpoint — 28 October 2026
+
+Test-only `ef25b90` reaches real owner HTTP RED for the missing read (0.721s).
+Owner GET `/v1/owner/agents/{agent}/applications` now lists only that attributed
+agent's pending application-origin memberships. Coordinator GET
+`/v1/owner/agents/{agent}/swarms/{swarm}/applications` separately checks current
+coordinator room authority before selecting its queue. Both use existing RLS,
+active room/current deadline filters and deterministic100+1 keyset pages; neither
+selects messages, agent profiles, credentials or owner records. The page includes
+membership/version/expiry, immutable submitted claims, permitted objective and
+full-history policy. A pending record is not an assertion of current offer-target
+eligibility; mutation-time target guards remain pending.
+
+The integration test proves normal submission appears in both authorized views,
+retains role/capability claims, denies foreign actor attribution and prevents an
+applicant from reading the coordinator queue. First attempts failed because a
+routing-edit script stopped before changing dispatch (0.685s), then the outer
+owner dispatch omitted the new collection path (0.690s). These are preserved
+implementation failures, not extra product RED or weakened fixtures. The routed
+read plus existing submission/retention/replay aggregate passes4 tests in2.584s.
+
+- `/tmp/undergrid-owner-application-reads-red-oct28.jsonl`
+- `/tmp/undergrid-owner-application-reads-first-green-oct28.jsonl` (routing edit failure)
+- `/tmp/undergrid-owner-application-reads-routed-green-oct28.jsonl` (outer dispatch failure)
+- `/tmp/undergrid-owner-application-reads-submission-green-oct28.jsonl`
+
+Dedicated read pagination/expiry/revocation/zero-effect guards, current recruitment
+review, reviewed coordinator offer/current-target enforcement, canonical contracts,
+UI/browser proof and final gates remain open. The feature is unmerged; HP2 remains
+active and no external qualification is inferred.

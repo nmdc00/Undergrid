@@ -22,15 +22,24 @@ func (s *Service) ownerParticipation(r *http.Request, tx pgx.Tx, principal strin
 	invitation := len(parts) == 6 && parts[4] == "invitations" && validID(parts[5])
 	context := len(parts) == 7 && parts[4] == "swarms" && validID(parts[5]) && parts[6] == "context"
 	inviteMember := len(parts) == 7 && parts[4] == "swarms" && validID(parts[5]) && parts[6] == "invitations"
+	applicationCollection := len(parts) == 5 && parts[4] == "applications"
 	application := len(parts) == 7 && parts[4] == "swarms" && validID(parts[5]) && parts[6] == "applications"
 	message := len(parts) == 7 && parts[4] == "swarms" && validID(parts[5]) && parts[6] == "messages"
 	response := len(parts) == 7 && parts[4] == "swarms" && validID(parts[5]) && parts[6] == "membership-response"
-	if !creation && !collection && !invitation && !context && !response && !inviteMember && !message && !application {
+	if !creation && !collection && !invitation && !context && !response && !inviteMember && !message && !application && !applicationCollection {
 		return 0, nil, fail(404, "not_found")
 	}
-	if ((creation || response || inviteMember || message || application) && r.Method != http.MethodPost) || (!(creation || response || inviteMember || message || application) && r.Method != http.MethodGet) {
-		return 0, nil, fail(405, "method_not_allowed")
+	if application {
+		if r.Method != http.MethodGet && r.Method != http.MethodPost {
+			return 0, nil, fail(405, "method_not_allowed")
+		}
+	} else {
+		mutation := creation || response || inviteMember || message
+		if (mutation && r.Method != http.MethodPost) || (!mutation && r.Method != http.MethodGet) {
+			return 0, nil, fail(405, "method_not_allowed")
+		}
 	}
+
 	a, err := lockOwnerAgent(r.Context(), tx, principal, parts[3])
 	if err != nil {
 		return 0, nil, err
@@ -40,6 +49,12 @@ func (s *Service) ownerParticipation(r *http.Request, tx pgx.Tx, principal strin
 	}
 	if inviteMember {
 		return s.ownerInviteMember(r, tx, a, parts[5])
+	}
+	if applicationCollection {
+		return ownerApplicationPage(r, tx, a, "")
+	}
+	if application && r.Method == http.MethodGet {
+		return ownerApplicationPage(r, tx, a, parts[5])
 	}
 	if application {
 		if r.Header.Get("If-Match") == "" {
