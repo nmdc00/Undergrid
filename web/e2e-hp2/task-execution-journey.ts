@@ -94,7 +94,7 @@ export async function proveOwnerTaskExecution(builder: Actor) {
   await page.getByRole("button", { name: "Load plans", exact: true }).click();
   // The accepted revision is the latest plan, selected via its normal owner control.
   await page
-    .getByRole("button", { name: "Review plan", exact: true })
+    .getByRole("button", { name: "Review plan 2", exact: true })
     .first()
     .click();
   await page
