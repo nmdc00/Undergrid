@@ -223,7 +223,7 @@ on `feat/v0.1-owner-capability-discovery`: current public agent declarations and
 published artifact metadata remain distinct from demand, competence, availability
 and rights consent. The owner browser discovery/reload/pause-resume journey and
 actual publication/21-artifact bound lifecycle gates pass. See
-`OWNER_CAPABILITY_DISCOVERY.md`; final review/merge remain pending. Typed owner
+`OWNER_CAPABILITY_DISCOVERY.md`; reviewed and merged in PR118/release `73e2924`. Typed owner
 controls, applications and continuous HP2 acceptance remain open.
 
 
