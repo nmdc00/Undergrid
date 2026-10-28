@@ -20,14 +20,6 @@ func (s *Service) ownerTaskExecution(r *http.Request, tx pgx.Tx, principal strin
 	if err != nil {
 		return 0, nil, err
 	}
-	task, err := loadTask(r.Context(), tx, parts[5], false)
-	if err != nil {
-		return 0, nil, err
-	}
-	// Current assignment attribution precedes even retained receipt recovery.
-	if task.agent != a.AgentID {
-		return 0, nil, fail(403, "assignee_required")
-	}
 	a.Scopes = []string{"tasks:progress", "rights:accept"}
 	command := r.Clone(r.Context())
 	command.URL.Path = "/v1/tasks/" + parts[5] + "/progress"

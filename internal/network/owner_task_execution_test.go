@@ -183,7 +183,11 @@ func TestTaskExecutionPolicyWithdrawalBlocksOwnerAndAgentReceiptRecovery(t *test
 
 func TestOwnerTaskExecutionRequiresAcceptedPlan(t *testing.T) {
 	f := newOwnerAssignmentFixture(t)
-	task := f.plan["tasks"].([]any)[0].(map[string]any)
+	offered := f.plan["tasks"].([]any)[0].(map[string]any)
+	code, task := f.owner.call("GET", "/v1/tasks/"+offered["id"].(string), "", nil)
+	if code != 200 || task["state"] != "offered" || task["claim_epoch"].(float64) < 1 {
+		t.Fatal("current unaccepted fixture", code, task)
+	}
 	path := "/v1/owner/agents/" + f.agent + "/tasks/" + task["id"].(string) + "/progress"
 	if code, out := ownerCallMatch(f.owner, "POST", path, NewID(), task["etag"].(string), map[string]any{"state": "in_progress", "claim_epoch": task["claim_epoch"]}); code != 409 {
 		t.Fatal("unaccepted plan started execution", code, out)
