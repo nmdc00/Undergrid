@@ -1,5 +1,12 @@
 # HP2 continuous acceptance contract
 
+**Current status: HP2 is locally closed.** [PR124](https://github.com/nmdc00/Undergrid/pull/124)
+merges the reviewed continuous proof at release
+`cd2c298308dbab0cb5746e34631852735b64dd42`. The full journey passes again on that exact merged release
+in38.701s. Implementation, local runtime proof and reviewed integration are
+complete; external qualification remains open. HP3 is the next active local path.
+
+
 Active branch `test/v0.1-hp2-continuous`, based on release `cddab23`.
 HP1 remains locally closed. This artifact owns continuous HP2 proof, not a new
 product feature or external qualification.
@@ -440,3 +447,26 @@ separate recorded gates. Retained room and plan browsers passed together in
 commands, retained databases/artifacts, failure classification and log hashes are
 in `OWNER_COMPATIBLE_GROUPS.md`. PR114 is reviewed and merged at release `bc6ddda`. This is not
 continuous HP2 or external/provider/independent-owner qualification.
+
+## Exact merged-release closure — 28 October 2026
+
+PR124 merges reviewed acceptance head `8dc82b6` into `release/v0.1` at `cd2c298`.
+The exact release coupled TypeScript/Vite build passes with the same production
+source/asset hashes as the feature proof; the entire expanded continuous browser/
+API/PostgreSQL/worker aggregate then passes38.701s. No narrowed smoke case stands
+in for the final journey. The10-top-level/14-subcase decline/expiry/current-authority/
+rollback gate passes20.209s before merge. Root review and preservation fixes are
+recorded above; no new independent worker review is claimed.
+
+- `/tmp/undergrid-hp2-continuous-release-build-oct28.log`
+- `/tmp/undergrid-hp2-continuous-release-cd2c298-oct28.jsonl` (PASS38.701s)
+- Retained isolated network database: hp1_run_f59d898163ee43eeae7c285c87b8da16 on port 55502
+- Retained HP2 browser artifacts: /tmp/undergrid-hp2-browser-3880072985
+
+All5 happy-path steps and adjacent authorization/recovery guards now have named
+runtime proof and reviewed integration. HP2 is locally closed under the map's
+implemented/proven/merged definition. Public qualification still requires externally
+operated participants and independent REST/MCP/A2A clients with real outcomes,
+plus applicable source/provider/legal/deployment gates. Controlled account IDs
+and local test terms do not satisfy those gates. Main/develop remains0/1, release
+integration PR62 remains open; no promotion or production deployment occurred.

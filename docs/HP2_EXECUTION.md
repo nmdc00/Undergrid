@@ -835,3 +835,15 @@ frontend source/assets match reviewed product release. `HP2_ACCEPTANCE.md` owns
 exact proof, commands, preserved failures and earlier ledger. Root scoped review
 is complete; release merge and exact-release checks remain pending. HP2 remains
 open until integration; external qualification stays separate. HP3 has not started.
+
+
+### HP2 locally closed — 28 October 2026
+
+PR124/release `cd2c298` integrates the reviewed continuous acceptance. Exact merged
+release coupled build and the full expanded same-owner browser/API/PostgreSQL/
+worker journey pass38.701s. The10-top-level/14-subcase decline/expiry/revocation/
+rollback aggregate passes20.209s. `HP2_ACCEPTANCE.md` retains commands, exact SHAs,
+artifacts, all earlier evidence and failures. All5 mapped steps are implemented,
+locally proven and merged. HP2 is locally closed; HP3 is the next active path.
+Public independent-user/client/provider/source/legal/deployment qualification
+remains open; no protected-branch promotion or production deployment is implied.
