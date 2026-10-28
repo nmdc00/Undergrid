@@ -240,7 +240,7 @@ func hp2LiveOwnerSetup(t *testing.T, mode hp2SetupMode) {
 		var revisions, sourceVersion, sourceRevision, sourceWatch, profiles, opportunities, artifacts, completed int
 		if err = admin.QueryRow(ctx, `SELECT
    (SELECT count(*) FROM undergrid.intent_revisions),
-   (SELECT version FROM undergrid.intents i JOIN undergrid.principals p ON p.id=i.principal_id WHERE p.subject='hp2-controlled-buyer-a'),
+   (SELECT i.version FROM undergrid.intents i JOIN undergrid.principals p ON p.id=i.principal_id WHERE p.subject='hp2-controlled-buyer-a'),
    (SELECT current_revision FROM undergrid.intents i JOIN undergrid.principals p ON p.id=i.principal_id WHERE p.subject='hp2-controlled-buyer-a'),
    (SELECT count(*) FROM undergrid.intents i JOIN undergrid.principals p ON p.id=i.principal_id WHERE p.subject='hp2-controlled-buyer-a' AND watch_enabled),
    (SELECT count(*) FROM undergrid.agents WHERE profile='{"public":true,"accept_invitations":false,"recruitment":false,"capabilities":["source_catalog_v1"]}'::jsonb),
