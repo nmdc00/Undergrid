@@ -268,3 +268,47 @@ func TestConstraintAssessmentSourceLockHasBoundedRollbackAndReadRecovery(t *test
 	}
 	h.read(t, true)
 }
+
+func TestConstraintAssessmentsBoundDistinctForeignPrincipals(t *testing.T) {
+	h := newClarificationFixture(t)
+	publish := func(owner testClient) {
+		t.Helper()
+		code, row := owner.call("POST", "/v1/intents", NewID(), h.publishedInput)
+		if code != 201 {
+			t.Fatal(code, row)
+		}
+		id := row["id"].(string)
+		t.Cleanup(func() { retireClarificationFixture(t, h.db, owner, id) })
+	}
+	// Multiple public declarations by one publisher must not crowd out others;
+	// the source owner's public declarations are not foreign evidence.
+	publish(h.publisher)
+	publish(h.owner)
+	publish(client(t, h.service))
+	check := func(want int, truncated bool) {
+		t.Helper()
+		report := h.read(t, true)
+		rows := report["items"].([]any)
+		if len(rows) != want || report["candidate_limit"] != float64(20) || report["truncated"] != truncated {
+			t.Fatalf("bounded report: %v", report)
+		}
+		seen := map[string]bool{}
+		var sourcePrincipal string
+		if err := h.db.QueryRow(context.Background(), `SELECT principal_id FROM undergrid.intents WHERE id=$1`, h.source["id"]).Scan(&sourcePrincipal); err != nil {
+			t.Fatal(err)
+		}
+		for _, raw := range rows {
+			row := raw.(map[string]any)
+			principal := row["principal_id"].(string)
+			if principal == sourcePrincipal || seen[principal] {
+				t.Fatalf("nonforeign or duplicate principal: %v", row)
+			}
+			seen[principal] = true
+		}
+	}
+	check(2, false)
+	for range 19 {
+		publish(client(t, h.service))
+	}
+	check(20, true)
+}
