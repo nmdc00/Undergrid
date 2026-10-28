@@ -7,8 +7,9 @@ import (
 )
 
 func TestApplicationOfferRechecksApplicantBeforeWriteAndReceiptRecovery(t *testing.T) {
-	for _, phase := range []string{"before_offer", "before_recovery"} {
-		t.Run(phase, func(t *testing.T) {
+	for _, check := range []struct{ phase, identity string }{{"before_offer", "agent"}, {"before_recovery", "agent"}, {"before_offer", "principal"}, {"before_recovery", "principal"}} {
+		t.Run(check.phase+"_"+check.identity, func(t *testing.T) {
+			phase := check.phase
 			s, db := ownerSwarmCreationFixture(t)
 			organizer, builder := collaborationClient(t, s), collaborationClient(t, s)
 			code, room := organizer.call("POST", "/v1/swarms", NewID(), map[string]any{"objective": "Current application target", "visibility": "restricted", "recruitment_roles": []any{map[string]any{"key": "builder", "schema_family": "source_catalog_v1", "description": "Declared role"}}})
@@ -28,10 +29,16 @@ func TestApplicationOfferRechecksApplicantBeforeWriteAndReceiptRecovery(t *testi
 					t.Fatal(code, out)
 				}
 			}
-			if _, err := db.Exec(context.Background(), `UPDATE undergrid.agents SET status='revoked' WHERE id=$1`, who["agent_id"]); err != nil {
+			query := `UPDATE undergrid.agents SET status='revoked' WHERE id=$1`
+			target := who["agent_id"]
+			if check.identity == "principal" {
+				query = `UPDATE undergrid.principals SET status='suspended' WHERE id=$1`
+				target = who["principal_id"]
+			}
+			if _, err := db.Exec(context.Background(), query, target); err != nil {
 				t.Fatal(err)
 			}
-			if code, out := organizer.call("POST", path+"/invitations", key, body); code < 400 {
+			if code, out := organizer.call("POST", path+"/invitations", key, body); code != 409 {
 				t.Fatal("revoked applicant authorized offer or receipt", code, out)
 			}
 			var state string

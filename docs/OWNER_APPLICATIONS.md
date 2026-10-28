@@ -234,3 +234,46 @@ foreign-lock contention cases, canonical owner contracts and normal-owner UI/
 browser journey remain required. No fresh independent-agent review, external
 qualification or complete owner-application/HP2 closure is claimed. The feature
 remains on its isolated unmerged branch.
+
+## Deterministic contention, pagination and bounded claim disclosure — 28 October 2026
+
+Four real locked-target cases cover principal/agent contention through both agent
+and owner offer endpoints. The actual request uses a three-second context and
+must return retryable500 within two seconds, with the application still applied
+and zero offer events. After rollback of the held lock, the exact body/key twice
+returns the same single offer and one event, without admission. Gate passes2.894s.
+Principal suspension now has the same before-write/before-receipt coverage as
+agent revocation, with exact409 denial assertions; their combined two-parent/eight-
+subcase identity/contention gate passes5.326s.
+
+A coordinator queue test creates101 applications through normal agent commands,
+not SQL product seeds. Its first/second pages contain100/1 unique sorted IDs;
+an applicant sees only its own application. Reads create no events/inbox/jobs.
+A controlled deadline fault removes that application from both applicant and
+coordinator pending reads without consuming another page, and malformed cursor
+returns400. Original pagination gate passes28.023s. The large controlled cohort
+is release-fixture attribution only, not independent or organic demand.
+
+A concrete long-reference test reached RED for unbounded inline claim disclosure.
+Legacy valid input remains accepted and immutable in storage. Collection reads
+now include at most16KiB of PostgreSQL JSONB text per claim; larger payloads become
+application_claims:null with claims_state:retained_over_budget and a SHA256 over
+the UTF8 PostgreSQL JSONB text. Normal claims use included; missing legacy claims
+use historical_unknown with no invented digest. SQL projects the limited payload
+rather than fetching all large bodies into application memory. The page/hash
+metadata does not certify the submitted claims. The test independently recomputes
+the returned hash in Go over actual stored JSONB text and proves the full original
+reference remains intact. First budget/read proof passes1.486s; final pagination,
+identity/contention and read-budget aggregate passes with unchanged limits.
+Page and preview limits are defined once in the domain read.
+
+- `/tmp/undergrid-application-offer-contention-oct28.jsonl`
+- `/tmp/undergrid-application-offer-identity-contention-oct28.jsonl`
+- `/tmp/undergrid-owner-application-pagination-oct28.jsonl`
+- `/tmp/undergrid-owner-application-claim-budget-red-oct28.jsonl`
+- `/tmp/undergrid-owner-application-claim-budget-green-oct28.jsonl`
+- `/tmp/undergrid-application-read-contention-final-oct28.jsonl`
+
+Current recruitment review, remaining actor/read recovery guards, canonical owner
+contracts, complete normal-owner UI/browser proof and final integration/review
+remain required. This feature and full HP2 remain unmerged/open.
