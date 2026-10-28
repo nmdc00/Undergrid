@@ -214,7 +214,8 @@ restricted-role, UI and retained-gate evidence. Explicit current unknown-hard
 clarification is implemented and locally proven on
 `feat/v0.1-owner-constraint-clarifications` (`ecead15`): normal owner publication
 revision resolves missing coverage without semantic inference or authority
-effects. See `OWNER_CONSTRAINT_CLARIFICATION.md`; review/merge remain pending.
+effects. See `OWNER_CONSTRAINT_CLARIFICATION.md`; reviewed and merged in PR116/release
+`47be35a`, with passing exact-release UI/build/HTTP/recovery checks.
 The full continuous HP2 journey remains unfinished.
 
 

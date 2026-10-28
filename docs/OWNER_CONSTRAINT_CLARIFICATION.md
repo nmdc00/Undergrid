@@ -260,3 +260,19 @@ six pure typed-hard/nontransitive-group regressions pass as well. Logs:
 No fresh independent agent review is claimed while workers remain quota-limited.
 Root reviewed the scoped diff and actual proof under the implementation skill;
 remote PR integration and exact merged-release checks are still pending.
+
+## Reviewed merge and exact release — 28 October 2026
+
+PR116 merged as release `47be35a6fb31f22f7e1db0dc012a7364479b0518`.
+Root's review and the final docs-only delta are recorded in the PR; no fresh
+independent worker review is claimed. Exact merged-release checks pass:23 UI
+cases in2.02s, coupled frontend build with the same source/asset hashes, and
+actual HTTP contract plus bounded lock rollback/recovery in2.312s.
+
+- `/tmp/undergrid-clarification-release-47be35a-ui-oct28.log`
+- `/tmp/undergrid-clarification-release-47be35a-build-oct28.log`
+- `/tmp/undergrid-clarification-release-47be35a-domain-oct28.jsonl`
+
+This feature is implemented, locally proven and merged. It does not close full
+HP2 or qualify external providers, source permissions, independent owners or
+deployment. Complementary registered capability discovery is the next HP2 task.
