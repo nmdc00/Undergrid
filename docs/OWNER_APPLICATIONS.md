@@ -473,3 +473,29 @@ browser regressions both pass on frozen `f56edb0`; combined package elapsed
 50.405s. Exact proof is retained in
 `/tmp/undergrid-owner-applications-retained-room-plan-oct28.jsonl`.
 No full HP2 closure, reviewed merge, release promotion or deployment is claimed.
+
+## Recruitment window and scoped review — 28 October 2026
+
+The actual51-room/51-worker-opportunity acceptance test passes22.231s on fresh
+`owner_recruitment_window_oct28`. Every room has a normal separately registered
+private coordinator; the sole public opted-in builder receives real scan output.
+No opportunity SQL seed is used. First page is50 unique sorted attributed packets;
+controlled post-emission role changes make all50 stale. The next read returns an
+empty page with the same advancing scan cursor, and continuation returns the final
+current packet exactly once. Changed-role selected read returns404, malformed
+cursor400, and normal domain archive removes the final packet from selected/list
+reads. The initial attempt is a Go test compilation error (local type/value name
+collision), not behavioral RED; corrected test requires no product change.
+
+- `/tmp/undergrid-owner-recruitment-window-first-oct28.jsonl` (compile failure)
+- `/tmp/undergrid-owner-recruitment-window-corrected-oct28.jsonl` (PASS)
+
+Root scoped review traced owner and agent write paths, pre-replay current authority,
+shared role/profile evidence, lock order/NOWAIT rollback, claims immutability and
+bounded SQL projections, and frontend review invalidation/uncertain-command recovery.
+No material in-scope finding remains from that inspection. Existing migration
+048–050 files remain frozen; forward migrations are required for later corrections.
+This is root review backed by the named tests, not a new independent agent review:
+established swarm workers remain unavailable under their previously reported quota.
+No replacement agent/model was launched to evade that quota. External legal/source/
+provider/storage/deployment/independent-user qualification remains pending.
