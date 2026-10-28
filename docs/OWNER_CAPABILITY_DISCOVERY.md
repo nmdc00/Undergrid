@@ -280,3 +280,46 @@ no change; it is not product RED. Source was corrected in the feature worktree.
 The UI is implemented and unit-proven, not yet browser-proven. The actual normal-
 owner capability journey, multi-artifact bound/concurrency proof, final full UI,
 retained runtime gates, review and merge remain required. HP2 stays active.
+
+## Actual normal-owner capability journey — 28 October 2026
+
+Frozen runtime/frontend `4fa9b660e98abf81f133b5197459d23f75b22456`
+passes the complete new Chromium/API/restricted-worker/real-PG aggregate19.011s.
+A starts with a private EU-coverage intention and monitoring off. After B's normal
+setup, A explicitly sees an honest empty capability sample. C registers a public
+source_catalog_v1 declaration through the normal console with recruitment off;
+A refreshes and sees exactly that declaration with schema support and unknown
+hard requirements. Separate controlled accounts establish attribution only.
+Reload preserves the actual read. B cannot read A's source. A normally pauses,
+sees the control disappear and receives404 on direct read, then normally resumes
+and reopens a current version3 report with monitoring still off. No SQL product
+seed or administrator action completes a browser step.
+
+Independent normalized checks prove exactly three intention revisions, A current
+revision1/version3/watch off, exactly one public capability profile with invitation
+and recruitment disabled, zero opportunities/artifacts/collaboration effects and
+at least two completed real intention-scan jobs. Existing90-second browser,
+three-minute helper and12-second worker shutdown bounds remain unchanged.
+The browser covers public-agent discovery; actual artifact publication/projection
+is independently lifecycle-proven above, and artifact UI validation has focused
+unit proof. No full HP2 or artifact publication UI journey is inferred.
+
+- Browser log: `/tmp/undergrid-capability-browser-4fa9b66-oct28.jsonl`
+- Build log: `/tmp/undergrid-capability-browser-oracle-build-oct28.log`
+- Retained DB: `hp1_run_2b26962f929647eab90d4e77d6645e4e`
+- Artifacts: `/tmp/undergrid-hp2-browser-3757424536`
+- Source SHA256: `ecf233cdf81ef3dd1e5c6433b2e4dca71a2c7ad35beb04a223c9468e29d974ee`
+- Production JS SHA256: `e6a7f7018761bbed9798895240448b3e879eecfd46447a483b36c9ea5f0cef6c`
+
+Original `2dffda6` aggregate failed17.768s although its browser case passed14.5s:
+the SQL oracle selected unqualified `version` from joined versioned tables and
+failed42702. `4fa9b66` only qualifies `i.version`; no oracle or timeout was weakened.
+Retained original log `/tmp/undergrid-capability-browser-2dffda6-oct28.jsonl` and
+artifact folder `/tmp/undergrid-hp2-browser-3105504474` remain distinct from success.
+Compilation, standalone TypeScript and both coupled frontend builds pass. Final
+multi-artifact bounds/hold concurrency, full regressions, review/merge remain open.
+
+Full UI at frozen `4fa9b66` passes259 cases across22 files in77.00s:
+`/tmp/undergrid-capability-4fa9b66-full-ui-oct28.log`. This broadens the focused55
+App/viewer proof without changing runtime/frontend source. It does not replace
+the remaining artifact-bound/concurrency and release-level regression gates.
