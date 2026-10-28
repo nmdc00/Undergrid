@@ -772,3 +772,15 @@ normal-owner and publication/bounds proof. Exact release UI25, coupled build and
 HTTP/source-lock recovery pass. `OWNER_CAPABILITY_DISCOVERY.md` retains all gates
 and original failures. Next: complete owner freshness, delivery and input-schema
 requirement editing, then applications and continuous HP2 acceptance.
+
+
+### Typed requirement local checkpoint — 28 October 2026
+
+`feat/v0.1-owner-typed-requirements` exposes freshness, delivery and input-schema
+controls in the shared creation/revision editor with exact timestamp and nullable
+field preservation. Behavioral RED precedes controls/parser correction. Normal
+three-owner create/revise/remove/reload proof passes17.092s on `ee34f63`; full UI272
+passes91.52s, affected server6-top-level/17-subcase gate passes4.042s, and canonical/
+static/build checks pass. `OWNER_TYPED_REQUIREMENTS.md` owns original failures and
+exact runtime/build/persistence proof. Retained browser gates and review/merge
+remain pending. Applications and complete continuous HP2 acceptance remain open.

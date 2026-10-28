@@ -78,3 +78,78 @@ pass. This final type/comment-only correction does not alter tested UI behavior.
 Creation/revision submitted-body integration, actual browser/persistence proof,
 complete focused/full regression gates, review and merge remain pending. This is
 an implementation checkpoint, not full typed-controls or HP2 closure.
+
+## Actual submitted bodies and owner browser journey — 28 October 2026
+
+Three additional App integration cases pass3.00s: normal creation submits exact
+freshness/delivery/input fields without a bearer; revision removes freshness while
+retaining nullable fields, precise timestamp and input alternatives plus If-Match;
+editing typed requirements invalidates an earlier public-projection review.
+Log: `/tmp/undergrid-typed-app-bodies-oct28.log`.
+
+Frozen runtime/frontend `ee34f63088df3b47d0f982ea6cc5307e9486118e` passes the actual
+three-owner Chromium/API/restricted-worker/PostgreSQL aggregate17.092s. A normally
+creates private watch-disabled EU coverage with3600-second freshness, precise
+fractional/offset delivery bounds and two input alternatives. It edits to7200s,
+a new precise deadline and one alternative, reloads, then removes only freshness
+through the normal revision form. Reload recovers the unchanged remaining values.
+Independent SQL proves five total intention revisions across three controlled
+owners, A immutable original constraints plus current revision3/version3, original
+fraction/offset values, current deadline/input/coverage and zero opportunities.
+Existing generic harness checks prove current owner attribution/watch policy and
+zero collaboration effects. Separate accounts are controlled attribution, not
+beneficial-owner independence. No SQL product seeds complete browser steps.
+
+- Browser: `/tmp/undergrid-typed-browser-ee34f63-oct28.jsonl`
+- Build: `/tmp/undergrid-typed-browser-ee34f63-build-oct28.log`
+- Retained DB: `hp1_run_f26f13e631454575a7e3c39b2fc2156c`
+- Artifacts: `/tmp/undergrid-hp2-browser-1897977081`
+- Source SHA256: `59d801867136129bbd3f1e3a73d7e9eb221cb60c110adad93c8bb5da47c1ef52`
+- Production JS SHA256: `9dcd0bc06c49e2f67e68de669a7febd536b06fff07aa03bb6662de2d5c97e918`
+
+Standalone TypeScript, tagged harness compilation and coupled frontend build pass.
+Final full UI, retained server/runtime gates, review and merge remain pending.
+This feature does not close continuous HP2, applications or external qualification.
+
+## Final local validation checkpoint — 28 October 2026
+
+At frozen runtime/frontend `ee34f63`, full UI passes272 cases across23 files
+in91.52s. A fresh normally copied `typed_requirements_final_oct28` fixture proves
+the affected server persistence, typed unknown/incompatibility semantics,
+malformed-range422 behavior and owner isolation:6 top-level/17 subcases pass4.042s.
+Canonical lint, all168 schemas and generated-type parity pass; tagged vet and Go
+build pass. No backend behavior, migration or financial/source identity changes.
+
+- `/tmp/undergrid-typed-ee34f63-full-ui-oct28.log`
+- `/tmp/undergrid-typed-final-db-oct28.log`
+- `/tmp/undergrid-typed-ee34f63-domain-oct28.jsonl`
+- `/tmp/undergrid-typed-ee34f63-contract-oct28.log`
+- `/tmp/undergrid-typed-ee34f63-vet-oct28.log`
+- `/tmp/undergrid-typed-ee34f63-go-build-oct28.log`
+
+Resource maintenance moved only the known regenerable npm content cache from
+`/home/nmcdc/.npm/_cacache` to `/dev/shm/undergrid-npm-cacache-oct28`, preserving the
+original path as a symlink and recording
+`/tmp/undergrid-npm-cache-relocation-oct28.json`. No databases, product blobs,
+credentials, worktrees or failure evidence were removed. Final retained browser
+regressions, review and merge remain pending; no broader path closure is claimed.
+
+## Reviewed final feature evidence — 28 October 2026
+
+All five retained actual capability/clarification/group/room/plan browser journeys
+pass126.135s on the same frozen `ee34f63` source and production build. Per-case
+90-second browser, three-minute helper and12-second shutdown bounds are unchanged;
+only the aggregate command timeout covers multiple sequential cases.
+Log: `/tmp/undergrid-typed-ee34f63-retained-browsers-oct28.jsonl`.
+Size/SHA256 evidence index: `/tmp/undergrid-typed-requirements-validation-oct28.json`.
+
+Root reviewed the scoped diff and actual proof. Shared parser knowledge replaces
+independent Date.parse calendar interpretation; the editor separately preserves
+nullable fields and exact raw timestamp evidence. Distinct optional dimensions
+use explicit controls instead of a generic policy engine. Server validation,
+authorization, If-Match and recovery semantics remain unchanged, with actual
+negative/persistence proof. No migration, new dependency, provider call, financial
+connection or public CI is introduced. No fresh independent-agent review is
+claimed while established workers remain quota-limited. Changes after `ee34f63`
+are documentation only. All local feature gates pass; PR merge and exact-release
+checks remain pending. Applications and continuous HP2 acceptance remain open.

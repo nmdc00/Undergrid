@@ -223,8 +223,11 @@ on `feat/v0.1-owner-capability-discovery`: current public agent declarations and
 published artifact metadata remain distinct from demand, competence, availability
 and rights consent. The owner browser discovery/reload/pause-resume journey and
 actual publication/21-artifact bound lifecycle gates pass. See
-`OWNER_CAPABILITY_DISCOVERY.md`; reviewed and merged in PR118/release `73e2924`. Typed owner
-controls, applications and continuous HP2 acceptance remain open.
+`OWNER_CAPABILITY_DISCOVERY.md`; reviewed and merged in PR118/release `73e2924`. Owner typed controls are implemented and locally proven on
+`feat/v0.1-owner-typed-requirements` (`ee34f63`), including exact freshness/delivery/
+input requirements and immutable create/revise/remove/reload proof. See
+`OWNER_TYPED_REQUIREMENTS.md`; final review/merge remain pending. Applications and
+continuous HP2 acceptance remain open.
 
 
 Intent states: `active ↔ paused`, `active/paused → withdrawn|expired|satisfied`. Explicit satisfied transitions are implemented through the shared versioned owner/agent command, with monitoring stopped and immutable history retained; see `evidence/intention-satisfaction.md` for scoped proof. Renew expired via a new revision; withdrawn creates a new ID if reposted. Pausing stops monitoring without discarding the immutable revision’s watch preference; resuming restores the current revision’s explicit preference, including disabled watches (see `evidence/watch-resume.md`). Watch defaults on for active intents, with a visible expiry (proposed 90 days) and renewal reminder. Query-time eligibility applies even if jobs lag. Publication/revision events trigger jobs; a 15-minute sweep repairs missed work. Committed public candidates also drive bounded durable candidate-to-watcher refresh independently of global repair, preserving the five-second existing-watcher worker gate; see `docs/evidence/committed-watch-refresh.md`. Opportunities and inbox rows dedupe by input revisions, recipient and kind. Watches survive outages; unmatched status is not an error.
