@@ -137,3 +137,31 @@ incorrect identity/scope, invalid versions and oversized reports. Logs:
 These are local controlled-fixture protocol checks, not external-client/provider
 qualification. Owner UI, actual browser flow, bounded-sampling tests and final
 retained/static/review/merge gates remain pending.
+
+## Owner UI checkpoint — 28 October 2026
+
+The actual App entrypoint test on `848eaa0` first failed because the explicit
+requirement-gap control was absent (one failure,28 skipped,3.03s). The console now
+mounts an explicit read for active intentions even with monitoring off. Closed
+response validation, inert publisher text, source/version/session invalidation,
+and refresh failure handling keep this read separate from matching authority.
+The existing group viewer and new report share only declared-constraint parsing;
+the group's monitoring policy is unchanged.
+
+The first combined UI gate passed89 cases across App, compatible groups and
+clarifications in14.46s. TypeScript then exposed two unsupported test-query options;
+anchored names corrected that fixture issue, and the App rerun passed29 cases
+in10.45s. Expanded late-response checks cover source selection, revision and
+session changes, including stale401 responses:23 component cases passed in2.04s.
+Standalone TypeScript and diff whitespace checks pass. Exact logs:
+
+- `/tmp/undergrid-constraint-clarification-848eaa0-app-red-oct28.log`
+- `/tmp/undergrid-constraint-clarification-ui-first-green-oct28.log`
+- `/tmp/undergrid-constraint-clarification-ui-tsc-first-oct28.log` (fixture errors)
+- `/tmp/undergrid-constraint-clarification-app-corrected-oct28.log`
+- `/tmp/undergrid-constraint-clarification-session-guards-oct28.log`
+- `/tmp/undergrid-constraint-clarification-ui-tsc-final-checkpoint-oct28.log`
+
+This is an unmerged implementation checkpoint. Candidate-limit/deduplication
+runtime proof, the normal-owner missing-to-resolved browser journey, final build
+provenance, regression gates and review remain required before feature closure.

@@ -833,29 +833,77 @@ test("active intention exposes explicit requirement-gap read even with monitorin
   const requests = fixture();
   const source = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
   const baseFetch = globalThis.fetch;
-  vi.stubGlobal("fetch", vi.fn(async (path: string, init?: RequestInit) => {
-    if (path === `/v1/owner/intents/${source}/constraint-assessments`) {
-      requests.push({path,init});
-      return new Response(JSON.stringify({source_intent_id:source,source_version:1,source_revision:1,scope:"registered_demand_hard_evidence_v1",identity_assurance:"common_control_unknown",candidate_limit:20,truncated:false,items:[]}),{status:200});
-    }
-    const response = await baseFetch(path.replace(source,"intent"),init);
-    if (path === "/v1/owner/intents") {
-      const body=await response.json();
-      return new Response(JSON.stringify({...body,items:body.items.map((row:Record<string,unknown>)=>({...row,id:source}))}),{status:response.status});
-    }
-    if (path === `/v1/owner/intents/${source}`) {
-      return new Response(JSON.stringify({...await response.json(),id:source,current_revision:1,watch:{enabled:false,channels:["inbox"]}}),{status:response.status});
-    }
-    return response;
-  }));
-  render(<App/>);
-  await userEvent.click(await screen.findByRole("button",{name:"Review intention"}));
-  await userEvent.click(await screen.findByRole("button",{name:"Check requirement gaps",exact:true}));
-  expect(await screen.findByText("No current public declarations in this bounded sample.")).toBeTruthy();
-  const calls=requests.filter(row=>row.path.endsWith("/constraint-assessments"));
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (path: string, init?: RequestInit) => {
+      if (path === `/v1/owner/intents/${source}/constraint-assessments`) {
+        requests.push({ path, init });
+        return new Response(
+          JSON.stringify({
+            source_intent_id: source,
+            source_version: 1,
+            source_revision: 1,
+            scope: "registered_demand_hard_evidence_v1",
+            identity_assurance: "common_control_unknown",
+            candidate_limit: 20,
+            truncated: false,
+            items: [],
+          }),
+          { status: 200 },
+        );
+      }
+      const response = await baseFetch(path.replace(source, "intent"), init);
+      if (path === "/v1/owner/intents") {
+        const body = await response.json();
+        return new Response(
+          JSON.stringify({
+            ...body,
+            items: body.items.map((row: Record<string, unknown>) => ({
+              ...row,
+              id: source,
+            })),
+          }),
+          { status: response.status },
+        );
+      }
+      if (path === `/v1/owner/intents/${source}`) {
+        return new Response(
+          JSON.stringify({
+            ...(await response.json()),
+            id: source,
+            current_revision: 1,
+            watch: { enabled: false, channels: ["inbox"] },
+          }),
+          { status: response.status },
+        );
+      }
+      return response;
+    }),
+  );
+  render(<App />);
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Review intention" }),
+  );
+  await userEvent.click(
+    await screen.findByRole("button", {
+      name: /^Check requirement gaps$/,
+    }),
+  );
+  expect(
+    await screen.findByText(
+      "No current public declarations in this bounded sample.",
+    ),
+  ).toBeTruthy();
+  const calls = requests.filter((row) =>
+    row.path.endsWith("/constraint-assessments"),
+  );
   expect(calls).toHaveLength(1);
   expect(calls[0].init?.method).toBe("GET");
   expect(calls[0].init?.credentials).toBe("same-origin");
   expect(new Headers(calls[0].init?.headers).get("Authorization")).toBeNull();
-  expect(screen.queryByRole("button",{name:"View compatible groups",exact:true})).toBeNull();
+  expect(
+    screen.queryByRole("button", {
+      name: /^View compatible groups$/,
+    }),
+  ).toBeNull();
 });
