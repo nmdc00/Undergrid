@@ -819,3 +819,19 @@ authority/recovery gates in `OWNER_APPLICATIONS.md`. Exact release UI18, canonic
 complete continuous HP2 journey through exact plan/rights votes and separate
 assignment acceptance, including restart/rejection/recovery. HP2 remains open;
 no HP3 work or release promotion is authorized by this feature closure alone.
+
+
+### Continuous HP2 acceptance ready for integration — 28 October 2026
+
+Root owns `test/v0.1-hp2-continuous` in isolated
+`/tmp/undergrid-worktrees/hp2-continuous/test-v0.1-hp2-continuous`; established
+workers remain quota-unavailable, so no fresh independent worker review is claimed.
+All5 mapped steps now have one actual same-owner browser/API/PostgreSQL/worker
+journey on `9f5bcdc`, PASS41.867s, including explicit group/capability inspection,
+application and invitation admissions, persistent messaging, exact plan/rights
+votes, separate dependent assignments, immutable revision and real restart.
+Focused10-top-level/14-subcase negatives pass20.209s. Tagged vet and Go build pass;
+frontend source/assets match reviewed product release. `HP2_ACCEPTANCE.md` owns
+exact proof, commands, preserved failures and earlier ledger. Root scoped review
+is complete; release merge and exact-release checks remain pending. HP2 remains
+open until integration; external qualification stays separate. HP3 has not started.

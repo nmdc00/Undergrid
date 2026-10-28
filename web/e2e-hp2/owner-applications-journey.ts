@@ -85,18 +85,28 @@ export async function proveOwnerApplications(
     .click();
   await expect(queue.getByRole("alert")).toBeVisible();
   await creator.unroute(`**${offerPath}`);
-  const offering = creator.waitForResponse(
-    (r) =>
-      new URL(r.url()).pathname === offerPath &&
-      r.request().method() === "POST",
-  );
-  await queue
-    .getByRole("button", { name: "Offer application", exact: true })
-    .click();
-  const offered = await offering;
-  expect(offered.status()).toBe(201);
-  expect(offered.request().postData()).toBe(body);
-  expect(offered.request().headers()["idempotency-key"]).toBe(key);
+  let recovered = false;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const offering = creator.waitForResponse(
+      (r) =>
+        new URL(r.url()).pathname === offerPath &&
+        r.request().method() === "POST",
+    );
+    await queue
+      .getByRole("button", { name: "Offer application", exact: true })
+      .click();
+    const offered = await offering;
+    expect(offered.request().postData()).toBe(body);
+    expect(offered.request().headers()["idempotency-key"]).toBe(key);
+    if (offered.status() === 201) {
+      recovered = true;
+      break;
+    }
+    expect(offered.status()).toBe(500);
+    expect((await offered.json()).error.retryable).toBe(true);
+    await expect(queue.getByRole("alert")).toBeVisible();
+  }
+  expect(recovered).toBe(true);
   await expect(queue.getByRole("status")).toContainText("separately accept");
   expect((await builder.request.get(historyPath, { headers })).status()).toBe(
     404,

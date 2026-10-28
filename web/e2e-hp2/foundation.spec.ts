@@ -1,17 +1,26 @@
+import {
+  configurePlanPolicy,
+  proveOwnerPlanJourney,
+  type Actor,
+} from "./owner-plan-journey";
+import { admitPeerAndExchangeMessage } from "./hp2-continuous-journey";
 import { proveOwnerApplications } from "./owner-applications-journey";
 import { test, expect, type BrowserContext } from "@playwright/test";
 
 // Actual network app/session/API. Separate modes prove setup, publication or
 // reviewed builder registration/recruitment; none proves the full HP2 journey.
 test(
-  process.env.UNDERGRID_HP2_ROOM_ORIGIN === "1"
-    ? "owner selects a current match, recovers a reviewed room, and receives recruitment without admission"
-    : process.env.UNDERGRID_HP2_BUILDER_REGISTRATION === "1"
-      ? "owner reviews builder declarations and receives worker recruitment without admission"
-      : process.env.UNDERGRID_HP2_OWNER_PUBLICATION === "1"
-        ? "owner publishes a selected projection and revokes its foreign read through the console"
-        : "three controlled owners receive separate scoped agents and private watches",
+  process.env.UNDERGRID_HP2_CONTINUOUS === "1"
+    ? "same owners discover demand, recruit and admit, then approve exact plans and separately accept work across restart"
+    : process.env.UNDERGRID_HP2_ROOM_ORIGIN === "1"
+      ? "owner selects a current match, recovers a reviewed room, and receives recruitment without admission"
+      : process.env.UNDERGRID_HP2_BUILDER_REGISTRATION === "1"
+        ? "owner reviews builder declarations and receives worker recruitment without admission"
+        : process.env.UNDERGRID_HP2_OWNER_PUBLICATION === "1"
+          ? "owner publishes a selected projection and revokes its foreign read through the console"
+          : "three controlled owners receive separate scoped agents and private watches",
   async ({ browser }) => {
+    const continuous = process.env.UNDERGRID_HP2_CONTINUOUS === "1";
     const applications = process.env.UNDERGRID_HP2_APPLICATIONS === "1";
     const roomOrigin = process.env.UNDERGRID_HP2_ROOM_ORIGIN === "1";
     const builderRegistration =
@@ -67,6 +76,10 @@ test(
           ])
             await page.getByLabel(scope, { exact: true }).check();
         }
+        if (continuous && label === "buyer-b")
+          await page
+            .getByLabel("Accept foreign invitations", { exact: true })
+            .check();
         if (builderRegistration && label === "builder-c") {
           await page.getByLabel("swarms:read", { exact: true }).check();
           await page
@@ -216,6 +229,13 @@ test(
           page.getByRole("heading", { name: "Your workspace", exact: true }),
         ).toBeVisible();
       }
+      const planActors: Actor[] = actors.map((a, i) => ({
+        ...a,
+        context: contexts[i],
+        page: contexts[i].pages()[0],
+      }));
+      if (continuous)
+        for (const actor of planActors) await configurePlanPolicy(actor.page);
       expect(new Set(actors.map((a) => a.principal)).size).toBe(3);
       expect(new Set(actors.map((a) => a.agent)).size).toBe(3);
       if (publication) {
@@ -384,6 +404,45 @@ test(
           await creator
             .getByRole("button", { name: "Review intention", exact: true })
             .click();
+          if (continuous) {
+            const groups = creator.getByRole("region", {
+              name: "Compatible groups",
+              exact: true,
+            });
+            await groups
+              .getByRole("button", {
+                name: "View compatible groups",
+                exact: true,
+              })
+              .click();
+            await expect(
+              groups.getByRole("heading", {
+                name: "Compatible view 1",
+                exact: true,
+              }),
+            ).toBeVisible();
+            await expect(groups).toContainText(actors[0].intent!);
+            await expect(groups).toContainText(actors[1].intent!);
+            await expect(groups).toContainText(
+              "Exact declared outcome and hard constraints",
+            );
+            const capabilities = creator.getByRole("region", {
+              name: "Registered capability discovery",
+              exact: true,
+            });
+            await capabilities
+              .getByRole("button", {
+                name: "Discover registered capabilities",
+                exact: true,
+              })
+              .click();
+            const declared = capabilities.getByRole("article", {
+              name: `Capability ${actors[2].agent}`,
+              exact: true,
+            });
+            await expect(declared).toContainText("Declared schema support");
+            await expect(declared).toContainText(actors[2].principal);
+          }
           await creator
             .getByRole("button", {
               name: "Create swarm from this match",
@@ -565,6 +624,10 @@ test(
             actors[2].agent,
             actors[2].token,
           );
+        if (continuous) {
+          await admitPeerAndExchangeMessage(planActors, room.id);
+          await proveOwnerPlanJourney(planActors, room.id);
+        }
         const own = await builder.request.get("/v1/agents");
         expect(own.status()).toBe(200);
         expect(

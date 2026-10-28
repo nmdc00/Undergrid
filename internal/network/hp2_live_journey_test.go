@@ -34,8 +34,9 @@ func TestHP2LiveOwnerSelectedMatchRoomAndRecruitment(t *testing.T) {
 }
 func hp2LiveOwnerSetup(t *testing.T, mode hp2SetupMode) {
 	publication, builderRegistration := mode == hp2Publication, mode == hp2Builder
-	planProposal := mode == hp2PlanProposal
-	applications := mode == hp2Applications
+	continuous := mode == hp2Continuous
+	planProposal := mode == hp2PlanProposal || continuous
+	applications := mode == hp2Applications || continuous
 	roomOrigin := mode == hp2RoomOrigin || applications
 	groupInspection := mode == hp2CompatibleGroups
 	clarification := mode == hp2Clarifications
@@ -148,19 +149,28 @@ func hp2LiveOwnerSetup(t *testing.T, mode hp2SetupMode) {
 	if capabilityDiscovery {
 		scenarioFile = "e2e-hp2/capabilities.spec.ts"
 	}
+	if continuous {
+		scenarioFile = "e2e-hp2/foundation.spec.ts"
+	}
 	if typedRequirements {
 		scenarioFile = "e2e-hp2/typed-requirements.spec.ts"
 	}
 	browser := exec.CommandContext(ctx, node, filepath.Join(root, "web", "node_modules", "@playwright", "test", "cli.js"), "test", scenarioFile, "--config", "playwright.hp2.config.ts")
 	browser.Dir = filepath.Join(root, "web")
 	browser.Env = append(os.Environ(), "UNDERGRID_HP1_BASE_URL="+app.URL, "UNDERGRID_HP2_ISSUER_URL="+issuer.URL, "UNDERGRID_TEST_CHROMIUM="+chromium, "UNDERGRID_HP1_BROWSER_ARTIFACTS="+artifacts)
+	if continuous {
+		browser.Env = append(browser.Env, "UNDERGRID_HP2_ROOM_ORIGIN=1")
+	}
 	if applications {
 		browser.Env = append(browser.Env, "UNDERGRID_HP2_APPLICATIONS=1")
+	}
+	if continuous {
+		browser.Env = append(browser.Env, "UNDERGRID_HP2_CONTINUOUS=1")
 	}
 	if publication {
 		browser.Env = append(browser.Env, "UNDERGRID_HP2_OWNER_PUBLICATION=1")
 	}
-	if builderRegistration || roomOrigin || groupInspection || clarification || capabilityDiscovery || typedRequirements {
+	if (builderRegistration || roomOrigin || groupInspection || clarification || capabilityDiscovery || typedRequirements) && !continuous {
 		if roomOrigin {
 			browser.Env = append(browser.Env, "UNDERGRID_HP2_ROOM_ORIGIN=1")
 		} else if builderRegistration {
@@ -236,7 +246,7 @@ func hp2LiveOwnerSetup(t *testing.T, mode hp2SetupMode) {
 	} // one owner-UI room (origin mode) or agent-API room (builder mode), plus its creator membership
 	if applications {
 		expectedCollaborationEffects = 3
-		assertHP2ApplicationState(t, ctx, admin)
+		assertHP2ApplicationState(t, ctx, admin, continuous)
 	}
 	if planProposal {
 		expectedCollaborationEffects = 22
@@ -296,7 +306,14 @@ func hp2LiveOwnerSetup(t *testing.T, mode hp2SetupMode) {
    (SELECT count(*) FROM undergrid.plan_versions),(SELECT count(*) FROM undergrid.tasks),(SELECT count(*) FROM undergrid.approvals)`).Scan(&profiles, &opportunities, &events, &inbox, &completedRecruitmentJobs, &foreignMemberships, &plans, &tasks, &approvals); err != nil {
 			t.Fatal(err)
 		}
-		if profiles != 1 || opportunities != 1 || events != 1 || inbox != 1 || completedRecruitmentJobs < 1 || foreignMemberships != map[bool]int{false: 0, true: 1}[applications] || plans != 0 || tasks != 0 || approvals != 0 {
+		expectedForeign, expectedPlans, expectedTasks, expectedApprovals := 0, 0, 0, 0
+		if applications {
+			expectedForeign = 1
+		}
+		if continuous {
+			expectedForeign, expectedPlans, expectedTasks, expectedApprovals = 2, 2, 4, 12
+		}
+		if profiles != 1 || opportunities != 1 || events != 1 || inbox != 1 || completedRecruitmentJobs < 1 || foreignMemberships != expectedForeign || plans != expectedPlans || tasks != expectedTasks || approvals != expectedApprovals {
 			t.Fatalf("builder profile/recruitment effects: profile=%d opp/event/inbox=%d/%d/%d completedjobs=%d memberships=%d plans/tasks/approvals=%d/%d/%d", profiles, opportunities, events, inbox, completedRecruitmentJobs, foreignMemberships, plans, tasks, approvals)
 		}
 	}
