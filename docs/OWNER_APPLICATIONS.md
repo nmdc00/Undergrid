@@ -74,3 +74,15 @@ the actual acceptance journey.
 
 No implementation or qualification is claimed by this contract. Reserved external
 source/provider/legal/deployment approvals remain separate explicit gates.
+
+## Initial owner HTTP RED — 28 October 2026
+
+Test-only `1b1495d` completes normal restricted-API organizer/builder and room
+creation, then reaches the intended missing owner application operation:404
+instead of201. The single test fails in0.617s, not during fixture setup. It requires
+reviewed room If-Match and checks applied/deadline persistence with no admission or
+private-context access once implementation exists. Original log:
+`/tmp/undergrid-owner-applications-initial-http-red-oct28.jsonl`.
+The retained network fixture is `typed_requirements_final_oct28` on55502; no SQL
+product seeds or financial identity/database changes occurred. Implementation and
+all remaining contract gates remain pending; the full goal stays active.
