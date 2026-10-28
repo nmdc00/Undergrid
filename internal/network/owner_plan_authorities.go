@@ -51,14 +51,14 @@ func prelockOwnerPlanAuthorities(ctx context.Context, tx pgx.Tx, principal, agen
 	return err
 }
 
-// Assignment responses may be the final prerequisite accepting a plan, so they
-// use the same policy lock order as exact plan votes.
+// Assignment responses may accept a plan and progress checks its effective
+// policy, so both use the same canonical authority lock order as exact votes.
 func ownerPlanAuthorityMutation(r *http.Request) (agent, resource string, task, ok bool) {
 	if agent, plan, found := ownerPlanApprovalMutation(r); found {
 		return agent, plan, false, true
 	}
 	parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
-	if r.Method == http.MethodPost && len(parts) == 7 && parts[0] == "v1" && parts[1] == "owner" && parts[2] == "agents" && parts[4] == "tasks" && parts[6] == "assignment-response" && validID(parts[3]) && validID(parts[5]) {
+	if r.Method == http.MethodPost && len(parts) == 7 && parts[0] == "v1" && parts[1] == "owner" && parts[2] == "agents" && parts[4] == "tasks" && (parts[6] == "assignment-response" || parts[6] == "progress") && validID(parts[3]) && validID(parts[5]) {
 		return parts[3], parts[5], true, true
 	}
 	return "", "", false, false
