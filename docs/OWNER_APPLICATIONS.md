@@ -499,3 +499,27 @@ This is root review backed by the named tests, not a new independent agent revie
 established swarm workers remain unavailable under their previously reported quota.
 No replacement agent/model was launched to evade that quota. External legal/source/
 provider/storage/deployment/independent-user qualification remains pending.
+
+## Reviewed merge and exact-release checks — 28 October 2026
+
+[PR122](https://github.com/nmdc00/Undergrid/pull/122) is merged into
+`release/v0.1` at `2bcd7dff1218f0f930b5bda451d6e0db26f124ac` (feature head
+`5c53cba`). Root scoped review and all named local acceptance gates above precede
+merge; no new independent worker review is implied. Exact merged release passes
+18 application/participation UI tests, canonical175-schema lint/compile/generated
+parity, coupled TypeScript/Vite production build and3 actual HTTP contract/read/
+separate-admission cases in2.536s against fresh normal-migrated
+`owner_applications_release_oct28`. Frontend source and built JavaScript hashes
+match the actual browser-proven feature exactly.
+
+- `/tmp/undergrid-owner-applications-release-2bcd7df-ui-oct28.log`
+- `/tmp/undergrid-owner-applications-release-2bcd7df-contract-oct28.log`
+- `/tmp/undergrid-owner-applications-release-2bcd7df-build-oct28.log`
+- `/tmp/undergrid-owner-applications-release-2bcd7df-http-oct28.jsonl`
+
+This closes the bounded owner application feature locally, including reviewed
+release integration. HP2 still needs one continuous discovery-to-admission-to-plan/
+rights-votes-to-separate-assignment journey and its recovery/decline guards.
+External qualification remains open. Fetched main/develop divergence is0/1;
+release integration PR62 remains open. No protected-branch promotion/deployment
+is included.

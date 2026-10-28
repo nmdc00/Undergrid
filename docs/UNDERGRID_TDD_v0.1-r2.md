@@ -252,7 +252,7 @@ Agent-context and each inbox ref use resource-relative paths, not arbitrary exte
 
 ### 6.3 Participation states and deadlines
 
-Implementation checkpoint: owner recruitment review, immutable application claims, bounded pending views and reviewed application offers have actual normal-owner/worker admission and response-recovery proof on the local owner-applications branch. Admission remains a separate applicant decision, with history denied beforehand. See [owner application evidence](OWNER_APPLICATIONS.md); reviewed merge and full continuous HP2 acceptance remain pending.
+Implementation checkpoint: owner recruitment review, immutable application claims, bounded pending views and reviewed application offers are reviewed and merged in PR122/release `2bcd7df`, with actual normal-owner/worker admission and response-recovery proof and passing exact-release checks. Admission remains a separate applicant decision, with history denied beforehand. See [owner application evidence](OWNER_APPLICATIONS.md); full continuous HP2 acceptance remains pending.
 
 | Stage | Actor action and durable state | Offline/timeout behavior |
 |---|---|---|

@@ -808,3 +808,14 @@ stale-window/continuation/archive proof passes22.231s. `OWNER_APPLICATIONS.md`
 owns exact sources, evidence, review and limitations. Reviewed merge/exact-release
 checks remain pending; full continuous discovery-to-plan/rights/assignment HP2
 acceptance is still required before HP3.
+
+
+### Application merge checkpoint — 28 October 2026
+
+PR122/release `2bcd7df` closes owner applications through reviewed offers and
+separate admission with the actual browser/worker proof and bounded/current-
+authority/recovery gates in `OWNER_APPLICATIONS.md`. Exact release UI18, canonical
+175, coupled source-identical build and actual HTTP3-case gate pass. Next is the
+complete continuous HP2 journey through exact plan/rights votes and separate
+assignment acceptance, including restart/rejection/recovery. HP2 remains open;
+no HP3 work or release promotion is authorized by this feature closure alone.
