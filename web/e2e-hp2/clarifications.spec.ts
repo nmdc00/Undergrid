@@ -179,6 +179,7 @@ test("owner clarifies missing public requirements after publisher revision and r
     });
     await expect(region).toContainText("Needs clarification");
     await expect(region).toContainText("Declared requirements conflict");
+    await b.page.getByRole("button", { name: "Review intention", exact: true }).click();
     await b.page
       .getByRole("button", { name: "Edit intention", exact: true })
       .click();
