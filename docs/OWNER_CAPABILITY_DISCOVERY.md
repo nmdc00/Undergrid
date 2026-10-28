@@ -210,3 +210,31 @@ Schema components and generated-type parity pass. Logs:
 The feature remains unmerged. Dedicated bound/source-authority/contention tests,
 UI/browser acceptance and final regression/review gates remain required. Local
 executable verifier evidence is not isolation/provider/legal qualification.
+
+## Capability source and agent bounds proof — 28 October 2026
+
+Capability-specific endpoint guards pass3 top-level cases/six state subcases
+in5.649s on `capability_backend_oct28`: foreign/current source attribution,
+paused/withdrawn/expired sources, agent/principal loss, scope separation, sibling
+agent denial and prompt held-source rollback/recovery. Revocation results match
+existing current-identity gates, with no report payload in denials. A held source
+uses the unchanged three-second request/two-second elapsed oracle; exact current
+read succeeds after lock release. Log:
+`/tmp/undergrid-capability-fit-source-guards-oct28.jsonl`.
+
+The dedicated fresh `capability_bounds_oct28` fixture is normally copied from the
+genuine empty template and migrated, with no product SQL seeds. Normal owner
+commands register a public source-owner agent, two public agents for one foreign
+principal and one for another. Explicit read returns exactly two foreign
+principals, not duplicate agents or the source owner. Passive public declarations
+are eligible even with recruitment disabled. After19 additional principals, the
+read returns20 unique foreign principals with truncation disclosed. All schema
+support remains self-declared and complete hard fit stays unknown. Gate passes
+3.498s; rows and evidence are retained, not deleted to restore an empty fixture.
+
+- `/tmp/undergrid-capability-bounds-db-oct28.log`
+- `/tmp/undergrid-capability-fit-agent-bounds-oct28.jsonl`
+
+These gates prove the public-agent bound and source contention. Actual multi-
+artifact bound/held-state concurrency, owner UI/browser proof and final feature
+regressions/review remain required; no full capability/HP2 closure is claimed.
