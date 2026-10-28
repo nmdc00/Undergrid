@@ -28,6 +28,7 @@ const (
 	hp2TypedRequirements
 	hp2Applications
 	hp2Continuous
+	hp3TaskExecution
 )
 
 func TestHP2LiveOwnerPlanProposalRevisionAndRecovery(t *testing.T) {
@@ -133,7 +134,7 @@ func hp2PlanOracle(t *testing.T, ctx context.Context, mux *http.ServeMux, admin 
 	}
 }
 
-func assertHP2PlanFinalState(t *testing.T, ctx context.Context, admin *pgx.Conn) {
+func assertHP2PlanFinalState(t *testing.T, ctx context.Context, admin *pgx.Conn, executing bool) {
 	t.Helper()
 	var oldCancelled, newAccepted, votes, planEvents int
 	var valid bool
@@ -145,7 +146,11 @@ func assertHP2PlanFinalState(t *testing.T, ctx context.Context, admin *pgx.Conn)
   EXISTS(SELECT 1 FROM undergrid.swarms s JOIN undergrid.plan_versions p2 ON p2.id=s.active_plan_id JOIN undergrid.plan_versions p1 ON p1.id=p2.parent_id WHERE p1.version=1 AND p1.state='superseded' AND p2.version=2 AND p2.state='accepted' AND p1.content_hash<>p2.content_hash AND (p1.specification->'plan')-'parent_version'-'objective'=(p2.specification->'plan')-'parent_version'-'objective')`).Scan(&oldCancelled, &newAccepted, &votes, &planEvents, &valid); err != nil {
 		t.Fatal(err)
 	}
-	if oldCancelled != 2 || newAccepted != 2 || votes != 12 || planEvents != 2 || !valid {
+	expectedAccepted := 2
+	if executing {
+		expectedAccepted = 1
+	}
+	if oldCancelled != 2 || newAccepted != expectedAccepted || votes != 12 || planEvents != 2 || !valid {
 		t.Fatalf("final immutable revision effects: oldcancelled=%d newaccepted=%d exactvotes=%d proposals=%d validheadlineage=%v", oldCancelled, newAccepted, votes, planEvents, valid)
 	}
 }

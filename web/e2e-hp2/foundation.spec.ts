@@ -1,3 +1,4 @@
+import { proveOwnerTaskExecution } from "./task-execution-journey";
 import {
   configurePlanPolicy,
   proveOwnerPlanJourney,
@@ -627,6 +628,8 @@ test(
         if (continuous) {
           await admitPeerAndExchangeMessage(planActors, room.id);
           await proveOwnerPlanJourney(planActors, room.id);
+          if (process.env.UNDERGRID_HP3_TASK_EXECUTION === "1")
+            await proveOwnerTaskExecution(planActors[2]);
         }
         const own = await builder.request.get("/v1/agents");
         expect(own.status()).toBe(200);
