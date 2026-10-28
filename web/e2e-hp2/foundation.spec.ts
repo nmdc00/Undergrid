@@ -1,3 +1,4 @@
+import { proveOwnerApplications } from "./owner-applications-journey";
 import { test, expect, type BrowserContext } from "@playwright/test";
 
 // Actual network app/session/API. Separate modes prove setup, publication or
@@ -11,6 +12,7 @@ test(
         ? "owner publishes a selected projection and revokes its foreign read through the console"
         : "three controlled owners receive separate scoped agents and private watches",
   async ({ browser }) => {
+    const applications = process.env.UNDERGRID_HP2_APPLICATIONS === "1";
     const roomOrigin = process.env.UNDERGRID_HP2_ROOM_ORIGIN === "1";
     const builderRegistration =
       roomOrigin || process.env.UNDERGRID_HP2_BUILDER_REGISTRATION === "1";
@@ -553,6 +555,16 @@ test(
           { headers: { Authorization: `Bearer ${actors[2].token}` } },
         );
         expect(context.status()).toBe(404);
+        if (applications)
+          await proveOwnerApplications(
+            creator,
+            builder,
+            contexts[1].pages()[0],
+            room.id,
+            actors[0].agent,
+            actors[2].agent,
+            actors[2].token,
+          );
         const own = await builder.request.get("/v1/agents");
         expect(own.status()).toBe(200);
         expect(
