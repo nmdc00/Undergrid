@@ -78,3 +78,32 @@ case exercises the product's already implemented uncertain-command retry behavio
 - `/tmp/undergrid-hp2-continuous-discovery-oct28.jsonl` (retained failure)
 - Database `hp1_run_12bf8f68c06442b69bda1c0d860cd5e9`
 - Browser artifacts `/tmp/undergrid-hp2-browser-3113558250`
+
+## Expanded continuous journey PASS — 28 October 2026
+
+Frozen `9f5bcdc` passes the expanded actual Chromium/session/API/isolated restricted-
+PostgreSQL/worker journey and independent final normalized aggregate in41.867s.
+A real55P03/retryable failure occurs and the visible exact-key/body recovery
+succeeds; final SQL still finds exactly one application-origin offer. Product
+source and production JavaScript remain identical to reviewed release `2bcd7df`;
+this branch changes acceptance harnesses and documentation only.
+
+| HP2 outcome | Continuous proving actions/oracles |
+| --- | --- |
+| Current demand and compatible group | B normally publishes a reviewed intention; A's private watch finds the current declared match; A inspects the exact compatible group containing A/B. |
+| Appropriate declared builder | C normally publishes its opt-in declared profile; A inspects C's registered capability and principal reference; the actual worker emits the bounded room-role recruitment opportunity. |
+| Reviewed room and separate admission | A creates/recover-retries the selected-match restricted room; C reviews/applies/reloads; A reviews immutable claims and recovers its offer; C separately accepts. B separately opts in, receives an explicit owner invitation and accepts. History is denied before C's admission. |
+| Persistent communication | A posts through owner UI; B reloads and reads the same message. Messages grant no plan votes or assignments. |
+| Exact plan/rights decisions | All3 review/hash-check and separately vote on each immutable plan; independent checkpoint shows exact per-purpose vote counts and no premature activation. |
+| Separate task responsibility | C separately accepts both dependent assignments; accepted plan head changes only afterward. A later revision preserves the original accepted head until new decisions and assignments complete. |
+| Restart/recovery and no duplicates | Actual worker stop/start completes its normal startup deadline job; all accounts reload accepted state; agent context preserves current immutable plan hash/task claim epochs; committed room/offer retries retain exact bodies/keys and single normalized effects. |
+
+- `/tmp/undergrid-hp2-continuous-recovery-oct28.jsonl` (PASS41.867s)
+- `/tmp/undergrid-hp2-continuous-recovery-build-oct28.log` (coupled source/build manifest)
+- Retained isolated network database: hp1_run_c677c997e952467e9aa741aa63675339 on port 55502
+- Retained HP2 browser artifacts: /tmp/undergrid-hp2-browser-540688694
+
+The focused negative guard aggregate, final scoped review and release integration
+remain required before HP2 local closure. Historical failures above remain
+retained. Controlled users, test contribution templates and fixed local/provider
+fixtures are not external qualification. HP3 has not started.
