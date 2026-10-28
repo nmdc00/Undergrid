@@ -248,6 +248,7 @@ export function OwnerPlanApproval({
             })}
           </ul>
           <OwnerAssignmentResponse
+            planAccepted={plan.state === "accepted"}
             agent={agent}
             plan={plan.id}
             hash={plan.content_hash}
