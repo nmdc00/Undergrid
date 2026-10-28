@@ -18,6 +18,7 @@ func TestConstraintAssessmentReportsUnknownHardEvidenceWithoutInventingMatches(t
 		t.Fatalf("source fixture: %d %v", code, created)
 	}
 	id := created["id"].(string)
+	t.Cleanup(func() { retireClarificationFixture(t, db, owner, id) })
 	ids := map[string]string{}
 	privateSecret := "UNPUBLISHED candidate objective " + NewID()
 	for _, kind := range []string{"unknown", "aligned-prose", "incompatible", "private"} {
@@ -45,6 +46,8 @@ func TestConstraintAssessmentReportsUnknownHardEvidenceWithoutInventingMatches(t
 			t.Fatalf("%s fixture: %d %v", kind, code, out)
 		}
 		ids[kind] = out["id"].(string)
+		fixtureOwner, fixtureID := candidateOwner, out["id"].(string)
+		t.Cleanup(func() { retireClarificationFixture(t, db, fixtureOwner, fixtureID) })
 	}
 	snapshot := func() [5]int {
 		t.Helper()
