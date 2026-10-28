@@ -7,7 +7,7 @@ in38.701s. Implementation, local runtime proof and reviewed integration are
 complete; external qualification remains open. HP3 is the next active local path.
 
 
-Active branch `test/v0.1-hp2-continuous`, based on release `cddab23`.
+Acceptance branch `test/v0.1-hp2-continuous`, based on release `cddab23` and merged in PR124.
 HP1 remains locally closed. This artifact owns continuous HP2 proof, not a new
 product feature or external qualification.
 
@@ -32,7 +32,7 @@ restricted workers, independent normalized state/effect oracles, final review,
 release integration and current authority/recovery gates. Controlled identities,
 local fixed terms and provider fixtures never establish independent beneficial
 owners, legal approval or provider/deployment qualification. All external gates
-remain separately open. No closure is claimed yet.
+remain separately open. The dated checkpoints below lead to the current local closure recorded above.
 
 ## Initial composition evidence — 28 October 2026
 
@@ -193,7 +193,7 @@ Scope: `HAPPY_PATH_EXECUTION.md` HP2 and the capacity-first dependency contract 
 `HP2_EXECUTION.md` (task-map commit `47771f5`). This branch starts from release
 `c0087c0`, after HP1 local closure. HP1 external qualifications remain open.
 Implementation, continuous local proof, reviewed merge and external qualification
-are separate facts. **HP2 is not locally proven or closed.** The scoped three-owner setup foundation passed on 25 October; it does not
+are separate facts. **This earlier ledger predates current HP2 closure.** The scoped three-owner setup foundation passed on 25 October; it does not
 complete discovery or collaboration. The bounded owner publication/revision/withdrawal control has actual local proof and merged in PR103 (`b0d49c7`). Reviewed builder registration is locally proven and merged in PR106 (`f5e5960`). Exact evidence
 is recorded at the end of this ledger.
 
