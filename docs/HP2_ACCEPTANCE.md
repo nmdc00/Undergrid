@@ -61,3 +61,20 @@ inspection are now added before room creation to cover those discovery-review
 steps within the continuous journey, rather than relying only on their separate
 feature proofs. The expanded journey, guard aggregate and reviewed release
 integration remain pending; no HP2 local closure is claimed yet.
+
+## Expanded discovery run and retryable contention
+
+On `b908abd`, explicit current compatible-group and registered C-capability UI
+inspection both complete, then the offer receipt retry encounters real NOWAIT
+principal contention (`55P03`); the server returns500/retryable without a second
+offer. The aggregate fails24.447s at the overly strict first-replay201 assertion.
+The failed log/database/artifacts remain retained. The browser now performs at
+most3 explicit visible UI recovery attempts, requires every body/key to equal the
+original committed offer, permits only500 with retryable=true before eventual201,
+and retains the independent final exactly-one application-offer event oracle.
+No server lock, deadline, authorization or success/effect gate is weakened; the
+case exercises the product's already implemented uncertain-command retry behavior.
+
+- `/tmp/undergrid-hp2-continuous-discovery-oct28.jsonl` (retained failure)
+- Database `hp1_run_12bf8f68c06442b69bda1c0d860cd5e9`
+- Browser artifacts `/tmp/undergrid-hp2-browser-3113558250`
