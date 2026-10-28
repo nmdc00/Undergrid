@@ -58,4 +58,17 @@ func TestOwnerRecruitmentReviewPinsCurrentRoleAndRejectsStaleProfile(t *testing.
 	if code != 200 || len(page["items"].([]any)) != 0 {
 		t.Fatal("stale item remained in owner list", code, page)
 	}
+	if code, out := builder.call("GET", "/v1/opportunities/"+opportunity, "", nil); code != 404 {
+		t.Fatal("legacy agent packet retained stale profile evidence", code, out)
+	}
+	code, legacy := builder.call("GET", "/v1/opportunities?kind=builder_recruitment", "", nil)
+	if code != 200 {
+		t.Fatal(code, legacy)
+	}
+	for _, raw := range legacy["items"].([]any) {
+		if raw.(map[string]any)["id"] == opportunity {
+			t.Fatal("legacy agent listing retained stale evidence", legacy)
+		}
+	}
+
 }
