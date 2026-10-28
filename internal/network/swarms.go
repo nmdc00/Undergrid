@@ -69,6 +69,12 @@ func (s *Service) swarmCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, e
 			}
 		}
 	}
+	if strings.HasSuffix(r.URL.Path, "/invitations") {
+		parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/v1/swarms/"), "/")
+		if err := preauthorizeApplicationOffer(r, tx, parts[0]); err != nil {
+			return 0, nil, err
+		}
+	}
 	if r.URL.Path == "/v1/swarms" {
 		request, err := readIdempotencyRequest(r, true)
 		if err != nil {
@@ -229,12 +235,7 @@ func (s *Service) invite(r *http.Request, tx pgx.Tx, a actor, swarm string) (int
 	if err := roomAuthority(r.Context(), tx, a, swarm, true); err != nil {
 		return 0, nil, err
 	}
-	var in struct {
-		AgentID       string    `json:"agent_id"`
-		Role          string    `json:"role"`
-		RespondBy     time.Time `json:"respond_by"`
-		ApplicationID string    `json:"application_id,omitempty"`
-	}
+	var in invitationInput
 	if err := decode(r, &in); err != nil {
 		return 0, nil, err
 	}
@@ -250,7 +251,7 @@ func (s *Service) invite(r *http.Request, tx pgx.Tx, a actor, swarm string) (int
 			return 0, nil, fail(422, "invalid_application")
 		}
 		id = in.ApplicationID
-		err = tx.QueryRow(r.Context(), "UPDATE memberships SET state='offered',role=$4,respond_by=$5,version=version+1 WHERE id=$1 AND swarm_id=$2 AND agent_id=$3 AND state='applied' AND respond_by>now() RETURNING principal_id,version", id, swarm, in.AgentID, in.Role, in.RespondBy).Scan(&principal, &version)
+		err = tx.QueryRow(r.Context(), "UPDATE memberships SET state='offered',role=$4,respond_by=$5,version=version+1 WHERE id=$1 AND swarm_id=$2 AND agent_id=$3 AND state='applied' AND respond_by>clock_timestamp() RETURNING principal_id,version", id, swarm, in.AgentID, in.Role, in.RespondBy).Scan(&principal, &version)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return 0, nil, fail(409, "application_not_current")
 		}

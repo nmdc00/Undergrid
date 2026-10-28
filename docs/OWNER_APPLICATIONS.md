@@ -166,3 +166,38 @@ Dedicated read pagination/expiry/revocation/zero-effect guards, current recruitm
 review, reviewed coordinator offer/current-target enforcement, canonical contracts,
 UI/browser proof and final gates remain open. The feature is unmerged; HP2 remains
 active and no external qualification is inferred.
+
+## Shared application-offer target guard — 28 October 2026
+
+Test-only `e734681` exposes a real agent-domain gap in two phases: revoked
+applicants could receive a new application-origin offer or recover an old offer
+receipt. Both fail the required denial before implementation. Current target
+principal/agent authority is now checked before generic invitation idempotency
+recovery. The same validated invitation input type is used for parsing and
+mutation, avoiding independently maintained body knowledge. The existing owner
+ordinary invitation adapter cannot supply application_id; the new owner
+application-offer command must use this shared guard too.
+
+Narrow migration050 is frozen at SHA256
+`f00c1f1739c643f73a77034fd793aceac322d8221dea5dff9c254d529f66b96a`.
+Its app-only SECURITY DEFINER function checks the current coordinator, accepted
+coordinator membership, active room and live application, then locks active target
+principal/agent rows FOR SHARE NOWAIT. It returns only a boolean; no foreign
+profile/owner data or broad table grant is exposed. NOWAIT avoids cycles behind
+already-held actor/room authority and makes contention retryable rather than
+silently authorizing stale targets. Mutation-time application expiry now uses the
+actual database clock as well. Dedicated contention/principal-revocation cases
+remain to be added; no unrun concurrency proof is claimed.
+
+The new two-phase denial plus unchanged normal application→offer→admission and
+expiry gates pass3 top-level/two subcases in3.048s. Denial preserves the applied
+state with zero offers before creation, or exactly one existing offer after
+receipt recovery is denied. Logs:
+
+- `/tmp/undergrid-application-offer-authority-red-oct28.jsonl`
+- `/tmp/undergrid-application-offer-authority-green-oct28.jsonl`
+
+Reviewed owner-offer version/history controls, complete read/current-recruitment
+and contention guards, canonical owner contracts, UI/browser proof and final
+integration/review remain open. This is an unmerged security/backend checkpoint,
+not completion of owner applications or full HP2.
