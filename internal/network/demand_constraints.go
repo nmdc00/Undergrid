@@ -131,10 +131,15 @@ func cloneBound(v *time.Time) *time.Time {
 // dimension requested by the other principal is unknown; explicit empty
 // coverage lists mean no extra scope restriction. Contradictions dominate unknown.
 func compareDemandConstraints(a, b IntentInput) Compatibility {
+	return assessDemandConstraints(a, b, false)
+}
+
+// Reports need every dimension; existing opportunity evidence retains its historical shape.
+func assessDemandConstraints(a, b IntentInput, completeEvidence bool) Compatibility {
 	e := Compatibility{Compatible: true, Status: "compatible", Reasons: []string{}, Algorithm: "hard-constraints-exact-v1"}
 	ac, bc := a.HardConstraints, b.HardConstraints
 	ac.LicenseIDs, bc.LicenseIDs = declaredLicenses(ac.LicenseIDs), declaredLicenses(bc.LicenseIDs)
-	typed := typedConstraints(ac) || typedConstraints(bc)
+	typed := completeEvidence || typedConstraints(ac) || typedConstraints(bc)
 	combined := Constraints{RequiredFields: unionLabels(ac.RequiredFields, bc.RequiredFields), LicenseIDs: intersectLabels(ac.LicenseIDs, bc.LicenseIDs)}
 	add := func(dimension, status, reason string) {
 		if typed {

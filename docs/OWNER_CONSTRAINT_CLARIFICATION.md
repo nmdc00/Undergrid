@@ -74,3 +74,34 @@ At this checkpoint behavior is not implemented or proven. No legal, provider,
 source, cohort or deployment approval follows from local fixture proof. HP2 still
 requires complementary capabilities, typed controls, applications and its complete
 continuous journey after the remaining verticals integrate.
+
+## First core checkpoint — 28 October 2026
+
+Test-only `1f8afcd` reached actual restricted PostgreSQL RED: both owner and agent
+report requests returned404 (one top-level/two subcases, package0.961s), after
+normal source/candidate creation succeeded. Original log:
+`/tmp/undergrid-constraint-clarification-1f8afcd-http-red-oct28.jsonl`;
+retained database `clarification_red_oct28` on the isolated55502 network fixture.
+
+The first core implementation passed the same behavioral matrix on the frozen
+working tree subsequently committed with this checkpoint: owner and agent agree,
+coverage absence is unknown, different prose with aligned hard constraints remains
+separately unassessed, incompatible licenses stay incompatible, private metadata
+is absent, watch-disabled explicit inspection works, and no report read creates
+opportunities/events/inbox/jobs/memberships. One top-level/two subcases passed
+2.012s; `/tmp/undergrid-constraint-clarification-first-green-oct28.jsonl`, genuine
+fresh `clarification_green_oct28`. These are focused core results, not release proof.
+
+A complete-evidence option in the existing evaluator serves the new report while
+its old wrapper retains historical evidence shape. A golden byte-contract guard
+and existing hard/typed-constraint cases passed in1.038s:
+`/tmp/undergrid-constraint-clarification-legacy-unit-oct28.jsonl`.
+Public candidates use the existing `public_intents()` projection boundary; the
+new bounded query adds no broad grants or migration. Source identity/scope/state
+checks are inside the shared domain transaction. No provider call is involved.
+
+Remaining: broader current-authority/withdrawal/expiry/concurrency and bounded
+sampling tests, canonical schemas/generated types/actual wire validation, finite
+MCP/A2A read adapters, owner UI with stale-response recovery, actual normal-owner
+clarification-to-revision browser proof, retained runtime/static gates and final
+review/merge. The feature is unmerged and HP2 is still open.

@@ -116,3 +116,17 @@ func TestConstraintAssessmentReportsUnknownHardEvidenceWithoutInventingMatches(t
 		t.Fatalf("read created opportunities/notifications/jobs/admission: before=%v after=%v", before, after)
 	}
 }
+
+// Opportunity identities and dismissal suppression include these exact evidence
+// bytes. A richer read report must not revise the published legacy evidence.
+func TestConstraintReportsPreserveLegacyMatchingEvidenceBytes(t *testing.T) {
+	a, b := intentFixture(), intentFixture()
+	const want = `{"compatible":true,"status":"compatible","reasons":["same_declared_outcome","same_output_schema","common_permitted_license","required_fields_can_be_combined"],"algorithm":"hard-constraints-exact-v1"}`
+	if got := string(canonical(CompareDemand(a, b))); got != want {
+		t.Fatalf("legacy evidence changed: %s", got)
+	}
+	_ = assessDemandConstraints(a, b, true)
+	if got := string(canonical(CompareDemand(a, b))); got != want {
+		t.Fatalf("report evaluation mutated legacy evidence: %s", got)
+	}
+}
