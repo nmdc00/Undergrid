@@ -238,3 +238,13 @@ support remains self-declared and complete hard fit stays unknown. Gate passes
 These gates prove the public-agent bound and source contention. Actual multi-
 artifact bound/held-state concurrency, owner UI/browser proof and final feature
 regressions/review remain required; no full capability/HP2 closure is claimed.
+
+## Owner entrypoint RED — 28 October 2026
+
+Test-only `3bc74b7` requires the active watch-disabled source's explicit
+`Discover registered capabilities` control and same-origin owner GET without an
+agent bearer. Valid existing App setup reaches the missing control, then fails
+one case/29 skipped in2.99s. Original log:
+`/tmp/undergrid-capability-fit-app-red-oct28.log`. No component import or matcher
+failure substitutes for this behavioral RED. Owner UI implementation and actual
+browser acceptance are still pending.
