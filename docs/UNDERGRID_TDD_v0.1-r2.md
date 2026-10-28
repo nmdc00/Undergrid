@@ -226,7 +226,7 @@ actual publication/21-artifact bound lifecycle gates pass. See
 `OWNER_CAPABILITY_DISCOVERY.md`; reviewed and merged in PR118/release `73e2924`. Owner typed controls are implemented and locally proven on
 `feat/v0.1-owner-typed-requirements` (`ee34f63`), including exact freshness/delivery/
 input requirements and immutable create/revise/remove/reload proof. See
-`OWNER_TYPED_REQUIREMENTS.md`; final review/merge remain pending. Applications and
+`OWNER_TYPED_REQUIREMENTS.md`; reviewed and merged in PR120/release `e7579cd`. Applications and
 continuous HP2 acceptance remain open.
 
 

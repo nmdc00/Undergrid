@@ -784,3 +784,12 @@ passes91.52s, affected server6-top-level/17-subcase gate passes4.042s, and canon
 static/build checks pass. `OWNER_TYPED_REQUIREMENTS.md` owns original failures and
 exact runtime/build/persistence proof. Retained browser gates and review/merge
 remain pending. Applications and complete continuous HP2 acceptance remain open.
+
+
+### Typed-controls merge checkpoint — 28 October 2026
+
+PR120/release `e7579cd` closes the remaining typed owner requirement controls.
+Exact release App/editor 43, coupled build and server rejection/isolation checks
+pass. `OWNER_TYPED_REQUIREMENTS.md` owns all proof and original failures. Next:
+owner applications through coordinator offer and separate applicant admission,
+then the full continuous HP2 discovery-to-accepted-plan journey.

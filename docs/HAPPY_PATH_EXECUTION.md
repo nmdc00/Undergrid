@@ -334,11 +334,11 @@ on `feat/v0.1-owner-compatible-groups`; implementation, local proof and reviewed
 missing-to-resolved evidence; reviewed and merged in PR116/release `47be35a`.
 Exact merged-release UI/build/HTTP/recovery checks pass. Complementary registered capability discovery is reviewed and merged in
 PR118/release `73e2924`. Typed requirement controls are implemented and locally
-proven on `feat/v0.1-owner-typed-requirements` (`ee34f63`); final review/merge
-remain pending in `OWNER_TYPED_REQUIREMENTS.md`. Applications and complete
+proven on `feat/v0.1-owner-typed-requirements` (`ee34f63`); reviewed and merged in PR120/release `e7579cd`; exact-release checks pass in
+`OWNER_TYPED_REQUIREMENTS.md`. Applications and complete
 continuous HP2 acceptance remain open. See
 `OWNER_CONSTRAINT_CLARIFICATION.md`.
-The complete HP2 journey remains unproven. Finish remaining typed requirement and application outcomes, then prove
+The complete HP2 journey remains unproven. Finish owner application outcomes, then prove
 the continuous journey with merged room/plan/assignment steps before starting HP3.
 
 On 26 October, fetched `main...develop` divergence remains `0 1`. Release PR62

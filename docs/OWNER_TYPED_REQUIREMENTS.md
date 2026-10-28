@@ -153,3 +153,18 @@ connection or public CI is introduced. No fresh independent-agent review is
 claimed while established workers remain quota-limited. Changes after `ee34f63`
 are documentation only. All local feature gates pass; PR merge and exact-release
 checks remain pending. Applications and continuous HP2 acceptance remain open.
+
+## Reviewed merge and exact release — 28 October 2026
+
+PR120 merged as `e7579cdfc92e3075b7c5e006a8b3959d39a9db40`. Exact merged-release
+App/editor checks pass 43 cases in 13.72s; the coupled build has the same
+source/asset hashes as the proven browser. Actual malformed-range rejection and
+owner isolation checks pass in 1.158s.
+
+- `/tmp/undergrid-typed-release-e7579cd-ui-oct28.log`
+- `/tmp/undergrid-typed-release-e7579cd-build-oct28.log`
+- `/tmp/undergrid-typed-release-e7579cd-domain-oct28.jsonl`
+
+The typed-controls feature is implemented, locally proven and merged. Owner
+applications and complete continuous HP2 acceptance are next. External
+qualification remains separate; no promotion or deployment occurred.
