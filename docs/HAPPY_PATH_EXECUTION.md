@@ -151,7 +151,7 @@ passed 36 top-level cases plus 40 subcases; current capacity and four baseline
 browser regressions also passed. See
 [`SEMANTIC_INTEGRATION.md`](SEMANTIC_INTEGRATION.md) for exact sources, logs,
 preserved failures and post-merge checks. The dependent owner group viewer is now
-implemented and locally proven on `f4828c5`; final review/merge remains pending.
+reviewed and merged in PR114/release `bc6ddda`, with local proof on `f4828c5`.
 Its actual three-owner nontransitive-view/revision journey passed 39.308s; see
 `OWNER_COMPATIBLE_GROUPS.md`. These proofs do not complete the continuous HP2 journey.
 Owner publication is reviewed and merged in PR103: explicit public creation,
@@ -326,8 +326,8 @@ two-plan acceptance/revision/restart proof and focused post-merge checks.
 Room-origin/recruitment-role controls are reviewed and merged in PR112 at
 `e045f36`, with actual selected-match/recovery/recruitment proof and exact-release
 UI/build/current-authority checks. The owner-compatible-group viewer is now active
-on `feat/v0.1-owner-compatible-groups`; implementation and local proof pass, while
-final feature review/merge remains pending.
+on `feat/v0.1-owner-compatible-groups`; implementation, local proof and reviewed merge are complete in PR114/release
+`bc6ddda`. Visible unknown-hard clarification is the next HP2 task.
 The complete HP2 journey remains unproven. Finish remaining group/clarification,
 complementary capability, typed requirement and application outcomes, then prove
 the continuous journey with merged room/plan/assignment steps before starting HP3.
@@ -339,7 +339,7 @@ remains open; no release promotion or deployment is implied by feature merges.
 | --- | --- | --- |
 | Completed owner plan proposal/revision | `feat/v0.1-owner-plan-proposal`; `/tmp/undergrid-worktrees/owner-plan-proposal/feat-v0.1-owner-plan-proposal` retained | Reviewed and merged in PR110/release `2099a76`. Actual browser on `9040113` passed 29.067s; retained race guards passed 21 top-level/16 subcases in 57.479s. Post-merge UI/build and restricted lifecycle/contract checks pass. `OWNER_PLAN_PROPOSAL.md` owns exact proof and limits. |
 | Completed room origin/recruitment controls | `feat/v0.1-owner-room-origin-recruitment`; `/tmp/undergrid-worktrees/room-origin/feat-v0.1-owner-room-origin-recruitment` | Locally proven: actual selected-match → reviewed restricted room → lost-response exact recovery → worker recruitment without admission, race package 20.111s on `857e07e`; full UI 163 cases, restricted 17 top-level/36-subcase aggregate and retained owner-plan browser pass. `OWNER_ROOM_ORIGIN_RECRUITMENT.md` owns exact evidence and preserved failures. Reviewed and merged in PR112/release `e045f36`; root post-merge UI12/build and restricted two-top-level/two-subcase checks pass. No full-path completion claim. |
-| Active owner-compatible-group viewer | `feat/v0.1-owner-compatible-groups`; `/tmp/undergrid-worktrees/owner-compatible-groups/feat-v0.1-owner-compatible-groups` | Recover the bounded viewer as a scoped feature, prove current pairwise evidence and revision/session invalidation through real owner entrypoints, and retain null/constraint contracts. Actual three-owner group inspection/revision passed 39.308s; domain seven top-level/two subcases, focused/full UI, contracts/static and retained room/plan browsers pass. Final review/merge remains pending; exact scope and preserved failures are in `OWNER_COMPATIBLE_GROUPS.md`. |
+| Completed owner-compatible-group viewer | `feat/v0.1-owner-compatible-groups`; `/tmp/undergrid-worktrees/owner-compatible-groups/feat-v0.1-owner-compatible-groups` | Recover the bounded viewer as a scoped feature, prove current pairwise evidence and revision/session invalidation through real owner entrypoints, and retain null/constraint contracts. Actual three-owner group inspection/revision passed 39.308s; domain seven top-level/two subcases, focused/full UI, contracts/static and retained room/plan browsers pass. Reviewed and merged in PR114/release `bc6ddda`; exact scope and preserved failures are in `OWNER_COMPATIBLE_GROUPS.md`. |
 | Completed prerequisites | Semantic `feat/v0.1-semantic-integration` and builder `feat/v0.1-owner-builder-registration`; preserved isolated worktrees | PR107 and PR106 are reviewed and merged. `SEMANTIC_INTEGRATION.md` and `OWNER_BUILDER_REGISTRATION.md` retain exact sources, failures and proof boundaries. |
 | Integration (`root`) | `release/v0.1`; this checkpoint on `docs/v0.1-room-merge-checkpoint` in its isolated worktree | Review task diffs and evidence before feature PR merges; serialize costly gates and preserve full-path acceptance. |
 

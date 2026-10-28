@@ -161,10 +161,34 @@ the UI. No speculative framework or provider/financial dependency was introduced
 Independent review checked the recovered delta, current schema, revision races,
 complete timestamp helper and actual browser/SQL proof. Root completed the remaining
 retained gates after worker quota exhaustion and reviewed their terminal results.
-Final documentation/feature PR integration remains pending.
+Final documentation/feature PR integration is complete in PR114/release `bc6ddda`.
 
 This closes local proof for the bounded viewer only. Unknown-hard clarification,
 complementary registered capabilities, remaining typed requirement editing,
 application review/offer and the continuous HP2 journey remain open. Controlled
 accounts/vectors do not qualify beneficial-owner independence, providers, legal
 terms, real-source outcomes or deployment. No release promotion is implied.
+
+
+## Merged release checks — 28 October 2026
+
+PR114 merged final feature head `c56a83c5c66accd569cd45ce84d3bcb68b2e9a2a`
+into `bc6dddaeef89757081d7611ab74a8535b629fea7`. Its final delta after tested
+runtime `f4828c5` is documentation only; all 24 log hashes were checked before merge.
+Root checked the exact merged release:
+
+- Viewer component: 41 tests passed, 14.08s;
+  `/tmp/undergrid-groups-release-bc6ddda-ui-oct28.log`.
+- Coupled TypeScript/Vite/manifest passed, Vite1.52s; source `d4bcec38...` and
+  JavaScript `839278f...` match the full hashes recorded above;
+  `/tmp/undergrid-groups-release-bc6ddda-build-oct28.log`.
+- Restricted PostgreSQL three top-level cases/two subcases passed, 20.456s;
+  `/tmp/undergrid-groups-release-bc6ddda-domain-oct28.jsonl`. Genuine database
+  `groups_release_bc6ddda_oct28` was cloned from the preserved normal network
+  template. The fixture restarted normally after interruption; no database,
+  migration ledger or evidence was reset. This is not production restore proof.
+
+The merged viewer is locally complete. HP2 remains active. Visible unknown-hard
+clarification is next, followed by the other explicit remaining outcomes above.
+Workers reached their stated quota until 2 November; root completed these
+already-authorized gates directly, without replacement workers/model changes.

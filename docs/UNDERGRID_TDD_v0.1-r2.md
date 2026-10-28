@@ -205,7 +205,8 @@ Typed constraints: artifact format, required fields/schema family, coverage, fre
 Persist pairwise opportunity evidence, not a generic cluster graph. A cluster API may return a bounded view of compatible opportunities with explicit member constraints and principal dedupe; membership is not transitive and is revalidated before display. Users can dismiss a suggestion or decline participation; the same unchanged evidence is not repeatedly notified. The dismissal vertical adds a current-recipient command shared by REST/owner sessions and finite agent adapters, with transactional receipt recovery and immutable-evidence suppression; see `OPPORTUNITY_DISMISSAL.md` for implementation evidence and pending gates. User-set match thresholds are bounded and logged, not a confidence probability.
 
 Owner compatible-group inspection is implemented and locally proven on
-`feat/v0.1-owner-compatible-groups` (`f4828c5`), pending final review/merge.
+`feat/v0.1-owner-compatible-groups` (`f4828c5`), reviewed and merged in
+PR114/release `bc6ddda`.
 The actual three-owner license counterexample produces separate two-member
 views; source revision/reload removes obsolete evidence without creating
 collaboration authority. See `OWNER_COMPATIBLE_GROUPS.md` for exact browser,
