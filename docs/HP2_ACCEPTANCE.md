@@ -49,3 +49,15 @@ fixture composition correction, not a product change or weakened authority gate.
 
 Final aggregate, negative guards and reviewed release integration remain required.
 HP2 is not locally closed yet. External qualification remains separately open.
+
+## Corrected continuous lifecycle checkpoint
+
+On frozen `e2301bf`, the actual browser and final normalized aggregate both pass
+43.172s (`/tmp/undergrid-hp2-continuous-corrected-oct28.jsonl`), with source-identical
+production build in `/tmp/undergrid-hp2-continuous-corrected-build-oct28.log` and
+retained database `hp1_run_f9921f91a0c84c41b341528d947cbebf`. The preceding aggregate
+failure remains retained. Explicit compatible-group and registered-capability UI
+inspection are now added before room creation to cover those discovery-review
+steps within the continuous journey, rather than relying only on their separate
+feature proofs. The expanded journey, guard aggregate and reviewed release
+integration remain pending; no HP2 local closure is claimed yet.

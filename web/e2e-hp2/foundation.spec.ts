@@ -404,6 +404,45 @@ test(
           await creator
             .getByRole("button", { name: "Review intention", exact: true })
             .click();
+          if (continuous) {
+            const groups = creator.getByRole("region", {
+              name: "Compatible groups",
+              exact: true,
+            });
+            await groups
+              .getByRole("button", {
+                name: "View compatible groups",
+                exact: true,
+              })
+              .click();
+            await expect(
+              groups.getByRole("heading", {
+                name: "Compatible view 1",
+                exact: true,
+              }),
+            ).toBeVisible();
+            await expect(groups).toContainText(actors[0].intent!);
+            await expect(groups).toContainText(actors[1].intent!);
+            await expect(groups).toContainText(
+              "Exact declared outcome and hard constraints",
+            );
+            const capabilities = creator.getByRole("region", {
+              name: "Registered capability discovery",
+              exact: true,
+            });
+            await capabilities
+              .getByRole("button", {
+                name: "Discover registered capabilities",
+                exact: true,
+              })
+              .click();
+            const declared = capabilities.getByRole("article", {
+              name: `Capability ${actors[2].agent}`,
+              exact: true,
+            });
+            await expect(declared).toContainText("Declared schema support");
+            await expect(declared).toContainText(actors[2].principal);
+          }
           await creator
             .getByRole("button", {
               name: "Create swarm from this match",
