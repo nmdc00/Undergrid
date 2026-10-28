@@ -35,7 +35,8 @@ func TestHP2LiveOwnerSelectedMatchRoomAndRecruitment(t *testing.T) {
 func hp2LiveOwnerSetup(t *testing.T, mode hp2SetupMode) {
 	publication, builderRegistration := mode == hp2Publication, mode == hp2Builder
 	planProposal := mode == hp2PlanProposal
-	roomOrigin := mode == hp2RoomOrigin
+	applications := mode == hp2Applications
+	roomOrigin := mode == hp2RoomOrigin || applications
 	groupInspection := mode == hp2CompatibleGroups
 	clarification := mode == hp2Clarifications
 	capabilityDiscovery := mode == hp2CapabilityDiscovery
@@ -153,6 +154,9 @@ func hp2LiveOwnerSetup(t *testing.T, mode hp2SetupMode) {
 	browser := exec.CommandContext(ctx, node, filepath.Join(root, "web", "node_modules", "@playwright", "test", "cli.js"), "test", scenarioFile, "--config", "playwright.hp2.config.ts")
 	browser.Dir = filepath.Join(root, "web")
 	browser.Env = append(os.Environ(), "UNDERGRID_HP1_BASE_URL="+app.URL, "UNDERGRID_HP2_ISSUER_URL="+issuer.URL, "UNDERGRID_TEST_CHROMIUM="+chromium, "UNDERGRID_HP1_BROWSER_ARTIFACTS="+artifacts)
+	if applications {
+		browser.Env = append(browser.Env, "UNDERGRID_HP2_APPLICATIONS=1")
+	}
 	if publication {
 		browser.Env = append(browser.Env, "UNDERGRID_HP2_OWNER_PUBLICATION=1")
 	}
@@ -230,6 +234,10 @@ func hp2LiveOwnerSetup(t *testing.T, mode hp2SetupMode) {
 	if builderRegistration || roomOrigin {
 		expectedCollaborationEffects = 2
 	} // one owner-UI room (origin mode) or agent-API room (builder mode), plus its creator membership
+	if applications {
+		expectedCollaborationEffects = 3
+		assertHP2ApplicationState(t, ctx, admin)
+	}
 	if planProposal {
 		expectedCollaborationEffects = 22
 		assertHP2PlanFinalState(t, ctx, admin)
@@ -288,7 +296,7 @@ func hp2LiveOwnerSetup(t *testing.T, mode hp2SetupMode) {
    (SELECT count(*) FROM undergrid.plan_versions),(SELECT count(*) FROM undergrid.tasks),(SELECT count(*) FROM undergrid.approvals)`).Scan(&profiles, &opportunities, &events, &inbox, &completedRecruitmentJobs, &foreignMemberships, &plans, &tasks, &approvals); err != nil {
 			t.Fatal(err)
 		}
-		if profiles != 1 || opportunities != 1 || events != 1 || inbox != 1 || completedRecruitmentJobs < 1 || foreignMemberships != 0 || plans != 0 || tasks != 0 || approvals != 0 {
+		if profiles != 1 || opportunities != 1 || events != 1 || inbox != 1 || completedRecruitmentJobs < 1 || foreignMemberships != map[bool]int{false: 0, true: 1}[applications] || plans != 0 || tasks != 0 || approvals != 0 {
 			t.Fatalf("builder profile/recruitment effects: profile=%d opp/event/inbox=%d/%d/%d completedjobs=%d memberships=%d plans/tasks/approvals=%d/%d/%d", profiles, opportunities, events, inbox, completedRecruitmentJobs, foreignMemberships, plans, tasks, approvals)
 		}
 	}

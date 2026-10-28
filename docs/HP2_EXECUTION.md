@@ -793,3 +793,18 @@ Exact release App/editor 43, coupled build and server rejection/isolation checks
 pass. `OWNER_TYPED_REQUIREMENTS.md` owns all proof and original failures. Next:
 owner applications through coordinator offer and separate applicant admission,
 then the full continuous HP2 discovery-to-accepted-plan journey.
+
+
+### Owner application local acceptance — 28 October 2026
+
+`feat/v0.1-owner-applications` implements current owner recruitment review,
+immutable declared-role/capability claims, pending applicant/coordinator views,
+reviewed coordinator offer and separate applicant admission through shared domain
+commands. Normal three-owner browser/worker proof on `f56edb0` passes22.049s,
+including lost-response exact offer recovery and history denial until separate
+acceptance. Full UI286, canonical175 schemas,13 backend cases plus15 subcases,
+vet/build and retained room/plan/restart browsers pass. The dedicated51-normal-room
+stale-window/continuation/archive proof passes22.231s. `OWNER_APPLICATIONS.md`
+owns exact sources, evidence, review and limitations. Reviewed merge/exact-release
+checks remain pending; full continuous discovery-to-plan/rights/assignment HP2
+acceptance is still required before HP3.

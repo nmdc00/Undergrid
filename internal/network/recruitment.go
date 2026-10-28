@@ -307,22 +307,42 @@ func (s *Service) recruitOne(ctx context.Context, db *pgx.Conn, swarm string, ro
 	return remaining == 0, tx.Commit(ctx)
 }
 func listRecruitment(r *http.Request, tx pgx.Tx, a actor, id string) (int, any, error) {
-	rows, err := tx.Query(r.Context(), `SELECT o.id,o.source_swarm_id,o.role_key,s.objective,o.evidence FROM opportunities o JOIN swarms s ON s.id=o.source_swarm_id WHERE o.recipient_agent_id=$1 AND o.kind='builder_recruitment' AND o.state='suggested' AND s.state='active' AND s.visibility<>'private' AND ($2='' OR o.id::text=$2) ORDER BY o.created_at LIMIT 100`, a.AgentID, id)
+	rows, err := tx.Query(r.Context(), `SELECT o.id,o.source_swarm_id,o.role_key,o.input_hash,o.evidence FROM opportunities o JOIN swarms s ON s.id=o.source_swarm_id WHERE o.recipient_agent_id=$1 AND o.kind='builder_recruitment' AND o.state='suggested' AND s.state='active' AND s.visibility<>'private' AND ($2='' OR o.id::text=$2) ORDER BY o.created_at LIMIT 100`, a.AgentID, id)
 	if err != nil {
 		return 0, nil, err
 	}
-	defer rows.Close()
-	items := []any{}
+	type candidate struct {
+		id, swarm, role, hash string
+		evidence              []byte
+	}
+	candidates := []candidate{}
 	for rows.Next() {
-		var oid, swarm, role, objective string
-		var evidence []byte
-		if err = rows.Scan(&oid, &swarm, &role, &objective, &evidence); err != nil {
+		var item candidate
+		if err = rows.Scan(&item.id, &item.swarm, &item.role, &item.hash, &item.evidence); err != nil {
+			rows.Close()
 			return 0, nil, err
 		}
-		items = append(items, map[string]any{"id": oid, "kind": "builder_recruitment", "origin": "registered_capability", "swarm_id": swarm, "role_key": role, "objective": objective, "evidence": json.RawMessage(evidence)})
+		candidates = append(candidates, item)
 	}
-	if err = rows.Err(); err != nil {
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
 		return 0, nil, err
+	}
+	items := []any{}
+	for _, item := range candidates {
+		if err = requireCurrentRecruitmentOpportunityEvidence(r, tx, a, item.id, item.swarm, item.role, item.hash); err != nil {
+			var denial problem
+			if errors.As(err, &denial) && denial.Status == 404 {
+				continue
+			}
+			return 0, nil, err
+		}
+		var objective string
+		if err = tx.QueryRow(r.Context(), `SELECT objective FROM swarms WHERE id=$1`, item.swarm).Scan(&objective); err != nil {
+			return 0, nil, err
+		}
+		items = append(items, map[string]any{"id": item.id, "kind": "builder_recruitment", "origin": "registered_capability", "swarm_id": item.swarm, "role_key": item.role, "objective": objective, "evidence": json.RawMessage(item.evidence)})
 	}
 	if id != "" {
 		if len(items) == 0 {
@@ -332,7 +352,13 @@ func listRecruitment(r *http.Request, tx pgx.Tx, a actor, id string) (int, any, 
 	}
 	return 200, map[string]any{"items": items}, nil
 }
+
 func (s *Service) applyToSwarm(r *http.Request, tx pgx.Tx, a actor, swarm string) (int, any, error) {
+	request, err := readIdempotencyRequest(r, true)
+	if err != nil {
+		return 0, nil, err
+	}
+	restoreIdempotencyBody(r, request)
 	var in struct {
 		RoleKey        string   `json:"role_key"`
 		CapabilityRefs []string `json:"capability_refs"`
@@ -343,9 +369,11 @@ func (s *Service) applyToSwarm(r *http.Request, tx pgx.Tx, a actor, swarm string
 	if in.RoleKey == "" || len(in.CapabilityRefs) > 20 {
 		return 0, nil, fail(422, "invalid_application")
 	}
+	restoreIdempotencyBody(r, request)
+	var roomVersion int64
 	var raw []byte
 	var visibility, state string
-	err := tx.QueryRow(r.Context(), "SELECT recruitment_roles,visibility,state FROM swarms WHERE id=$1", swarm).Scan(&raw, &visibility, &state)
+	err = tx.QueryRow(r.Context(), "SELECT recruitment_roles,visibility,state,version FROM application_room_context($1)", swarm).Scan(&raw, &visibility, &state, &roomVersion)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return 0, nil, fail(404, "not_found")
 	}
@@ -359,27 +387,35 @@ func (s *Service) applyToSwarm(r *http.Request, tx pgx.Tx, a actor, swarm string
 	if err = json.Unmarshal(raw, &roles); err != nil {
 		return 0, nil, err
 	}
+	var selectedRole RecruitmentRole
 	found := false
 	for _, role := range roles {
 		if role.Key == in.RoleKey {
 			found = true
+			selectedRole = role
 		}
 	}
 	if !found {
 		return 0, nil, fail(422, "role_not_available")
 	}
-	id := NewID()
-	tag, err := tx.Exec(r.Context(), "INSERT INTO memberships(id,swarm_id,agent_id,principal_id,state,role,origin,role_key) VALUES($1,$2,$3,$4,'applied','contributor','application',$5) ON CONFLICT(swarm_id,agent_id) DO NOTHING", id, swarm, a.AgentID, a.PrincipalID, in.RoleKey)
-	if err != nil {
-		return 0, nil, err
-	}
-	if tag.RowsAffected() == 0 {
-		return 0, nil, fail(409, "membership_exists")
-	}
-	if err = s.roomEvent(r.Context(), tx, a, id, 1, "membership.applied", swarm, "/v1/swarms/"+swarm+"/context"); err != nil {
-		return 0, nil, err
-	}
-	return 201, map[string]any{"id": id, "state": "applied", "version": 1, "etag": etag(1)}, nil
+	return idempotent(r, tx, a, func() (int, any, error) {
+		if expected := r.Header.Get("If-Match"); expected != "" && expected != etag(roomVersion) {
+			return 0, nil, fail(409, "version_conflict")
+		}
+		claims := map[string]any{"schema": "application-claims-v1", "role_key": in.RoleKey, "capability_refs": in.CapabilityRefs, "role": selectedRole, "swarm_version": roomVersion}
+		id := NewID()
+		tag, err := tx.Exec(r.Context(), "WITH application_clock AS MATERIALIZED (SELECT clock_timestamp() AS at) INSERT INTO memberships(id,swarm_id,agent_id,principal_id,state,role,origin,role_key,application_claims,respond_by,created_at) SELECT $1,$2,$3,$4,'applied','contributor','application',$5,$6,at+interval '72 hours',at FROM application_clock ON CONFLICT(swarm_id,agent_id) DO NOTHING", id, swarm, a.AgentID, a.PrincipalID, in.RoleKey, canonical(claims))
+		if err != nil {
+			return 0, nil, err
+		}
+		if tag.RowsAffected() == 0 {
+			return 0, nil, fail(409, "membership_exists")
+		}
+		if err = s.roomEvent(r.Context(), tx, a, id, 1, "membership.applied", swarm, "/v1/swarms/"+swarm+"/context"); err != nil {
+			return 0, nil, err
+		}
+		return 201, map[string]any{"id": id, "state": "applied", "version": 1, "etag": etag(1)}, nil
+	})
 }
 
 func recruitmentRoute(r *http.Request, tx pgx.Tx, a actor) (bool, int, any, error) {

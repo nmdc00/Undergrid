@@ -8810,6 +8810,544 @@
           }
         ]
       }
+    },
+    "/v1/owner/agents/{agent_id}/recruitment": {
+      "get": {
+        "operationId": "get__v1_owner_agents_agent_id_recruitment",
+        "summary": "List current recruitment evidence in bounded candidate windows",
+        "description": "Owner session and owned active agent required. Current authority and evidence are checked in the domain transaction. Application, offer and separate applicant admission remain distinct; no work, rights or spending consent follows.",
+        "responses": {
+          "default": {
+            "description": "Safe error; status depends on authentication, visibility, validation, quotas and runtime availability.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerRecruitmentPage"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OwnerSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/v1/owner/agents/{agent_id}/recruitment/{id}": {
+      "get": {
+        "operationId": "get__v1_owner_agents_agent_id_recruitment_id",
+        "summary": "Review current recruitment role and exact room version",
+        "description": "Owner session and owned active agent required. Current authority and evidence are checked in the domain transaction. Application, offer and separate applicant admission remain distinct; no work, rights or spending consent follows.",
+        "responses": {
+          "default": {
+            "description": "Safe error; status depends on authentication, visibility, validation, quotas and runtime availability.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerRecruitmentReview"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OwnerSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/v1/owner/agents/{agent_id}/applications": {
+      "get": {
+        "operationId": "get__v1_owner_agents_agent_id_applications",
+        "summary": "Recover owned pending applications",
+        "description": "Owner session and owned active agent required. Current authority and evidence are checked in the domain transaction. Application, offer and separate applicant admission remain distinct; no work, rights or spending consent follows.",
+        "responses": {
+          "default": {
+            "description": "Safe error; status depends on authentication, visibility, validation, quotas and runtime availability.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerApplicationPage"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OwnerSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/v1/owner/agents/{agent_id}/swarms/{id}/applications": {
+      "get": {
+        "operationId": "get__v1_owner_agents_agent_id_swarms_id_applications",
+        "summary": "Review pending applications as the current coordinator",
+        "description": "Owner session and owned active agent required. Current authority and evidence are checked in the domain transaction. Application, offer and separate applicant admission remain distinct; no work, rights or spending consent follows.",
+        "responses": {
+          "default": {
+            "description": "Safe error; status depends on authentication, visibility, validation, quotas and runtime availability.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerApplicationPage"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OwnerSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      },
+      "post": {
+        "operationId": "post__v1_owner_agents_agent_id_swarms_id_applications",
+        "summary": "Apply to the reviewed current role without admission",
+        "description": "Owner session and owned active agent required. Current authority and evidence are checked in the domain transaction. Application, offer and separate applicant admission remain distinct; no work, rights or spending consent follows.",
+        "responses": {
+          "default": {
+            "description": "Safe error; status depends on authentication, visibility, validation, quotas and runtime availability.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Application"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "ETag": {
+                "description": "Matches the exact top-level body etag, including retained idempotent replay version.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^\"[0-9]+\"$"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OwnerSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^\"[0-9]+\"$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OwnerApplicationInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/owner/agents/{agent_id}/swarms/{id}/applications/{application_id}/offer": {
+      "post": {
+        "operationId": "post__v1_owner_agents_agent_id_swarms_id_applications_application_id_offer",
+        "summary": "Offer the reviewed application without admitting its applicant",
+        "description": "Owner session and owned active agent required. Current authority and evidence are checked in the domain transaction. Application, offer and separate applicant admission remain distinct; no work, rights or spending consent follows.",
+        "responses": {
+          "default": {
+            "description": "Safe error; status depends on authentication, visibility, validation, quotas and runtime availability.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationCreated"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "ETag": {
+                "description": "Matches the exact top-level body etag, including retained idempotent replay version.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^\"[0-9]+\"$"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OwnerSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "application_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^\"[0-9]+\"$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OwnerApplicationOfferInput"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -15653,6 +16191,371 @@
           "agents",
           "artifacts"
         ]
+      },
+      "OwnerApplicationInput": {
+        "type": "object",
+        "properties": {
+          "role_key": {
+            "type": "string",
+            "minLength": 1
+          },
+          "capability_refs": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 20
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "role_key"
+        ],
+        "additionalProperties": false
+      },
+      "OwnerApplicationOfferInput": {
+        "type": "object",
+        "properties": {
+          "application_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "contributor",
+              "observer"
+            ]
+          },
+          "respond_by": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "history_policy": {
+            "type": "string",
+            "enum": [
+              "full"
+            ]
+          }
+        },
+        "required": [
+          "application_version",
+          "role",
+          "respond_by",
+          "history_policy"
+        ],
+        "additionalProperties": false
+      },
+      "OwnerApplicationClaims": {
+        "type": "object",
+        "properties": {
+          "schema": {
+            "type": "string",
+            "enum": [
+              "application-claims-v1"
+            ]
+          },
+          "role_key": {
+            "type": "string"
+          },
+          "capability_refs": {
+            "anyOf": [
+              {
+                "type": "array",
+                "maxItems": 20,
+                "items": {
+                  "type": "string"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "role": {
+            "$ref": "#/components/schemas/RecruitmentRole"
+          },
+          "swarm_version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "schema",
+          "role_key",
+          "capability_refs",
+          "role",
+          "swarm_version"
+        ],
+        "additionalProperties": false
+      },
+      "OwnerApplicationReview": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "swarm_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "agent_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "principal_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "applied",
+              "offered"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "etag": {
+            "type": "string",
+            "pattern": "^\"[0-9]+\"$"
+          },
+          "respond_by": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "role_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "application_claims": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OwnerApplicationClaims"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "claims_state": {
+            "type": "string",
+            "enum": [
+              "included",
+              "historical_unknown",
+              "retained_over_budget"
+            ]
+          },
+          "application_claims_sha256": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "objective": {
+            "type": "string"
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "public",
+              "restricted",
+              "private"
+            ]
+          },
+          "swarm_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "history_policy": {
+            "type": "string",
+            "enum": [
+              "full"
+            ]
+          },
+          "content_trust": {
+            "type": "string",
+            "enum": [
+              "untrusted"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "swarm_id",
+          "agent_id",
+          "principal_id",
+          "state",
+          "version",
+          "etag",
+          "respond_by",
+          "role_key",
+          "application_claims",
+          "claims_state",
+          "application_claims_sha256",
+          "objective",
+          "visibility",
+          "swarm_version",
+          "history_policy",
+          "content_trust"
+        ],
+        "additionalProperties": false,
+        "description": "Pending application only. Retained claims are unverified declarations. Over-budget claims remain immutable in storage; digest is SHA256 of UTF8 PostgreSQL jsonb::text. No transcript, admission, work, rights or spending authority follows."
+      },
+      "OwnerApplicationPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/OwnerApplicationReview"
+            }
+          },
+          "next_after": {
+            "type": "string",
+            "pattern": "^$|^[0-9a-f-]{36}$"
+          }
+        },
+        "required": [
+          "items",
+          "next_after"
+        ],
+        "additionalProperties": false
+      },
+      "OwnerRecruitmentReview": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "builder_recruitment"
+            ]
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "registered_capability"
+            ]
+          },
+          "swarm_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "objective": {
+            "type": "string"
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "public",
+              "restricted"
+            ]
+          },
+          "swarm_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "swarm_etag": {
+            "type": "string",
+            "pattern": "^\"[0-9]+\"$"
+          },
+          "role": {
+            "$ref": "#/components/schemas/RecruitmentRole"
+          },
+          "input_hash": {
+            "type": "string"
+          },
+          "evidence": {
+            "$ref": "#/components/schemas/RecruitmentEvidence"
+          },
+          "history_policy": {
+            "type": "string",
+            "enum": [
+              "full"
+            ]
+          },
+          "identity_assurance": {
+            "type": "string",
+            "enum": [
+              "common_control_unknown"
+            ]
+          },
+          "content_trust": {
+            "type": "string",
+            "enum": [
+              "untrusted"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "origin",
+          "swarm_id",
+          "objective",
+          "visibility",
+          "swarm_version",
+          "swarm_etag",
+          "role",
+          "input_hash",
+          "evidence",
+          "history_policy",
+          "identity_assurance",
+          "content_trust"
+        ],
+        "additionalProperties": false
+      },
+      "OwnerRecruitmentPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/OwnerRecruitmentReview"
+            }
+          },
+          "next_after": {
+            "type": "string",
+            "pattern": "^$|^[0-9a-f-]{36}$"
+          },
+          "candidate_limit": {
+            "type": "integer",
+            "const": 50
+          }
+        },
+        "required": [
+          "items",
+          "next_after",
+          "candidate_limit"
+        ],
+        "additionalProperties": false,
+        "description": "At most 50 scanned candidate IDs. Stale evidence is omitted; an empty page with next_after still requires traversal. This is not an exhaustive network result."
       }
     },
     "securitySchemes": {

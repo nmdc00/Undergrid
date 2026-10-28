@@ -2074,6 +2074,110 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/owner/agents/{agent_id}/recruitment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List current recruitment evidence in bounded candidate windows
+         * @description Owner session and owned active agent required. Current authority and evidence are checked in the domain transaction. Application, offer and separate applicant admission remain distinct; no work, rights or spending consent follows.
+         */
+        get: operations["get__v1_owner_agents_agent_id_recruitment"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/agents/{agent_id}/recruitment/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Review current recruitment role and exact room version
+         * @description Owner session and owned active agent required. Current authority and evidence are checked in the domain transaction. Application, offer and separate applicant admission remain distinct; no work, rights or spending consent follows.
+         */
+        get: operations["get__v1_owner_agents_agent_id_recruitment_id"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/agents/{agent_id}/applications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Recover owned pending applications
+         * @description Owner session and owned active agent required. Current authority and evidence are checked in the domain transaction. Application, offer and separate applicant admission remain distinct; no work, rights or spending consent follows.
+         */
+        get: operations["get__v1_owner_agents_agent_id_applications"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/agents/{agent_id}/swarms/{id}/applications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Review pending applications as the current coordinator
+         * @description Owner session and owned active agent required. Current authority and evidence are checked in the domain transaction. Application, offer and separate applicant admission remain distinct; no work, rights or spending consent follows.
+         */
+        get: operations["get__v1_owner_agents_agent_id_swarms_id_applications"];
+        put?: never;
+        /**
+         * Apply to the reviewed current role without admission
+         * @description Owner session and owned active agent required. Current authority and evidence are checked in the domain transaction. Application, offer and separate applicant admission remain distinct; no work, rights or spending consent follows.
+         */
+        post: operations["post__v1_owner_agents_agent_id_swarms_id_applications"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/agents/{agent_id}/swarms/{id}/applications/{application_id}/offer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Offer the reviewed application without admitting its applicant
+         * @description Owner session and owned active agent required. Current authority and evidence are checked in the domain transaction. Application, offer and separate applicant admission remain distinct; no work, rights or spending consent follows.
+         */
+        post: operations["post__v1_owner_agents_agent_id_swarms_id_applications_application_id_offer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3648,6 +3752,92 @@ export interface components {
             identity_assurance: "common_control_unknown";
             agents: components["schemas"]["PublicAgentCapabilitySample"];
             artifacts: components["schemas"]["ArtifactCapabilitySample"];
+        };
+        OwnerApplicationInput: {
+            role_key: string;
+            capability_refs?: string[] | null;
+        };
+        OwnerApplicationOfferInput: {
+            application_version: number;
+            /** @enum {string} */
+            role: "contributor" | "observer";
+            /** Format: date-time */
+            respond_by: string;
+            /** @enum {string} */
+            history_policy: "full";
+        };
+        OwnerApplicationClaims: {
+            /** @enum {string} */
+            schema: "application-claims-v1";
+            role_key: string;
+            capability_refs: string[] | null;
+            role: components["schemas"]["RecruitmentRole"];
+            swarm_version: number;
+        };
+        /** @description Pending application only. Retained claims are unverified declarations. Over-budget claims remain immutable in storage; digest is SHA256 of UTF8 PostgreSQL jsonb::text. No transcript, admission, work, rights or spending authority follows. */
+        OwnerApplicationReview: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            swarm_id: string;
+            /** Format: uuid */
+            agent_id: string;
+            /** Format: uuid */
+            principal_id: string;
+            /** @enum {string} */
+            state: "applied" | "offered";
+            version: number;
+            etag: string;
+            /** Format: date-time */
+            respond_by: string;
+            role_key: string | null;
+            application_claims: components["schemas"]["OwnerApplicationClaims"] | null;
+            /** @enum {string} */
+            claims_state: "included" | "historical_unknown" | "retained_over_budget";
+            application_claims_sha256: string | null;
+            objective: string;
+            /** @enum {string} */
+            visibility: "public" | "restricted" | "private";
+            swarm_version: number;
+            /** @enum {string} */
+            history_policy: "full";
+            /** @enum {string} */
+            content_trust: "untrusted";
+        };
+        OwnerApplicationPage: {
+            items: components["schemas"]["OwnerApplicationReview"][];
+            next_after: string;
+        };
+        OwnerRecruitmentReview: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            kind: "builder_recruitment";
+            /** @enum {string} */
+            origin: "registered_capability";
+            /** Format: uuid */
+            swarm_id: string;
+            objective: string;
+            /** @enum {string} */
+            visibility: "public" | "restricted";
+            swarm_version: number;
+            swarm_etag: string;
+            role: components["schemas"]["RecruitmentRole"];
+            input_hash: string;
+            evidence: components["schemas"]["RecruitmentEvidence"];
+            /** @enum {string} */
+            history_policy: "full";
+            /** @enum {string} */
+            identity_assurance: "common_control_unknown";
+            /** @enum {string} */
+            content_trust: "untrusted";
+        };
+        /** @description At most 50 scanned candidate IDs. Stale evidence is omitted; an empty page with next_after still requires traversal. This is not an exhaustive network result. */
+        OwnerRecruitmentPage: {
+            items: components["schemas"]["OwnerRecruitmentReview"][];
+            next_after: string;
+            /** @constant */
+            candidate_limit: 50;
         };
     };
     responses: never;
@@ -7980,6 +8170,247 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CapabilityFitReport"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get__v1_owner_agents_agent_id_recruitment: {
+        parameters: {
+            query?: {
+                after?: string;
+            };
+            header?: never;
+            path: {
+                agent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OwnerRecruitmentPage"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get__v1_owner_agents_agent_id_recruitment_id: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agent_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OwnerRecruitmentReview"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get__v1_owner_agents_agent_id_applications: {
+        parameters: {
+            query?: {
+                after?: string;
+            };
+            header?: never;
+            path: {
+                agent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OwnerApplicationPage"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    get__v1_owner_agents_agent_id_swarms_id_applications: {
+        parameters: {
+            query?: {
+                after?: string;
+            };
+            header?: never;
+            path: {
+                agent_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OwnerApplicationPage"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post__v1_owner_agents_agent_id_swarms_id_applications: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+                "X-CSRF-Token": string;
+                "If-Match": string;
+            };
+            path: {
+                agent_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OwnerApplicationInput"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            201: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    /** @description Matches the exact top-level body etag, including retained idempotent replay version. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Application"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    post__v1_owner_agents_agent_id_swarms_id_applications_application_id_offer: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+                "X-CSRF-Token": string;
+                "If-Match": string;
+            };
+            path: {
+                agent_id: string;
+                id: string;
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OwnerApplicationOfferInput"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            201: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    /** @description Matches the exact top-level body etag, including retained idempotent replay version. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationCreated"];
                 };
             };
             /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */

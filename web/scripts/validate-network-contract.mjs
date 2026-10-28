@@ -43,6 +43,25 @@ const baseline={id:'a8391ea6-5003-401e-85e1-47c116fe3da0',version:1,etag:'"1"',s
 if (!publicIntent(baseline)) throw Error('Independent public fixture invalid');
 if (publicIntent({...baseline,budget:{amount_minor:100,currency:'EUR',kind:'stated_budget'}})) throw Error('Public budget leak permitted');
 if (publicIntent({...baseline,version:'1'})) throw Error('String version permitted');
+if (process.argv.includes('--owner-applications')) {
+ const actual=cases.filter(c=>c.status<400 && /\/(recruitment|applications)(\/|$)/.test(c.path));
+ if(!actual.length)throw Error('Missing actual owner application/recruitment cases');
+ for(const c of actual){
+  const path=new URL(c.path,'https://contract.test').pathname;
+  const entry=Object.entries(document.paths).find(([template,item])=>item[c.method.toLowerCase()] && new RegExp('^'+template.replace(/\{[^}]+\}/g,'[^/]+')+'$').test(path));
+  const schema=entry[1][c.method.toLowerCase()].responses[c.status].content['application/json'].schema;
+  const validate=validateSchema(schema);
+  if(validate({...c.response,transcript:[]}))throw Error('Application read/write permits transcript disclosure');
+ }
+ const offer=validateSchema({$ref:'#/components/schemas/OwnerApplicationOfferInput'});
+ const baseline={application_version:1,role:'contributor',respond_by:'2026-10-29T12:00:00Z',history_policy:'full'};
+ if(!offer(baseline))throw Error('Independent reviewed offer fixture invalid');
+ for(const input of [{...baseline,application_version:'1'},{...baseline,history_policy:'partial'},{...baseline,agent_id:'a8391ea6-5003-401e-85e1-47c116fe3da0'}]){
+  if(offer(input))throw Error('Offer permits stale/misdirected authority input');
+ }
+ console.log(`Validated ${cases.length} actual owner recruitment/application cases and independent authority negatives`);
+ process.exit(0);
+}
 if (process.argv.includes('--capability-fit')) {
  const actual=cases.find(c=>c.status===200&&c.path.endsWith('/capability-fit')&&c.response.agents?.items?.length);
  if (!actual) throw Error('Missing actual public agent capability report');

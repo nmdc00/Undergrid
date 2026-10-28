@@ -26,6 +26,7 @@ const (
 	hp2Clarifications
 	hp2CapabilityDiscovery
 	hp2TypedRequirements
+	hp2Applications
 )
 
 func TestHP2LiveOwnerPlanProposalRevisionAndRecovery(t *testing.T) {
