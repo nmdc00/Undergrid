@@ -22,11 +22,12 @@ func (s *Service) ownerParticipation(r *http.Request, tx pgx.Tx, principal strin
 	invitation := len(parts) == 6 && parts[4] == "invitations" && validID(parts[5])
 	context := len(parts) == 7 && parts[4] == "swarms" && validID(parts[5]) && parts[6] == "context"
 	inviteMember := len(parts) == 7 && parts[4] == "swarms" && validID(parts[5]) && parts[6] == "invitations"
+	offer := len(parts) == 9 && parts[4] == "swarms" && validID(parts[5]) && parts[6] == "applications" && validID(parts[7]) && parts[8] == "offer"
 	applicationCollection := len(parts) == 5 && parts[4] == "applications"
 	application := len(parts) == 7 && parts[4] == "swarms" && validID(parts[5]) && parts[6] == "applications"
 	message := len(parts) == 7 && parts[4] == "swarms" && validID(parts[5]) && parts[6] == "messages"
 	response := len(parts) == 7 && parts[4] == "swarms" && validID(parts[5]) && parts[6] == "membership-response"
-	if !creation && !collection && !invitation && !context && !response && !inviteMember && !message && !application && !applicationCollection {
+	if !creation && !collection && !invitation && !context && !response && !inviteMember && !message && !application && !applicationCollection && !offer {
 		return 0, nil, fail(404, "not_found")
 	}
 	if application {
@@ -34,7 +35,7 @@ func (s *Service) ownerParticipation(r *http.Request, tx pgx.Tx, principal strin
 			return 0, nil, fail(405, "method_not_allowed")
 		}
 	} else {
-		mutation := creation || response || inviteMember || message
+		mutation := creation || response || inviteMember || message || offer
 		if (mutation && r.Method != http.MethodPost) || (!mutation && r.Method != http.MethodGet) {
 			return 0, nil, fail(405, "method_not_allowed")
 		}
@@ -46,6 +47,9 @@ func (s *Service) ownerParticipation(r *http.Request, tx pgx.Tx, principal strin
 	}
 	if creation {
 		return s.ownerCreateSwarm(r, tx, a)
+	}
+	if offer {
+		return s.ownerApplicationOffer(r, tx, a, parts[5], parts[7])
 	}
 	if inviteMember {
 		return s.ownerInviteMember(r, tx, a, parts[5])

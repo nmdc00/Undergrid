@@ -38,12 +38,66 @@ func TestOwnerApplicationReviewedOfferStillRequiresApplicantAdmission(t *testing
 	}
 	var state string
 	var obligations int
-	if err := db.QueryRow(context.Background(), `SELECT state,(SELECT count(*) FROM undergrid.plan_versions)+(SELECT count(*) FROM undergrid.tasks)+(SELECT count(*) FROM undergrid.approvals) FROM undergrid.memberships WHERE id=$1`, application["id"]).Scan(&state, &obligations); err != nil {
+	if err := db.QueryRow(context.Background(), `SELECT state,(SELECT count(*) FROM undergrid.plan_versions p WHERE p.swarm_id=m.swarm_id)+(SELECT count(*) FROM undergrid.tasks t JOIN undergrid.plan_versions p ON p.id=t.plan_id WHERE p.swarm_id=m.swarm_id)+(SELECT count(*) FROM undergrid.approvals a JOIN undergrid.plan_versions p ON p.id=a.plan_id WHERE p.swarm_id=m.swarm_id) FROM undergrid.memberships m WHERE m.id=$1`, application["id"]).Scan(&state, &obligations); err != nil {
 		t.Fatal(err)
 	}
-	if state != "accepted" {
+	if state != "accepted" || obligations != 0 {
 		t.Fatal("explicit acceptance missing", state)
 	}
-	// Other retained tests can own plans/tasks; this journey does not create any.
-	_ = obligations
+}
+
+func TestOwnerApplicationOfferPinsReviewsAndRecoversExactly(t *testing.T) {
+	s, db := ownerSwarmCreationFixture(t)
+	organizer, builder, foreign := collaborationClient(t, s), collaborationClient(t, s), client(t, s)
+	code, room := organizer.call("POST", "/v1/swarms", NewID(), map[string]any{"objective": "Pinned application offer reviews", "visibility": "restricted", "recruitment_roles": []any{map[string]any{"key": "builder", "schema_family": "source_catalog_v1", "description": "Declared role"}}})
+	if code != 201 {
+		t.Fatal(code, room)
+	}
+	_, target := builder.call("GET", "/v1/me", "", nil)
+	_, coord := organizer.call("GET", "/v1/me", "", nil)
+	swarm := room["id"].(string)
+	code, application := builder.call("POST", "/v1/swarms/"+swarm+"/applications", NewID(), map[string]any{"role_key": "builder", "capability_refs": []string{"source_catalog_v1"}})
+	if code != 201 {
+		t.Fatal(code, application)
+	}
+	path := "/v1/owner/agents/" + coord["agent_id"].(string) + "/swarms/" + swarm + "/applications/" + application["id"].(string) + "/offer"
+	body := map[string]any{"application_version": 1, "role": "contributor", "respond_by": time.Now().Add(time.Hour), "history_policy": "full"}
+	for _, c := range []struct {
+		actor   testClient
+		tag     string
+		version int
+		history string
+		want    int
+	}{{organizer, "", 1, "full", 428}, {organizer, etag(999), 1, "full", 409}, {organizer, room["etag"].(string), 999, "full", 409}, {organizer, room["etag"].(string), 1, "partial", 422}, {foreign, room["etag"].(string), 1, "full", 404}} {
+		candidate := map[string]any{"application_version": c.version, "role": body["role"], "respond_by": body["respond_by"], "history_policy": c.history}
+		if code, out := ownerCallMatch(c.actor, "POST", path, NewID(), c.tag, candidate); code != c.want {
+			t.Fatal("offer review precondition", code, c.want, out)
+		}
+	}
+	key := NewID()
+	code, offer := ownerCallMatch(organizer, "POST", path, key, room["etag"].(string), body)
+	if code != 201 {
+		t.Fatal(code, offer)
+	}
+	code, replay := ownerCallMatch(organizer, "POST", path, key, room["etag"].(string), body)
+	if code != 201 || string(canonical(replay)) != string(canonical(offer)) {
+		t.Fatal("offer receipt changed", code, replay, offer)
+	}
+	if code, out := ownerCallMatch(organizer, "POST", path, NewID(), room["etag"].(string), body); code != 409 {
+		t.Fatal("stale application review reused", code, out)
+	}
+	if _, err := db.Exec(context.Background(), `UPDATE undergrid.agents SET status='revoked' WHERE id=$1`, target["agent_id"]); err != nil {
+		t.Fatal(err)
+	}
+	if code, out := ownerCallMatch(organizer, "POST", path, key, room["etag"].(string), body); code != 409 {
+		t.Fatal("owner receipt bypassed current applicant authority", code, out)
+	}
+	var state string
+	var offered int
+	if err := db.QueryRow(context.Background(), `SELECT state,(SELECT count(*) FROM undergrid.events WHERE aggregate_id=m.id AND type='membership.offered') FROM undergrid.memberships m WHERE id=$1`, application["id"]).Scan(&state, &offered); err != nil {
+		t.Fatal(err)
+	}
+	if state != "offered" || offered != 1 {
+		t.Fatal("offer retries duplicated admission/effects", state, offered)
+	}
 }

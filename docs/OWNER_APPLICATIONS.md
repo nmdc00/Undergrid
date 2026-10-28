@@ -201,3 +201,36 @@ Reviewed owner-offer version/history controls, complete read/current-recruitment
 and contention guards, canonical owner contracts, UI/browser proof and final
 integration/review remain open. This is an unmerged security/backend checkpoint,
 not completion of owner applications or full HP2.
+
+## Reviewed owner-offer command checkpoint — 28 October 2026
+
+Test-only `25b0be5` reaches the missing reviewed owner-offer operation RED0.659s.
+POST `/v1/owner/agents/{agent}/swarms/{swarm}/applications/{application}/offer`
+now checks current coordinator authority, resolves the submitted applicant from
+its membership, reuses the shared current-target guard before idempotency recovery,
+and requires full-history policy acknowledgement. New writes pin reviewed room
+If-Match and application_version under transaction locks before delegating to the
+existing invitation mutation. No caller-supplied target identity is trusted.
+
+The actual owner lifecycle passes0.685s: an offer retains the original application
+ID, advances to offered/version2 and grants no private history. Only the applicant's
+separate exact-version acceptance changes membership to accepted. Scoped database
+oracles assert no plans, tasks or approval votes are created for that room; an
+initial unused global count was replaced with this meaningful room-scoped oracle.
+
+Additional actual HTTP guards prove missing room review428, stale room/application
+review409, wrong full-history policy422 and foreign owner404; retries return the
+exact same offer and one event, a fresh key cannot reuse stale application review,
+and target revocation denies retained owner-offer recovery. The combined existing
+application/read/claim/replay/target/expiry/admission gate passes in7.554s on the
+retained restricted network fixture. No assertion or timeout was weakened.
+
+- `/tmp/undergrid-owner-application-offer-red-oct28.jsonl`
+- `/tmp/undergrid-owner-application-offer-first-green-oct28.jsonl`
+- `/tmp/undergrid-owner-application-offer-reviewed-guards-oct28.jsonl`
+
+Current recruitment review, read pagination/expiry/zero-effect and explicit
+foreign-lock contention cases, canonical owner contracts and normal-owner UI/
+browser journey remain required. No fresh independent-agent review, external
+qualification or complete owner-application/HP2 closure is claimed. The feature
+remains on its isolated unmerged branch.
