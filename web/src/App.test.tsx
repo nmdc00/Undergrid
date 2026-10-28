@@ -982,3 +982,142 @@ test("active intention exposes explicit capability discovery even with monitorin
     }),
   ).toBeNull();
 });
+
+test("owner creation submits exact typed requirements through the shared form", async () => {
+  const requests = fixture();
+  render(<App />);
+  const form = within(
+    await screen.findByRole("group", { name: "New intention details" }),
+  );
+  fireEvent.change(form.getByRole("textbox", { name: "Objective" }), {
+    target: { value: "Typed source catalogue" },
+  });
+  await userEvent.click(form.getByLabelText("Declare freshness requirement"));
+  fireEvent.change(form.getByLabelText("Maximum data age (seconds)"), {
+    target: { value: "7200" },
+  });
+  await userEvent.click(form.getByLabelText("Set delivery window"));
+  fireEvent.change(form.getByLabelText("Not before (RFC3339)"), {
+    target: { value: "2027-01-02T10:00:00.123456789+01:00" },
+  });
+  fireEvent.change(form.getByLabelText("Deliver by (RFC3339)"), {
+    target: { value: "2027-01-03T10:00:00Z" },
+  });
+  await userEvent.click(
+    form.getByLabelText("Declare input schema alternatives"),
+  );
+  fireEvent.change(form.getByLabelText("Permitted input schema families"), {
+    target: { value: "source_catalog_v1, reference_v1" },
+  });
+  await userEvent.click(form.getByRole("button", { name: "Create intention" }));
+  await waitFor(() =>
+    expect(
+      requests.some(
+        (r) => r.path === "/v1/owner/intents" && r.init?.method === "POST",
+      ),
+    ).toBe(true),
+  );
+  const sent = requests.find(
+    (r) => r.path === "/v1/owner/intents" && r.init?.method === "POST",
+  )!;
+  expect(JSON.parse(String(sent.init!.body)).intent.hard_constraints).toEqual({
+    required_fields: ["source_id", "source_url"],
+    license_ids: ["CC0-1.0"],
+    freshness: { max_age_seconds: 7200 },
+    delivery: {
+      not_before: "2027-01-02T10:00:00.123456789+01:00",
+      deliver_by: "2027-01-03T10:00:00Z",
+    },
+    input_schema_families: ["source_catalog_v1", "reference_v1"],
+  });
+  expect(new Headers(sent.init?.headers).get("Authorization")).toBeNull();
+});
+test("owner revision removes freshness while preserving nullable and exact typed requirements", async () => {
+  const requests = fixture();
+  const baseFetch = globalThis.fetch;
+  const constraints = {
+    required_fields: null,
+    license_ids: ["CC0-1.0"],
+    coverage: null,
+    freshness: { max_age_seconds: 3600 },
+    delivery: { not_before: "2027-01-02T10:00:00.123456789-00:00" },
+    input_schema_families: ["source_catalog_v1"],
+  };
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (path: string, init?: RequestInit) => {
+      const response = await baseFetch(path, init);
+      if (path === "/v1/owner/intents/intent" && init?.method === "GET")
+        return new Response(
+          JSON.stringify({
+            ...(await response.json()),
+            hard_constraints: constraints,
+          }),
+          { status: 200 },
+        );
+      return response;
+    }),
+  );
+  render(<App />);
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Review intention" }),
+  );
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Edit intention" }),
+  );
+  const form = within(
+    screen.getByRole("group", { name: "Intention revision" }),
+  );
+  await userEvent.click(form.getByLabelText("Declare freshness requirement"));
+  await userEvent.click(
+    form.getByRole("button", { name: "Save new revision" }),
+  );
+  await waitFor(() =>
+    expect(
+      requests.some(
+        (r) =>
+          r.path === "/v1/owner/intents/intent" && r.init?.method === "PATCH",
+      ),
+    ).toBe(true),
+  );
+  const sent = requests.find(
+    (r) => r.path === "/v1/owner/intents/intent" && r.init?.method === "PATCH",
+  )!;
+  expect(JSON.parse(String(sent.init!.body)).revision.hard_constraints).toEqual(
+    {
+      required_fields: null,
+      license_ids: ["CC0-1.0"],
+      coverage: null,
+      delivery: { not_before: "2027-01-02T10:00:00.123456789-00:00" },
+      input_schema_families: ["source_catalog_v1"],
+    },
+  );
+  expect(new Headers(sent.init?.headers).get("If-Match")).toBe('"v1"');
+});
+test("changing typed requirements invalidates an earlier public projection review", async () => {
+  fixture();
+  render(<App />);
+  const form = within(
+    await screen.findByRole("group", { name: "New intention details" }),
+  );
+  fireEvent.change(form.getByRole("textbox", { name: "Objective" }), {
+    target: { value: "Typed public catalogue" },
+  });
+  await userEvent.selectOptions(
+    form.getByRole("combobox", { name: "Intention visibility" }),
+    "redacted_public",
+  );
+  fireEvent.change(form.getByRole("textbox", { name: "Public summary" }), {
+    target: { value: "Public declared catalogue" },
+  });
+  await userEvent.click(
+    form.getByLabelText("I reviewed this public projection"),
+  );
+  expect(
+    form.getByRole("button", { name: "Create intention" }).matches(":disabled"),
+  ).toBe(false);
+  await userEvent.click(form.getByLabelText("Declare freshness requirement"));
+  expect(
+    form.getByRole("button", { name: "Create intention" }).matches(":disabled"),
+  ).toBe(true);
+});
