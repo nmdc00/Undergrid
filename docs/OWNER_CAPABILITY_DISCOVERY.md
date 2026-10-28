@@ -384,3 +384,18 @@ provider adapter is introduced. Migration046 and the null-safe forward047 retain
 their recorded hashes. No fresh independent-agent review is claimed while workers
 remain quota-limited. All authorized local feature gates pass; PR merge and exact
 merged-release checks remain pending. Full HP2 remains open.
+
+## Reviewed merge and exact release — 28 October 2026
+
+PR118 merged as `73e29247a44a6667e8d68b83b54834b44cb72e03`. Exact merged-release
+checks pass:25 viewer cases in2.04s, coupled frontend build with matching source/
+asset hashes, and actual HTTP contract plus source-lock recovery in3.170s.
+
+- `/tmp/undergrid-capability-release-73e2924-ui-oct28.log`
+- `/tmp/undergrid-capability-release-73e2924-build-oct28.log`
+- `/tmp/undergrid-capability-release-73e2924-domain-oct28.jsonl`
+
+The capability-discovery feature is implemented, locally proven and merged.
+Remaining typed requirement controls are the next HP2 feature, followed by owner
+applications and the complete continuous collaboration journey. Full HP2 and
+external qualification remain open. No promotion or deployment occurred.

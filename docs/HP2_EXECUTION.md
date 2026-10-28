@@ -763,3 +763,12 @@ bound gates pass, with retained blobs and no SQL publication seeds.
 `OWNER_CAPABILITY_DISCOVERY.md` owns exact evidence and original failures.
 Review/merge remain pending; remaining typed controls, applications and complete
 continuous HP2 acceptance remain open. No external qualification is inferred.
+
+
+### Capability merge checkpoint — 28 October 2026
+
+PR118/release `73e2924` closes complementary capability discovery with reviewed
+normal-owner and publication/bounds proof. Exact release UI25, coupled build and
+HTTP/source-lock recovery pass. `OWNER_CAPABILITY_DISCOVERY.md` retains all gates
+and original failures. Next: complete owner freshness, delivery and input-schema
+requirement editing, then applications and continuous HP2 acceptance.
