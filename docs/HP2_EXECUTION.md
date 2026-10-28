@@ -692,3 +692,20 @@ application review/offer and the complete continuous HP2 journey remain open.
 External provider/source/legal/cohort/deployment and release promotion gates are
 unchanged. This documentation-only checkpoint closes room-feature bookkeeping,
 not HP2 or the full TDD.
+
+
+### Owner group-viewer local checkpoint — 28 October 2026
+
+`feat/v0.1-owner-compatible-groups` implements the bounded read-only owner viewer
+from release `e045f36`, normally integrating documentation checkpoint `535b215`.
+Only the parked five-file viewer delta was recovered; current App/room/plan
+behavior was retained. Behavioral RED preceded missing controls and malformed
+response/calendar corrections. Current runtime `f4828c5` has a passing actual
+three-owner nontransitive-view/source-revision journey (39.308s), seven-group/two-
+subcase restricted domain gate (23.115s), canonical/static proof, and retained
+room/plan browser proof (72.192s). Full UI 197 and focused final parser 41 are
+accurately distinguished in `OWNER_COMPATIBLE_GROUPS.md`. Final review/feature
+merge remains; the local viewer does not close HP2. Next missing outcomes remain
+unknown-hard clarification, complementary registered capability discovery,
+remaining typed requirement editing, applications review/offer and complete
+continuous discovery-to-accepted-plan acceptance. External gates remain separate.
