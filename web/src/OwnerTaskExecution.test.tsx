@@ -135,17 +135,64 @@ test("server response that renews the clock cannot be presented as heartbeat suc
 });
 
 test.each([
- {name:"output link",packet:{...result,submitted_artifact_id:"72e75827-4f79-4d96-8832-38835995ad67"}},
- {name:"credited evidence",packet:{...result,credited_progress_evidence_id:"72e75827-4f79-4d96-8832-38835995ad67"}},
- {name:"task specification",packet:{...result,specification:{...task.specification,output_schema:"other_schema"}}},
-])("heartbeat receipt cannot silently change $name",async({packet})=>{
- const fetch=vi.fn().mockResolvedValueOnce(response({items:[task]})).mockResolvedValueOnce(response(packet));mount(fetch);await review();await userEvent.click(screen.getByRole("button",{name:"Record unverified activity"}));await screen.findByRole("alert");expect(screen.queryByText(/Unverified activity recorded/)).toBeNull();
+  {
+    name: "output link",
+    packet: {
+      ...result,
+      submitted_artifact_id: "72e75827-4f79-4d96-8832-38835995ad67",
+    },
+  },
+  {
+    name: "credited evidence",
+    packet: {
+      ...result,
+      credited_progress_evidence_id: "72e75827-4f79-4d96-8832-38835995ad67",
+    },
+  },
+  {
+    name: "task specification",
+    packet: {
+      ...result,
+      specification: { ...task.specification, output_schema: "other_schema" },
+    },
+  },
+])("heartbeat receipt cannot silently change $name", async ({ packet }) => {
+  const fetch = vi
+    .fn()
+    .mockResolvedValueOnce(response({ items: [task] }))
+    .mockResolvedValueOnce(response(packet));
+  mount(fetch);
+  await review();
+  await userEvent.click(
+    screen.getByRole("button", { name: "Record unverified activity" }),
+  );
+  await screen.findByRole("alert");
+  expect(screen.queryByText(/Unverified activity recorded/)).toBeNull();
 });
 test.each([
- {name:"foreign assignment",items:[{...task,assigned_agent_id:plan,specification:{...task.specification,assignee_agent_id:plan}}]},
- {name:"duplicate task",items:[task,task]},
- {name:"rolled-over deadline",items:[{...task,progress_deadline:"2030-02-30T00:00:00Z"}]},
- {name:"string epoch",items:[{...task,claim_epoch:"1"}]},
-])("invalid task review never enables execution: $name",async({items})=>{
- mount(vi.fn().mockResolvedValueOnce(response({items})));await userEvent.click(screen.getByRole("button",{name:"Review task execution"}));await screen.findByRole("alert");expect(screen.queryByRole("button",{name:"Record unverified activity"})).toBeNull();
+  {
+    name: "foreign assignment",
+    items: [
+      {
+        ...task,
+        assigned_agent_id: plan,
+        specification: { ...task.specification, assignee_agent_id: plan },
+      },
+    ],
+  },
+  { name: "duplicate task", items: [task, task] },
+  {
+    name: "rolled-over deadline",
+    items: [{ ...task, progress_deadline: "2030-02-30T00:00:00Z" }],
+  },
+  { name: "string epoch", items: [{ ...task, claim_epoch: "1" }] },
+])("invalid task review never enables execution: $name", async ({ items }) => {
+  mount(vi.fn().mockResolvedValueOnce(response({ items })));
+  await userEvent.click(
+    screen.getByRole("button", { name: "Review task execution" }),
+  );
+  await screen.findByRole("alert");
+  expect(
+    screen.queryByRole("button", { name: "Record unverified activity" }),
+  ).toBeNull();
 });

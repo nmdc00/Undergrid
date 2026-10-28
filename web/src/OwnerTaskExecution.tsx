@@ -113,7 +113,25 @@ export function OwnerTaskExecution({
             result.state !==
               (current.state === "at_risk" ? "at_risk" : "in_progress") ||
             result.progress_deadline !== current.progress_deadline ||
-            result.cure_deadline !== current.cure_deadline
+            result.cure_deadline !== current.cure_deadline ||
+            result.response_deadline !== current.response_deadline ||
+            result.submitted_artifact_id !== current.submitted_artifact_id ||
+            result.credited_progress_evidence_id !==
+              current.credited_progress_evidence_id ||
+            result.dependency_blocked !== current.dependency_blocked ||
+            [
+              "key",
+              "assignee_agent_id",
+              "depends_on",
+              "output_schema",
+              "checks",
+              "progress_interval_seconds",
+              "deadline",
+            ].some(
+              (key) =>
+                JSON.stringify(result.specification[key]) !==
+                JSON.stringify(current.specification[key]),
+            )
           )
             throw new Error(
               "Invalid activity receipt. Reload the task before assuming a result.",

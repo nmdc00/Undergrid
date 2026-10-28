@@ -70,3 +70,57 @@ wait authority checks pass4 top-level/5-subcase in9.123s. Go vet passes.
 Exact logs are `/tmp/undergrid-owner-task-execution-retained-guards-oct28.jsonl`
 and `/tmp/undergrid-owner-task-execution-vet-oct28.log`. No UI, canonical owner
 contract, complete HP3/browser acceptance or reviewed merge is claimed yet.
+
+## Canonical contract and owner UI checkpoint — 28 October 2026
+
+Test-only `3fb2cad` feeds actual owner execution/recovery HTTP bytes into pinned
+independent Ajv. It fails2.17s because the owner operation is unadvertised. The
+canonical route now reuses TaskHeartbeat/Task and the existing owner-session,
+CSRF, idempotency and exact If-Match contracts. Independent negative cases reject
+output-acceptance state, string epochs, publication inputs and fabricated response
+authority. Actual execution/recovery validation passes2.212s; canonical lint,
+all175 schema components and generated TypeScript parity pass. No extra domain
+or schema variant is introduced.
+
+UI test-only `9839b09` has7 valid behavioral failures1.37s before controls. The
+accepted-plan assignment view now exposes a separate explicit current-task review
+and unverified-activity control. Review fetches the bounded existing owned-assignment
+page, checks exact task/plan/agent/epoch/version/ETag and shows the inert task
+specification/dependencies and current clocks. Mutation requires acknowledgment,
+uses the reviewed epoch/version, validates its receipt before clearing the shared
+retry key, and clears stale/denied authority. Uncertain failures preserve the
+exact command. Proposed-plan assignments do not expose execution controls.
+
+Calendar/RFC3339 validation is extracted into a small shared leaf, preserving
+constraint error context; task deadlines cannot accept calendar rollovers. Existing
+assignment, plan review and typed constraint tests pass with the initial UI gate:
+36 cases/4files7.73s; TypeScript passes. The execution task reader uses closed
+finite records, bounded pages/arrays, exact attribution and current UUIDs/epochs.
+
+Additional response-boundary tests expose3 failures/11 passes in5.11s: changed
+output/evidence links or task specification could be shown as successful heartbeat
+activity. Test-only `e0c8c22` retains that RED. Corrected receipt validation requires
+unchanged output/evidence references, specification, dependency flag and all clocks,
+as well as exact task/plan/agent/epoch/state/version. Specification field values
+are compared independently of JSON object key order, so retained receipt recovery
+remains valid. Expanded focused UI passes43 cases/4files7.99s and TypeScript passes.
+
+Quality review: task execution UI handles one reviewed command; assignment consent
+and exact plan votes remain separate components. Authorization/effects remain in
+the shared domain; the browser only validates and presents finite data. Timestamp
+knowledge has one shared leaf rather than independent task/demand parsers. No
+agent content is executed, no credentials are persisted in the browser and no
+financial connection/provider is introduced. Full console/build gates, remaining
+contention/fanout proof and actual browser/worker execution proof plus reviewed
+integration remain required. This feature is unmerged; HP3 remains open.
+
+- `/tmp/undergrid-owner-task-execution-contract-red-oct28.jsonl`
+- `/tmp/undergrid-owner-task-execution-contract-green-oct28.jsonl`
+- `/tmp/undergrid-owner-task-execution-contract-generate-oct28.log`
+- `/tmp/undergrid-owner-task-execution-contract-check-oct28.log`
+- `/tmp/undergrid-owner-task-execution-ui-red-oct28.log`
+- `/tmp/undergrid-owner-task-execution-ui-first-green-oct28.log`
+- `/tmp/undergrid-owner-task-execution-ui-tsc-oct28.log`
+- `/tmp/undergrid-owner-task-execution-ui-boundary-red-oct28.log`
+- `/tmp/undergrid-owner-task-execution-ui-boundary-green-oct28.log`
+- `/tmp/undergrid-owner-task-execution-ui-boundary-tsc-oct28.log`
