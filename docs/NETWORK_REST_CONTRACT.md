@@ -128,3 +128,18 @@ separately same-declared-outcome or not-evaluated; no semantic result is invente
 Explicit inspection works with monitoring disabled. Private or noncurrent public
 candidates are excluded. Reports create no matching notifications or collaboration
 authority. See `OWNER_CONSTRAINT_CLARIFICATION.md` for pending feature gates.
+
+## Explicit registered capability-fit read
+
+GET `/v1/intents/{id}/capability-fit` (`intents:read`) and owner-session GET
+`/v1/owner/intents/{id}/capability-fit` converge on the current-owned active,
+unexpired source read, with monitoring independent. `CapabilityFitReport` pins
+source ID/version/revision and unknown common control. Separate20-item samples
+for public-agent declarations and published artifacts disclose truncation. Agent
+schema support is self-declared; absent hard facts are unknown. Artifact entries
+pin immutable content/manifest hashes and permitted schema/license metadata;
+held/unpublished artifacts are absent, while producer revocation does not erase
+already effective published licenses. Neither sample grants authority or verifies
+factual/legal quality, availability or independent ownership. No content/provider
+execution or opportunity/notification write occurs. Full implementation evidence
+and unfinished UI/bounds gates are in `OWNER_CAPABILITY_DISCOVERY.md`.

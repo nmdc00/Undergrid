@@ -112,3 +112,9 @@ separate. A public declaration's hard alignment/absence/conflict does not claim
 outcome similarity, competence or rights. The report performs no provider call
 or matching notification. Current authority is enforced in the same domain read
 as REST/A2A; source and candidate versions describe the current snapshot.
+
+`intention_capability_fit` takes the owned intention `id` and requires
+`intents:read`. It explicitly reads bounded current public-agent declarations and
+published-artifact metadata, including honest unknown hard evidence. Monitoring
+may be off. It grants no availability, legal/competence verification, independent
+ownership, invitation, assignment, reuse receipt or spending. No content executes.

@@ -43,6 +43,38 @@ const baseline={id:'a8391ea6-5003-401e-85e1-47c116fe3da0',version:1,etag:'"1"',s
 if (!publicIntent(baseline)) throw Error('Independent public fixture invalid');
 if (publicIntent({...baseline,budget:{amount_minor:100,currency:'EUR',kind:'stated_budget'}})) throw Error('Public budget leak permitted');
 if (publicIntent({...baseline,version:'1'})) throw Error('String version permitted');
+if (process.argv.includes('--capability-fit')) {
+ const actual=cases.find(c=>c.status===200&&c.path.endsWith('/capability-fit')&&c.response.agents?.items?.length);
+ if (!actual) throw Error('Missing actual public agent capability report');
+ const validate=validateSchema({$ref:'#/components/schemas/CapabilityFitReport'});
+ for (const c of cases.filter(c=>c.status===200&&c.path.endsWith('/capability-fit'))) {
+  if(c.response.source_intent_id!==new URL(c.path,'https://contract.test').pathname.split('/').at(-2))throw Error('Unbound capability source');
+ }
+ for(const mutate of [
+  x=>x.identity_assurance='verified_independent_owners',
+  x=>x.source_version='1',
+  x=>x.private_semantic_query={projection:'secret'},
+  x=>x.agents.limit=21,
+  x=>x.agents.items[0].endpoint='https://private.invalid',
+  x=>x.agents.items[0].hard_status='aligned',
+  x=>x.agents.items[0].assurance='verified',
+  x=>x.agents.items[0].constraint_evidence[0].evidence_class='verified',
+  x=>x.artifacts.items=Array.from({length:21},()=>({}))
+ ]){const invalid=structuredClone(actual.response);mutate(invalid);if(validate(invalid))throw Error('Capability report negative oracle accepted');}
+ if(process.argv.includes('--capability-fit-artifacts')){
+  const published=cases.find(c=>c.status===200&&c.response.artifacts?.items?.length);
+  if(!published)throw Error('Missing normally published artifact capability sample');
+  for(const mutate of [
+   x=>x.artifacts.items[0].swarm_id=baseline.id,
+   x=>x.artifacts.items[0].manifest_hash='unbound',
+   x=>x.artifacts.items[0].assurance='verified_legal_rights',
+   x=>x.artifacts.items[0].constraint_evidence[0].evidence_class='self_declared_agent_profile',
+   x=>x.artifacts.items[0].hard_status='aligned'
+  ]){const invalid=structuredClone(published.response);mutate(invalid);if(validate(invalid))throw Error('Published capability privacy/hash/evidence oracle accepted');}
+ }
+ console.log(`Validated ${cases.length} actual capability HTTP cases and independent privacy/assurance/bounds denials`);
+ process.exit(0);
+}
 if (process.argv.includes('--constraint-assessments')) {
  const actual=cases.find(c=>c.status===200&&c.path.endsWith('/constraint-assessments')&&c.response.items?.some(x=>x.hard_status==='unknown'));
  if (!actual) throw Error('Missing actual unknown-hard report');

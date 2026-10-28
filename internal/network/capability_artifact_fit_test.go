@@ -1,13 +1,30 @@
 package network
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"os/exec"
+	"strings"
 	"testing"
 )
 
 func TestCapabilityFitDiscoversOnlyNormallyPublishedArtifactMetadata(t *testing.T) {
 	x := newArtifactScenario(t)
 	reader := x.actors[3]
+	samples := []any{}
+	reader.observe = func(r *http.Request, w *httptest.ResponseRecorder, _ any) {
+		if r.Method != "GET" || !strings.HasSuffix(r.URL.Path, "/capability-fit") {
+			return
+		}
+		var body any
+		if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+			t.Fatal(err)
+		}
+		samples = append(samples, map[string]any{"method": r.Method, "path": r.URL.Path, "status": w.Code, "response": body, "request": nil, "request_id": w.Header().Get("X-Request-ID"), "etag": w.Header().Get("ETag")})
+	}
 	input := intentFixture()
 	input.Watch.Enabled = false
 	code, source := reader.call("POST", "/v1/intents", NewID(), input)
@@ -120,4 +137,10 @@ func TestCapabilityFitDiscoversOnlyNormallyPublishedArtifactMetadata(t *testing.
 			t.Fatal("held capability exposed", raw)
 		}
 	}
+	command := exec.Command("node", "../../web/scripts/validate-network-contract.mjs", "--capability-fit", "--capability-fit-artifacts")
+	command.Stdin = bytes.NewReader(canonical(samples))
+	if out, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("actual published artifact contract: %v %s", err, out)
+	}
+
 }

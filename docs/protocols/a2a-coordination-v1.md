@@ -35,3 +35,9 @@ A2A's minimal receipt retains only the safe relative read path/digests; GetTask
 recomputes an authorized current report, including changed public declarations.
 Noncurrent/unauthorized sources suppress the resource snapshot rather than
 recovering historical report content. Receipt acknowledgement grants no rights.
+
+`intention_capability_fit` shares the current authorized capability-fit read with
+REST/MCP. GetTask reauthorizes its relative source resource path; report bodies
+are not stored in receipts. A paused, expired, foreign or otherwise unauthorized
+source cannot recover a historical capability report. Task completion means only
+that this read completed, never publication, reuse or collaboration acceptance.

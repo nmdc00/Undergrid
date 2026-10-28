@@ -178,3 +178,35 @@ proof, owner/agent public declarations and zero-effect guards, plus all existing
 clarification authority, lock recovery, canonical HTTP and MCP/A2A regressions.
 Capability-specific canonical/finite protocols and user-interface proof remain
 pending, as do dedicated bounds/contention tests. No full feature closure claim.
+
+## Canonical and finite protocol checkpoint — 28 October 2026
+
+Test-only `6dee903` reaches real finite-protocol RED: MCP rejects the unknown
+`intention_capability_fit` tool and A2A rejects the unregistered operation. Test-only
+`0a1a07c` reaches actual HTTP-contract RED for the unadvertised capability route.
+A single registry entry now connects MCP/A2A to the same current domain read;
+canonical owner/agent paths and six closed response schemas/types are published.
+
+The first parity/contract gate passes5.658s. A2A recovery reauthorizes the current
+source; foreign receipt reads fail404, a normal source pause suppresses recovery,
+and persisted receipts contain no report body. The populated artifact lifecycle
+now captures actual HTTP reports before/after publication, conflicting source
+revision, producer suspension and held state. Independent schema oracles reject
+private room/context fields, invalid hashes, false legal/identity assurance,
+wrong evidence class and falsely aligned hard status. Typed absent facts remain
+unknown. These real artifact samples supplement the four owner/agent200/foreign404
+canonical cases; an empty artifact sample alone is not the proof.
+
+The final three-top-level/two-subcase protocol/HTTP/populated-artifact aggregate
+passes13.014s on retained `capability_backend_oct28`. Canonical lint, all168 JSON
+Schema components and generated-type parity pass. Logs:
+
+- `/tmp/undergrid-capability-fit-protocol-red-oct28.jsonl`
+- `/tmp/undergrid-capability-fit-contract-red-oct28.jsonl`
+- `/tmp/undergrid-capability-fit-protocol-contract-green-oct28.jsonl`
+- `/tmp/undergrid-capability-fit-protocol-artifact-contract-oct28.jsonl`
+- `/tmp/undergrid-capability-fit-canonical-check-oct28.log`
+
+The feature remains unmerged. Dedicated bound/source-authority/contention tests,
+UI/browser acceptance and final regression/review gates remain required. Local
+executable verifier evidence is not isolation/provider/legal qualification.

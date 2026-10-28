@@ -2034,6 +2034,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/intents/{id}/capability-fit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Inspect current registered public capability declarations and published artifacts
+         * @description Read-only bounded nonexhaustive capability evidence for a current owned active unexpired source; monitoring may be off. Public agent declarations are self-declared schema support, not willingness, independent ownership or complete hard fit. Published artifact schema/license metadata is not factual, legal or provider qualification. No invitation, assignment, rights, reuse receipt, execution or spending follows. Sources and live recovery are reauthorized in the domain transaction.
+         */
+        get: operations["getIntentionCapabilityFit"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/intents/{id}/capability-fit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Inspect current registered public capability declarations and published artifacts
+         * @description Read-only bounded nonexhaustive capability evidence for a current owned active unexpired source; monitoring may be off. Public agent declarations are self-declared schema support, not willingness, independent ownership or complete hard fit. Published artifact schema/license metadata is not factual, legal or provider qualification. No invitation, assignment, rights, reuse receipt, execution or spending follows. Sources and live recovery are reauthorized in the domain transaction.
+         */
+        get: operations["getOwnerIntentionCapabilityFit"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3523,6 +3563,92 @@ export interface components {
             truncated: boolean;
             items: components["schemas"]["DemandConstraintItem"][];
         } & unknown;
+        RegisteredCapabilityEvidence: {
+            /** @enum {string} */
+            constraint: "output_kind" | "schema_family" | "required_field" | "license_ids" | "coverage" | "freshness" | "delivery" | "input_schema_families";
+            requested: string[];
+            declared: string[];
+            /** @enum {string} */
+            status: "declared_aligned" | "declared_incompatible" | "unknown";
+            /** @enum {string} */
+            reason: "declaration_missing" | "declared_output_mismatch" | "declared_output_equal" | "field_set_missing" | "not_declared_in_partial_field_set" | "required_field_declared" | "missing_from_complete_declared_field_set" | "license_evidence_missing" | "declared_license_options_disjoint" | "declared_license_option_intersection" | "typed_requirement_not_declared_in_v1";
+            /** @enum {string} */
+            evidence_field: "" | "profile.capabilities" | "artifact.media_type" | "manifest.schema_family" | "manifest.license_id";
+            /** @enum {string} */
+            evidence_class: "self_declared_agent_profile" | "published_manifest_declaration";
+        };
+        PublicAgentCapabilityFit: {
+            /** Format: uuid */
+            agent_id: string;
+            /** Format: uuid */
+            principal_id: string;
+            /** @constant */
+            origin: "registered_capability";
+            /** @constant */
+            hard_status: "unknown";
+            constraint_evidence: (components["schemas"]["RegisteredCapabilityEvidence"] & {
+                /** @constant */
+                evidence_class?: "self_declared_agent_profile";
+                /** @enum {unknown} */
+                evidence_field?: "" | "profile.capabilities";
+            })[];
+            /** @constant */
+            assurance: "self_declared";
+            capabilities: string[];
+            /** @enum {string} */
+            schema_support: "declared" | "not_declared";
+        };
+        ArtifactCapabilityFit: {
+            /** Format: uuid */
+            artifact_id: string;
+            /** Format: uuid */
+            principal_id: string;
+            /** @constant */
+            origin: "registered_capability";
+            /** @enum {string} */
+            hard_status: "aligned" | "unknown" | "incompatible";
+            constraint_evidence: (components["schemas"]["RegisteredCapabilityEvidence"] & {
+                /** @constant */
+                evidence_class?: "published_manifest_declaration";
+                /** @enum {unknown} */
+                evidence_field?: "" | "artifact.media_type" | "manifest.schema_family" | "manifest.license_id";
+            })[];
+            version: number;
+            sha256: string;
+            manifest_hash: string;
+            title: string;
+            /** @constant */
+            schema_family: "source_catalog_v1";
+            /** @constant */
+            license_id: "CC0-1.0";
+            /** @constant */
+            assurance: "published_manifest_declaration";
+            /** @constant */
+            content_trust: "untrusted";
+            limitations: string;
+        } & unknown;
+        PublicAgentCapabilitySample: {
+            /** @constant */
+            limit: 20;
+            truncated: boolean;
+            items: components["schemas"]["PublicAgentCapabilityFit"][];
+        } & unknown;
+        ArtifactCapabilitySample: {
+            /** @constant */
+            limit: 20;
+            truncated: boolean;
+            items: components["schemas"]["ArtifactCapabilityFit"][];
+        } & unknown;
+        CapabilityFitReport: {
+            /** Format: uuid */
+            source_intent_id: string;
+            source_version: number;
+            source_revision: number;
+            /** @constant */
+            identity_assurance: "common_control_unknown";
+            agents: components["schemas"]["PublicAgentCapabilitySample"];
+            artifacts: components["schemas"]["ArtifactCapabilitySample"];
+        };
     };
     responses: never;
     parameters: never;
@@ -7784,6 +7910,76 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DemandConstraintReport"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getIntentionCapabilityFit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CapabilityFitReport"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getOwnerIntentionCapabilityFit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CapabilityFitReport"];
                 };
             };
             /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */

@@ -8684,6 +8684,132 @@
           }
         ]
       }
+    },
+    "/v1/intents/{id}/capability-fit": {
+      "get": {
+        "operationId": "getIntentionCapabilityFit",
+        "summary": "Inspect current registered public capability declarations and published artifacts",
+        "description": "Read-only bounded nonexhaustive capability evidence for a current owned active unexpired source; monitoring may be off. Public agent declarations are self-declared schema support, not willingness, independent ownership or complete hard fit. Published artifact schema/license metadata is not factual, legal or provider qualification. No invitation, assignment, rights, reuse receipt, execution or spending follows. Sources and live recovery are reauthorized in the domain transaction.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapabilityFitReport"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; status depends on authentication, visibility, validation, quotas and runtime availability.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "NetworkBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/v1/owner/intents/{id}/capability-fit": {
+      "get": {
+        "operationId": "getOwnerIntentionCapabilityFit",
+        "summary": "Inspect current registered public capability declarations and published artifacts",
+        "description": "Read-only bounded nonexhaustive capability evidence for a current owned active unexpired source; monitoring may be off. Public agent declarations are self-declared schema support, not willingness, independent ownership or complete hard fit. Published artifact schema/license metadata is not factual, legal or provider qualification. No invitation, assignment, rights, reuse receipt, execution or spending follows. Sources and live recovery are reauthorized in the domain transaction.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapabilityFitReport"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe error; status depends on authentication, visibility, validation, quotas and runtime availability.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-ID": {
+                "description": "Server-generated request ID. Errors repeat this exact ID in the body.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OwnerSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -15082,6 +15208,450 @@
               }
             }
           }
+        ]
+      },
+      "RegisteredCapabilityEvidence": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "constraint": {
+            "type": "string",
+            "enum": [
+              "output_kind",
+              "schema_family",
+              "required_field",
+              "license_ids",
+              "coverage",
+              "freshness",
+              "delivery",
+              "input_schema_families"
+            ]
+          },
+          "requested": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "type": "string"
+            }
+          },
+          "declared": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "declared_aligned",
+              "declared_incompatible",
+              "unknown"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "declaration_missing",
+              "declared_output_mismatch",
+              "declared_output_equal",
+              "field_set_missing",
+              "not_declared_in_partial_field_set",
+              "required_field_declared",
+              "missing_from_complete_declared_field_set",
+              "license_evidence_missing",
+              "declared_license_options_disjoint",
+              "declared_license_option_intersection",
+              "typed_requirement_not_declared_in_v1"
+            ]
+          },
+          "evidence_field": {
+            "type": "string",
+            "enum": [
+              "",
+              "profile.capabilities",
+              "artifact.media_type",
+              "manifest.schema_family",
+              "manifest.license_id"
+            ]
+          },
+          "evidence_class": {
+            "type": "string",
+            "enum": [
+              "self_declared_agent_profile",
+              "published_manifest_declaration"
+            ]
+          }
+        },
+        "required": [
+          "constraint",
+          "requested",
+          "declared",
+          "status",
+          "reason",
+          "evidence_field",
+          "evidence_class"
+        ]
+      },
+      "PublicAgentCapabilityFit": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "agent_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "principal_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "origin": {
+            "const": "registered_capability"
+          },
+          "hard_status": {
+            "const": "unknown"
+          },
+          "constraint_evidence": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 57,
+            "items": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/RegisteredCapabilityEvidence"
+                },
+                {
+                  "properties": {
+                    "evidence_class": {
+                      "const": "self_declared_agent_profile"
+                    },
+                    "evidence_field": {
+                      "enum": [
+                        "",
+                        "profile.capabilities"
+                      ]
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "assurance": {
+            "const": "self_declared"
+          },
+          "capabilities": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 20,
+            "items": {
+              "type": "string"
+            }
+          },
+          "schema_support": {
+            "type": "string",
+            "enum": [
+              "declared",
+              "not_declared"
+            ]
+          }
+        },
+        "required": [
+          "agent_id",
+          "principal_id",
+          "origin",
+          "hard_status",
+          "constraint_evidence",
+          "assurance",
+          "capabilities",
+          "schema_support"
+        ]
+      },
+      "ArtifactCapabilityFit": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "artifact_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "principal_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "origin": {
+            "const": "registered_capability"
+          },
+          "hard_status": {
+            "type": "string",
+            "enum": [
+              "aligned",
+              "unknown",
+              "incompatible"
+            ]
+          },
+          "constraint_evidence": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 57,
+            "items": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/RegisteredCapabilityEvidence"
+                },
+                {
+                  "properties": {
+                    "evidence_class": {
+                      "const": "published_manifest_declaration"
+                    },
+                    "evidence_field": {
+                      "enum": [
+                        "",
+                        "artifact.media_type",
+                        "manifest.schema_family",
+                        "manifest.license_id"
+                      ]
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "manifest_hash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "schema_family": {
+            "const": "source_catalog_v1"
+          },
+          "license_id": {
+            "const": "CC0-1.0"
+          },
+          "assurance": {
+            "const": "published_manifest_declaration"
+          },
+          "content_trust": {
+            "const": "untrusted"
+          },
+          "limitations": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "artifact_id",
+          "principal_id",
+          "origin",
+          "hard_status",
+          "constraint_evidence",
+          "version",
+          "sha256",
+          "manifest_hash",
+          "title",
+          "schema_family",
+          "license_id",
+          "assurance",
+          "content_trust",
+          "limitations"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "constraint_evidence": {
+                  "contains": {
+                    "properties": {
+                      "status": {
+                        "const": "declared_incompatible"
+                      }
+                    },
+                    "required": [
+                      "status"
+                    ]
+                  }
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "hard_status": {
+                  "const": "incompatible"
+                }
+              }
+            },
+            "else": {
+              "if": {
+                "properties": {
+                  "constraint_evidence": {
+                    "contains": {
+                      "properties": {
+                        "status": {
+                          "const": "unknown"
+                        }
+                      },
+                      "required": [
+                        "status"
+                      ]
+                    }
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "hard_status": {
+                    "const": "unknown"
+                  }
+                }
+              },
+              "else": {
+                "properties": {
+                  "hard_status": {
+                    "const": "aligned"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "PublicAgentCapabilitySample": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "limit": {
+            "const": 20
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "items": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "$ref": "#/components/schemas/PublicAgentCapabilityFit"
+            }
+          }
+        },
+        "required": [
+          "limit",
+          "truncated",
+          "items"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "truncated": {
+                  "const": true
+                }
+              },
+              "required": [
+                "truncated"
+              ]
+            },
+            "then": {
+              "properties": {
+                "items": {
+                  "minItems": 20
+                }
+              }
+            }
+          }
+        ]
+      },
+      "ArtifactCapabilitySample": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "limit": {
+            "const": 20
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "items": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "$ref": "#/components/schemas/ArtifactCapabilityFit"
+            }
+          }
+        },
+        "required": [
+          "limit",
+          "truncated",
+          "items"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "truncated": {
+                  "const": true
+                }
+              },
+              "required": [
+                "truncated"
+              ]
+            },
+            "then": {
+              "properties": {
+                "items": {
+                  "minItems": 20
+                }
+              }
+            }
+          }
+        ]
+      },
+      "CapabilityFitReport": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "source_intent_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "source_version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "source_revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "identity_assurance": {
+            "const": "common_control_unknown"
+          },
+          "agents": {
+            "$ref": "#/components/schemas/PublicAgentCapabilitySample"
+          },
+          "artifacts": {
+            "$ref": "#/components/schemas/ArtifactCapabilitySample"
+          }
+        },
+        "required": [
+          "source_intent_id",
+          "source_version",
+          "source_revision",
+          "identity_assurance",
+          "agents",
+          "artifacts"
         ]
       }
     },
