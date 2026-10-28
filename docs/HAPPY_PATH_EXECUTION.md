@@ -163,8 +163,7 @@ actual worker recruitment proof; see `OWNER_BUILDER_REGISTRATION.md`. This does
 not supply a public directory or existing-profile editor. Visible unknown-hard clarification is reviewed and merged in PR116/release
 `47be35a`. Complementary capability discovery has actual normal-owner and
 publication/bound proof on `feat/v0.1-owner-capability-discovery`; reviewed and merged in PR118/release `73e2924`, with passing exact-release
-checks recorded in `OWNER_CAPABILITY_DISCOVERY.md`. Owner application
-controls and complete continuous HP2 acceptance remain open.
+checks recorded in `OWNER_CAPABILITY_DISCOVERY.md`. Owner application controls are reviewed and merged in PR122/release `2bcd7df`, with actual normal-owner worker/recovery/admission proof and passing exact-release checks in `OWNER_APPLICATIONS.md`. Complete continuous HP2 acceptance remains open.
 Owner room-origin/role controls have actual selected-match → reviewed room →
 restricted-worker recruitment proof and are reviewed/merged in PR112 at `e045f36`;
 exact-release checks pass in `OWNER_ROOM_ORIGIN_RECRUITMENT.md`. Owner plan proposal/revision is reviewed and merged in PR110 at
@@ -335,10 +334,9 @@ missing-to-resolved evidence; reviewed and merged in PR116/release `47be35a`.
 Exact merged-release UI/build/HTTP/recovery checks pass. Complementary registered capability discovery is reviewed and merged in
 PR118/release `73e2924`. Typed requirement controls are implemented and locally
 proven on `feat/v0.1-owner-typed-requirements` (`ee34f63`); reviewed and merged in PR120/release `e7579cd`; exact-release checks pass in
-`OWNER_TYPED_REQUIREMENTS.md`. Applications and complete
-continuous HP2 acceptance remain open. See
+`OWNER_TYPED_REQUIREMENTS.md`. Applications are reviewed and merged in PR122/release `2bcd7df`; actual normal-owner worker/recovery/admission proof and exact-release checks pass in `OWNER_APPLICATIONS.md`. Complete continuous HP2 acceptance remains open. See
 `OWNER_CONSTRAINT_CLARIFICATION.md`.
-The complete HP2 journey remains unproven. Finish owner application outcomes, then prove
+The complete HP2 journey remains unproven. Owner application outcomes are merged in PR122. Prove
 the continuous journey with merged room/plan/assignment steps before starting HP3.
 
 On 26 October, fetched `main...develop` divergence remains `0 1`. Release PR62
