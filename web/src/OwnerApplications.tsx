@@ -1,0 +1,1 @@
+export function OwnerApplications(_props: { agent: string; csrf: string; room?: string; roomEtag?: string; onUnauthorized: () => void; onStale?: () => void }) { return <section aria-label="Applications" />; }
