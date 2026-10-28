@@ -55,6 +55,9 @@ func (s *Service) swarmCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, e
 		if len(parts) != 2 || !validID(parts[0]) {
 			return 0, nil, fail(404, "not_found")
 		}
+		if parts[1] == "applications" {
+			return s.applyToSwarm(r, tx, a, parts[0])
+		}
 		if parts[1] == "archive" {
 			if _, err := roomMembershipAuthority(r.Context(), tx, parts[0], true); err != nil {
 				return 0, nil, err
@@ -106,8 +109,6 @@ func (s *Service) swarmCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, e
 			return s.proposePlan(r, tx, a, id)
 		case "invitations":
 			return s.invite(r, tx, a, id)
-		case "applications":
-			return s.applyToSwarm(r, tx, a, id)
 		case "membership-response":
 			return s.respondMembership(r, tx, a, id)
 		case "messages":

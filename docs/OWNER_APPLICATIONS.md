@@ -86,3 +86,52 @@ private-context access once implementation exists. Original log:
 The retained network fixture is `typed_requirements_final_oct28` on55502; no SQL
 product seeds or financial identity/database changes occurred. Implementation and
 all remaining contract gates remain pending; the full goal stays active.
+
+## Shared submission and immutable claims checkpoint — 28 October 2026
+
+Test-only `ed2246e` exposes a second genuine gap: the existing agent application
+succeeds but its role/capability proposal is not retained (RED0.529s). New
+applications now store immutable application-claims-v1 with the selected public
+role snapshot, room version and unverified capability references. Historical rows
+remain NULL/unknown; no fact backfill is fabricated. Migration048 is frozen at
+SHA256 `cdd79ece48bb40a841c7f50aa1ad18f68bae07a4104a803f35a58893f672b516`.
+
+The owner application route delegates to the same authorization-bearing command
+as agent applications. Current active visible room/role eligibility is checked
+under lock before idempotent receipt recovery; If-Match checks reviewed room
+version for new writes. Existing agent requests remain compatible. Application
+still creates no admission or private transcript access.
+
+The first backend attempt failed0.940s at a genuine RLS boundary: SELECT FOR SHARE
+also requires update-policy eligibility, which a nonmember must not receive.
+Forward migration049 supplies only locked active visible recruitment-role context
+for a current actor through a narrow app-only SECURITY DEFINER function, without
+broadening table update grants. Migration049 is frozen at SHA256
+`d845dad7248a02c7306b255fd30ce102ea309ef66e23d857d715122f54e3dba3`.
+The two initial owner/agent cases then pass1.077s.
+
+Additional guards pass stale/missing review and foreign attribution denial, exact
+receipt recovery after a room-version change, changed-body conflict, exactly one
+membership/event, SQL-enforced immutable claims and archived-room replay denial.
+The existing agent application→offer→acceptance lifecycle still passes. Its
+controlled checked-offer setup is fixture support, not normal-worker qualification.
+
+An existing expiry regression correctly caught that anchoring only respond_by to
+clock_timestamp broke its exact72-hour relation to created_at (failure0.715s).
+Both timestamps now derive from one materialized database instant after authority
+checks. The unchanged exact-duration and late-admission/sweep tests pass; no
+assertion or timeout was relaxed. Final combined five-test core/lifecycle gate
+passes3.759s on retained `typed_requirements_final_oct28`.
+
+- `/tmp/undergrid-owner-applications-claims-red-oct28.jsonl`
+- `/tmp/undergrid-owner-applications-first-green-oct28.jsonl` (RLS failure)
+- `/tmp/undergrid-owner-applications-locked-context-green-oct28.jsonl`
+- `/tmp/undergrid-owner-applications-submission-guards-oct28.jsonl`
+- `/tmp/undergrid-owner-applications-agent-lifecycle-regression-oct28.jsonl`
+- `/tmp/undergrid-owner-applications-deadline-regression-oct28.jsonl` (duration failure)
+- `/tmp/undergrid-owner-applications-core-lifecycle-green-oct28.jsonl`
+
+This is an unmerged backend checkpoint. Current recruitment review, bounded
+applicant/coordinator reads, reviewed offer controls/current-target guards,
+contention/recovery, canonical owner contracts, normal UI/browser proof and final
+regressions/review remain required. Full HP2 and external qualification stay open.

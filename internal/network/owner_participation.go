@@ -22,12 +22,13 @@ func (s *Service) ownerParticipation(r *http.Request, tx pgx.Tx, principal strin
 	invitation := len(parts) == 6 && parts[4] == "invitations" && validID(parts[5])
 	context := len(parts) == 7 && parts[4] == "swarms" && validID(parts[5]) && parts[6] == "context"
 	inviteMember := len(parts) == 7 && parts[4] == "swarms" && validID(parts[5]) && parts[6] == "invitations"
+	application := len(parts) == 7 && parts[4] == "swarms" && validID(parts[5]) && parts[6] == "applications"
 	message := len(parts) == 7 && parts[4] == "swarms" && validID(parts[5]) && parts[6] == "messages"
 	response := len(parts) == 7 && parts[4] == "swarms" && validID(parts[5]) && parts[6] == "membership-response"
-	if !creation && !collection && !invitation && !context && !response && !inviteMember && !message {
+	if !creation && !collection && !invitation && !context && !response && !inviteMember && !message && !application {
 		return 0, nil, fail(404, "not_found")
 	}
-	if ((creation || response || inviteMember || message) && r.Method != http.MethodPost) || (!(creation || response || inviteMember || message) && r.Method != http.MethodGet) {
+	if ((creation || response || inviteMember || message || application) && r.Method != http.MethodPost) || (!(creation || response || inviteMember || message || application) && r.Method != http.MethodGet) {
 		return 0, nil, fail(405, "method_not_allowed")
 	}
 	a, err := lockOwnerAgent(r.Context(), tx, principal, parts[3])
@@ -39,6 +40,15 @@ func (s *Service) ownerParticipation(r *http.Request, tx pgx.Tx, principal strin
 	}
 	if inviteMember {
 		return s.ownerInviteMember(r, tx, a, parts[5])
+	}
+	if application {
+		if r.Header.Get("If-Match") == "" {
+			return 0, nil, fail(428, "if_match_required")
+		}
+		command := r.Clone(r.Context())
+		command.URL.Path = "/v1/swarms/" + parts[5] + "/applications"
+		a.Scopes = []string{"swarms:apply"}
+		return s.swarmCommand(command, tx, a)
 	}
 	if message {
 		return s.ownerRoomMessage(r, tx, a, parts[5])
