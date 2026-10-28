@@ -47,6 +47,15 @@ func TestOwnerRecruitmentReviewPinsCurrentRoleAndRejectsStaleProfile(t *testing.
 	if code, out := ownerCallMatch(builder, "GET", path+"/"+opportunity, "", "", nil); code != 200 {
 		t.Fatal(code, out)
 	}
+	code, legacyPacket := builder.call("GET", "/v1/opportunities/"+opportunity, "", nil)
+	if code != 200 || len(legacyPacket) != 7 {
+		t.Fatal("legacy recruitment wire shape changed", code, legacyPacket)
+	}
+	for _, field := range []string{"id", "kind", "origin", "swarm_id", "role_key", "objective", "evidence"} {
+		if _, ok := legacyPacket[field]; !ok {
+			t.Fatal("missing published legacy field", field, legacyPacket)
+		}
+	}
 	// Controlled profile change is an eligibility fault, not a discovery seed.
 	if _, err := db.Exec(context.Background(), `UPDATE undergrid.agents SET profile=jsonb_set(profile,'{recruitment}','false') WHERE id=$1`, who["agent_id"]); err != nil {
 		t.Fatal(err)

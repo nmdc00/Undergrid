@@ -33,6 +33,12 @@ func (s *Service) requireCurrentOpportunityEvidence(r *http.Request, tx pgx.Tx, 
 	if err != nil {
 		return err
 	}
+	if kind == "builder_recruitment" {
+		if swarm == nil || role == nil {
+			return fail(404, "not_found")
+		}
+		return requireCurrentRecruitmentOpportunityEvidence(r, tx, a, id, *swarm, *role, hash)
+	}
 	var stored Compatibility
 	if err = json.Unmarshal(evidenceRaw, &stored); err != nil {
 		return err
@@ -58,9 +64,6 @@ func (s *Service) requireCurrentOpportunityEvidence(r *http.Request, tx pgx.Tx, 
 	}
 	if kind == "shared_demand" {
 		return requireDemandOpportunityEvidence(r, tx, *source, *candidate, hash, stored, provider)
-	}
-	if kind == "builder_recruitment" {
-		return requireRecruitmentOpportunityEvidence(r, tx, *swarm, *role, a.AgentID, hash)
 	}
 	return nil
 }

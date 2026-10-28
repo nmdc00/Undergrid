@@ -307,22 +307,42 @@ func (s *Service) recruitOne(ctx context.Context, db *pgx.Conn, swarm string, ro
 	return remaining == 0, tx.Commit(ctx)
 }
 func listRecruitment(r *http.Request, tx pgx.Tx, a actor, id string) (int, any, error) {
-	rows, err := tx.Query(r.Context(), `SELECT o.id,o.source_swarm_id,o.role_key,s.objective,o.evidence FROM opportunities o JOIN swarms s ON s.id=o.source_swarm_id WHERE o.recipient_agent_id=$1 AND o.kind='builder_recruitment' AND o.state='suggested' AND s.state='active' AND s.visibility<>'private' AND ($2='' OR o.id::text=$2) ORDER BY o.created_at LIMIT 100`, a.AgentID, id)
+	rows, err := tx.Query(r.Context(), `SELECT o.id,o.source_swarm_id,o.role_key,o.input_hash,o.evidence FROM opportunities o JOIN swarms s ON s.id=o.source_swarm_id WHERE o.recipient_agent_id=$1 AND o.kind='builder_recruitment' AND o.state='suggested' AND s.state='active' AND s.visibility<>'private' AND ($2='' OR o.id::text=$2) ORDER BY o.created_at LIMIT 100`, a.AgentID, id)
 	if err != nil {
 		return 0, nil, err
 	}
-	defer rows.Close()
-	items := []any{}
+	type candidate struct {
+		id, swarm, role, hash string
+		evidence              []byte
+	}
+	candidates := []candidate{}
 	for rows.Next() {
-		var oid, swarm, role, objective string
-		var evidence []byte
-		if err = rows.Scan(&oid, &swarm, &role, &objective, &evidence); err != nil {
+		var item candidate
+		if err = rows.Scan(&item.id, &item.swarm, &item.role, &item.hash, &item.evidence); err != nil {
+			rows.Close()
 			return 0, nil, err
 		}
-		items = append(items, map[string]any{"id": oid, "kind": "builder_recruitment", "origin": "registered_capability", "swarm_id": swarm, "role_key": role, "objective": objective, "evidence": json.RawMessage(evidence)})
+		candidates = append(candidates, item)
 	}
-	if err = rows.Err(); err != nil {
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
 		return 0, nil, err
+	}
+	items := []any{}
+	for _, item := range candidates {
+		if err = requireCurrentRecruitmentOpportunityEvidence(r, tx, a, item.id, item.swarm, item.role, item.hash); err != nil {
+			var denial problem
+			if errors.As(err, &denial) && denial.Status == 404 {
+				continue
+			}
+			return 0, nil, err
+		}
+		var objective string
+		if err = tx.QueryRow(r.Context(), `SELECT objective FROM swarms WHERE id=$1`, item.swarm).Scan(&objective); err != nil {
+			return 0, nil, err
+		}
+		items = append(items, map[string]any{"id": item.id, "kind": "builder_recruitment", "origin": "registered_capability", "swarm_id": item.swarm, "role_key": item.role, "objective": objective, "evidence": json.RawMessage(item.evidence)})
 	}
 	if id != "" {
 		if len(items) == 0 {
@@ -332,6 +352,7 @@ func listRecruitment(r *http.Request, tx pgx.Tx, a actor, id string) (int, any, 
 	}
 	return 200, map[string]any{"items": items}, nil
 }
+
 func (s *Service) applyToSwarm(r *http.Request, tx pgx.Tx, a actor, swarm string) (int, any, error) {
 	request, err := readIdempotencyRequest(r, true)
 	if err != nil {

@@ -63,3 +63,16 @@ func requireRecruitmentOpportunityEvidence(r *http.Request, tx pgx.Tx, swarm, ro
 	}
 	return fail(404, "not_found")
 }
+
+// Both recruitment read channels and room provenance use the same locked
+// current role/profile evidence. Callers select only owned recruitment records.
+func requireCurrentRecruitmentOpportunityEvidence(r *http.Request, tx pgx.Tx, a actor, id, swarm, role, hash string) error {
+	var current bool
+	if err := tx.QueryRow(r.Context(), "SELECT room_origin_authority($1,$2)", id, "").Scan(&current); err != nil {
+		return err
+	}
+	if !current {
+		return fail(404, "not_found")
+	}
+	return requireRecruitmentOpportunityEvidence(r, tx, swarm, role, a.AgentID, hash)
+}

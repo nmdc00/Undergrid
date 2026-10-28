@@ -315,3 +315,27 @@ Before feature closure, align the older generic agent recruitment listing with
 current role/profile evidence without changing its published response shape;
 finish stale-window/pagination/authority proof, canonical owner contracts and the
 normal-owner UI/browser lifecycle. The feature remains unmerged and HP2 open.
+
+## Agent recruitment parity checkpoint — 28 October 2026
+
+Test-only `0c548a9` exposed the older agent selected-opportunity read returning
+200 after the recipient opted out of recruitment. The actual normal scan fixture
+and failing response are retained in
+`/tmp/undergrid-agent-recruitment-current-red-oct28.jsonl`.
+
+Owner reads, legacy agent reads and room provenance now share the existing locked
+current role/profile/hash authority check. Legacy responses retain all seven
+published fields; stale candidates are omitted and selected stale packets return
+404. Rows close before evidence queries, retryable lock errors propagate, and the
+objective is read after acquiring current room authority. The legacy bounded
+100-candidate window remains nonexhaustive; no cursor or wire field is added.
+
+The initial parity gate passed1.096s. Positive wire-shape assertions plus existing
+builder discovery/application/admission and room-origin authority regressions
+passed8.234s in retained `owner_recruitment_parity_oct28`:
+`/tmp/undergrid-recruitment-current-compatibility-oct28.jsonl`.
+Quality review: current recruitment policy has one shared evaluator; transaction
+ownership and network/sandbox separation are unchanged. No frozen migration was
+modified. Canonical owner contracts, remaining read guards and the actual owner
+UI/browser application lifecycle remain required. This feature is unmerged and
+HP2 remains open.
