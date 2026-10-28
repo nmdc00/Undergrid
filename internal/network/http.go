@@ -402,6 +402,9 @@ func (s *Service) agentCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, e
 		}
 		return s.listExternalLeads(r, tx, a, id, "agent")
 	}
+	if strings.HasPrefix(r.URL.Path, "/v1/intents/") && strings.HasSuffix(r.URL.Path, "/capability-fit") {
+		return s.capabilityFit(r, tx, a, strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/v1/intents/"), "/capability-fit"))
+	}
 	if strings.HasPrefix(r.URL.Path, "/v1/intents/") && strings.HasSuffix(r.URL.Path, "/constraint-assessments") {
 		return s.constraintAssessments(r, tx, a, strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/v1/intents/"), "/constraint-assessments"))
 	}
