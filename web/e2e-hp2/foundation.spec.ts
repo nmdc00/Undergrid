@@ -10,13 +10,15 @@ import { test, expect, type BrowserContext } from "@playwright/test";
 // Actual network app/session/API. Separate modes prove setup, publication or
 // reviewed builder registration/recruitment; none proves the full HP2 journey.
 test(
-  process.env.UNDERGRID_HP2_ROOM_ORIGIN === "1"
-    ? "owner selects a current match, recovers a reviewed room, and receives recruitment without admission"
-    : process.env.UNDERGRID_HP2_BUILDER_REGISTRATION === "1"
-      ? "owner reviews builder declarations and receives worker recruitment without admission"
-      : process.env.UNDERGRID_HP2_OWNER_PUBLICATION === "1"
-        ? "owner publishes a selected projection and revokes its foreign read through the console"
-        : "three controlled owners receive separate scoped agents and private watches",
+  process.env.UNDERGRID_HP2_CONTINUOUS === "1"
+    ? "same owners discover demand, recruit and admit, then approve exact plans and separately accept work across restart"
+    : process.env.UNDERGRID_HP2_ROOM_ORIGIN === "1"
+      ? "owner selects a current match, recovers a reviewed room, and receives recruitment without admission"
+      : process.env.UNDERGRID_HP2_BUILDER_REGISTRATION === "1"
+        ? "owner reviews builder declarations and receives worker recruitment without admission"
+        : process.env.UNDERGRID_HP2_OWNER_PUBLICATION === "1"
+          ? "owner publishes a selected projection and revokes its foreign read through the console"
+          : "three controlled owners receive separate scoped agents and private watches",
   async ({ browser }) => {
     const continuous = process.env.UNDERGRID_HP2_CONTINUOUS === "1";
     const applications = process.env.UNDERGRID_HP2_APPLICATIONS === "1";

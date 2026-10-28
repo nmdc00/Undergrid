@@ -26,3 +26,26 @@ release integration and current authority/recovery gates. Controlled identities,
 local fixed terms and provider fixtures never establish independent beneficial
 owners, legal approval or provider/deployment qualification. All external gates
 remain separately open. No closure is claimed yet.
+
+## Initial composition evidence — 28 October 2026
+
+The extracted existing plan scenario passes49.381s on `afa5825`, retaining exact
+votes/assignment activation/revision/restart checks. The first continuous browser
+on `e6c2dc9` passes37.2s: same accounts go from current demand match through owner
+room creation/recovery, worker recruitment, C application/recovered offer/separate
+admission, B explicit invitation/separate admission, persistent message, exact
+plan/rights votes, separate task acceptance, plan revision and worker restart/
+obligation recovery. The aggregate39.675s fails afterward: an application-only
+global offered-event assertion sees2 because B's separate normal invitation is
+also present. The corrected oracle counts application-origin offers explicitly;
+the recruitment fixture's expected final plan/task/approval counts are separately
+updated to the full journey's exact2/4/12 rather than the earlier0/0/0. This is a
+fixture composition correction, not a product change or weakened authority gate.
+
+- `/tmp/undergrid-hp2-continuous-plan-extraction-regression-oct28.jsonl`
+- `/tmp/undergrid-hp2-continuous-first-oct28.jsonl` (browser pass, aggregate failure)
+- First continuous database `hp1_run_431ffac946ff49748eab9bf59dfb902b`
+- First continuous browser artifacts `/tmp/undergrid-hp2-browser-1396905735`
+
+Final aggregate, negative guards and reviewed release integration remain required.
+HP2 is not locally closed yet. External qualification remains separately open.

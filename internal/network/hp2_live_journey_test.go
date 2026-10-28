@@ -306,7 +306,14 @@ func hp2LiveOwnerSetup(t *testing.T, mode hp2SetupMode) {
    (SELECT count(*) FROM undergrid.plan_versions),(SELECT count(*) FROM undergrid.tasks),(SELECT count(*) FROM undergrid.approvals)`).Scan(&profiles, &opportunities, &events, &inbox, &completedRecruitmentJobs, &foreignMemberships, &plans, &tasks, &approvals); err != nil {
 			t.Fatal(err)
 		}
-		if profiles != 1 || opportunities != 1 || events != 1 || inbox != 1 || completedRecruitmentJobs < 1 || foreignMemberships != map[bool]int{false: map[bool]int{false: 0, true: 1}[applications], true: 2}[continuous] || plans != 0 || tasks != 0 || approvals != 0 {
+		expectedForeign, expectedPlans, expectedTasks, expectedApprovals := 0, 0, 0, 0
+		if applications {
+			expectedForeign = 1
+		}
+		if continuous {
+			expectedForeign, expectedPlans, expectedTasks, expectedApprovals = 2, 2, 4, 12
+		}
+		if profiles != 1 || opportunities != 1 || events != 1 || inbox != 1 || completedRecruitmentJobs < 1 || foreignMemberships != expectedForeign || plans != expectedPlans || tasks != expectedTasks || approvals != expectedApprovals {
 			t.Fatalf("builder profile/recruitment effects: profile=%d opp/event/inbox=%d/%d/%d completedjobs=%d memberships=%d plans/tasks/approvals=%d/%d/%d", profiles, opportunities, events, inbox, completedRecruitmentJobs, foreignMemberships, plans, tasks, approvals)
 		}
 	}
