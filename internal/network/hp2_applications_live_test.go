@@ -11,7 +11,7 @@ import (
 func TestHP2LiveOwnerRecruitmentApplicationOfferAndAdmission(t *testing.T) {
 	hp2LiveOwnerSetup(t, hp2Applications)
 }
-func assertHP2ApplicationState(t *testing.T, ctx context.Context, db *pgx.Conn) {
+func assertHP2ApplicationState(t *testing.T, ctx context.Context, db *pgx.Conn, withPlan bool) {
 	t.Helper()
 	var applications, accepted, claims, appliedEvents, offeredEvents, plans, tasks, approvals int
 	if err := db.QueryRow(ctx, `SELECT
@@ -23,7 +23,11 @@ func assertHP2ApplicationState(t *testing.T, ctx context.Context, db *pgx.Conn) 
  (SELECT count(*) FROM undergrid.plan_versions),(SELECT count(*) FROM undergrid.tasks),(SELECT count(*) FROM undergrid.approvals)`).Scan(&applications, &accepted, &claims, &appliedEvents, &offeredEvents, &plans, &tasks, &approvals); err != nil {
 		t.Fatal(err)
 	}
-	if applications != 1 || accepted != 1 || claims != 1 || appliedEvents != 1 || offeredEvents != 1 || plans != 0 || tasks != 0 || approvals != 0 {
+	expectedPlans, expectedTasks, expectedApprovals := 0, 0, 0
+	if withPlan {
+		expectedPlans, expectedTasks, expectedApprovals = 2, 4, 12
+	}
+	if applications != 1 || accepted != 1 || claims != 1 || appliedEvents != 1 || offeredEvents != 1 || plans != expectedPlans || tasks != expectedTasks || approvals != expectedApprovals {
 		t.Fatalf("application admission effects: applications=%d accepted=%d claims=%d applied/offered=%d/%d plans/tasks/approvals=%d/%d/%d", applications, accepted, claims, appliedEvents, offeredEvents, plans, tasks, approvals)
 	}
 }

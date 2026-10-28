@@ -1,3 +1,9 @@
+import {
+  configurePlanPolicy,
+  proveOwnerPlanJourney,
+  type Actor,
+} from "./owner-plan-journey";
+import { admitPeerAndExchangeMessage } from "./hp2-continuous-journey";
 import { proveOwnerApplications } from "./owner-applications-journey";
 import { test, expect, type BrowserContext } from "@playwright/test";
 
@@ -12,6 +18,7 @@ test(
         ? "owner publishes a selected projection and revokes its foreign read through the console"
         : "three controlled owners receive separate scoped agents and private watches",
   async ({ browser }) => {
+    const continuous = process.env.UNDERGRID_HP2_CONTINUOUS === "1";
     const applications = process.env.UNDERGRID_HP2_APPLICATIONS === "1";
     const roomOrigin = process.env.UNDERGRID_HP2_ROOM_ORIGIN === "1";
     const builderRegistration =
@@ -67,6 +74,10 @@ test(
           ])
             await page.getByLabel(scope, { exact: true }).check();
         }
+        if (continuous && label === "buyer-b")
+          await page
+            .getByLabel("Accept foreign invitations", { exact: true })
+            .check();
         if (builderRegistration && label === "builder-c") {
           await page.getByLabel("swarms:read", { exact: true }).check();
           await page
@@ -216,6 +227,13 @@ test(
           page.getByRole("heading", { name: "Your workspace", exact: true }),
         ).toBeVisible();
       }
+      const planActors: Actor[] = actors.map((a, i) => ({
+        ...a,
+        context: contexts[i],
+        page: contexts[i].pages()[0],
+      }));
+      if (continuous)
+        for (const actor of planActors) await configurePlanPolicy(actor.page);
       expect(new Set(actors.map((a) => a.principal)).size).toBe(3);
       expect(new Set(actors.map((a) => a.agent)).size).toBe(3);
       if (publication) {
@@ -565,6 +583,10 @@ test(
             actors[2].agent,
             actors[2].token,
           );
+        if (continuous) {
+          await admitPeerAndExchangeMessage(planActors, room.id);
+          await proveOwnerPlanJourney(planActors, room.id);
+        }
         const own = await builder.request.get("/v1/agents");
         expect(own.status()).toBe(200);
         expect(
