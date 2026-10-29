@@ -202,9 +202,7 @@ Adjacent guards: private input grants, stale manifests/votes, failed checks,
 withdrawal/abandoned work, rights holds and coordinator exit/recovery cannot be
 bypassed. No arbitrary verifier execution. Keep evidence and consent separate.
 
-Current evidence: unverified owner task execution is reviewed and merged in PR126/release `1e62e06`, with actual continuous-owner browser/worker proof and passing exact-release UI/build/HTTP policy/recovery gates (`OWNER_TASK_EXECUTION.md`). It preserves clocks and grants no output/evidence/rights consent. Many backend artifact/verifier/rights/publication/reuse paths exist. Complete owner contribution/artifact/evidence/publication interfaces and
-storage/verifier-host qualification remain open; a combined user journey is not
-claimed complete.
+Current evidence: unverified owner task execution is reviewed and merged in PR126/release `1e62e06`, with actual continuous-owner browser/worker proof and passing exact-release UI/build/HTTP policy/recovery gates (`OWNER_TASK_EXECUTION.md`). It preserves clocks and grants no output/evidence/rights consent. Owner dataset/private-progress upload, immutable manifest sealing, reload discovery and fixed-evidence inspection are reviewed/merged in PR128/release `0fae8c4`; the actual continuous owner browser/worker journey passes on the merged release (`OWNER_CONTRIBUTIONS.md`). Substantive progress reporting/named review, designated output acceptance, separate publication, private-input grant UI, fourth-principal reuse and storage/verifier-host qualification remain open. A complete HP3 journey is not claimed.
 
 Public qualification: approved legal templates/license policy, qualified object
 storage/verifier isolation, and the real four-principal discovery-to-reuse cohort.

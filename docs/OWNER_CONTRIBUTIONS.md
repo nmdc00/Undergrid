@@ -375,3 +375,77 @@ source/provider, storage/verifier-host and deployment gates remain explicitly op
 Frozen migration hashes rechecked unchanged before PR. All changed Go files are
 already gofmt-clean; `git diff --check` passes. Root review found no remaining
 in-scope authority or recovery blocker. Exact merged-release checks still remain.
+
+
+## Reviewed merge and exact-release validation — 29 October 2026
+
+[PR128](https://github.com/nmdc00/Undergrid/pull/128) is reviewed by root and merged
+as `0fae8c4eecf650d01f6834b2cfd7fa9a94dcbfe1`. Feature head is `5533791`;
+its branch/worktree and all databases/runtime artifacts are retained. No fresh
+independent swarm review is claimed. The release build matches the proven source
+`fea2b9fb557a35d357611017da84573f769ba658f0904d3e6344811012cd89c1`
+and JS `220289735080b09b350ef898f430588b4c053d0a45835b83284b225fc05619cd`.
+
+The complete owner browser/worker journey passes on this exact merged release in
+71.740s, including a real retryable55P03 lock conflict recovered under the existing
+bounded exact-key/body flow. Final normalized artifact/task/evaluation assertions
+pass. Retained browser DB: `hp1_run_77c6b4c5da8f4a7aaeff576b3b5970a9`;
+runtime `/tmp/undergrid-hp3-contribution-runtime-3319864798`; browser artifacts
+`/tmp/undergrid-hp2-browser-2690434501`.
+
+The initial combined release invocation is not an aggregate PASS: the browser
+passes, but both API tests stop in fixture setup because a new empty database on
+the shared cluster reruns001's existing cluster role. Retain failed empty DB
+`owner_contributions_release_oct29` and its log; this is not a product RED.
+The corrected fixture copies the normally migrated, verified owner-empty
+`undergrid_hp1_template` into `owner_contributions_release_template_oct29`.
+No ledger is fabricated, migration changed or product row seeded. Both actual
+owner HTTP/worker contract and legacy publication/evaluation/reuse lifecycle then
+pass on the exact release (2 top-level,15.256s). A mistaken read-only ledger-table
+name during inspection returned relation-not-found; reading public.undergrid_migrations
+confirms the actual normal ledger. Applied051/052 remain unchanged.
+
+- `/tmp/undergrid-owner-contributions-release-0fae8c4-build-oct29.log`
+- `/tmp/undergrid-owner-contributions-release-0fae8c4-runtime-oct29.jsonl` (mixed result; retain setup failures)
+- `/tmp/undergrid-owner-contributions-release-0fae8c4-api-corrected-oct29.jsonl` (2 API lifecycles PASS)
+
+The exact-release race and focused UI gates are still running/pending at this
+checkpoint. Full HP3 remains open; this feature grants no substantive progress
+credit, output acceptance, publication permission or reuse outcome.
+
+
+Exact-release validation is now complete for this feature. The race gate passes
+2 top-level/8 subcases in20.351s and the focused contribution/contract/assignment/
+activity UI gate passes50 cases in18.03s. The merged tree is byte-for-byte equal
+to reviewed feature head5533791 (`git diff --exit-code`), so the recorded tagged
+vet, Go build, full console327-case gate, schema178 lint/generation and local
+capability-expiry/pagination proof remain applicable. The additional stable-role
+unit case is included in the exact-release50-case gate. The full browser and
+legacy/owner API checks above prove runtime wiring on the exact merged SHA.
+
+- `/tmp/undergrid-owner-contributions-release-0fae8c4-race-oct29.jsonl`
+- `/tmp/undergrid-owner-contributions-release-0fae8c4-ui-oct29.log`
+
+This bounded owner contribution feature is implemented, locally proven, reviewed
+and merged. HP3 and external qualification remain open. Release PR62 to develop
+remains open; fetched main...develop is0/1. No promotion or deployment occurred.
+
+### Process retrospective
+
+- Learned: unit success did not predict Playwright's exact wrapped-select label
+  lookup. The real browser and independent actual-HTTP contract both caught
+  integration gaps that mocked controls could not establish.
+- Institutionalize: no new skill is needed; retain the existing runtime lifecycle
+  and exact-release contract gates, including source/HEAD-coupled production assets.
+- Amend: Undergrid fixture guidance should explicitly reuse the normally migrated
+  empty template on shared clusters, rather than rerunning bootstrap role creation
+  in a new empty database. This is a procedural recommendation, not a migration
+  rewrite or relaxed database test.
+- Testing: the continuous same-owner contribution journey, actual HTTP contract,
+  canonical-wait authority matrix and transactional failed-fanout recovery are
+  now explicit proving tests. Stable accessible-role unit coverage supplements,
+  but does not replace, Chromium acceptance.
+- Automation: reuse the existing template-copy harness and coupled build recorder.
+  A reusable template-copy entrypoint for standalone API gates would prevent
+  manual fixture mistakes; keep that bounded follow-up separate from product
+  behavior. Hosted GitHub CI remains waived.

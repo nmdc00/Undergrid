@@ -10,7 +10,7 @@ Do not count a heartbeat, download or fixture verifier as stronger evidence.
 | Sequence | Vertical outcome and current state | Runtime boundary / required proof |
 | --- | --- | --- |
 | 1 | Owner reviews accepted responsibility/inputs and starts/reports unverified activity. Active `feat/v0.1-owner-task-execution`; unverified owner execution feature reviewed/merged in PR126/release `1e62e06` with passing exact-release checks. Substantive evidence/input contribution controls remain open. | Shared task domain, task version/epoch/current plan/member/policy/dependencies. Heartbeat never renews progress/cure clocks or accepts output. Normal owner UI/reload/retry and real PostgreSQL/browser proof required before merge. |
-| 2 | Owner supplies supported JSON dataset and exact input lineage/rights manifest. Owner dataset/manifest controls, explicit owner-session quarantine, bytes/finalization/readback, bounded reload discovery and fixed evidence inspection are locally proven on `feat/v0.1-owner-contributions`; review/merge pending. Private-input grant controls remain open. | Bound quarantine upload, server-observed immutable bytes/hashes, exact input grants and finite private evidence audiences. No arbitrary agent/verifier execution. |
+| 2 | Owner supplies supported JSON dataset and exact input lineage/rights manifest. Owner dataset/manifest controls, explicit owner-session quarantine, bytes/finalization/readback, bounded reload discovery and fixed evidence inspection are locally proven on `feat/v0.1-owner-contributions`; reviewed/merged in PR128/release `0fae8c4`. Private-input grant controls remain open. | Bound quarantine upload, server-observed immutable bytes/hashes, exact input grants and finite private evidence audiences. No arbitrary agent/verifier execution. |
 | 3 | Fixed evaluation evidence is inspected; designated participants separately accept the exact artifact. Backend exists; owner evidence/contribution/acceptance journey remains open. | Real restricted worker and immutable task/epoch/artifact/evaluation bindings; failed checks, revision and withdrawn authority cannot bypass acceptance. |
 | 4 | Rights holders separately approve the exact publication manifest; permitted dataset and reusable listing become visible. Backend exists; owner manifest/consent/publish flow remains open. | Exact rights/lineage/hold and publication policy gates. Output acceptance is not publication permission; qualified storage/verifier hosts and legal templates remain external gates. |
 | 5 | Fourth principal retrieves and explicitly acknowledges reuse; original need is satisfied or keeps an unresolved remainder. Backend reuse/partial satisfaction exists; continuous owner journey remains open. | Retrieval alone is not reuse. Prove immutable version/manifest attribution, durable receipt/recovery and no fabricated authority. |
@@ -24,7 +24,7 @@ rows. Existing domain tests and retained data remain evidence.
 Current assignment: root owns owner contributions at
 `/tmp/undergrid-worktrees/owner-contributions/feat-v0.1-owner-contributions`.
 `OWNER_CONTRIBUTIONS.md` owns current creation/bytes/finalization/UI, continuous
-browser/worker and authority/rollback proof; reviewed integration remains pending. The completed task-execution branch
+browser/worker and authority/rollback proof; reviewed integration is complete in PR128/release `0fae8c4`; exact-release validation is recorded in the owning document. The completed task-execution branch
 and evidence are retained in `OWNER_TASK_EXECUTION.md`.
 Established swarm workers remain quota-unavailable; no fresh independent worker
 review or replacement agent/model is claimed. Full HP3 and full TDD remain open.
@@ -96,3 +96,30 @@ acceptance or publication consent is inferred. Canonical-wait revocation
 and failed-fanout rollback/recovery checks pass2 top-level/8 subcases in16.139s;
 final static/contract gates and reviewed integration remain pending.
 This closes no complete HP3 journey. HP3 remains active; HP4–6 are unchanged.
+
+
+## Owner contribution integration — 29 October 2026
+
+PR128 merges owner dataset/private-progress upload, immutable manifest sealing,
+metadata recovery and fixed-evidence inspection into release `0fae8c4`. The exact
+merged full browser journey passes71.740s and corrected actual owner/legacy API
+lifecycles pass15.256s. Source/build hashes, retained initial fixture failure and
+all release artifacts are in `OWNER_CONTRIBUTIONS.md`. Exact-release race checks pass2 top-level/8 subcases in20.351s and the focused UI
+gate passes50 cases in18.03s. The owner contribution feature is locally closed. No full HP3 closure,
+public verifier/storage qualification, deployment or promotion is implied.
+
+Next vertical outcome, after this contribution integration is validated: the
+assignee submits a bounded report bound to exact private progress artifact,
+evaluation, plan hash and claim epoch; the designated reviewer separately records
+a decision, and only accepted current progress updates clocks. Owning TDD§7.2
+and existing task-progress domain remain authoritative. This is not implemented
+by uploading or verifying an artifact. Keep one feature branch/worktree and RED
+behavioral proof for that outcome; retain quota-unavailable swarm status honestly.
+
+
+Current contribution status: reviewed/merged PR128/release `0fae8c4`, exact-release
+build/browser/API/race/UI proof complete. Root retains the feature worktree and
+moves next to substantive progress reporting and named review. Assignment acceptance,
+artifact verification, progress credit, output acceptance and publication consent
+remain separate. No swarm independent review was available under the retained
+worker quota restriction; root review and its limits are explicit in the evidence.
