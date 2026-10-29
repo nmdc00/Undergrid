@@ -1,0 +1,9 @@
+# Worker shutdown blocker observation
+
+The artifact branch's full network run reproduced a test-oracle failure: actual durable River fanout jobs were running and waiting on the held exclusive principal-table lock, but the test searched for one particular SQL spelling. Event RLS reads the same principal table before execution reaches that explicit principal-status query. This is not evidence that the worker failed to cancel.
+
+The test now tags the worker's PostgreSQL connections with a unique `application_name` and checks `pg_blocking_pids` against the exact fixture lock-holder PID. It still requires durably running jobs, bounded shutdown, no jobs left running, preserved retriable queued work, and the acknowledged intention's unchanged state/version. The blocker observation is more specific about connection and lock ownership and independent of which domain/RLS query first reaches that lock.
+
+Validation: unchanged original test passed on root's baseline fixture; three corrected race repetitions passed (17.420 seconds), followed by a URL-DSN race run (6.631 seconds). The artifact agent temporarily composed the correction with its expanded RLS and actual restricted-login fixture; the full shutdown contract passed under the race detector (6.517 seconds). It restored the temporary file before its feature commit. The earlier artifact failure and root baseline success are separate evidence, not a fabricated red on root's baseline.
+
+Quality: production behavior and drain deadlines are unchanged. Keyword and URL connection strings preserve credentials and explicitly add only a test connection tag; this avoids the earlier fixture mistake of mutating parsed credentials and serializing the unchanged original DSN. No fixture is reset, no queue work is removed, and no recovery assertion is weakened.

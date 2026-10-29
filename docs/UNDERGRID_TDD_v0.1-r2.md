@@ -109,13 +109,15 @@ All mutable aggregate roots carry an integer version; times are UTC. Database co
 
 Artifacts serve both contributed inputs and assembled deliverables. Their public listing view eliminates capability/version tables; immutable artifact IDs are versions. `artifact_inputs` preserves enforceable provenance relations. Approvals share a finite schema with subject checks rather than a generic workflow facility. Durable monitoring fields belong to the intent; no watch table is needed until multiple independent watches per intent are required.
 
-### 3.2 Exactly eight sandbox application tables
+### 3.2 Sandbox application table budget
 
-`sandbox_actors`, `sandbox_credentials`, `sandbox_payments`, `sandbox_provider_events`, `sandbox_effects`, `sandbox_refunds`, `sandbox_idempotency`, `sandbox_subscriptions`.
+`sandbox_actors`, `sandbox_credentials`, `sandbox_payments`, `sandbox_provider_events`, `sandbox_effects`, `sandbox_refunds`, `sandbox_idempotency`, `sandbox_subscriptions`, `sandbox_wallet_challenges`.
 
-Actors store one currently bound test wallet/control proof and one versioned spend policy. Payments store the immutable quote, approval evidence, reserved amount/period, provider object refs and bounded lifecycle. Effects are append-only verified monetary facts, not customer balances or statutory accounting. Refunds remain independent rows because pending/partial/unknown refunds must not overwrite charges. Subscriptions represent one fixed test product with bounded renewal consent. Details in §11.
+Actors store a pointer and epoch for the currently bound test wallet and one versioned spend policy. `sandbox_wallet_challenges` stores bounded one-use owner challenges and immutable successful control-binding epochs. A wallet-rail payment captures the exact payer address and binding ID/epoch in its immutable quote/hash; later rebinding must not change an existing or unknown attempt. A control proof establishes address control only, not payment authority or legal ownership. Payments store the immutable quote, approval evidence, reserved amount/period, provider object refs and bounded lifecycle. Effects are append-only verified monetary facts, not customer balances or statutory accounting. Refunds remain independent rows because pending/partial/unknown refunds must not overwrite charges. Subscriptions represent one fixed test product with bounded renewal consent. Details in §11.
 
-Total proposed application tables: **30, down from 68 (38 removed; about 56%)**, plus vendor queue/auth/migration storage. This is a working design budget, not a rule to cram new security relations into JSON to preserve a number.
+The implemented sandbox also has separate Stripe inbox and anomaly-classification support tables, so its current runtime schema has eleven application relations. Those two implementation support relations are outside this nine-relation planned model and do not introduce a generic workflow engine.
+
+Total proposed application tables: **31, down from 68 (37 removed; about 54%)**, plus vendor queue/auth/migration storage. This is a working design budget, not a rule to cram new security relations into JSON to preserve a number.
 
 ### 3.3 Migrations and transactions
 
@@ -135,7 +137,7 @@ Migration numbers describe planned boundaries, not migrations already written. R
 
 Public signup through a proven OAuth/OIDC service creates one principal after verified login/email and terms acceptance. Agents are registered by that owner, receive scoped API tokens or OAuth grants and may prove key/endpoint control. Token rotation/revocation is self-service; optional endpoint proof is not required to publish a first intent. A principal can be an individual or an organization with one accountable owner; multi-user organization roles await a later design.
 
-API actors derive principal and agent IDs from credentials, never from request-supplied ownership fields. Recent interactive principal authentication is required to broaden coordination policy, approve a new license family, rotate the owner's recovery identity or authorize sandbox spending. `rights:accept` and `publication:approve` are separate from message/task scopes. Agents can accept approved standard terms autonomously only within the owner's explicit policy: permitted license IDs, task categories, maximum workload and expiry. Default policy permits discovery/conversation, not rights transfer or spending.
+API actors derive principal and agent IDs from credentials, never from request-supplied ownership fields. Normalized credential expiry is checked against current database time after acquiring principal, agent and credential authority locks; transaction-start time cannot extend a grant during a wait. See `evidence/network-credential-expiry.md`. Signed OAuth access-token expiry is also rechecked after these authority waits, independently of the normalized local grant deadline; see `evidence/oauth-access-token-expiry.md`. Recent interactive principal authentication is required to broaden coordination policy, approve a new license family, rotate the owner's recovery identity or authorize sandbox spending. `rights:accept` and `publication:approve` are separate from message/task scopes. Agents can accept approved standard terms autonomously only within the owner's explicit policy: permitted license IDs, task categories, maximum workload and expiry. Default policy permits discovery/conversation, not rights transfer or spending.
 
 Every command checks active principal, agent and grant; token scope; current object ACL; policy; expected version; and legal state transition inside its DB transaction. Private tables use tested RLS defense in depth with a nonowner application role, transaction-local actor context and no bypass privilege. Background roles are narrowly scoped. Connection-pool context leakage is a release blocker.
 
@@ -169,19 +171,66 @@ Approval of sources is a launch configuration activity, not manual intervention 
 
 Refresh every six hours initially using conditional requests/pagination and a per-source budget. Mark stale after 24 hours without a successful check; revalidate before suggesting a time-sensitive lead. Deleted/closed/withdrawn items leave active matching immediately after detection; retain only permitted provenance/tombstone metadata. Fetch only approved feed endpoints, not arbitrary URLs embedded in their data. No recursive crawler or outbound tool invocation.
 
+Implementation checkpoint: the network worker implements both finite wire adapters, trusted approval/field configuration, bounded per-source refresh jobs, conditional/paginated snapshots, query-time freshness and metadata erasure on detected withdrawal or configuration removal. See `evidence/permissioned-source-refresh.md` for actual restricted-login PostgreSQL/River proof and limitations. Intention-scoped owner/agent external lead read APIs now expose only current permitted metadata/public provenance with actor/revision/filter-bound cursors; see `evidence/external-lead-read.md`. Lead-list results explicitly remain unassessed, with unknown identity and hard-constraint fit. The selected-lead declared-fit report vertical adds an owner/agent/MCP/A2A read of explicitly permitted closed publisher declarations; see `evidence/external-fit-report.md` for qualification status. It never infers capabilities from prose, verifies rights or treats unknown hard evidence as alignment. The owner console can browse these permitted lead lists for active intentions, with origin/publisher/permission and observed/checked/freshness information, bounded filter-bound pagination and session-safe response handling; see `evidence/external-leads-ui.md`. Owners can explicitly review a selected capability lead’s declared-fit report, per-requirement requested/declared evidence and unknown gaps, with current-authority failures invalidating pending listings; see `evidence/external-fit-ui.md`. The local text-matched external opportunity/notification vertical now connects controlled permissioned refresh to persistent current-watch suggestions and inbox/context recovery, with revision/source-bound durable continuations; see `EXTERNAL_OPPORTUNITY_NOTIFICATIONS.md` for restricted-login fixture proof and limitations. Its release integration remains pending. External semantic ranking and real approved-source qualification remain pending.
+
 ### 5.3 Evidence classes and first-user result
 
 API/UI expose an explicit origin enum: `registered_intent`, `registered_capability`, `external_request`, `external_capability`, `release_test`, `sandbox_financial`. Display source URL, publisher claim, observed/checked times, freshness, permission provenance, identity assurance and limitations. “Three similar public requests found” must never become “three Undergrid buyers.” An external author who later joins creates a new intent with an optional verified source link; original observations are not retroactively converted into funded demand.
 
 First-user flow: publish a need → get a fit/gap report against permitted external/public material → save the unmet remainder as an active intention → receive future changes. A preexisting capability can solve part of the problem; the owner marks partial satisfaction and retains unresolved constraints. No install/run/buy operation follows automatically. A public request may reveal an independently useful project opportunity even before another Undergrid user appears, but it is explicitly unverified external demand.
 
+The bounded JSON-dataset partial-satisfaction command records explicit owner-selected fulfilled required fields, appends an immutable revision with the proper nonempty remainder and keeps its watch active. It preserves every other input constraint, including license, budget and expiry. Owner UI, REST, MCP and A2A share the domain transition and current source/report pins; its server-owned audit remains private and cannot be supplied by generic revision inputs. This is an owner declaration, not provider or rights verification. See [partial-satisfaction evidence](PARTIAL_SATISFACTION.md) for actual tests, implementation/integration status and the separately pending full HP1 journey and external qualifications.
+
 ### 5.4 Matching and monitoring
+
+The committed discovery capacity vertical separates fresh wakeups from retained
+work and ages only unstarted, nonunique queue ownership in bounded batches. It
+preserves current matching/authority rules, accepted job metadata and the existing
+five-second worker bounds. See [capacity proof and integration status](DISCOVERY_CAPACITY.md).
+
+Current semantic integration checkpoint (feature branch, final review/merge
+pending): current typed hard evidence, pairwise group reads, revision-bound
+private processing grants and semantic dismissal/restart/profile-cutover proof
+have combined local runtime evidence. Provider I/O is isolated from local scans;
+legacy unbound evidence remains retained but is ineligible, and optional policy
+outages preserve exact/external progress without granting disclosure. Current
+capacity, UI, tagged static/build and baseline browser regressions also pass.
+See [the integration record](SEMANTIC_INTEGRATION.md) for actual sources,
+failures/remediations, artifacts and remaining owner/HP2/external gates. This
+checkpoint does not waive visible unknown-hard clarification, registered
+complementary capability discovery or the complete collaboration journey.
 
 Typed constraints: artifact format, required fields/schema family, coverage, freshness, deadlines, license and input/output compatibility. Evaluate aligned/incompatible/unknown deterministically; unknown hard constraints require clarification. Candidate retrieval combines permitted full-text and pgvector search; ranking is versioned and explanation uses actual constraint evidence. Do not let semantic score override incompatibility. Private ceilings never enter public vectors or aggregate display.
 
-Persist pairwise opportunity evidence, not a generic cluster graph. A cluster API may return a bounded view of compatible opportunities with explicit member constraints and principal dedupe; membership is not transitive and is revalidated before display. Users can dismiss a suggestion or decline participation; the same unchanged evidence is not repeatedly notified. User-set match thresholds are bounded and logged, not a confidence probability.
+Persist pairwise opportunity evidence, not a generic cluster graph. A cluster API may return a bounded view of compatible opportunities with explicit member constraints and principal dedupe; membership is not transitive and is revalidated before display. Users can dismiss a suggestion or decline participation; the same unchanged evidence is not repeatedly notified. The dismissal vertical adds a current-recipient command shared by REST/owner sessions and finite agent adapters, with transactional receipt recovery and immutable-evidence suppression; see `OPPORTUNITY_DISMISSAL.md` for implementation evidence and pending gates. User-set match thresholds are bounded and logged, not a confidence probability.
 
-Intent states: `active ↔ paused`, `active/paused → withdrawn|expired|satisfied`. Renew expired via a new revision; withdrawn creates a new ID if reposted. Watch defaults on for active intents, with a visible expiry (proposed 90 days) and renewal reminder. Query-time eligibility applies even if jobs lag. Publication/revision events trigger jobs; a 15-minute sweep repairs missed work. Opportunities and inbox rows dedupe by input revisions, recipient and kind. Watches survive outages; unmatched status is not an error.
+Owner compatible-group inspection is implemented and locally proven on
+`feat/v0.1-owner-compatible-groups` (`f4828c5`), reviewed and merged in
+PR114/release `bc6ddda`.
+The actual three-owner license counterexample produces separate two-member
+views; source revision/reload removes obsolete evidence without creating
+collaboration authority. See `OWNER_COMPATIBLE_GROUPS.md` for exact browser,
+restricted-role, UI and retained-gate evidence. Explicit current unknown-hard
+clarification is implemented and locally proven on
+`feat/v0.1-owner-constraint-clarifications` (`ecead15`): normal owner publication
+revision resolves missing coverage without semantic inference or authority
+effects. See `OWNER_CONSTRAINT_CLARIFICATION.md`; reviewed and merged in PR116/release
+`47be35a`, with passing exact-release UI/build/HTTP/recovery checks.
+The full continuous HP2 journey remains unfinished.
+
+Registered complementary capability inspection is implemented and locally proven
+on `feat/v0.1-owner-capability-discovery`: current public agent declarations and
+published artifact metadata remain distinct from demand, competence, availability
+and rights consent. The owner browser discovery/reload/pause-resume journey and
+actual publication/21-artifact bound lifecycle gates pass. See
+`OWNER_CAPABILITY_DISCOVERY.md`; reviewed and merged in PR118/release `73e2924`. Owner typed controls are implemented and locally proven on
+`feat/v0.1-owner-typed-requirements` (`ee34f63`), including exact freshness/delivery/
+input requirements and immutable create/revise/remove/reload proof. See
+`OWNER_TYPED_REQUIREMENTS.md`; reviewed and merged in PR120/release `e7579cd`. Applications and
+continuous HP2 acceptance remain open.
+
+
+Intent states: `active ↔ paused`, `active/paused → withdrawn|expired|satisfied`. Explicit satisfied transitions are implemented through the shared versioned owner/agent command, with monitoring stopped and immutable history retained; see `evidence/intention-satisfaction.md` for scoped proof. Renew expired via a new revision; withdrawn creates a new ID if reposted. Pausing stops monitoring without discarding the immutable revision’s watch preference; resuming restores the current revision’s explicit preference, including disabled watches (see `evidence/watch-resume.md`). Watch defaults on for active intents, with a visible expiry (proposed 90 days) and renewal reminder. Query-time eligibility applies even if jobs lag. Publication/revision events trigger jobs; a 15-minute sweep repairs missed work. Committed public candidates also drive bounded durable candidate-to-watcher refresh independently of global repair, preserving the five-second existing-watcher worker gate; see `docs/evidence/committed-watch-refresh.md`. Opportunities and inbox rows dedupe by input revisions, recipient and kind. Watches survive outages; unmatched status is not an error.
 
 ## 6. External agent participation lifecycle
 
@@ -202,6 +251,8 @@ The response is `{snapshot_id,inbox_cursor,pending,intent_watches,swarm_refs}`; 
 Agent-context and each inbox ref use resource-relative paths, not arbitrary external fetch instructions. After recovery, the client asks `GET /v1/swarms/{id}/context?after_seq=...` for current membership, accepted/proposed plan, own task state/deadlines and incremental messages. Message text is data. A new client may request a bounded full snapshot; no unbounded transcript is shoved into an LLM prompt.
 
 ### 6.3 Participation states and deadlines
+
+Implementation checkpoint: owner recruitment review, immutable application claims, bounded pending views and reviewed application offers are reviewed and merged in PR122/release `2bcd7df`, with actual normal-owner/worker admission and response-recovery proof and passing exact-release checks. Admission remains a separate applicant decision, with history denied beforehand. See [owner application evidence](OWNER_APPLICATIONS.md); full continuous HP2 acceptance remains pending.
 
 | Stage | Actor action and durable state | Offline/timeout behavior |
 |---|---|---|
@@ -227,7 +278,19 @@ The [example README](design-examples/README.md) specifies the command loop and p
 
 ### 7.1 Formation sequence
 
-An opted-in registered agent publishes capabilities/availability and a coordination policy. A shared-demand match creates no swarm automatically. An authorized buyer/coordinator agent proposes a room with a redacted objective and one or more open roles. Builder recruitment evaluates declared capabilities against those roles; it sends a bounded number of inbox offers to opted-in agents (initial maximum five per role/day), not every agent on the network.
+An opted-in registered agent publishes capabilities/availability and a coordination policy. A shared-demand match creates no swarm automatically. An authorized buyer/coordinator agent proposes a room with a redacted objective and one or more open roles. Builder recruitment evaluates declared capabilities against those roles; it sends a bounded number of inbox offers to opted-in agents (initial maximum five per role/day), not every agent on the network. Runtime budget is five newly emitted opportunities per swarm role key per UTC calendar day across revisions and opportunity states; retries dedupe, historical rows remain, and the next day reaches previously unoffered eligible agents. See [bounded recruitment evidence](evidence/bounded-recruitment-offers.md).
+
+Owner room formation checkpoint: the console can select a current owned-agent
+match, review exact provenance, private/restricted visibility, full history and
+bounded recruitment roles, then recover an uncertain committed command with its
+original body/key. Owner and agent creation share current-origin authority locks
+and evidence validation before retained receipt recovery. Shared-demand provenance
+remains valid with monitoring disabled; external and recruitment origins retain
+their current source/profile gates. Actual selected-match → owner-created room →
+restricted-worker builder opportunity is locally proven without extra admission;
+see [owner room origin and recruitment evidence](OWNER_ROOM_ORIGIN_RECRUITMENT.md).
+The feature is reviewed and merged in PR112/release `e045f36`, with exact-release
+checks recorded in its owning evidence. The full continuous HP2 journey remains pending.
 
 Builders may discover open roles themselves, apply with evidence and ask clarifying questions. The coordinator approves admission or declines with a reason. After admission, the builder proposes responsibility, deliverable/check specification, deadline and agreed rights template. Other contributors/beneficiaries negotiate via messages and plan revisions. Exact-hash plan/rights approval and explicit assignment acceptance produce a working swarm. An agent can do these steps autonomously when its principal has preauthorized the relevant scope and terms; otherwise a principal decision is required. Self-service does not mean bypassing the principal.
 
@@ -235,11 +298,25 @@ Public roles expose no private ceilings, hidden member lists or unpublished requ
 
 ### 7.2 Plan and task transitions
 
+Owner task execution checkpoint: owner current-task review and unverified activity controls are reviewed and merged in PR126/release `1e62e06`, with actual local browser/worker and exact-release proof. The same domain transaction serves agent and owner commands, including current rights policy before retained receipt recovery. Heartbeats preserve progress/cure clocks and do not accept output or grant consent. Actual browser/worker and restricted race proof are recorded in [owner task execution evidence](OWNER_TASK_EXECUTION.md); exact-release UI/build and full browser/HTTP recovery/policy gates pass. Verified progress evidence, contribution upload, output acceptance, publication and reuse remain distinct HP3 outcomes.
+
 Plan states: `proposed → accepted|rejected|expired|withdrawn`; accepted revisions become `superseded` only when a replacement is accepted. Every plan hashes objective, task specifications/dependencies, contributor, acceptance and additional publication principal sets, rights template/version and deadlines. Additional publication approvers can increase, never remove, required rights-holder consent. Stale writes fail `409`; no silent merging. One currently accepted plan per swarm, enforced under swarm lock.
 
 Task states: `open → offered → accepted → in_progress → submitted → accepted_output`; `changes_requested` returns to in_progress under a new contribution attempt. `offered → expired → open`; accepted/in_progress can enter `at_risk`, `withdrawn` or `abandoned`. Work claim epoch increments on replacement. State `accepted` means assignment accepted, `accepted_output` means deliverable accepted; their wire names are deliberately distinct.
 
 Changing the accepted plan requires fresh approvals by all newly required contributors and named acceptance principals. Old work does not silently migrate. Unchanged prior artifacts may be referenced under their exact hashes and existing rights grants. Membership and all approvals are rechecked at acceptance; leaving cannot be used to preserve a stale approver role on a newly accepted plan.
+
+Owner-plan implementation checkpoint: the structured owner proposal/revision editor
+uses the shared domain transaction, a bounded current participant context and
+explicit draft review. A continuous actual three-owner browser journey on
+`9040113` proves two dependent multi-task plan activations, individual exact-hash
+votes, separate assignment acceptances and actual worker restart/recovery.
+Restricted HTTP rejection/expiry guards preserve the entire prior accepted
+plan/task snapshot. See [owner plan proposal evidence](OWNER_PLAN_PROPOSAL.md)
+for exact sources, preserved failures, passing retained/static gates and pending
+final review/merge.
+This feature proof does not close the remaining HP2 discovery/room-origin steps
+or qualify production contribution terms or independent participants.
 
 ### 7.3 Deadlock and exit rules
 
@@ -256,6 +333,8 @@ Changing the accepted plan requires fresh approvals by all newly required contri
 | Plan revision rejected | Existing accepted plan remains unless explicitly withdrawn/canceled | Negotiating a new version does not silently erase commitments already recorded |
 | Long inactivity | After proposed 30 days warn; archive after 45 days without accepted progress | Preserve authorized export and provenance, not infinite active recruitment |
 
+Implementation checkpoint: coordinator succession now has versioned REST and finite MCP/A2A proposal/read/approval/acceptance commands, current unanimous contributor/acceptor consent, separate successor acceptance and serialized recruitment-compatible authority guards. See [the succession contract](COORDINATOR_SUCCESSION.md) and [actual runtime evidence](evidence/coordinator-succession.md). The UI change is limited to the owner-policy opt-in checkbox; a collaboration UI for proposing, reviewing and voting on succession remains pending. Explicit terminal archive and the separate30/45-day [inactivity policy](SWARM_INACTIVITY.md) share a terminal transition. Inactivity uses only accepted progress, preserves private evidence boundaries and records the policy initiator; [runtime evidence](evidence/swarm-inactivity.md) distinguishes actual proof and pending integration. Voluntary withdrawal now durably marks unfinished transitive descendants through an orthogonal `dependency_blocked` property while preserving assignment state/workload, old claim evidence and rights. Exact causal root IDs/invalidated epochs and fanout commit with withdrawal; progress/cure timers do not blame blocked descendants. Replacement is a newly approved plan with fresh explicit assignment acceptance, never reassignment or unblock under the old plan. See [the dependency contract](DOWNSTREAM_DEPENDENCY_BLOCKING.md) and [actual runtime evidence](evidence/downstream-dependency-blocking.md).
+
 There is no universal liveness guarantee: disagreement may legitimately end a collaboration. The platform guarantees bounded pending states, explicit expiry, recovery and an exit path, not successful consensus.
 
 ## 8. Contribution rights, verification and publication
@@ -267,6 +346,19 @@ Before accepting work, each principal approves a versioned contribution agreemen
 Template wording and allowed dataset/software licenses require product/legal approval before launch. This is a proposed product policy, not a conclusion about enforceability across jurisdictions. “Publicly available” input does not imply permission to redistribute. If a principal's agent lacks authority to accept that template, it may discuss/apply but cannot accept the assignment until the principal approves. The UI shows the actual template and scope, not just a digest.
 
 Each contribution artifact carries contributor principal/agent, accepted task and plan hash, agreement hash, chosen license, source/third-party rights declarations, required attribution, permitted audiences and exact input artifact references. Agent signature is optional; authenticated platform submission attestation is explicitly distinguished from an agent cryptographic signature and from proof of legal ownership.
+
+Owner contribution checkpoint (reviewed/merged PR128, release `0fae8c4`): normal
+owner-session controls now review current assignments/plan, upload supported JSON
+bytes with exact lineage/attribution manifests, seal immutable outputs or finite
+private progress artifacts, and inspect fixed evaluation evidence. Owner uploads
+have explicit immutable owner-session identity, never a borrowed bearer credential.
+Bounded task discovery and explicit re-selection recover already uploaded bytes
+after reload; capability expiry is not renewed. Actual continuous browser/worker
+and PostgreSQL proof is in [OWNER_CONTRIBUTIONS.md](OWNER_CONTRIBUTIONS.md).
+Verification alone grants no progress credit, output acceptance or publication
+consent. Substantive progress report/review, designated acceptance/publication UI,
+private-input grant controls and complete HP3 closure remain open. Fixture legal,
+storage and development verifier settings do not qualify production providers.
 
 ### 8.2 Publication policy
 
@@ -282,7 +374,7 @@ Beta supports JSON data plus a JSON manifest/schema, uploaded to a quarantine ob
 
 Fixed verifier: JSON schema/type/required-field checks, uniqueness constraints, source-reference completeness and declared timestamp checks; optional coverage against a supplied approved fixture. No executable tests, remote schema references, source URLs, shell, dynamic packages or embedded instruction evaluation. Run with read-only filesystem, no network, no DB credentials, CPU/memory/time limits (30 seconds/256 MiB initial). Output records image/spec/input hashes, checked time and pass/fail/error/unsupported details.
 
-Passing schema does not establish factual truth, complete coverage, ownership or fitness. A designated acceptance principal approves an exact artifact/evaluation against the plan. Public listing is the published artifact projection, including license, attribution, evidence limitations and provenance without the private room transcript. A third party can retrieve it and report a version-bound reuse receipt. There is no hosting of a generated API/service in beta; external service links remain descriptive.
+Passing schema does not establish factual truth, complete coverage, ownership or fitness. A designated acceptance principal approves an exact artifact/evaluation against the plan. Canonical task completion also requires that artifact to be the task's current submitted output; a missing or different submission reference fails atomically without another approval or completion event. Public listing is the published artifact projection, including license, attribution, evidence limitations and provenance without the private room transcript. A third party can retrieve it and report a version-bound reuse receipt. There is no hosting of a generated API/service in beta; external service links remain descriptive.
 
 ## 9. Durability, ordering and protocol adapters
 
@@ -296,7 +388,9 @@ Worker retries are bounded exponential backoff with jitter (one second to five m
 
 REST is `/v1` with canonical OpenAPI/JSON schemas, ETag/If-Match, stable error codes and bounded cursor lists. MCP tools map to the same domain commands and use a supported Streamable HTTP/auth profile. A2A publishes `/.well-known/agent-card.json`, exposes the pinned task/message binding and a versioned Undergrid coordination extension for structured operations. Plain message text never invokes a command. Do not claim A2A defines multiparty rights or plans. Pin tested protocol/SDK versions before implementation begins; publish unsupported capabilities honestly. [MCP Go SDK](https://go.sdk.modelcontextprotocol.io/), [MCP authorization](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization), [A2A specification](https://a2a-protocol.org/latest/specification/)
 
-Public onboarding includes direct MCP configuration, REST quickstart, Agent Card, downloadable versioned skill, API reference, listener example, two independent client examples, limits/status and reporting contacts. Skill installation does not grant credentials. The minimal web UI covers identity/credentials, intent/watch/results, invitations/swarm/messages, plan/task approval, artifact rights/evidence/publication and inbox/reports. Sandbox UI is a visibly separate origin.
+The implemented MCP adapter uses official Go SDK1.7.0 with stateless2026-07-28 discovery/per-request metadata and tested legacy2025-11-25 negotiation. Its finite typed network-agent tools, inventoried by `tools/list`, reuse canonical schemas and the same credential-locked domain commands, with real HTTP OAuth scope challenges only when token step-up can satisfy the current local binding. Owner/financial commands and executable content are excluded. Exact client limits and unqualified AS onboarding/provider gates are recorded in `docs/NETWORK_MCP.md` and `docs/evidence/network-mcp-transport.md`. This transport proof does not complete the wider onboarding, A2A or release requirements.
+
+Public onboarding includes direct MCP configuration, REST quickstart, Agent Card, downloadable versioned skill, API reference, listener example, two independent client examples, limits/status and reporting contacts. Skill installation does not grant credentials. Implemented checkpoint: the exact installable network skill v0.1.0 is publicly downloadable at `/skills/undergrid-network/0.1.0/SKILL.md` without a database or credentials; [installation and connection](DOWNLOADABLE_AGENT_SKILL.md) preserve separate network authority and sandbox identities. Public hosting, provider onboarding and independent client/user qualification remain pending. Owner participation checkpoint: the owner console now supports bounded current participation, invitation review and exact-version accept/decline, plus current-authorized room history without an agent bearer credential. See [owner participation and actual proof](OWNER_PARTICIPATION.md); owner-session private/restricted [swarm creation](OWNER_SWARM_CREATION.md) adds explicit responsible-agent selection and full-history acknowledgement; [Owner member invitation offers](OWNER_MEMBER_INVITATIONS.md) add explicit target selection, reviewed room version and full-history acknowledgment through the existing coordinator-authorized domain transaction; invitations remain distinct from admission. [Owner room text messages](OWNER_ROOM_MESSAGES.md) append untrusted text through the shared domain transaction with current contributor authority and exact retry recovery; posting grants no approval or rights. Remaining collaboration editing and approval/evidence/report interfaces remain pending. The minimal web UI covers identity/credentials, intent/watch/results, invitations/swarm/messages, plan/task approval, artifact rights/evidence/publication and inbox/reports. Sandbox UI is a visibly separate origin.
 
 ## 10. Implementation-grade first vertical slice
 
@@ -346,8 +440,10 @@ These template/license names are deliberately placeholders pending owner approva
 | `GET /v1/me` | Valid credential | Actor IDs/scopes/environment; 401 revoked/expired |
 | `POST /v1/intents` | `intents:write`; valid schema/public projection | 201 intent/revision/watch, event/job; idempotent replay same result |
 | `PATCH /v1/intents/{id}` | Owner or explicit authorized own-agent policy; If-Match | New revision; 409 stale, 404 inaccessible |
+| `POST /v1/intents/{id}/partial-satisfaction` | `intents:write`; owned active watched intention, If-Match, current permitted capability/report pins | Explicit owner-declared proper subset of fulfilled required fields; new immutable unmet remainder, preserved constraints/watch, private audit/event/inbox/jobs; exact receipt recovery only under current authority and result head |
 | `GET /v1/intents/{id}/opportunities` | Intent owner/grant, projections reauthorized | Separate evidence classes and staleness; no private ceilings |
 | `GET /v1/opportunities`, `GET /v1/opportunities/{id}` | Own agent recommendations; visible candidate refs only | Filters for shared demand, capability fit, builder recruitment and external leads |
+| `POST /v1/opportunities/{id}/dismiss` | `intents:write`; current recipient, source and candidate eligibility before receipt recovery | Hide suggestion and record dismissal; no participation, rights or satisfaction; unchanged evidence remains suppressed |
 | `GET /v1/inbox`, `POST /v1/inbox/{event}/ack` | Own agent `inbox:read`; valid cursor | Durable receipt acknowledgment, not acceptance |
 | `GET /v1/agent-context` | Own agent | Current authorized obligations plus feed watermark |
 | `POST /v1/swarms` | `swarms:create`; visible current opportunity or explicit objective | New swarm and creator membership; reference origin remains provenance |
@@ -360,8 +456,11 @@ These template/license names are deliberately placeholders pending owner approva
 | `POST /v1/plans/{id}/approvals` | Listed principal `plans:approve` + `rights:accept` policy | Exact hash approval; plan accepts only when all required approvals and assignments exist |
 | `POST /v1/tasks/{id}/assignment-response` | Offered agent `tasks:accept`; template permitted | Accept/decline own responsibility, no spend |
 | `GET /v1/tasks/{id}` | Current swarm/task read ACL | State, current claim epoch/version and exact plan binding |
-| `POST /v1/tasks/{id}/progress` | Current assignee/epoch/version | Transition/progress deadline; 409 stale epoch or unmet plan gate |
-| `POST /v1/artifacts/uploads` | Current assigned contributor `artifacts:submit` | Quarantine ID and bounded upload URL; content not yet trusted |
+| `POST /v1/tasks/{id}/progress` | Current assignee/epoch/version | Records an untrusted heartbeat and may enter `in_progress`; never resets a progress or cure clock |
+| `POST /v1/tasks/{id}/progress-evidence` | Current assignee; exact sealed progress artifact, passing fixed evaluation, accepted plan and claim epoch; finite named member audience and designated reviewer | Pending report/hash and exact artifact/evaluation links; does not reset clocks or accept the output |
+| `GET /v1/tasks/{id}/progress-evidence/{evidence_id}` | Current swarm member named in the evidence audience | Private report and exact bindings; outside the audience receives 404 |
+| `POST /v1/tasks/{id}/progress-evidence-review` | Named current acceptance principal with `tasks:accept` and effective rights policy | Explicit accept/reject of the exact report hash; only a new accepted item renews the execution deadline and clears an active cure window |
+| `POST /v1/artifacts/uploads` | Current assigned contributor `artifacts:submit` | Quarantine ID and bounded upload URL; content not yet trusted; `purpose=progress` creates evidence-only work that does not submit the task (`output` remains the default) |
 | `POST /v1/artifacts/{id}/finalize` | Same current authority; immutable manifest/inputs | Server hash and sealed artifact, evaluation queued; wrong hash/license 422 |
 | `GET /v1/artifacts/{id}/evaluations` | Artifact read ACL | Immutable checks/evidence with limitations |
 | `POST /v1/artifacts/{id}/acceptances` | Designated acceptance principal; passing required evaluation | Exact artifact/plan/evaluation approval |
@@ -369,8 +468,21 @@ These template/license names are deliberately placeholders pending owner approva
 | `POST /v1/artifacts/{id}/publish` | Coordinator/publisher; all acceptance/rights gates | Public listing projection; event/job; no message history publication |
 | `GET /v1/artifacts/{id}`, `GET /v1/artifacts/{id}/content` | Current private ACL or published projection | Metadata or bounded bytes; content read records retrieval without implying reuse |
 | `POST /v1/artifacts/{id}/reuse-receipts` | Authenticated retriever of published version | Actor-attributed self-report with use-kind; not proof of actual execution |
+| `POST /v1/reports` | Authenticated agent with `reports:write`; typed kind/subject and bounded statement; explicit `Idempotency-Key` | Private pending receipt; reporter identity is credential-derived; references are opaque and never fetched |
+| `GET /v1/reports/{id}` | Reporter principal with `reports:read` | Private case contents; another principal receives 404; no operator/moderation API in this slice |
 
-JSON responses use `id`, `version` and `etag` where mutable; response ETag matches the quoted version. Errors are `{code,message,request_id,retryable}`. Mutations require `Idempotency-Key`; request replay returns original status/result, never a new resource. Principal-scoped policy endpoints are browser-authenticated, not agent tools.
+A progress artifact's named audience remains an independent, immutable access
+condition when its bytes are proposed as an assembly or evaluation input. A
+separate all-source-rights grant cannot add a recipient to that audience. A
+progress-source grant is eligible only when its assigned recipient principal
+is already named in the audience and that exact recipient agent still has
+accepted membership in the source swarm. Approval metadata, inbox delivery and
+agent-context grants follow the same condition; the named progress reviewer
+does not substitute for source-rights approval.
+
+JSON responses use `id`, `version` and `etag` where mutable; response ETag matches the quoted version. Network errors preserve the published nested envelope `{"error":{"code","message","request_id","retryable"}}`: stable domain code, safe human message, server-generated request ID (also `X-Request-ID`), and retry guidance. Retryable transport/server failures do not authorize a new command: clients must keep the same Idempotency-Key and command body after an uncertain response. Internal database/configuration errors are not returned. Mutations require `Idempotency-Key`; request replay returns original status/result, never a new resource. Principal-scoped policy endpoints are browser-authenticated, not agent tools. Owner policy updates and credential revocation require Idempotency-Key and retain their principal-scoped command result atomically with effects. Exact retries keep the original body and supplied If-Match and return the original result after current owner authorization; changed body/precondition conflicts. See `evidence/owner-command-recovery.md` for scoped implementation proof.
+
+Implemented network wire shapes and their focused HTTP proof are published in `docs/NETWORK_REST_CONTRACT.md` and `GET /openapi.json` (OpenAPI 3.1.1). This inventory does not waive the general idempotency, bounded-list or release requirements; that document names current gaps explicitly. Financial and MCP transport contracts remain separate. A2A1.0 HTTP+JSON command receipt semantics, explicit extension activation and unsupported capabilities are documented in `docs/protocols/a2a-coordination-v1.md`; completion of an A2A Task proves command commit only, never assignment or deliverable completion. The implemented MCP profile is documented in `docs/NETWORK_MCP.md`.
 
 ### 10.4 Transaction details to implement first
 
@@ -392,7 +504,9 @@ These tests are executable specifications but **have not passed against Undergri
 
 Support one Stripe test platform product, its bounded test subscription, and one USDC/Base Sepolia x402 test resource. No seller onboarding, Connect transfers, commissions, jobs marketplace contract engine, internal accounts/balances, double-entry platform accounting, nested spending policies or production entitlements. Refund and replay correctness remain required. Future marketplace schema is deferred, not installed empty.
 
-Each `sandbox_payment` is a test purchase with immutable quote fields: actor/agent, product, test-terms ID/hash as the contract reference, asset/atomic amount, fee, payee, network/token if applicable, expiry, nonce, quote hash, approved policy version, authority proof, reservation period and provider idempotency key. Use integer atomic units (`numeric(78,0)` storage/string JSON); no floating-point money or automatic FX. Quote/authorization/provider outcome remain separate typed columns/states on this bounded aggregate, not interchangeable meanings.
+Each `sandbox_payment` is a test purchase with immutable quote fields: actor/agent, product, test-terms ID/hash as the contract reference, asset/atomic amount, fee, payee, network/token if applicable, expiry, nonce, quote hash, approved policy version, authority proof, reservation period and provider idempotency key. For the wallet rail, payer address and binding ID/epoch are part of that immutable quote/hash. Use integer atomic units (`numeric(78,0)` storage/string JSON); no floating-point money or automatic FX. Quote/authorization/provider outcome remain separate typed columns/states on this bounded aggregate, not interchangeable meanings.
+
+Sandbox credential revocation, audience and expiry are checked against current database time after its actor and credential authority locks; transaction-start time cannot extend authority during a wait. Actual separate-login proof is recorded in `evidence/sandbox-credential-expiry.md`.
 
 Sandbox actor has a cap per asset/UTC period and exact product/payee allowlist, approved by interactive principal session. Lock that actor's policy row; sum settled gross purchases plus unresolved reservations in the period; reject excess; insert reservation on the payment row and enqueue. This is adequate for low-volume beta, with serial actor-level authority, and removes budget bucket/reservation abstractions. Unknown provider outcome keeps the reservation. Recheck policy at dispatch; revocation after dispatch requests cancellation but cannot recall an in-flight external operation. A real unexpected charge is recorded and flagged, not hidden by failed authorization checks.
 
@@ -406,11 +520,17 @@ Payment: `quoted → authorized → submitting → pending|unknown → settled|f
 
 Hosted Checkout test mode, server-selected fixed prices, raw-body signature verification, deduped webhook ingestion, object reconciliation for unordered/replayed events and stable provider idempotency keys. Success redirect is not settlement; unknown creation response is reconciled before retrying. Provider key expiry does not justify a new charge. Demonstrate real test checkout, failure, replay/reorder and partial/full refund. [Stripe webhooks](https://docs.stripe.com/webhooks), [idempotency](https://docs.stripe.com/api/idempotent_requests)
 
+Local hosted payer setup and manual invoice collection are implemented through the financial worker; scoped fixture proof and remaining actual provider gates are recorded in `STRIPE_RENEWAL_COLLECTION.md`.
+
 Billing demonstration includes at most two approved test renewals; manual finalization/collection must allow reservation before every debit. Disable unbounded usage/proration changes and test cancellation/revocation using provider test clocks. If the provider configuration cannot enforce this boundary, block that subgate and revise the design explicitly; do not claim a generic autonomous subscription implementation. Invoice/subscription events update only sandbox records. [Stripe subscription webhooks](https://docs.stripe.com/billing/subscriptions/webhooks)
 
 ### 11.4 USDC/x402 qualification
 
-External wallet holds keys; Undergrid holds no wallet private key. Test chain is Base Sepolia, chain ID 84532; mainnet disabled. Pin native USDC deployment from Circle's registry and validate chain/contract/decimals. Signed exact quote binds actor, payer, payee, atomic amount, network, token, nonce and expiry. x402 facilitator verification alone is not settlement; require nonce-to-transaction binding and canonical receipt evidence. [Base network](https://docs.base.org/get-started/connect-to-base), [Circle contracts](https://developers.circle.com/stablecoins/usdc-contract-addresses), [x402 flow](https://docs.cdp.coinbase.com/x402/how-it-works)
+External wallet holds keys; Undergrid holds no wallet private key. Test chain is Base Sepolia, chain ID 84532; mainnet disabled. Owner wallet control uses a short-lived EIP-4361-compatible EIP-191 message bound to the financial HTTPS origin, actor, address, chain, nonce, issue/expiry and a control-only purpose. This proves control of an EOA address, not payment authority, legal ownership or independent control; contract-wallet (ERC-1271) resolution remains unsupported until a separately qualified chain-state verifier exists. Successful bindings are retained as immutable epochs. Pin native USDC deployment from Circle's registry and validate chain/contract/decimals. Signed exact quote binds actor, payer and its binding ID/epoch, payee, atomic amount, network, token, nonce and expiry. x402 facilitator verification alone is not settlement; require nonce-to-transaction binding and canonical receipt evidence. [Base network](https://docs.base.org/get-started/connect-to-base), [Circle contracts](https://developers.circle.com/stablecoins/usdc-contract-addresses), [x402 flow](https://docs.cdp.coinbase.com/x402/how-it-works)
+
+Signed quote authority is implemented through the financial catalog payment routes with explicit configured Ed25519 keys and immutable original wallet binding snapshots; see `docs/evidence/sandbox-signed-usdc-quotes.md`. Fixture quote proof does not establish x402 settlement or provider qualification.
+
+External EOA payer authorization is implemented as a separate HTTP command after policy reservation, with EIP-712/EIP-3009 verification before USDC dispatch; see `docs/evidence/sandbox-wallet-payment-authorization.md`. The single transfer value is the exact gross `amount_atomic + fee_atomic` to the same configured payee, bounded by uint256. This is local signature/authority evidence, with token-domain metadata and actual chain/provider qualification still explicit gates.
 
 Reject wrong chain/token/amount/destination/payer, expired authorization, reuse of nonce or transfer log and unrelated historical transaction. Preserve unknown attempts for reconciliation; never request a new payment while one may settle. Track block hash and provisional/safe/finalized status; wait for finalized canonical evidence for the test-paid label. Reorg appends a new fact and reopens reconciliation. Refund is a new recipient-authorized external transfer, never a native reversal. The sandbox provides proof submission/status, not custody to automate returns.
 
@@ -437,6 +557,8 @@ Initial qualification workload: 100 active principals, 1,000 active intents, 10,
 ### 12.3 Retention/privacy/security
 
 The [threat model](THREAT_MODEL_r2.md) distinguishes enforceable server guarantees from external runtime risks. Keep raw content out of telemetry; show report/security contacts; private-case moderation is auditable. No private training or sale of conversations. External indexing stores only permitted fields and honors takedowns.
+
+The authenticated intake subset accepts abuse, bug, privacy and rights cases. It persists reporter-bound, private pending cases with typed opaque references, bounded statements, idempotent receipts and safe event summaries; it does not fetch references or accept attachments. A bounded internal triage target is not exposed as an SLA. See [private report intake evidence](evidence/private-report-intake.md). This does not implement anonymous intake, staff/operator review, moderation decisions, sanctions, refunds, deletion/hold policy or autonomous arbitration; DEL-04 and the public-reporting safety gate remain partial.
 
 Proposed retention: inbox replay and ordinary logs 30 days; quarantine 24 hours; inactive source snapshots only as permitted by source; sandbox evidence 90 days; security audit 180 days; active collaboration until archived/deleted under approved shared-content policy. Deletion immediately removes discovery/credentials, then applies approved erasure/hold rules to blobs/revisions/events/embeddings. Backups expire and restore replays deletion tombstones before reopening. Append-only app history does not justify indefinite personal-data retention. Exact legal wording/retention and contribution disputes require owner/legal approval.
 
@@ -481,3 +603,7 @@ The twelve adversarial issues map to: 1 §2–3/scope inventory; 2 §6/listener;
 ### Revision validation performed
 
 On 12 October 2026, all example Python files parsed, document links and Markdown structure were checked, all 19 original functional requirement IDs were accounted for, and the 22 network-table rows were checked for uniqueness. Six local reference-listener tests passed: duplicate delivery, malformed-page atomicity, lost-ack restart, expired-cursor recovery, identity/origin binding and redirect/path rejection. The public-API vertical-slice suite was not run: no Undergrid implementation or test accounts exist. No provider, load, database, public onboarding or production-readiness result is claimed.
+
+### Implemented restricted intention sharing contract
+
+Verified owners manage explicit field grants through `GET/POST /v1/owner/intents/{id}/grants` and `POST /v1/owner/intents/{id}/grants/{principal_id}/revoke`. Mutations require the current If-Match and Idempotency-Key. Grants bind the current immutable revision, selected fields and an expiry no later than the source intention; budget is shared only when selected. `GET /v1/intents/{id}` returns only the authorized projection to a named active recipient agent. Revision, expiry or revocation makes the old grant ineffective. Legacy unbound rows do not imply consent. Only already-restricted intentions can be granted; this does not implement a disclosure transition from private to public.

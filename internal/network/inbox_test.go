@@ -17,6 +17,7 @@ type testClient struct {
 	t            *testing.T
 	s            *Service
 	owner, token string
+	observe      func(*http.Request, *httptest.ResponseRecorder, any)
 }
 
 func (c testClient) call(method, path, key string, body any) (int, map[string]any) {
@@ -27,6 +28,9 @@ func (c testClient) call(method, path, key string, body any) (int, map[string]an
 	r.Header.Set("Idempotency-Key", key)
 	w := httptest.NewRecorder()
 	c.s.ServeHTTP(w, r)
+	if c.observe != nil {
+		c.observe(r, w, body)
+	}
 	var out map[string]any
 	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
 		c.t.Fatal(err)
@@ -52,6 +56,9 @@ func fixture(t *testing.T) (*Service, *pgx.Conn) {
 	})
 	s.cursorKey = bytes.Repeat([]byte{42}, 32)
 	s.termsVersion = "test-v1"
+	if err = s.ConfigureCredentialIssuance("network-test-key", bytes.Repeat([]byte{41}, 32)); err != nil {
+		t.Fatal(err)
+	}
 	return s, db
 }
 func client(t *testing.T, s *Service) testClient {
@@ -61,7 +68,7 @@ func client(t *testing.T, s *Service) testClient {
 	if code != 201 {
 		t.Fatalf("register %d %v", code, out)
 	}
-	code, out = c.call("POST", "/v1/agents", "", map[string]any{"name": "listener", "scopes": []string{"intents:read", "intents:write", "inbox:read"}})
+	code, out = c.call("POST", "/v1/agents", "fixture-agent-creation", map[string]any{"name": "listener", "scopes": []string{"intents:read", "intents:write", "inbox:read"}})
 	if code != 201 {
 		t.Fatalf("agent %d %v", code, out)
 	}
@@ -69,7 +76,7 @@ func client(t *testing.T, s *Service) testClient {
 	return c
 }
 func intentFixture() IntentInput {
-	return IntentInput{Objective: "European source catalog", Output: Output{"json_dataset", "source_catalog_v1"}, HardConstraints: Constraints{[]string{"source_id", "source_url"}, []string{"CC0-1.0"}}, Visibility: "private", Watch: Watch{true, []string{"inbox"}}, ExpiresAt: time.Now().Add(24 * time.Hour)}
+	return IntentInput{Objective: "European source catalog", Output: Output{"json_dataset", "source_catalog_v1"}, HardConstraints: Constraints{RequiredFields: []string{"source_id", "source_url"}, LicenseIDs: []string{"CC0-1.0"}}, Visibility: "private", Watch: Watch{true, []string{"inbox"}}, ExpiresAt: time.Now().Add(24 * time.Hour)}
 }
 
 func TestInboxReceiptAndRecovery(t *testing.T) {

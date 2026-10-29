@@ -5,6 +5,11 @@ import (
 	"time"
 )
 
+const (
+	maxPlanTasks = 50
+	maxPlanEdges = 100
+)
+
 type TaskSpec struct {
 	Key                     string     `json:"key"`
 	AssigneeAgentID         string     `json:"assignee_agent_id"`
@@ -25,12 +30,13 @@ type PlanSpec struct {
 	RespondBy             time.Time  `json:"respond_by"`
 }
 type sealedPlan struct {
-	Plan         PlanSpec `json:"plan"`
-	TemplateHash string   `json:"template_hash"`
+	Plan                 PlanSpec `json:"plan"`
+	TemplateHash         string   `json:"template_hash"`
+	InputGrantPolicyHash string   `json:"input_grant_policy_hash,omitempty"`
 }
 
 func (p PlanSpec) validate() error {
-	if len(p.Objective) < 3 || len(p.Objective) > 4000 || len(p.Tasks) < 1 || len(p.Tasks) > 50 || len(p.RequiredPrincipals) < 1 || len(p.AcceptancePrincipals) < 1 || !p.RespondBy.After(time.Now()) || p.RespondBy.After(time.Now().Add(7*24*time.Hour)) {
+	if len(p.Objective) < 3 || len(p.Objective) > 4000 || len(p.Tasks) < 1 || len(p.Tasks) > maxPlanTasks || len(p.RequiredPrincipals) < 1 || len(p.AcceptancePrincipals) < 1 || !p.RespondBy.After(time.Now()) || p.RespondBy.After(time.Now().Add(7*24*time.Hour)) {
 		return fail(422, "invalid_plan")
 	}
 	for _, set := range [][]string{p.RequiredPrincipals, p.AcceptancePrincipals, p.PublicationPrincipals} {
@@ -65,7 +71,7 @@ func (p PlanSpec) validate() error {
 		tasks[task.Key] = task
 		edges += len(task.DependsOn)
 	}
-	if edges > 100 {
+	if edges > maxPlanEdges {
 		return fail(422, "dependency_limit")
 	}
 	visiting, done := map[string]bool{}, map[string]bool{}

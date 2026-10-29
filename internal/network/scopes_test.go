@@ -8,7 +8,7 @@ import (
 func TestSwarmCreationDoesNotGrantInvitationAuthority(t *testing.T) {
 	s, _ := fixture(t)
 	owner, target := client(t, s), collaborationClient(t, s)
-	code, issued := owner.call("POST", "/v1/agents", "", map[string]any{"name": "room-creator", "scopes": []string{"swarms:create"}})
+	code, issued := owner.call("POST", "/v1/agents", "room-creator-agent", map[string]any{"name": "room-creator", "scopes": []string{"swarms:create"}})
 	if code != 201 {
 		t.Fatal(code, issued)
 	}

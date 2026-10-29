@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -10,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -93,11 +95,50 @@ func run() error {
 		o, err := sessions.Authenticate(r)
 		return network.Owner{Issuer: o.Issuer, Subject: o.Subject, Verified: err == nil}, err
 	})
+	if err = service.ConfigureA2ATransport(origin); err != nil {
+		return err
+	}
+
 	cursorKey, err := base64.StdEncoding.DecodeString(os.Getenv("UNDERGRID_CURSOR_KEY"))
 	if err != nil {
 		return errors.New("invalid cursor key")
 	}
 	if err = service.Configure(cursorKey, os.Getenv("UNDERGRID_TERMS_VERSION")); err != nil {
+		return err
+	}
+	if value := os.Getenv("UNDERGRID_REPORT_TRIAGE_WINDOW"); value != "" {
+		window, parseErr := time.ParseDuration(value)
+		if parseErr != nil {
+			return errors.New("invalid report triage window")
+		}
+		if err = service.ConfigureReportTriageWindow(window); err != nil {
+			return err
+		}
+	}
+	issuanceKey, err := base64.StdEncoding.DecodeString(os.Getenv("UNDERGRID_CREDENTIAL_ISSUANCE_KEY"))
+	if err != nil || subtle.ConstantTimeCompare(issuanceKey, sessionKey) == 1 {
+		return errors.New("dedicated credential issuance key required")
+	}
+	if err = service.ConfigureCredentialIssuance(os.Getenv("UNDERGRID_CREDENTIAL_ISSUANCE_KEY_ID"), issuanceKey); err != nil {
+		return err
+	}
+	oauthResource := os.Getenv("UNDERGRID_NETWORK_OAUTH_RESOURCE")
+	oauthIssuers := strings.TrimSpace(os.Getenv("UNDERGRID_NETWORK_OAUTH_ISSUERS"))
+	if oauthResource != "" || oauthIssuers != "" {
+		if oauthResource == "" || oauthIssuers == "" {
+			return errors.New("network OAuth resource and trusted issuer configuration must be set together")
+		}
+		issuers := []string{}
+		for _, issuer := range strings.Split(oauthIssuers, ",") {
+			if issuer = strings.TrimSpace(issuer); issuer != "" {
+				issuers = append(issuers, issuer)
+			}
+		}
+		if err = service.ConfigureOAuthResource(network.OAuthResourceConfig{Resource: oauthResource, Issuers: issuers}); err != nil {
+			return errors.New("network OAuth resource discovery/configuration failed")
+		}
+	}
+	if err = service.ConfigureArtifactsFromEnvironment(); err != nil {
 		return err
 	}
 	if path := os.Getenv("UNDERGRID_CONTRIBUTION_TEMPLATES_FILE"); path != "" {
@@ -113,13 +154,15 @@ func run() error {
 			return err
 		}
 	}
+	if err = service.ConfigureMCP(origin); err != nil {
+		return err
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/auth/login", login.Start)
 	mux.HandleFunc("/auth/callback", login.Callback)
 	mux.HandleFunc("/auth/session", sessions.Session)
 	mux.HandleFunc("/auth/logout", sessions.Logout)
-	mux.Handle("/v1/", service)
-	mux.Handle("/health/", service)
+	registerNetworkRoutes(mux, service)
 	mux.Handle("/", http.FileServer(http.Dir("web/dist")))
 	address := os.Getenv("UNDERGRID_LISTEN")
 	if address == "" {
@@ -139,4 +182,16 @@ func run() error {
 	shutdown, done := context.WithTimeout(context.Background(), 10*time.Second)
 	defer done()
 	return server.Shutdown(shutdown)
+}
+
+// Keep network route wiring together so public documentation reaches the same
+// handler as the domain API, instead of falling through to the static console.
+func registerNetworkRoutes(mux *http.ServeMux, service *network.Service) {
+	mux.Handle("/mcp", service)
+	mux.Handle("/v1/", service)
+	mux.Handle("/.well-known/", service)
+	mux.Handle("/health/", service)
+	mux.Handle("/openapi.json", service)
+	mux.Handle("/skills/undergrid-network/", service)
+	mux.Handle("/a2a/", service)
 }

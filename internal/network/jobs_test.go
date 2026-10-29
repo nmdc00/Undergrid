@@ -2,11 +2,28 @@ package network
 
 import (
 	"context"
+	"net/url"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 )
+
+func testWorkerDSN(t *testing.T, dsn, applicationName string) string {
+	t.Helper()
+	if strings.HasPrefix(dsn, "postgres://") || strings.HasPrefix(dsn, "postgresql://") {
+		u, err := url.Parse(dsn)
+		if err != nil {
+			t.Fatal(err)
+		}
+		query := u.Query()
+		query.Set("application_name", applicationName)
+		u.RawQuery = query.Encode()
+		return u.String()
+	}
+	return dsn + " application_name=" + applicationName
+}
 
 func TestCommittedIntentionRunsThroughDurableWorker(t *testing.T) {
 	s, db := fixture(t)
@@ -85,11 +102,13 @@ func TestWorkerShutdownCancelsBlockedTransactionAndPreservesQueuedWork(t *testin
 	defer cancel()
 	stopped := make(chan error, 1)
 	started := time.Now().UTC()
-	go func() { stopped <- RunWorker(ctx, s.dsn, "development") }()
+	workerName := "shutdown_test_" + NewID()
+	workerDSN := testWorkerDSN(t, s.dsn, workerName)
+	go func() { stopped <- RunWorker(ctx, workerDSN, "development") }()
 	deadline := time.Now().Add(10 * time.Second)
 	blocked := false
 	for time.Now().Before(deadline) {
-		if err = observer.QueryRow(context.Background(), "SELECT EXISTS(SELECT FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock' AND query LIKE 'SELECT status FROM principals WHERE id=%')").Scan(&blocked); err != nil {
+		if err = observer.QueryRow(context.Background(), "SELECT EXISTS(SELECT FROM pg_stat_activity WHERE datname=current_database() AND application_name=$1 AND wait_event_type='Lock' AND $2::integer=ANY(pg_blocking_pids(pid)))", workerName, db.PgConn().PID()).Scan(&blocked); err != nil {
 			t.Fatal(err)
 		}
 		if blocked {
@@ -101,6 +120,8 @@ func TestWorkerShutdownCancelsBlockedTransactionAndPreservesQueuedWork(t *testin
 		case <-time.After(20 * time.Millisecond):
 		}
 	}
+	// RLS may read the locked principal table before the explicit domain query.
+	// Prove the tagged worker waits on this exact lock owner, not SQL spelling.
 	if !blocked {
 		t.Fatal("no worker transaction reached the held principal lock")
 	}

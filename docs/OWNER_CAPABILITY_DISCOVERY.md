@@ -1,0 +1,401 @@
+# Owner complementary capability discovery
+
+## Contract — 28 October 2026
+
+HP2 step2 / INT-02 / TDD §5.1: compare current intention requirements against
+registered public agent declarations and published reusable artifacts, separately
+from shared demand and recruitment. Work starts from release `fbd7950` in
+`feat/v0.1-owner-capability-discovery`. Existing swarm workers remain unavailable
+until their reported quota reset; root continues without replacement workers or
+model switches. Full HP2 and the full TDD goal remain unchanged.
+
+Provide an explicit read through agent GET `/v1/intents/{id}/capability-fit` and
+owner GET `/v1/owner/intents/{id}/capability-fit`, with matching finite MCP/A2A
+bindings. Current source ownership, responsible agent, scopes, active state and
+expiry are checked in the domain transaction. Monitoring is not required. The
+read creates no opportunities, notifications, jobs, invitations, assignments,
+rights, reuse receipts or spending authority, and executes no participant content.
+
+Return separately bounded, deterministic, nonexhaustive samples of current public
+agent declarations and currently published reusable artifacts, with truncation and
+exact source/version pins. Agent profiles expose only their explicitly public
+capability declarations and attribution; private profiles, endpoints, credentials,
+owner information and revoked agent/principal declarations stay hidden. Agent
+capability strings establish declared schema support only; coverage, fields,
+freshness, licenses, availability and willingness remain unknown unless actual
+published evidence supplies them. Recruitment opt-in is not a prerequisite for
+passive public declaration inspection and is never inferred as consent to work.
+Do not count providers as buyers or separate principal IDs as independent owners.
+
+Published artifacts use the existing published-artifact disclosure and hold rules,
+immutable ID/content/manifest hashes and permitted manifest metadata. A producer's
+credential revocation is not automatic withdrawal of effective published rights.
+Do not expose private task/plan/room context or private input manifests. A schema
+or license contradiction remains incompatible; an absent required fact remains
+unknown. Shared-demand symmetric requirement combination must not be reused as
+asymmetric capability proof. The report never certifies legal rights, competence,
+quality or semantic equivalence. No paid service catalog or generic capability
+registry/table is introduced; published artifacts remain the reusable supply view.
+
+The owner console explicitly loads inert current results and explains supported,
+conflicting and unknown facts. Closed runtime validation, bounded lists and stale
+selection/version/session response suppression follow the current owner console
+contracts. A read cannot silently install, execute, contact, invite or purchase.
+
+## Required proof before merge
+
+1. Actual restricted-PG HTTP behavioral RED precedes implementation. Normal owner
+   and agent creation supplies a private watch-disabled source and explicit public
+   builder declaration; the report explains schema support without inventing hard
+   requirements or authority. Foreign/private/revoked declarations are excluded.
+2. Publish an artifact through the actual plan/assignment/upload/verification/
+   acceptance/publication lifecycle, then prove current capability projection,
+   immutable pins and hold/ineligibility behavior. No SQL product seeding or fake
+   provider verification completes publication. Keep storage qualification separate.
+3. Exercise source current authority, scope, revision/expiry, bounded distinct
+   attribution, truncation, contention rollback and zero read-created effects.
+   Current REST/MCP/A2A reads and recovery must agree without historical disclosure.
+4. Write missing owner-control and malformed-response tests before UI behavior.
+   Prove a normal-owner browser journey from declared need to visible public
+   builder capability, honest unknowns and reload/current-authority recovery.
+5. Retain original failures, exact runtime/build provenance and normalized oracles;
+   run relevant hard-fit, recruitment, publication and current HP2 regressions,
+   canonical schema/type parity and static/build checks. Review DRY knowledge,
+   orthogonality, transaction contracts, readability and failure recovery.
+
+This is a scoped implementation contract, not evidence that the feature exists.
+Typed requirement controls, applications and continuous HP2 acceptance remain
+separate required work. No external source/provider/legal/deployment approval is
+implied. Existing public contracts and frozen migrations remain intact.
+
+## Initial behavioral RED — 28 October 2026
+
+Test-only `c1974fe` passes normal restricted-API owner/agent registration,
+public builder profile creation and private watch-disabled source creation, then
+both owner and agent capability-fit reads fail404. The one-parent/two-subcase
+HTTP test fails0.631s for the missing operation, not a broken fixture. No behavior
+has been implemented. Original log:
+`/tmp/undergrid-capability-fit-initial-http-red-oct28.jsonl`.
+The retained network fixture is `clarification_guards_oct28` on55502; normal owner
+withdrawal retires the test source without deleting evidence. The separate
+financial sandbox is untouched. Implementation and all required acceptance gates
+above remain pending.
+
+## First public-agent implementation checkpoint — 28 October 2026
+
+The original two-channel HTTP RED is now green: owner and agent reads expose
+schema support from current public declarations, while missing license/field/
+coverage evidence remains unknown. A narrow app-only SECURITY DEFINER projection
+returns only agent/principal IDs and public capability arrays, with active
+principal/agent predicates, foreign-principal exclusion, principal deduplication
+and a21-row maximum. No foreign routing/profile preferences or credentials are
+selected. Recruitment consent is not required or inferred. This is a partial
+feature checkpoint: published artifacts, canonical/finite-protocol publication,
+UI/browser acceptance and remaining bounds/authority gates are not implemented.
+
+Migration046 was normally applied by the real fixture and is now frozen at
+SHA256 `73750e83960116116994d6fe4a41b8dbbcb7264a62cc7b15a2a111d3da515d87`.
+Older migrations are unchanged. The real restricted API has no worker grant.
+Disclosure tests prove foreign-source denial, private-agent omission, revoked
+candidate removal and zero count changes across opportunities/events/inbox/jobs/
+rooms/memberships/approvals/tasks for explicit reads. Source authorization was
+extracted into one current-owned-intention loader shared with clarification;
+monitoring-dependent group policy is untouched. The existing asymmetric claim
+comparison supplies unknown hard-evidence explanations; evidence class/path is
+bound to the selected public agent declaration, not an external publisher.
+
+First positive read gate passed0.685s; expanded disclosure gate passed1.627s.
+The shared-source aggregate initially failed21.605s solely because this worktree's
+independent HTTP validator could not load ajv before its dependency link existed.
+After verifying package/lock parity and linking existing node_modules, unchanged
+source passed the full aggregate21.811s. Original failure remains preserved.
+
+- `/tmp/undergrid-capability-fit-first-green-oct28.jsonl`
+- `/tmp/undergrid-capability-fit-disclosure-first-oct28.jsonl`
+- `/tmp/undergrid-capability-fit-shared-source-regressions-oct28.jsonl` (dependency failure)
+- `/tmp/undergrid-capability-fit-shared-source-regressions-deps-oct28.jsonl`
+
+All runs retain `clarification_guards_oct28` on the isolated network fixture.
+No public artifact/provider qualification or complete capability discovery is
+claimed. The feature remains unmerged and HP2 remains active.
+
+## Published-artifact lifecycle checkpoint — 28 October 2026
+
+Test-only `18f4cd0` constructs the actual restricted-API room, independent plan/
+rights votes, accepted assignment, upload/finalization, real executable fixed
+verifier worker, designated acceptance and exact publication consents. Its first
+run exposed a genuine projection bug: valid public profiles with null capability
+arrays caused SQL22023/HTTP500. That6.905s failure is retained; it is not the
+missing-artifact sample RED. Forward migration047 fixes nullable arrays without
+rewriting applied046. Migration047 is frozen at SHA256
+`ae04a89fb94f580a3705e7143306a380577e5cfa354b6da430c882a6f2b0f0fd`.
+
+The unchanged lifecycle then reached the intended missing-artifact-sample failure.
+After implementing the bounded existing-RLS published-artifact projection, the
+lifecycle passed5.473s: verified/accepted but unpublished content stays absent;
+normal publication exposes immutable content/manifest hashes and permitted title,
+schema/license metadata. No content, input lineage, room/task/plan or private
+rights context is selected. The existing asymmetric capability evaluator explains
+known schema/license facts and honest missing fields/coverage; structural checks
+are not factual, legal or provider verification. Agent row resources are closed
+before the second query, including when the agent sample truncates.
+
+Expanded lifecycle checks pass5.925s: a normal source revision to disjoint license
+options yields incompatible evidence. Adversarial producer suspension retains
+published license availability; an explicit held-state fault removes the artifact
+from discovery. These mutable test faults are not SQL publication seeds or proof
+of an implemented operator-case workflow. Publication itself uses only normal
+commands and the actual local unqualified verifier. All fixture databases and
+original failures remain retained.
+
+- `/tmp/undergrid-capability-artifact-http-red-oct28.jsonl` (null-array defect)
+- `/tmp/undergrid-capability-artifact-sample-red-oct28.jsonl` (missing sample RED)
+- `/tmp/undergrid-capability-artifact-first-green-oct28.jsonl`
+- `/tmp/undergrid-capability-artifact-current-guards-oct28.jsonl`
+
+This extends the partial backend implementation; canonical/finite-protocol
+publication, UI/browser acceptance, complete bounds/authority tests and final
+review/merge remain open. The full capability feature and HP2 are not closed.
+
+## Combined backend proof and bounded-fixture limit — 28 October 2026
+
+The first combined run on long-lived `clarification_guards_oct28` failed26.997s:
+repeated normal registrations had accumulated more than20 active public
+principals. The bounded deterministic sample legitimately omitted the newly
+registered builder, contradicting this test's controlled-population assumption.
+This is not fixed by increasing limits, deleting records or weakening assertions.
+Original log `/tmp/undergrid-capability-artifact-combined-backend-oct28.jsonl`
+remains retained. Final capability acceptance gates must use a fresh controlled
+population (public profile retirement/editing is not yet a normal owner feature).
+
+Created retained `capability_backend_oct28` by normal CREATE DATABASE TEMPLATE
+`undergrid_hp1_template`, then applied the real remaining migrations normally.
+Unchanged source/test aggregate passes on that genuine fresh fixture:
+`/tmp/undergrid-capability-artifact-fresh-combined-backend-oct28.jsonl`.
+Database creation log: `/tmp/undergrid-capability-backend-db-oct28.log`.
+The aggregate includes artifact publication/conflict/identity-loss/held-state
+proof, owner/agent public declarations and zero-effect guards, plus all existing
+clarification authority, lock recovery, canonical HTTP and MCP/A2A regressions.
+Capability-specific canonical/finite protocols and user-interface proof remain
+pending, as do dedicated bounds/contention tests. No full feature closure claim.
+
+## Canonical and finite protocol checkpoint — 28 October 2026
+
+Test-only `6dee903` reaches real finite-protocol RED: MCP rejects the unknown
+`intention_capability_fit` tool and A2A rejects the unregistered operation. Test-only
+`0a1a07c` reaches actual HTTP-contract RED for the unadvertised capability route.
+A single registry entry now connects MCP/A2A to the same current domain read;
+canonical owner/agent paths and six closed response schemas/types are published.
+
+The first parity/contract gate passes5.658s. A2A recovery reauthorizes the current
+source; foreign receipt reads fail404, a normal source pause suppresses recovery,
+and persisted receipts contain no report body. The populated artifact lifecycle
+now captures actual HTTP reports before/after publication, conflicting source
+revision, producer suspension and held state. Independent schema oracles reject
+private room/context fields, invalid hashes, false legal/identity assurance,
+wrong evidence class and falsely aligned hard status. Typed absent facts remain
+unknown. These real artifact samples supplement the four owner/agent200/foreign404
+canonical cases; an empty artifact sample alone is not the proof.
+
+The final three-top-level/two-subcase protocol/HTTP/populated-artifact aggregate
+passes13.014s on retained `capability_backend_oct28`. Canonical lint, all168 JSON
+Schema components and generated-type parity pass. Logs:
+
+- `/tmp/undergrid-capability-fit-protocol-red-oct28.jsonl`
+- `/tmp/undergrid-capability-fit-contract-red-oct28.jsonl`
+- `/tmp/undergrid-capability-fit-protocol-contract-green-oct28.jsonl`
+- `/tmp/undergrid-capability-fit-protocol-artifact-contract-oct28.jsonl`
+- `/tmp/undergrid-capability-fit-canonical-check-oct28.log`
+
+The feature remains unmerged. Dedicated bound/source-authority/contention tests,
+UI/browser acceptance and final regression/review gates remain required. Local
+executable verifier evidence is not isolation/provider/legal qualification.
+
+## Capability source and agent bounds proof — 28 October 2026
+
+Capability-specific endpoint guards pass3 top-level cases/six state subcases
+in5.649s on `capability_backend_oct28`: foreign/current source attribution,
+paused/withdrawn/expired sources, agent/principal loss, scope separation, sibling
+agent denial and prompt held-source rollback/recovery. Revocation results match
+existing current-identity gates, with no report payload in denials. A held source
+uses the unchanged three-second request/two-second elapsed oracle; exact current
+read succeeds after lock release. Log:
+`/tmp/undergrid-capability-fit-source-guards-oct28.jsonl`.
+
+The dedicated fresh `capability_bounds_oct28` fixture is normally copied from the
+genuine empty template and migrated, with no product SQL seeds. Normal owner
+commands register a public source-owner agent, two public agents for one foreign
+principal and one for another. Explicit read returns exactly two foreign
+principals, not duplicate agents or the source owner. Passive public declarations
+are eligible even with recruitment disabled. After19 additional principals, the
+read returns20 unique foreign principals with truncation disclosed. All schema
+support remains self-declared and complete hard fit stays unknown. Gate passes
+3.498s; rows and evidence are retained, not deleted to restore an empty fixture.
+
+- `/tmp/undergrid-capability-bounds-db-oct28.log`
+- `/tmp/undergrid-capability-fit-agent-bounds-oct28.jsonl`
+
+These gates prove the public-agent bound and source contention. Actual multi-
+artifact bound/held-state concurrency, owner UI/browser proof and final feature
+regressions/review remain required; no full capability/HP2 closure is claimed.
+
+## Owner entrypoint RED — 28 October 2026
+
+Test-only `3bc74b7` requires the active watch-disabled source's explicit
+`Discover registered capabilities` control and same-origin owner GET without an
+agent bearer. Valid existing App setup reaches the missing control, then fails
+one case/29 skipped in2.99s. Original log:
+`/tmp/undergrid-capability-fit-app-red-oct28.log`. No component import or matcher
+failure substitutes for this behavioral RED. Owner UI implementation and actual
+browser acceptance are still pending.
+
+## Owner capability viewer checkpoint — 28 October 2026
+
+The actual missing App control RED now has a working explicit viewer for active
+owned sources, including monitoring-off intentions. Separate agent/artifact
+samples render inert declarations and per-requirement requested/declared facts,
+unknown/conflicting status, principal attribution, artifact version and immutable
+hashes. No link, execution, invitation, membership or payment action is introduced.
+The viewer states unknown common control and limits on competence, rights,
+availability and willingness. Closed runtime validation rejects extra/private
+fields, malformed IDs/hashes/classes/bounds, duplicate agent principals,
+misbound source/version and incoherent hard-fit summaries. This defensive trust
+boundary remains independent of server-side schema/domain enforcement.
+
+First App/component gate passes45 cases in12.09s. Expanded component proof
+passes25 in2.19s, covering artifact rendering/privacy/hash/status rejection,
+refresh404 clearing and late200/401 after session/source-version/selection change.
+The first TypeScript gate exposed implicit-return inference in test mutation
+callbacks; explicit unknown return annotations fix that fixture issue, and the
+corrected TypeScript gate passes. Final App/component aggregate passes55 in12.40s.
+An attempted test append initially used an incorrect working directory and made
+no change; it is not product RED. Source was corrected in the feature worktree.
+
+- `/tmp/undergrid-capability-ui-first-green-oct28.log`
+- `/tmp/undergrid-capability-ui-extended-oct28.log`
+- `/tmp/undergrid-capability-ui-tsc-oct28.log` (test type errors)
+- `/tmp/undergrid-capability-ui-tsc-corrected-oct28.log`
+- `/tmp/undergrid-capability-ui-checkpoint-oct28.log`
+
+The UI is implemented and unit-proven, not yet browser-proven. The actual normal-
+owner capability journey, multi-artifact bound/concurrency proof, final full UI,
+retained runtime gates, review and merge remain required. HP2 stays active.
+
+## Actual normal-owner capability journey — 28 October 2026
+
+Frozen runtime/frontend `4fa9b660e98abf81f133b5197459d23f75b22456`
+passes the complete new Chromium/API/restricted-worker/real-PG aggregate19.011s.
+A starts with a private EU-coverage intention and monitoring off. After B's normal
+setup, A explicitly sees an honest empty capability sample. C registers a public
+source_catalog_v1 declaration through the normal console with recruitment off;
+A refreshes and sees exactly that declaration with schema support and unknown
+hard requirements. Separate controlled accounts establish attribution only.
+Reload preserves the actual read. B cannot read A's source. A normally pauses,
+sees the control disappear and receives404 on direct read, then normally resumes
+and reopens a current version3 report with monitoring still off. No SQL product
+seed or administrator action completes a browser step.
+
+Independent normalized checks prove exactly three intention revisions, A current
+revision1/version3/watch off, exactly one public capability profile with invitation
+and recruitment disabled, zero opportunities/artifacts/collaboration effects and
+at least two completed real intention-scan jobs. Existing90-second browser,
+three-minute helper and12-second worker shutdown bounds remain unchanged.
+The browser covers public-agent discovery; actual artifact publication/projection
+is independently lifecycle-proven above, and artifact UI validation has focused
+unit proof. No full HP2 or artifact publication UI journey is inferred.
+
+- Browser log: `/tmp/undergrid-capability-browser-4fa9b66-oct28.jsonl`
+- Build log: `/tmp/undergrid-capability-browser-oracle-build-oct28.log`
+- Retained DB: `hp1_run_2b26962f929647eab90d4e77d6645e4e`
+- Artifacts: `/tmp/undergrid-hp2-browser-3757424536`
+- Source SHA256: `ecf233cdf81ef3dd1e5c6433b2e4dca71a2c7ad35beb04a223c9468e29d974ee`
+- Production JS SHA256: `e6a7f7018761bbed9798895240448b3e879eecfd46447a483b36c9ea5f0cef6c`
+
+Original `2dffda6` aggregate failed17.768s although its browser case passed14.5s:
+the SQL oracle selected unqualified `version` from joined versioned tables and
+failed42702. `4fa9b66` only qualifies `i.version`; no oracle or timeout was weakened.
+Retained original log `/tmp/undergrid-capability-browser-2dffda6-oct28.jsonl` and
+artifact folder `/tmp/undergrid-hp2-browser-3105504474` remain distinct from success.
+Compilation, standalone TypeScript and both coupled frontend builds pass. Final
+multi-artifact bounds/hold concurrency, full regressions, review/merge remain open.
+
+Full UI at frozen `4fa9b66` passes259 cases across22 files in77.00s:
+`/tmp/undergrid-capability-4fa9b66-full-ui-oct28.log`. This broadens the focused55
+App/viewer proof without changing runtime/frontend source. It does not replace
+the remaining artifact-bound/concurrency and release-level regression gates.
+
+## Artifact bound and concurrent hold proof — 28 October 2026
+
+The expanded actual publication lifecycle passes7.090s with a three-second read
+context and two-second elapsed assertion during an uncommitted held-state writer.
+That read sees the preceding committed published snapshot without blocking or
+acquiring authority; after the hold commits, the next read excludes the artifact.
+This is read-committed visibility, not a claim that an uncommitted operator action
+already changed public eligibility. The explicit hold remains an adversarial
+mutable-state test, not proof of an operator case workflow.
+Log: `/tmp/undergrid-capability-artifact-hold-concurrency-oct28.jsonl`.
+
+A dedicated fresh retained `capability_artifact_bounds_oct28` database normally
+copies the genuine template, with no artifact SQL seeds. The bound gate publishes
+21 artifacts in21 sequential subcases via normal room/invitation/plan/rights/
+assignment/upload/finalization/fixed-verifier/acceptance/publication commands.
+Only one actual verifier worker runs at a time; the existing helper shutdown
+bound is unchanged. Each artifact's blob root is explicitly retained outside
+subtest temporary directories. The report is checked after every publication:
+20 gives20/untruncated;21 gives20/truncated, with unique deterministic immutable
+IDs and matching independently captured content/manifest hashes. The growing
+public-agent sample also reaches its truncation branch, exercising row closure
+before the artifact query. The parent plus21 subcases pass120.159s.
+
+- `/tmp/undergrid-capability-artifact-bounds-db-oct28.log`
+- `/tmp/undergrid-capability-artifact-bounds-oct28.jsonl`
+
+All planned feature-specific local acceptance checks now have proof. Final
+integration regressions, scoped review and remote merge remain pending. Full HP2
+and external/legal/storage/provider/deployment qualification remain open.
+
+## Final integration and scoped review — 28 October 2026
+
+Frozen `330bf46` has the same runtime/frontend as browser-proven `4fa9b66`;
+subsequent changes add test proof and documentation only. On fresh normally copied
+`capability_final_oct28`, the combined capability and retained clarification gate
+passes17 top-level/26 subcases in41.776s. Dedicated controlled agent/21-artifact
+bounds are intentionally separate, because their populated samples invalidate
+small-population test assumptions. Tagged vet, Go build and coupled frontend
+build pass. The four retained actual clarification/group/room/plan browser
+journeys pass88.922s on the same frozen source and build manifest. Existing
+per-case browser/helper/shutdown bounds are unchanged.
+
+- `/tmp/undergrid-capability-330bf46-final-backend-oct28.jsonl`
+- `/tmp/undergrid-capability-330bf46-vet-oct28.log`
+- `/tmp/undergrid-capability-330bf46-go-build-oct28.log`
+- `/tmp/undergrid-capability-330bf46-build-oct28.log`
+- `/tmp/undergrid-capability-330bf46-retained-browsers-oct28.jsonl`
+- Validation size/SHA256 index: `/tmp/undergrid-capability-validation-oct28.json`
+- Retained21-publication blob root: `/tmp/undergrid-capability-bound-blobs-1079466549`
+
+Root reviewed the actual scoped diff and proof. Authorization-bearing read logic
+and current source locks are shared, while asymmetric capability evidence remains
+distinct from symmetric demand alignment. Public projection grants select only
+explicit disclosure; published license survival remains separate from identity
+status. Closed inert UI validation and request generations protect the browser
+boundary. No finance credential, content execution, generic registry or arbitrary
+provider adapter is introduced. Migration046 and the null-safe forward047 retain
+their recorded hashes. No fresh independent-agent review is claimed while workers
+remain quota-limited. All authorized local feature gates pass; PR merge and exact
+merged-release checks remain pending. Full HP2 remains open.
+
+## Reviewed merge and exact release — 28 October 2026
+
+PR118 merged as `73e29247a44a6667e8d68b83b54834b44cb72e03`. Exact merged-release
+checks pass:25 viewer cases in2.04s, coupled frontend build with matching source/
+asset hashes, and actual HTTP contract plus source-lock recovery in3.170s.
+
+- `/tmp/undergrid-capability-release-73e2924-ui-oct28.log`
+- `/tmp/undergrid-capability-release-73e2924-build-oct28.log`
+- `/tmp/undergrid-capability-release-73e2924-domain-oct28.jsonl`
+
+The capability-discovery feature is implemented, locally proven and merged.
+Remaining typed requirement controls are the next HP2 feature, followed by owner
+applications and the complete continuous collaboration journey. Full HP2 and
+external qualification remain open. No promotion or deployment occurred.

@@ -37,7 +37,7 @@ func loadPlan(ctx context.Context, tx pgx.Tx, id string, lock bool) (storedPlan,
 	return p, err
 }
 func planResult(ctx context.Context, tx pgx.Tx, p storedPlan) (any, error) {
-	rows, err := tx.Query(ctx, "SELECT id,state,version,claim_epoch FROM tasks WHERE plan_id=$1 ORDER BY task_key", p.id)
+	rows, err := tx.Query(ctx, "SELECT id,state,version,claim_epoch,response_deadline,progress_deadline,cure_deadline,dependency_blocked FROM tasks WHERE plan_id=$1 ORDER BY task_key", p.id)
 	if err != nil {
 		return nil, err
 	}
@@ -46,26 +46,43 @@ func planResult(ctx context.Context, tx pgx.Tx, p storedPlan) (any, error) {
 	for rows.Next() {
 		var id, state string
 		var version, epoch int64
-		if err = rows.Scan(&id, &state, &version, &epoch); err != nil {
+		var response time.Time
+		var progress, cure *time.Time
+		var blocked bool
+		if err = rows.Scan(&id, &state, &version, &epoch, &response, &progress, &cure, &blocked); err != nil {
 			return nil, err
 		}
-		tasks = append(tasks, map[string]any{"id": id, "state": state, "version": version, "etag": etag(version), "claim_epoch": epoch})
+		tasks = append(tasks, map[string]any{"id": id, "state": state, "version": version, "etag": etag(version), "claim_epoch": epoch, "response_deadline": response, "progress_deadline": progress, "cure_deadline": cure, "dependency_blocked": blocked})
 	}
 	if err = rows.Err(); err != nil {
 		return nil, err
 	}
 	return map[string]any{"id": p.id, "swarm_id": p.swarm, "state": p.state, "version": p.version, "content_hash": p.hash, "canonical_json": string(canonical(p.sealed)), "specification": p.sealed.Plan, "tasks": tasks}, nil
 }
+
+// Current proposer authority precedes idempotency, while original version/parent
+// checks stay inside the new-write callback so its own committed receipt recovers.
+func requirePlanProposer(ctx context.Context, tx pgx.Tx, a actor, swarm string) error {
+	if err := roomAuthority(ctx, tx, a, swarm, false); err != nil {
+		return err
+	}
+	var role string
+	err := tx.QueryRow(ctx, "SELECT role FROM memberships WHERE swarm_id=$1 AND agent_id=$2 AND state='accepted' FOR SHARE", swarm, a.AgentID).Scan(&role)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return fail(403, "contributor_required")
+	}
+	if err != nil {
+		return err
+	}
+	if role == "observer" {
+		return fail(403, "contributor_required")
+	}
+	return nil
+}
+
 func (s *Service) proposePlan(r *http.Request, tx pgx.Tx, a actor, swarm string) (int, any, error) {
-	if err := roomAuthority(r.Context(), tx, a, swarm, false); err != nil {
+	if err := requirePlanProposer(r.Context(), tx, a, swarm); err != nil {
 		return 0, nil, err
-	}
-	var contributor bool
-	if err := tx.QueryRow(r.Context(), "SELECT swarm_contributor($1)", swarm).Scan(&contributor); err != nil {
-		return 0, nil, err
-	}
-	if !contributor {
-		return 0, nil, fail(403, "contributor_required")
 	}
 	var in PlanSpec
 	if err := decode(r, &in); err != nil {
@@ -146,8 +163,21 @@ func (s *Service) proposePlan(r *http.Request, tx pgx.Tx, a actor, swarm string)
 			return 0, nil, fail(422, "assignee_must_approve_plan")
 		}
 	}
+	agentsToLock := make([]string, 0, len(in.Tasks))
+	for _, task := range in.Tasks {
+		if !slices.Contains(agentsToLock, task.AssigneeAgentID) {
+			agentsToLock = append(agentsToLock, task.AssigneeAgentID)
+		}
+	}
+	var currentParticipants bool
+	if err := tx.QueryRow(r.Context(), "SELECT lock_plan_proposal_participants($1,$2::uuid[],$3::uuid[],$4::uuid[])", swarm, agentsToLock, in.RequiredPrincipals, in.PublicationPrincipals).Scan(&currentParticipants); err != nil {
+		return 0, nil, err
+	}
+	if !currentParticipants {
+		return 0, nil, fail(409, "plan_participants_not_current")
+	}
 	in.RespondBy = in.RespondBy.UTC()
-	sealed := sealedPlan{in, template.SHA256}
+	sealed := sealedPlan{Plan: in, TemplateHash: template.SHA256, InputGrantPolicyHash: inputGrantPolicyHash(template)}
 	hash := digest(canonical(sealed))
 	id := NewID()
 	if _, err = tx.Exec(r.Context(), "INSERT INTO plan_versions(id,swarm_id,parent_id,version,specification,content_hash,respond_by) VALUES($1,$2,$3,$4,$5,$6,$7)", id, swarm, parent, nextVersion, canonical(sealed), hash, in.RespondBy); err != nil {
@@ -173,16 +203,21 @@ func (s *Service) proposePlan(r *http.Request, tx pgx.Tx, a actor, swarm string)
 }
 func (s *Service) planCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, error) {
 	parts := strings.Split(r.URL.Path, "/")
-	if len(parts) < 4 || len(parts) > 5 || !validID(parts[3]) {
+	if len(parts) < 4 || len(parts) > 6 || !validID(parts[3]) {
 		return 0, nil, fail(404, "not_found")
 	}
 	id := parts[3]
+	if r.Method == "GET" && parts[2] == "tasks" && len(parts) == 6 && parts[4] == "progress-evidence" && validID(parts[5]) {
+		// The evidence row supplies the room binding; row security additionally
+		// restricts report reads to its finite named audience.
+		return s.readTaskProgressEvidence(r, tx, a, id, parts[5])
+	}
 	if r.Method == "GET" && len(parts) == 4 {
 		if !slices.Contains(a.Scopes, "swarms:read") {
-			return 0, nil, fail(403, "insufficient_scope")
+			return 0, nil, insufficientScope(a, "swarms:read")
 		}
 		if parts[2] == "tasks" {
-			return taskResult(r.Context(), tx, id)
+			return taskResult(r.Context(), tx, id, a.PrincipalID)
 		}
 		p, err := loadPlan(r.Context(), tx, id, false)
 		if err != nil {
@@ -199,13 +234,13 @@ func (s *Service) planCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, er
 		scope = "plans:approve"
 	}
 	if parts[2] == "tasks" {
-		scope = map[string]string{"assignment-response": "tasks:accept", "progress": "tasks:progress"}[parts[4]]
+		scope = map[string]string{"assignment-response": "tasks:accept", "progress": "tasks:progress", "progress-evidence": "tasks:progress", "progress-evidence-review": "tasks:accept"}[parts[4]]
 	}
 	if scope == "" {
 		return 0, nil, fail(404, "not_found")
 	}
 	if !slices.Contains(a.Scopes, scope) {
-		return 0, nil, fail(403, "insufficient_scope")
+		return 0, nil, insufficientScope(a, scope)
 	}
 	planID := id
 	if parts[2] == "tasks" {
@@ -222,9 +257,30 @@ func (s *Service) planCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, er
 	if err = roomAuthority(r.Context(), tx, a, p.swarm, false); err != nil {
 		return 0, nil, err
 	}
+	if parts[2] == "tasks" && parts[4] == "progress" {
+		// A retained execution receipt cannot bypass withdrawn rights policy or
+		// current assignment attribution. Both owner and agent channels enter here
+		// under canonical plan authority locks before recovery or new effects.
+		task, err := loadTask(r.Context(), tx, id, false)
+		if err != nil {
+			return 0, nil, err
+		}
+		if task.agent != a.AgentID {
+			return 0, nil, fail(403, "assignee_required")
+		}
+		if _, _, err := s.requireRights(r.Context(), tx, a, p.sealed.Plan.Rights); err != nil {
+			return 0, nil, err
+		}
+	}
 	return idempotent(r, tx, a, func() (int, any, error) {
 		if parts[2] == "plans" {
 			return s.approvePlan(r, tx, a, planID)
+		}
+		if parts[4] == "progress-evidence" {
+			return s.taskProgressEvidenceCommand(r, tx, a, id)
+		}
+		if parts[4] == "progress-evidence-review" {
+			return s.reviewTaskProgressEvidence(r, tx, a, id)
 		}
 		return s.updateTask(r, tx, a, id, parts[4])
 	})
@@ -310,7 +366,7 @@ func (s *Service) maybeAcceptPlan(ctx context.Context, tx pgx.Tx, a actor, p sto
 	if votes != len(p.sealed.Plan.RequiredPrincipals) || rights != votes {
 		return nil
 	}
-	if err := tx.QueryRow(ctx, "SELECT count(*) FROM tasks WHERE plan_id=$1 AND state<>'accepted'", p.id).Scan(&unaccepted); err != nil {
+	if err := tx.QueryRow(ctx, "SELECT count(*) FROM tasks WHERE plan_id=$1 AND (state<>'accepted' OR dependency_blocked)", p.id).Scan(&unaccepted); err != nil {
 		return err
 	}
 	if unaccepted != 0 {
@@ -343,6 +399,10 @@ func (s *Service) maybeAcceptPlan(ctx context.Context, tx pgx.Tx, a actor, p sto
 		if _, err := tx.Exec(ctx, "UPDATE tasks SET state='cancelled',version=version+1,claim_epoch=claim_epoch+1 WHERE plan_id=$1 AND state NOT IN ('accepted_output','abandoned','cancelled')", *head); err != nil {
 			return err
 		}
+	}
+	// Execution starts only after every exact plan and assignment approval.
+	if _, err := tx.Exec(ctx, "UPDATE tasks SET progress_deadline=$2::timestamptz+(specification->>'progress_interval_seconds')::int*interval '1 second' WHERE plan_id=$1 AND state='accepted'", p.id, time.Now().UTC()); err != nil {
+		return err
 	}
 	if _, err := tx.Exec(ctx, "UPDATE plan_versions SET state='accepted' WHERE id=$1", p.id); err != nil {
 		return err
