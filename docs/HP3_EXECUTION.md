@@ -78,3 +78,9 @@ without changing task/artifact/job effects (2 subcases,6.209s).
 `OWNER_CONTRIBUTIONS.md` retains exact evidence and development-verifier limits.
 Reload discovery/recovery, canonical API, owner UI, remaining authority/concurrency
 checks, actual browser acceptance and review/merge are still required. HP3 is open.
+
+Returning-owner task metadata discovery now passes actual HTTP/PG tests, including
+101 normally created generations with100+1 keyset pagination and no token exposure.
+Selected-actor/membership denial and retained creation/finalization/policy guards
+pass4 top-level/6 subcases in14.882s. This does not recover byte capabilities or
+complete the UI. `OWNER_CONTRIBUTIONS.md` owns the RED/GREEN and immutable052 index.

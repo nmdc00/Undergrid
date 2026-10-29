@@ -435,7 +435,7 @@ func TestOwnerContributionReloadDiscoversOwnedTaskGenerations(t *testing.T) {
 	_, who := owner.call("GET", "/v1/me", "", nil)
 	base := "/v1/owner/agents/" + who["agent_id"].(string) + "/tasks/" + x.task["id"].(string)
 	ids := map[string]bool{}
-	for i := 0; i < 2; i++ {
+	for i := 0; i < 101; i++ {
 		code, upload := ownerCallMatch(owner, "POST", base+"/artifact-uploads", NewID(), x.task["etag"].(string), map[string]any{"claim_epoch": x.task["claim_epoch"], "media_type": "application/json", "size_bytes": 12})
 		if code != 201 {
 			t.Fatal(code, upload)
@@ -447,7 +447,7 @@ func TestOwnerContributionReloadDiscoversOwnedTaskGenerations(t *testing.T) {
 		t.Fatal("returning owner cannot discover contribution generations", code, out)
 	}
 	items, ok := out["items"].([]any)
-	if !ok || len(items) != 2 || out["next_after_id"] != "" {
+	if !ok || len(items) != 100 || out["next_after_id"] == "" {
 		t.Fatal("incomplete reload listing", out)
 	}
 	previous := ""
@@ -462,13 +462,47 @@ func TestOwnerContributionReloadDiscoversOwnedTaskGenerations(t *testing.T) {
 		}
 		previous = id
 	}
-	if code, next := ownerCallMatch(owner, "GET", base+"/artifacts?after_id="+previous, "", "", nil); code != 200 || len(next["items"].([]any)) != 0 {
-		t.Fatal("cursor repeated generations", code, next)
+	if out["next_after_id"] != previous {
+		t.Fatal("continuation does not bind last item", out["next_after_id"])
+	}
+	code, next := ownerCallMatch(owner, "GET", base+"/artifacts?after_id="+previous, "", "", nil)
+	if code != 200 || len(next["items"].([]any)) != 1 || next["next_after_id"] != "" {
+		t.Fatal("cursor lost final generation", code, next)
+	}
+	last := next["items"].([]any)[0].(map[string]any)["id"].(string)
+	if !ids[last] || last <= previous {
+		t.Fatal("cursor repeated or invented generation", last)
+	}
+	if code, end := ownerCallMatch(owner, "GET", base+"/artifacts?after_id="+last, "", "", nil); code != 200 || len(end["items"].([]any)) != 0 {
+		t.Fatal("cursor did not terminate", code, end)
 	}
 	if code, _ := ownerCallMatch(owner, "GET", base+"/artifacts?after_id=invalid", "", "", nil); code != 400 {
 		t.Fatal("invalid cursor accepted", code)
 	}
 	if code, _ := ownerCallMatch(x.actors[3], "GET", base+"/artifacts", "", "", nil); code != 404 {
 		t.Fatal("foreign owner enumerated task", code)
+	}
+}
+
+func TestOwnerContributionDiscoveryRechecksSelectedActorAndMembership(t *testing.T) {
+	x := newArtifactScenario(t)
+	owner := x.actors[2]
+	_, who := owner.call("GET", "/v1/me", "", nil)
+	path := "/v1/owner/agents/" + who["agent_id"].(string) + "/tasks/" + x.task["id"].(string) + "/artifacts"
+	coordinator := x.actors[0]
+	_, other := coordinator.call("GET", "/v1/me", "", nil)
+	otherPath := "/v1/owner/agents/" + other["agent_id"].(string) + "/tasks/" + x.task["id"].(string) + "/artifacts"
+	if code, out := ownerCallMatch(coordinator, "GET", otherPath, "", "", nil); code != 403 {
+		t.Fatal("different owned actor enumerated producer generations", code, out)
+	}
+	if code, out := ownerCallMatch(owner, "GET", path, "", "", nil); code != 200 {
+		t.Fatal(code, out)
+	}
+	// Controlled revocation fault, not a hidden step used to complete a journey.
+	if _, err := x.db.Exec(context.Background(), `UPDATE undergrid.memberships SET state='withdrawn' WHERE swarm_id=$1 AND agent_id=$2`, x.room["id"], who["agent_id"]); err != nil {
+		t.Fatal(err)
+	}
+	if code, out := ownerCallMatch(owner, "GET", path, "", "", nil); code != 404 && code != 403 {
+		t.Fatal("withdrawn actor retained discovery", code, out)
 	}
 }

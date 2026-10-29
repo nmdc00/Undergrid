@@ -137,3 +137,48 @@ closure.
 The prior empty vet log lacked a retained exit status after context recovery.
 A fresh `go vet ./...` on `dd8d4c5` exits0; log:
 `/tmp/undergrid-owner-contributions-dd8d4c5-vet-oct29.log`.
+
+## Returning-owner discovery — 29 October 2026
+
+Test-only `ecd0ba7` requires GET
+`/v1/owner/agents/{agent}/tasks/{task}/artifacts`; it fails404 in3.093s.
+The owner adapter now resolves the current owned active actor; the listing requires
+that actor to be the task assignee and currently authorized in its room. Existing
+artifact RLS continues to govern visibility. Results use existing immutable-context
+projections; no capability token, credential or renewed expiry is returned.
+Keyset pagination returns at most100 entries ordered by artifact UUID and a
+`next_after_id` continuation. UUID ordering is stable discovery, not chronology;
+concurrent new uploads can require refreshing from the first page. This is not a
+snapshot/history-consistency claim.
+
+A first two-generation lifecycle passes. The strengthened test creates101 normal
+owner generations through the HTTP API, observes100 plus1 without duplication,
+then an empty terminal page. Invalid cursors fail400 and foreign owner selection
+fails404. This passes10.060s. Forward migration052 adds only the task/agent/id
+lookup index; its applied SHA256 is
+`e5cdbb60e9b07abcf75422ed7685ff1a342b592950ca98ef79cdf431a386545a`.
+Do not edit the applied migration. No policy or existing051 is changed.
+
+This supplies metadata discovery only. An expired upload capability is not renewed,
+and the UI still needs an explicit recovery decision for incomplete quarantine
+bytes. Exact finalization and verification/readback remain separate actions.
+The complete owner browser journey and reviewed merge remain pending.
+
+- `/tmp/undergrid-owner-contributions-reload-red-oct29.jsonl`
+- `/tmp/undergrid-owner-contributions-reload-green-oct29.jsonl`
+- `/tmp/undergrid-owner-contributions-reload-pagination-oct29.jsonl`
+
+The follow-up restricted-role HTTP gate passes4 top-level/6 subcases in14.882s:
+selected coordinator cannot enumerate another assignee's generations; a controlled
+membership withdrawal removes returning-owner discovery. Existing owner creation
+version/epoch/foreign-owner guards, bytes/finalization and policy-before-receipt
+checks remain green. Log:
+`/tmp/undergrid-owner-contributions-reload-guards-oct29.jsonl`.
+
+Fresh `go vet ./...` for the discovery implementation exits0;
+`/tmp/undergrid-owner-contributions-discovery-vet-oct29.log` retains the static gate.
+Review tradeoff: discovery is bounded to100 projections and uses existing artifact
+projection knowledge rather than a competing wire model. It performs up to100
+bounded projection lookups after closing the ID query; reducing that round-trip
+cost may be warranted if measured runtime exceeds the journey budget. No broader
+repository abstraction or policy duplication is introduced.
