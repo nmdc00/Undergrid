@@ -6,6 +6,7 @@ import (
 	"errors"
 	"github.com/jackc/pgx/v5/pgconn"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"reflect"
 	"testing"
@@ -132,5 +133,58 @@ func TestOwnerContributionDoesNotRequireLiveNetworkCredential(t *testing.T) {
 		if !errors.As(err, &denied) || denied.Code != "23514" {
 			t.Fatal("upload binding not protected by constraint", change, err)
 		}
+	}
+}
+
+func ownerContributionPut(c testClient, path string, data []byte) *httptest.ResponseRecorder {
+	r := httptest.NewRequest("PUT", path, bytes.NewReader(data))
+	r.Header.Set("X-Test-Owner", c.owner)
+	r.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	c.s.ServeHTTP(w, r)
+	return w
+}
+
+func TestOwnerContributionUploadsFinalizesAndReadsImmutableOutput(t *testing.T) {
+	x := newArtifactScenario(t)
+	owner := x.actors[2]
+	_, who := owner.call("GET", "/v1/me", "", nil)
+	base := "/v1/owner/agents/" + who["agent_id"].(string)
+	data := []byte(`{"sources":[{"source_id":"owner-output","source_url":"https://example.org/","instructions":"untrusted inert content"}]}`)
+	code, upload := ownerCallMatch(owner, "POST", base+"/tasks/"+x.task["id"].(string)+"/artifact-uploads", NewID(), x.task["etag"].(string), map[string]any{"claim_epoch": x.task["claim_epoch"], "media_type": "application/json", "size_bytes": len(data)})
+	if code != 201 {
+		t.Fatal("normal owner quarantine failed", code)
+	}
+	target, err := url.Parse(upload["upload_url"].(string))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response := ownerContributionPut(owner, target.RequestURI(), data); response.Code != 204 {
+		t.Fatalf("owner byte upload unavailable: %d %s", response.Code, response.Body.String())
+	}
+	path := base + "/artifacts/" + upload["id"].(string)
+	body := x.finalBody(data)
+	key := NewID()
+	code, sealed := ownerCallMatch(owner, "POST", path+"/finalize", key, "", body)
+	if code != 200 || sealed["state"] != "sealed" || sealed["sha256"] != digest(data) {
+		t.Fatal("owner immutable finalization failed", code, sealed)
+	}
+	if code, recovered := ownerCallMatch(owner, "POST", path+"/finalize", key, "", body); code != 200 || !reflect.DeepEqual(recovered, sealed) {
+		t.Fatal("owner finalization did not recover exactly", code)
+	}
+	if code, current := ownerCallMatch(owner, "GET", path, "", "", nil); code != 200 || !reflect.DeepEqual(current, sealed) {
+		t.Fatal("owner immutable readback failed", code)
+	}
+	if code, evaluations := ownerCallMatch(owner, "GET", path+"/evaluations", "", "", nil); code != 200 || len(evaluations["items"].([]any)) != 0 {
+		t.Fatal("pending artifact fabricated verification", code, evaluations)
+	}
+	var state, sha, manifestHash, taskState, artifact string
+	var size int
+	var approvals, jobs int
+	if err := x.db.QueryRow(context.Background(), `SELECT a.state,a.sha256,a.manifest_hash,a.size_bytes,t.state,t.submitted_artifact_id,(SELECT count(*) FROM undergrid.approvals WHERE plan_id=a.plan_id),(SELECT count(*) FROM undergrid_queue.river_job WHERE args->>'artifact_id'=a.id::text) FROM undergrid.artifacts a JOIN undergrid.tasks t ON t.id=a.task_id WHERE a.id=$1`, upload["id"]).Scan(&state, &sha, &manifestHash, &size, &taskState, &artifact, &approvals, &jobs); err != nil {
+		t.Fatal(err)
+	}
+	if state != "sealed" || sha != digest(data) || manifestHash != sealed["manifest_hash"] || size != len(data) || taskState != "submitted" || artifact != upload["id"] || approvals != 6 || jobs != 1 {
+		t.Fatal("owner output not normalized or consent fabricated", state, sha, manifestHash, size, taskState, artifact, approvals, jobs)
 	}
 }
