@@ -124,3 +124,103 @@ integration remain required. This feature is unmerged; HP3 remains open.
 - `/tmp/undergrid-owner-task-execution-ui-boundary-red-oct28.log`
 - `/tmp/undergrid-owner-task-execution-ui-boundary-green-oct28.log`
 - `/tmp/undergrid-owner-task-execution-ui-boundary-tsc-oct28.log`
+
+## Actual owner browser and transaction proof — 28 October 2026
+
+Frozen `0df8fb26fe2f44ed3bf5b61be14dcd67e790d2f7` passes the actual three-owner
+Chromium/session/API/PostgreSQL/worker journey in44.479s. It extends the full
+continuous HP2 path rather than seeding an accepted plan: normal demand/group/
+capability discovery, room creation/recovery, recruitment, application and peer
+admissions, messages, exact plan/rights decisions, separate dependent assignment
+acceptances, revision and real worker restart/recovery all precede execution.
+C reviews the currently accepted collect task through owner controls, deliberately
+loses a committed activity response, recovers the same body/key/version/epoch,
+and reloads the same in_progress task with unchanged progress/cure clocks.
+Independent SQL requires exactly one collect execution at plan-v2/task-v3/epoch1,
+one activity event, no artifacts/evidence, the other task still accepted, and
+unchanged exact plan/rights votes. This proves only the first HP3 execution slice;
+it is not contribution/evaluation/publication/reuse or provider qualification.
+
+- `/tmp/undergrid-owner-task-execution-live-build-oct28.log`
+- `/tmp/undergrid-owner-task-execution-live-first-oct28.jsonl` (PASS44.479s)
+- Retained isolated network database: hp1_run_d3d474095e0f42f8bba8b552e9955afc on port 55502
+- Retained HP2 browser artifacts: /tmp/undergrid-hp2-browser-687255846
+
+Frontend source SHA256 `afa53700992c72a2bd93554fc638566e0ec3ebdb3c5d9561d33c6f8837d22131`;
+built JavaScript SHA256 `6ae7c1f317107265221bc1444c98b16bba5f1ef80d05b9f672b0b80030071dde`.
+The coupled build records source/HEAD/assets together; checks run with frozen HEAD.
+
+Two additional deterministic transaction tests pass3.156s. A queue trigger fails
+only this task's activity fanout: task state/version, event and receipt all roll
+back; removing the fault and retrying the same key twice yields exactly one event
+and receipt with unchanged clocks. A separate normal accepted task waits on the
+actual canonical plan-authority principal lock; a controlled policy withdrawal
+commits before release, and the request returns403/owner_policy_denied with zero
+effects. These are real restricted-role HTTP/PostgreSQL transactions, not mocks.
+Exact log: `/tmp/undergrid-owner-task-execution-transactions-oct28.jsonl`.
+
+## Environment recovery and final gates — 29 October 2026
+
+The environment restarted after the full UI gate launch. Its Oct28 log is empty
+and the process is confirmed missing; this is interruption, not a product failure
+or a passing gate. Recreated only disposable memory-backed caches. The retained
+network PostgreSQL data directory was stopped and recovered normally; no database,
+WAL, retained blob/evidence or migration ledger was reset/deleted. The first
+restart omitted the dedicated port and failed against default5432; corrected
+startup uses network55502 and the retained socket/data directory. The PostgreSQL
+recovery log is `/tmp/undergrid-pg-semantic-55502/restart-oct29.log`. The original
+execution fixture and browser-proof databases remain present.
+
+Restarted full console gate passes300 tests/25files in100.04s; canonical175-schema
+lint/compile/generated parity passes. Logs:
+`/tmp/undergrid-owner-task-execution-full-ui-oct29.log` and
+`/tmp/undergrid-owner-task-execution-final-contract-oct29.log`.
+The fresh final restricted PostgreSQL/race/static gates and review follow when
+terminal. This feature remains unmerged and HP3 remains open.
+
+## Release integration contract
+
+| Invariant | Entrypoint and direct proving check |
+| --- | --- |
+| Current owned assignee records activity only under accepted work | Owner POST progress → shared planCommand/updateTask; owner execution and current epoch/version/plan/actor tests. |
+| Current rights policy precedes receipt recovery in both channels | Shared pre-recovery requireRights/assignee check; normal owner policy withdrawal owner/agent test and canonical-wait test. |
+| Heartbeat is not substantive progress or output consent | Unchanged clocks/at-risk state and zero artifact/evidence/new approval oracles in backend and actual browser case. |
+| Failed fanout has no partial task/event/receipt effects | Task-specific transaction fault test, followed by exact same-key recovery with one event/receipt. |
+| Review and uncertain commands cannot silently change authority/data | UI context/epoch/version/finite-shape checks; invalid clock/output/evidence/specification receipt tests and exact-key/body retry. |
+| Runtime wiring and integration survive merge | Actual same-owner browser/worker journey on the exact release SHA plus coupled build/source identity and focused restricted HTTP guard checks. |
+
+No production deployment is performed or claimed. For an approved future isolated
+runtime check, read the task's normalized state/version/epoch/clocks, exact
+plan/hash/member attribution, and count task.progress_recorded by aggregate ID;
+compare its idempotency key's single receipt and event linkage. Confirm the same
+command did not create artifacts/progress evidence/approvals. These direct queries
+are modeled in owner_task_execution_test.go and the transaction/browser oracles;
+a health check alone is not equivalent. Product data and financial identities
+remain separate. Current proof is local; external qualification remains open.
+
+## Final scoped review — 29 October 2026
+
+Fresh `owner_task_execution_final_oct29` normal migration/restricted-role race gate
+passes12 top-level cases/17 subcases in53.206s, including actual owner execution/
+retained receipt schema validation, stale version/epoch/foreign identity, blocked/
+at-risk/expired cure, inactive agent/member, current policy withdrawal in both
+owner and agent channels, canonical-wait withdrawal, atomic fanout rollback and
+exact recovery, and retained assignment/plan canonical-wait/deadline behavior.
+No race detector failure is reported. Tagged vet and Go build both pass.
+
+- `/tmp/undergrid-owner-task-execution-final-backend-race-oct29.jsonl`
+- `/tmp/undergrid-owner-task-execution-final-vet-oct29.log`
+- `/tmp/undergrid-owner-task-execution-final-go-build-oct29.log`
+
+Root review traced owned-actor attribution, canonical principal lock order, shared
+pre-replay rights/assignee checks, effect-owning domain transition, immutable plan/
+epoch and clock behavior, event/receipt rollback, finite read/response validation,
+exact uncertain-command keys and parent-key/generation invalidation. No material
+in-scope finding remains. Historical receipts confirm recorded effects, not new
+execution/rights authority; subsequent mutations retain current domain checks.
+No production migration or financial source/identity changes are present. API
+schemas/types and owning docs match the implemented behavior. This is root review,
+not a new independent agent review; established workers remain quota-unavailable.
+No replacement agent/model was used to evade that quota. Release merge and exact-
+release checks remain pending. All other HP3 delivery/progress-evidence/upload/
+acceptance/publication/reuse outcomes and external qualification remain open.
