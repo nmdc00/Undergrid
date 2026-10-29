@@ -202,8 +202,7 @@ Adjacent guards: private input grants, stale manifests/votes, failed checks,
 withdrawal/abandoned work, rights holds and coordinator exit/recovery cannot be
 bypassed. No arbitrary verifier execution. Keep evidence and consent separate.
 
-Current evidence: many backend artifact/verifier/rights/publication/reuse paths
-exist. Complete owner contribution/artifact/evidence/publication interfaces and
+Current evidence: unverified owner task execution is reviewed and merged in PR126/release `1e62e06`, with actual continuous-owner browser/worker proof and passing exact-release UI/build/HTTP policy/recovery gates (`OWNER_TASK_EXECUTION.md`). It preserves clocks and grants no output/evidence/rights consent. Many backend artifact/verifier/rights/publication/reuse paths exist. Complete owner contribution/artifact/evidence/publication interfaces and
 storage/verifier-host qualification remain open; a combined user journey is not
 claimed complete.
 
