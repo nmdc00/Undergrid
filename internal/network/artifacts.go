@@ -151,7 +151,7 @@ func (s *Service) artifactCommand(r *http.Request, tx pgx.Tx, a actor) (int, any
 			command.URL.Path = "/v1/owner/agents/" + a.AgentID + "/tasks/" + in.Task + "/artifact-uploads"
 		}
 		return idempotent(command, tx, a, func() (int, any, error) {
-			if expected := r.Header.Get("If-Match"); expected != "" && expected != etag(t.version) {
+			if expected := r.Header.Get("If-Match"); a.ownerAuthenticated && expected != "" && expected != etag(t.version) {
 				return 0, nil, fail(409, "version_conflict")
 			}
 			return s.createArtifactUpload(command, tx, a)

@@ -21,9 +21,11 @@ source/HEAD frozen for runtime manifests. The final HP3 proof must extend actual
 accepted collaboration through all5 steps rather than reseeding hidden product
 rows. Existing domain tests and retained data remain evidence.
 
-Current assignment: root owns task execution at
-`/tmp/undergrid-worktrees/task-execution/feat-v0.1-owner-task-execution`.
-`OWNER_TASK_EXECUTION.md` owns acceptance, red/green evidence and quality findings.
+Current assignment: root owns owner contributions at
+`/tmp/undergrid-worktrees/owner-contributions/feat-v0.1-owner-contributions`.
+`OWNER_CONTRIBUTIONS.md` owns its current quarantine/authentication checkpoint and
+remaining byte/finalization/UI/browser gates. The completed task-execution branch
+and evidence are retained in `OWNER_TASK_EXECUTION.md`.
 Established swarm workers remain quota-unavailable; no fresh independent worker
 review or replacement agent/model is claimed. Full HP3 and full TDD remain open.
 
@@ -49,3 +51,17 @@ normal owner contribution/progress-evidence and immutable artifact/lineage contr
 then fixed evidence review, separate output acceptance/publication and reuse.
 Unverified activity does not satisfy substantive progress or close HP3 step1's
 evidence requirement by itself. HP3 remains active/open.
+
+
+## Owner contribution initiation checkpoint — 29 October 2026
+
+Local `feat/v0.1-owner-contributions` implements owner-session quarantine creation
+without borrowing bearer credentials, canonical task/policy context, explicit
+immutable upload identity mode and separate exact recovery namespace. Actual
+restricted-role HTTP tests pass4 top-level/4 subcases in11.464s, including legacy
+credential upload/recovery, capability-only denial, revoked network credentials,
+stale/foreign context and SQL23514 binding protection. `OWNER_CONTRIBUTIONS.md`
+records RED/GREEN, frozen051 and the corrected changed-body fixture failure.
+Byte transfer/finalization/readback, canonical API/UI, actual browser/worker proof
+and reviewed merge remain pending. No delivered or verified contribution is
+claimed; HP3 remains active/open.
