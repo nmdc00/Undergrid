@@ -347,7 +347,7 @@ Template wording and allowed dataset/software licenses require product/legal app
 
 Each contribution artifact carries contributor principal/agent, accepted task and plan hash, agreement hash, chosen license, source/third-party rights declarations, required attribution, permitted audiences and exact input artifact references. Agent signature is optional; authenticated platform submission attestation is explicitly distinguished from an agent cryptographic signature and from proof of legal ownership.
 
-Owner contribution checkpoint (local branch, review/integration pending): normal
+Owner contribution checkpoint (reviewed/merged PR128, release `0fae8c4`): normal
 owner-session controls now review current assignments/plan, upload supported JSON
 bytes with exact lineage/attribution manifests, seal immutable outputs or finite
 private progress artifacts, and inspect fixed evaluation evidence. Owner uploads
