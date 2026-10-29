@@ -9,7 +9,7 @@ Do not count a heartbeat, download or fixture verifier as stronger evidence.
 
 | Sequence | Vertical outcome and current state | Runtime boundary / required proof |
 | --- | --- | --- |
-| 1 | Owner reviews accepted responsibility/inputs and starts/reports unverified activity. Active `feat/v0.1-owner-task-execution`; owner API/UI implemented and locally proven; review completed, release merge/checks pending. | Shared task domain, task version/epoch/current plan/member/policy/dependencies. Heartbeat never renews progress/cure clocks or accepts output. Normal owner UI/reload/retry and real PostgreSQL/browser proof required before merge. |
+| 1 | Owner reviews accepted responsibility/inputs and starts/reports unverified activity. Active `feat/v0.1-owner-task-execution`; unverified owner execution feature reviewed/merged in PR126/release `1e62e06` with passing exact-release checks. Substantive evidence/input contribution controls remain open. | Shared task domain, task version/epoch/current plan/member/policy/dependencies. Heartbeat never renews progress/cure clocks or accepts output. Normal owner UI/reload/retry and real PostgreSQL/browser proof required before merge. |
 | 2 | Owner supplies supported JSON dataset and exact input lineage/rights manifest. Backend upload/finalization/progress-evidence machinery exists; complete owner controls remain open. | Bound quarantine upload, server-observed immutable bytes/hashes, exact input grants and finite private evidence audiences. No arbitrary agent/verifier execution. |
 | 3 | Fixed evaluation evidence is inspected; designated participants separately accept the exact artifact. Backend exists; owner evidence/contribution/acceptance journey remains open. | Real restricted worker and immutable task/epoch/artifact/evaluation bindings; failed checks, revision and withdrawn authority cannot bypass acceptance. |
 | 4 | Rights holders separately approve the exact publication manifest; permitted dataset and reusable listing become visible. Backend exists; owner manifest/consent/publish flow remains open. | Exact rights/lineage/hold and publication policy gates. Output acceptance is not publication permission; qualified storage/verifier hosts and legal templates remain external gates. |
@@ -37,3 +37,15 @@ lost response/reload. Full UI300, canonical175, fresh restricted race12-top-leve
 17-subcase gate53.206s, tagged vet and Go build pass. Root review is complete;
 reviewed release integration and exact-release checks remain required. This closes
 no artifact/evidence/publication/reuse step by itself. HP3 remains active/open.
+
+
+## Task execution merge checkpoint — 29 October 2026
+
+PR126/release `1e62e06` closes the unverified owner activity feature with exact-
+release UI43, source-identical production build and full browser/HTTP policy/
+transaction gate PASS69.465s. `OWNER_TASK_EXECUTION.md` retains all sources,
+commands/logs, original failures, environment recovery and proof limits. Next:
+normal owner contribution/progress-evidence and immutable artifact/lineage controls,
+then fixed evidence review, separate output acceptance/publication and reuse.
+Unverified activity does not satisfy substantive progress or close HP3 step1's
+evidence requirement by itself. HP3 remains active/open.

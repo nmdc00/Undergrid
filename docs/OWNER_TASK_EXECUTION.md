@@ -1,5 +1,11 @@
 # Owner task execution contract
 
+**Current status: reviewed and merged in [PR126](https://github.com/nmdc00/Undergrid/pull/126),
+release `1e62e0609a9872cb1a9f44ba817767194df8431c`.** Exact-release UI/build and
+full browser plus core policy/transaction checks pass. This closes the bounded
+owner unverified-activity feature locally; full HP3 remains open. Earlier
+checkpoints below preserve the implementation/review history.
+
 HP3 step1, TDD §§6.3/7.2 and the task progress contract: the assigned owner can
 review current accepted work/inputs and explicitly start or report activity under
 the current task version and claim epoch. This is an unverified heartbeat, never
@@ -224,3 +230,28 @@ not a new independent agent review; established workers remain quota-unavailable
 No replacement agent/model was used to evade that quota. Release merge and exact-
 release checks remain pending. All other HP3 delivery/progress-evidence/upload/
 acceptance/publication/reuse outcomes and external qualification remain open.
+
+## Exact merged-release checks — 29 October 2026
+
+PR126 merges reviewed head `82ba31c` into release `1e62e06`. Exact release passes43
+focused execution/assignment/plan/constraint UI tests in8.45s. The coupled production
+build has identical frontend source and JavaScript hashes to the actual feature
+browser proof. The full same-owner browser/worker execution lifecycle plus actual
+HTTP contract, normal policy withdrawal in both channels, canonical-wait policy
+withdrawal and atomic fanout/recovery gates pass5 top-level/2 subcases in69.465s on that exact
+release. This is runtime proof, not a nearby-branch or health-only substitution.
+
+- `/tmp/undergrid-owner-task-execution-release-ui-oct29.log`
+- `/tmp/undergrid-owner-task-execution-release-build-oct29.log`
+- `/tmp/undergrid-owner-task-execution-release-1e62e06-oct29.jsonl`
+- Retained restricted HTTP database `owner_task_execution_release_oct29`
+- Retained isolated network database: hp1_run_65521eb299e0441abd21c5c3315c8a1a on port 55502
+- Retained HP2 browser artifacts: /tmp/undergrid-hp2-browser-951174702
+
+The unverified owner execution slice is implemented, locally proven and reviewed/
+merged. Current epochs/policy/authority, unchanged clocks and no implicit output/
+rights consent remain enforced by shared domain transactions. HP3 still requires
+substantive progress evidence, supported contribution upload/lineage, fixed
+verification, designated acceptance, separate publication consent, fourth-party
+reuse and the full continuous delivery journey. External qualification and reserved
+approvals remain open; no develop/main promotion or deployment occurred.
