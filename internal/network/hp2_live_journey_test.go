@@ -34,7 +34,8 @@ func TestHP2LiveOwnerSelectedMatchRoomAndRecruitment(t *testing.T) {
 }
 func hp2LiveOwnerSetup(t *testing.T, mode hp2SetupMode) {
 	publication, builderRegistration := mode == hp2Publication, mode == hp2Builder
-	execution := mode == hp3TaskExecution
+	contributions := mode == hp3OwnerContributions
+	execution := mode == hp3TaskExecution || contributions
 	continuous := mode == hp2Continuous || execution
 	planProposal := mode == hp2PlanProposal || continuous
 	applications := mode == hp2Applications || continuous
@@ -96,6 +97,9 @@ func hp2LiveOwnerSetup(t *testing.T, mode hp2SetupMode) {
 	}
 	if err = service.ConfigureCredentialIssuance("hp2-fixture-key", bytes.Repeat([]byte{23}, 32)); err != nil {
 		t.Fatal(err)
+	}
+	if contributions {
+		configureOwnerContributionBrowserRuntime(t, service, app.URL)
 	}
 	if planProposal {
 		enableTestTerms(t, service)
@@ -167,6 +171,9 @@ func hp2LiveOwnerSetup(t *testing.T, mode hp2SetupMode) {
 	}
 	if continuous {
 		browser.Env = append(browser.Env, "UNDERGRID_HP2_CONTINUOUS=1")
+	}
+	if contributions {
+		browser.Env = append(browser.Env, "UNDERGRID_HP3_OWNER_CONTRIBUTIONS=1")
 	}
 	if execution {
 		browser.Env = append(browser.Env, "UNDERGRID_HP3_TASK_EXECUTION=1")
@@ -255,7 +262,9 @@ func hp2LiveOwnerSetup(t *testing.T, mode hp2SetupMode) {
 	if planProposal {
 		expectedCollaborationEffects = 22
 		assertHP2PlanFinalState(t, ctx, admin, execution)
-		if execution {
+		if contributions {
+			assertOwnerContributionBrowserState(t, ctx, admin)
+		} else if execution {
 			assertOwnerExecutionBrowserState(t, ctx, admin)
 		}
 	}

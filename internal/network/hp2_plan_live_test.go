@@ -29,6 +29,7 @@ const (
 	hp2Applications
 	hp2Continuous
 	hp3TaskExecution
+	hp3OwnerContributions
 )
 
 func TestHP2LiveOwnerPlanProposalRevisionAndRecovery(t *testing.T) {

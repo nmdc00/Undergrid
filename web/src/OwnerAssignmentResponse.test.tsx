@@ -172,3 +172,33 @@ test.each([401, 403, 409])(
     expect(unauthorized).toHaveBeenCalledTimes(status === 401 ? 1 : 0);
   },
 );
+
+test("accepted-plan assignments expose contribution controls through the owner screen", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify({ items: [{ ...task, state: "submitted" }] }),
+        ),
+      ),
+  );
+  render(
+    <OwnerAssignmentResponse
+      agent="agent"
+      plan="plan"
+      hash={"a".repeat(64)}
+      termsURL=""
+      csrf="contribution-integration"
+      onUnauthorized={() => {}}
+      planAccepted
+    />,
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "Review my assignments" }),
+  );
+  expect(
+    await screen.findByRole("button", { name: "Review task contributions" }),
+  ).toBeTruthy();
+});

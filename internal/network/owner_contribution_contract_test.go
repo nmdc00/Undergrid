@@ -50,6 +50,10 @@ func TestOwnerContributionActualHTTPMatchesPublishedContract(t *testing.T) {
 		t.Fatal("owner bytes", w.Code)
 	}
 	observe(r, w, nil)
+	progress := map[string]any{"claim_epoch": x.task["claim_epoch"], "media_type": "application/json", "size_bytes": len(data), "purpose": "progress", "audience_principal_ids": []string{x.principals[0], x.principals[2]}, "reviewer_principal_id": x.principals[0]}
+	if code, _ := ownerCallMatch(owner, "POST", create, NewID(), x.task["etag"].(string), progress); code != 201 {
+		t.Fatal(code)
+	}
 	path := base + "/artifacts/" + upload["id"].(string)
 	key := NewID()
 	for i := 0; i < 2; i++ {
@@ -62,10 +66,13 @@ func TestOwnerContributionActualHTTPMatchesPublishedContract(t *testing.T) {
 			t.Fatal(code)
 		}
 	}
-	// A finite owner contract also covers progress creation's explicit audience.
-	progress := map[string]any{"claim_epoch": x.task["claim_epoch"], "media_type": "application/json", "size_bytes": len(data), "purpose": "progress", "audience_principal_ids": []string{x.principals[0], x.principals[2]}, "reviewer_principal_id": x.principals[0]}
 	// Output submission intentionally makes a subsequent new generation ineligible.
 	if code, _ := ownerCallMatch(owner, "POST", create, NewID(), x.task["etag"].(string), progress); code != 409 {
+		t.Fatal(code)
+	}
+	x.startWorker(t)
+	x.waitEvaluation(t, upload["id"].(string))
+	if code, _ := ownerCallMatch(owner, "GET", path+"/evaluations", "", "", nil); code != 200 {
 		t.Fatal(code)
 	}
 	raw, err := json.Marshal(cases)

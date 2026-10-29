@@ -182,3 +182,76 @@ projection knowledge rather than a competing wire model. It performs up to100
 bounded projection lookups after closing the ID query; reducing that round-trip
 cost may be warranted if measured runtime exceeds the journey budget. No broader
 repository abstraction or policy duplication is introduced.
+
+## Owner controls and published contract checkpoint — 29 October 2026
+
+Contract-only test `3360fdc` records actual owner creation, raw PUT, immutable
+finalization/recovery, metadata, evaluations and owned-task discovery. It fails on
+an unadvertised owner creation operation (4.347s). The canonical OpenAPI document
+now advertises those owner-session paths, including conjunctive owner-session and
+upload capability authentication on PUT. Owner input excludes server-resolved
+room/plan/task IDs; its receipt explicitly names owner_session. Finite schemas
+reject credential mode, fabricated consent, oversized data, capability disclosure
+in metadata and more than100 discovery entries. The first actual HTTP gate passes
+4.553s; its stronger output/private-progress creation and restricted fixed-worker
+evaluation extension passes6.232s. The contract lint,178 schema compilation and
+regenerated TypeScript contract check pass. Legacy credential schemas are retained.
+
+Browser trust-boundary tests first fail3 positive cases at explicit unimplemented
+contract boundaries; all14 then pass. Control tests initially fail all9 cases on
+the missing UI. Implemented controls then pass23 focused cases, including reviewed
+raw-byte transfer, exact finalization retry without repeating sealed PUT, denied
+context cleanup, explicit returning-owner selection of already uploaded bytes,
+and session/agent switch cleanup. Named fixed-evidence presentation has its own
+missing-control and missing-contract RED, then passes with exact immutable SHA/
+manifest bindings and explicit development_process_not_qualified display.
+
+A private-progress case exposes the server's sorted audience versus selection
+order. It fails before normalization; sorting the reviewed command audience and
+restricting reviewer choices to designated acceptance principals fixes it. The
+four-file focused UI gate passes49 cases7.330s. These UI tests use a deliberately
+fixed digest oracle; only the actual Chromium journey may prove file hashing.
+
+The assignment screen now exposes task contribution controls for accepted plans,
+including submitted tasks so returning owners can discover immutable results.
+Review fetches the current plan, assignments, owner and bounded task generations.
+JSON data is read only as inert bytes, bounded to10MiB, SHA256 hashed and reviewed
+alongside a finite64KiB lineage/attribution manifest. Explicit purpose/audience
+review precedes creation. Byte transfer rejects any unexpected origin, agent,
+artifact path, fragment, query field, token shape or size before attaching cookie/
+CSRF authority. Raw bytes are never JSON-reencoded for transfer.
+
+A private staged command retains reviewed body/version/epoch and the original
+idempotency key for uncertain creation/finalization retries. Confirmed PUT moves
+to finalization; a lost finalize response never repeats PUT against sealed bytes.
+Reload deliberately discards local files/capabilities and uses metadata discovery.
+The owner may select a current pending generation, reselect original data/manifest
+and seal already uploaded bytes. Missing/mismatched bytes fail in the domain;
+expired capabilities are never renewed. An explicit new-upload action preserves
+the old generation and quota rather than silently replacing it. No browser
+credential/private file storage, financial coupling, output acceptance, progress
+credit/review or publication consent is introduced.
+
+The continuous owner browser/worker extension has been written but is not yet
+proven at this checkpoint. Full UI, final build/type checks, browser evidence,
+remaining concurrency/failure review and reviewed integration remain required.
+The branch is still local and unmerged; HP3 remains open.
+
+- `/tmp/undergrid-owner-contributions-contract-red-oct29.jsonl`
+- `/tmp/undergrid-owner-contributions-contract-green-oct29.jsonl`
+- `/tmp/undergrid-owner-contributions-contract-worker-oct29.jsonl`
+- `/tmp/undergrid-owner-contributions-contract-check-oct29.log`
+- `/tmp/undergrid-owner-contributions-ui-contract-red-oct29.log`
+- `/tmp/undergrid-owner-contributions-ui-contract-green-oct29.log`
+- `/tmp/undergrid-owner-contributions-controls-red-oct29.log`
+- `/tmp/undergrid-owner-contributions-controls-first-green-oct29.log`
+- `/tmp/undergrid-owner-contributions-evaluation-contract-red-oct29.log`
+- `/tmp/undergrid-owner-contributions-evidence-controls-red-oct29.log`
+- `/tmp/undergrid-owner-contributions-progress-controls-red-oct29.log`
+- `/tmp/undergrid-owner-contributions-controls-final-oct29.log`
+
+The complete console suite passes327 cases across27 files in90.47s; log:
+`/tmp/undergrid-owner-contributions-full-ui-oct29.log`. The assignment-screen
+integration is included. The continuous browser harness now extends the actual
+same-owner HP2 journey; its runtime result remains pending until executed on a
+frozen source/build manifest.
