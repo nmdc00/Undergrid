@@ -22,6 +22,7 @@ const artifactLimitations = "Fixed structural checks only: no factual truth, cov
 
 type storedArtifact struct {
 	id, swarm, plan, task, principal, agent, generation, state, purpose, media string
+	authentication                                                             string
 	sha, manifestHash, planHash, agreement, license                            string
 	size, epoch, version                                                       int64
 	manifest                                                                   []byte
@@ -34,11 +35,11 @@ func loadArtifact(ctx context.Context, tx pgx.Tx, id string, lock bool) (storedA
 	var a storedArtifact
 	q := `SELECT id,swarm_id,plan_id,task_id,principal_id,agent_id,generation,state,purpose,media_type,size_bytes,claim_epoch,version,
 	 COALESCE(sha256,''),COALESCE(manifest_hash,''),COALESCE(plan_hash,''),COALESCE(agreement_hash,''),COALESCE(license_id,''),manifest_bytes,required_rights,
-	 audience_principal_ids::text[],COALESCE(progress_reviewer_principal_id::text,'') FROM artifacts WHERE id=$1`
+	 audience_principal_ids::text[],COALESCE(progress_reviewer_principal_id::text,''),upload_authentication FROM artifacts WHERE id=$1`
 	if lock {
 		q += " FOR UPDATE"
 	}
-	err := tx.QueryRow(ctx, q, id).Scan(&a.id, &a.swarm, &a.plan, &a.task, &a.principal, &a.agent, &a.generation, &a.state, &a.purpose, &a.media, &a.size, &a.epoch, &a.version, &a.sha, &a.manifestHash, &a.planHash, &a.agreement, &a.license, &a.manifest, &a.rights, &a.audience, &a.reviewer)
+	err := tx.QueryRow(ctx, q, id).Scan(&a.id, &a.swarm, &a.plan, &a.task, &a.principal, &a.agent, &a.generation, &a.state, &a.purpose, &a.media, &a.size, &a.epoch, &a.version, &a.sha, &a.manifestHash, &a.planHash, &a.agreement, &a.license, &a.manifest, &a.rights, &a.audience, &a.reviewer, &a.authentication)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return a, fail(404, "not_found")
 	}
@@ -231,6 +232,22 @@ func (s *Service) artifactCommand(r *http.Request, tx pgx.Tx, a actor) (int, any
 		return 0, nil, err
 	}
 	if r.Method == "PUT" && parts[4] == "upload" {
+		if art.authentication == "owner_session" {
+			token := r.URL.Query().Get("token")
+			value, err := hex.DecodeString(token)
+			if err != nil || len(value) != 32 {
+				return 0, nil, fail(401, "invalid_upload_capability")
+			}
+			hash := sha256.Sum256([]byte(token))
+			var current bool
+			if err = tx.QueryRow(r.Context(), "SELECT upload_digest=$2 AND upload_expires_at>clock_timestamp() FROM artifacts WHERE id=$1", art.id, hash[:]).Scan(&current); err != nil {
+				return 0, nil, err
+			}
+			if !current {
+				return 0, nil, fail(401, "invalid_upload_capability")
+			}
+		}
+
 		if art.state != "quarantine" {
 			return 0, nil, fail(409, "generation_is_sealed")
 		}
@@ -241,6 +258,10 @@ func (s *Service) artifactCommand(r *http.Request, tx pgx.Tx, a actor) (int, any
 	}
 	if r.Method != "POST" {
 		return 0, nil, fail(404, "not_found")
+	}
+	if a.ownerAuthenticated {
+		r = r.Clone(r.Context())
+		r.URL.Path = "/v1/owner/agents/" + a.AgentID + "/artifacts/" + art.id + "/" + parts[4]
 	}
 	return idempotent(r, tx, a, func() (int, any, error) {
 		switch parts[4] {
@@ -259,6 +280,10 @@ func (s *Service) artifactCommand(r *http.Request, tx pgx.Tx, a actor) (int, any
 	})
 }
 func (s *Service) currentArtifactAuthority(ctx context.Context, tx pgx.Tx, a actor, p storedPlan, t storedTask, art storedArtifact, submit bool) error {
+	if submit && art.id != "" && (a.ownerAuthenticated && art.authentication != "owner_session" || !a.ownerAuthenticated && art.authentication == "owner_session") {
+		return fail(403, "artifact_upload_authentication_required")
+	}
+
 	template, ok := s.templates[p.sealed.Plan.Rights.TemplateID]
 	if !ok || template.SHA256 != p.sealed.TemplateHash {
 		return fail(409, "plan_terms_expired_or_changed")

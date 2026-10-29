@@ -19,7 +19,7 @@ func ownerPlanApprovalMutation(r *http.Request) (agent, plan string, ok bool) {
 	return parts[3], parts[5], true
 }
 
-func prelockOwnerPlanAuthorities(ctx context.Context, tx pgx.Tx, principal, agent, plan string, task bool) error {
+func prelockOwnedResourceActor(ctx context.Context, tx pgx.Tx, principal, agent string) error {
 	// Prove attribution before setting actor_agent: the privileged lock helper
 	// may only resolve required principals for a room this owned agent can read.
 	// The selected agent is deliberately not locked before the principal set.
@@ -37,6 +37,14 @@ func prelockOwnerPlanAuthorities(ctx context.Context, tx pgx.Tx, principal, agen
 	if _, err = tx.Exec(ctx, "SELECT set_config('undergrid.agent_id',$1,true)", agent); err != nil {
 		return err
 	}
+	return nil
+}
+
+func prelockOwnerPlanAuthorities(ctx context.Context, tx pgx.Tx, principal, agent, plan string, task bool) error {
+	if err := prelockOwnedResourceActor(ctx, tx, principal, agent); err != nil {
+		return err
+	}
+	var err error
 	if task {
 		// RLS resolves only a current member-visible task after proven attribution.
 		err = tx.QueryRow(ctx, "SELECT plan_id FROM tasks WHERE id=$1 AND assigned_agent_id=$2", plan, agent).Scan(&plan)
@@ -62,4 +70,27 @@ func ownerPlanAuthorityMutation(r *http.Request) (agent, resource string, task, 
 		return parts[3], parts[5], true, true
 	}
 	return "", "", false, false
+}
+
+// Artifact reads and writes use the same principal order as agent artifact
+// requests, before this owner's row or selected agent is locked.
+func ownerArtifactAuthorityRequest(r *http.Request) (agent, artifact string, ok bool) {
+	if !ownerArtifactRoute(r.URL.Path) {
+		return "", "", false
+	}
+	p := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+	return p[3], p[5], true
+}
+func prelockOwnerArtifactAuthorities(ctx context.Context, tx pgx.Tx, principal, agent, artifact string) error {
+	if err := prelockOwnedResourceActor(ctx, tx, principal, agent); err != nil {
+		return err
+	}
+	var visible string
+	if err := tx.QueryRow(ctx, "SELECT id FROM artifacts WHERE id=$1", artifact).Scan(&visible); errors.Is(err, pgx.ErrNoRows) {
+		return fail(404, "not_found")
+	} else if err != nil {
+		return err
+	}
+	_, err := tx.Exec(ctx, "SELECT lock_artifact_authorities($1)", artifact)
+	return err
 }
