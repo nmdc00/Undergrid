@@ -274,3 +274,104 @@ The initial build recorder invocation used repository cwd instead of web cwd and
 failed before building; the corrected coupled production build passed with
 source `d0df2f13241f2ba6c0d57db0042002adda7b98830f99d4d76c0c18a0fbc4a53e`
 and JS `220289735080b09b350ef898f430588b4c053d0a45835b83284b225fc05619cd`.
+
+## Actual continuous contribution journey — 29 October 2026
+
+Frozen `b2963d555a36b0f36351f8b02aa7f7d10ee778c1` passes the actual same-owner
+HP2→task execution→private progress→output contribution journey in50.480s.
+The only correction after the initial browser failure is the harness combobox
+selector; production JS remains byte-identical. Coupled build source SHA256:
+`fea2b9fb557a35d357611017da84573f769ba658f0904d3e6344811012cd89c1`;
+production JS SHA256:
+`220289735080b09b350ef898f430588b4c053d0a45835b83284b225fc05619cd`.
+
+Chromium hashes the actual selected inert JSON file and sends exact bytes with
+owner cookies/CSRF. The owner reviews a private audience and designated reviewer,
+seals progress, deliberately loses a committed finalization response and recovers
+with the identical body/key. The excluded peer receives404 for metadata,
+evaluations and content. Fixed evidence binds exact bytes and the manifest,
+explicitly displays development_process_not_qualified, and never credits progress
+or changes its clocks. The same owner uploads task output, loses the request before
+finalization, reloads, discovers the pending generation through normal controls,
+reselects original data/manifest and seals existing bytes without a new generation
+or capability renewal. Both artifacts verify through the actual pinned executable
+and restricted River worker; evidence/readback survives normal worker restart.
+Browser localStorage/sessionStorage remain empty.
+
+Independent final SQL observes2 verified owner-session generations with NULL
+credential IDs,1 two-person private progress audience/reviewer,1 output and2
+passed development evaluations. Exact normalized/embedded evaluation hashes and
+runtime identity agree. The collect task is submitted at version4/epoch1 with
+its exact output pointer and no credited progress. No task progress report,
+output-acceptance vote or publication vote is created; unverified activity remains
+one event. These are controlled release-test owners, not independent beneficial
+owners or provider/storage/isolation/legal qualification.
+
+Retained database: `hp1_run_aa8bbccdded94dc993c1e55e5f38a2e2` on55502.
+Runtime/verifier/blobs: `/tmp/undergrid-hp3-contribution-runtime-1751914390`.
+Browser artifacts: `/tmp/undergrid-hp2-browser-3955274706`.
+Logs:
+- `/tmp/undergrid-owner-contributions-b2963d5-build-oct29.log`
+- `/tmp/undergrid-owner-contributions-b2963d5-browser-oct29.jsonl`
+
+Actual local contribution proof is now present. Remaining targeted transaction/
+revocation review, final static/contract gates and reviewed merge are still
+required. Substantive progress reporting/review, designated output acceptance,
+separate publication and fourth-principal reuse remain later HP3 work.
+
+
+## Transaction review checkpoint — 29 October 2026
+
+The finalization characterization gate checks incorrect plan/epoch/hash/license,
+then injects a controlled event-fanout enqueue failure after seal/task/evaluation
+job writes. The entire transaction rolls back: quarantine/no SHA, accepted task,
+zero evaluation jobs/sealed events/receipts. Removing the fixture fault and retrying
+the exact key/body produces one seal, one evaluation job, one event and one receipt;
+the second successful retry returns the identical result.
+
+Four real concurrent canonical-wait cases hold owner authority in a separate PG
+transaction, prove the API is blocked in lock_artifact_authorities via
+pg_blocking_pids, then commit policy withdrawal, agent revocation, owner suspension
+or membership withdrawal before releasing it. The protected finalization denies
+with the exact current error and leaves quarantine/job/receipt state unchanged.
+The first gate fails only because the test expected404 for a revoked owned agent;
+existing lockOwnerAgent explicitly returns403 inactive_agent. The corrected test
+requires that exact code (plus owner_policy_denied, registration_required and
+not_found for the other cases), rather than accepting any denial. No production
+behavior changed to satisfy these characterization checks.
+
+The corrected race gate passes2 top-level/8 subcases in16.139s. Logs:
+- `/tmp/undergrid-owner-contributions-transactions-race-oct29.jsonl` (incorrect expected status retained)
+- `/tmp/undergrid-owner-contributions-transactions-corrected-race-oct29.jsonl`
+
+Root scoped review: owner adapters resolve identity/context and call the existing
+artifact domain; canonical resource locks precede owner locks, current authority
+precedes recovery, and channel namespaces prevent credential-generation borrowing.
+The UI validates context and destinations before transfer, retains immutable retry
+stages, discards late state on identity changes, and renders all content inertly.
+Shared domain and projection knowledge is reused; no financial repository or
+provider coupling is introduced. Applied051/052 remain frozen. The bounded100
+projection lookups and explicit file/manifest re-selection after reload are
+recorded implementation tradeoffs, not unqualified resumable storage claims.
+Swarm review workers remain quota-unavailable; no fresh independent review is
+claimed. Final static/contract gates and reviewed release integration remain open.
+
+
+Final pre-PR gates: tagged `go vet -tags=hp1_live,hp2_live ./...` exits0;
+canonical lint,178 independently compiled schema components and regenerated
+TypeScript contract check pass. Logs:
+- `/tmp/undergrid-owner-contributions-final-vet-oct29.log`
+- `/tmp/undergrid-owner-contributions-final-contract-oct29.log`
+
+This feature's implemented/local-proof scope is owner dataset and private-progress
+artifact creation/bytes/sealing/discovery/evaluation UI and exact recovery. Deferred
+within HP3: substantive progress report and named review, designated output
+acceptance, separate publication/rights consent, private-input grant controls,
+fourth-principal reuse and continuous complete HP3 acceptance. External legal,
+source/provider, storage/verifier-host and deployment gates remain explicitly open.
+
+`go build ./...` also exits0; log:
+`/tmp/undergrid-owner-contributions-final-go-build-oct29.log`.
+Frozen migration hashes rechecked unchanged before PR. All changed Go files are
+already gofmt-clean; `git diff --check` passes. Root review found no remaining
+in-scope authority or recovery blocker. Exact merged-release checks still remain.

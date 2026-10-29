@@ -10,7 +10,7 @@ Do not count a heartbeat, download or fixture verifier as stronger evidence.
 | Sequence | Vertical outcome and current state | Runtime boundary / required proof |
 | --- | --- | --- |
 | 1 | Owner reviews accepted responsibility/inputs and starts/reports unverified activity. Active `feat/v0.1-owner-task-execution`; unverified owner execution feature reviewed/merged in PR126/release `1e62e06` with passing exact-release checks. Substantive evidence/input contribution controls remain open. | Shared task domain, task version/epoch/current plan/member/policy/dependencies. Heartbeat never renews progress/cure clocks or accepts output. Normal owner UI/reload/retry and real PostgreSQL/browser proof required before merge. |
-| 2 | Owner supplies supported JSON dataset and exact input lineage/rights manifest. Backend upload/finalization/progress-evidence machinery exists; complete owner controls remain open. | Bound quarantine upload, server-observed immutable bytes/hashes, exact input grants and finite private evidence audiences. No arbitrary agent/verifier execution. |
+| 2 | Owner supplies supported JSON dataset and exact input lineage/rights manifest. Owner dataset/manifest controls, explicit owner-session quarantine, bytes/finalization/readback, bounded reload discovery and fixed evidence inspection are locally proven on `feat/v0.1-owner-contributions`; review/merge pending. Private-input grant controls remain open. | Bound quarantine upload, server-observed immutable bytes/hashes, exact input grants and finite private evidence audiences. No arbitrary agent/verifier execution. |
 | 3 | Fixed evaluation evidence is inspected; designated participants separately accept the exact artifact. Backend exists; owner evidence/contribution/acceptance journey remains open. | Real restricted worker and immutable task/epoch/artifact/evaluation bindings; failed checks, revision and withdrawn authority cannot bypass acceptance. |
 | 4 | Rights holders separately approve the exact publication manifest; permitted dataset and reusable listing become visible. Backend exists; owner manifest/consent/publish flow remains open. | Exact rights/lineage/hold and publication policy gates. Output acceptance is not publication permission; qualified storage/verifier hosts and legal templates remain external gates. |
 | 5 | Fourth principal retrieves and explicitly acknowledges reuse; original need is satisfied or keeps an unresolved remainder. Backend reuse/partial satisfaction exists; continuous owner journey remains open. | Retrieval alone is not reuse. Prove immutable version/manifest attribution, durable receipt/recovery and no fabricated authority. |
@@ -23,8 +23,8 @@ rows. Existing domain tests and retained data remain evidence.
 
 Current assignment: root owns owner contributions at
 `/tmp/undergrid-worktrees/owner-contributions/feat-v0.1-owner-contributions`.
-`OWNER_CONTRIBUTIONS.md` owns its current quarantine/authentication checkpoint and
-remaining byte/finalization/UI/browser gates. The completed task-execution branch
+`OWNER_CONTRIBUTIONS.md` owns current creation/bytes/finalization/UI, continuous
+browser/worker and authority/rollback proof; reviewed integration remains pending. The completed task-execution branch
 and evidence are retained in `OWNER_TASK_EXECUTION.md`.
 Established swarm workers remain quota-unavailable; no fresh independent worker
 review or replacement agent/model is claimed. Full HP3 and full TDD remain open.
@@ -84,3 +84,15 @@ Returning-owner task metadata discovery now passes actual HTTP/PG tests, includi
 Selected-actor/membership denial and retained creation/finalization/policy guards
 pass4 top-level/6 subcases in14.882s. This does not recover byte capabilities or
 complete the UI. `OWNER_CONTRIBUTIONS.md` owns the RED/GREEN and immutable052 index.
+
+
+## Continuous owner contribution checkpoint — 29 October 2026
+
+Normal same-owner HP2→unverified activity→private progress→output upload/reload/
+fixed verification now passes the frozen browser/worker journey on `b2963d5` in
+50.480s. Exact hashes, retained runtime/DB/browser evidence and the initial harness
+selector failure are in `OWNER_CONTRIBUTIONS.md`. No progress report/credit, output
+acceptance or publication consent is inferred. Canonical-wait revocation
+and failed-fanout rollback/recovery checks pass2 top-level/8 subcases in16.139s;
+final static/contract gates and reviewed integration remain pending.
+This closes no complete HP3 journey. HP3 remains active; HP4–6 are unchanged.
