@@ -65,3 +65,16 @@ records RED/GREEN, frozen051 and the corrected changed-body fixture failure.
 Byte transfer/finalization/readback, canonical API/UI, actual browser/worker proof
 and reviewed merge remain pending. No delivered or verified contribution is
 claimed; HP3 remains active/open.
+
+
+## Owner contribution bytes checkpoint — 29 October 2026
+
+The local contribution branch now implements and proves owner byte transfer,
+immutable finalization/readback and actual restricted fixed-worker output/private
+progress evaluation. The9-top-level/9-subcase integrated gate passes33.669s;
+real capability expiry passes62.979s. Additional normal-policy-withdrawal checks
+prove issued bytes capability and exact finalization recovery both deny403,
+without changing task/artifact/job effects (2 subcases,6.209s).
+`OWNER_CONTRIBUTIONS.md` retains exact evidence and development-verifier limits.
+Reload discovery/recovery, canonical API, owner UI, remaining authority/concurrency
+checks, actual browser acceptance and review/merge are still required. HP3 is open.

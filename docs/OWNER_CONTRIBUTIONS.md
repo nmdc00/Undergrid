@@ -81,3 +81,59 @@ work is local and unmerged.
 - `/tmp/undergrid-owner-contributions-binding-constraints-oct29.jsonl`
 - `/tmp/undergrid-owner-contributions-create-final-oct29.jsonl`
 - Retained normally migrated network database `owner_contributions_oct29`, port55502
+
+
+## Bytes, immutable finalization and evaluation checkpoint — 29 October 2026
+
+Test-only `4c043e9` requires the owner byte/finalization lifecycle and fails405
+on the missing PUT route. Implementation `8fd1a8e` maps owned artifact commands
+into the existing authoritative artifact domain. Scoped owner PUT requires both
+current owner authority and the exact unexpired capability; a capability alone
+never authenticates an owner. Finalization, metadata, evaluations and content use
+the existing domain and audience rules. Owner and credential submission modes
+remain mutually exclusive. Canonical artifact locks precede principal locks;
+current contribution authority is checked before idempotent finalization recovery.
+No publication or acceptance action is exposed by these owner routes.
+
+Owner bytes/finalization/readback first passes3.109s. Separate producer/mode/token
+checks pass with the output lifecycle in6.667s. Actual restricted fixed-worker
+output and private progress evaluation pass9.376s: the exact uploaded SHA and
+pinned executable SHA are observed, progress keeps the task accepted with its
+clocks unchanged, excluded peers cannot read metadata/evaluations/content, and
+no progress credit, review decision or consent is fabricated. The executable is
+explicitly development_process_not_qualified; this is not provider or isolation
+qualification.
+
+The real60-second capability-expiry test passes62.979s without rewriting immutable
+expiry: changed bytes are denied401 after expiry, stored bytes remain unchanged,
+and the authorized owner may finalize already uploaded bytes. The integrated
+owner checks plus legacy publication lifecycle and canonical task policy-wait
+regression pass9 top-level/9 subcases in33.669s.
+
+Additional characterization proves policy withdrawal using the normal policy API
+blocks issued-capability PUT and both new finalization and retained receipt recovery
+with403. Already sealed generations reject PUT409 before withdrawal. Denials leave
+quarantine/sealed state and zero/one evaluation job unchanged. Both subcases pass
+6.209s. These checks characterize existing authority behavior; no artificial RED
+or production change is claimed for them.
+
+Quality assessment: authentication adapters resolve identity/context and preserve
+raw bounded bytes; shared artifact transitions retain rights, dependencies, epoch,
+current plan and immutable manifest ownership. Purpose-specific audience and input
+grants are retained rather than widened for reviewers. No financial identities
+or content execution are introduced. Full concurrency/revocation review, canonical
+API schemas, reload discovery/recovery, owner UI, actual cookie/CSRF/browser proof
+and reviewed merge remain open. This is an unmerged backend checkpoint, not HP3
+closure.
+
+- `/tmp/undergrid-owner-contributions-bytes-red-oct29.jsonl`
+- `/tmp/undergrid-owner-contributions-bytes-first-green-oct29.jsonl`
+- `/tmp/undergrid-owner-contributions-bytes-guards-oct29.jsonl`
+- `/tmp/undergrid-owner-contributions-fixed-evaluation-oct29.jsonl`
+- `/tmp/undergrid-owner-contributions-expiry-oct29.jsonl`
+- `/tmp/undergrid-owner-contributions-bytes-integrated-oct29.jsonl`
+- `/tmp/undergrid-owner-contributions-policy-recovery-oct29.jsonl`
+
+The retained vet log is empty and no vet process remains, but the prior exit
+status was not retained across context recovery; it is not counted as a proven
+static gate. Rerun the gate before integration.
