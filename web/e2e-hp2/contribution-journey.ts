@@ -43,11 +43,14 @@ export async function proveOwnerContributions(actors: Actor[]) {
     progressKey: string | undefined,
     progressBody: string | null = null;
   await region
-    .getByLabel("Contribution purpose", { exact: true })
+    .getByRole("combobox", { name: "Contribution purpose", exact: true })
     .selectOption("progress");
   await region.getByLabel(coordinator.principal, { exact: true }).check();
   await region
-    .getByLabel("Designated progress reviewer", { exact: true })
+    .getByRole("combobox", {
+      name: "Designated progress reviewer",
+      exact: true,
+    })
     .selectOption(coordinator.principal);
   await region
     .getByLabel("JSON dataset file", { exact: true })

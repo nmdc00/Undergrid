@@ -382,3 +382,15 @@ test("progress review sends normalized private audience and preserves the design
     reviewer_principal_id: agent,
   });
 });
+
+test("contribution selectors have stable accessible names independent of option text", async () => {
+  setup();
+  await review();
+  await userEvent.selectOptions(
+    screen.getByRole("combobox", { name: /^Contribution purpose$/ }),
+    "progress",
+  );
+  expect(
+    screen.getByRole("combobox", { name: /^Designated progress reviewer$/ }),
+  ).toBeTruthy();
+});

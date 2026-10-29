@@ -255,3 +255,22 @@ The complete console suite passes327 cases across27 files in90.47s; log:
 integration is included. The continuous browser harness now extends the actual
 same-owner HP2 journey; its runtime result remains pending until executed on a
 frozen source/build manifest.
+
+First actual continuous browser attempt on `a12f299` fails at96.224s after normal
+HP2 acceptance/task activity and before any artifact allocation. All contribution
+review reads return200. Retained database is
+`hp1_run_48b4899e85454e059c5c3afb857bbb51`; runtime directory
+`/tmp/undergrid-hp3-contribution-runtime-709708451`; browser artifacts
+`/tmp/undergrid-hp2-browser-3595687162`; full log
+`/tmp/undergrid-owner-contributions-a12f299-browser-oct29.jsonl`.
+
+The terminal trace waits on an exact Playwright label selector for the purpose
+select. A separate real Chromium reproduction with the same wrapped label/options
+returns exact-label count0 versus exact-combobox-role count1. The harness now uses
+stable accessible combobox roles for purpose/reviewer. The stable accessible-role
+unit test also passes. This is a harness selector correction, not a product RED or
+an excuse to weaken authority/timeout checks. Rebuild/rerun remains required.
+The initial build recorder invocation used repository cwd instead of web cwd and
+failed before building; the corrected coupled production build passed with
+source `d0df2f13241f2ba6c0d57db0042002adda7b98830f99d4d76c0c18a0fbc4a53e`
+and JS `220289735080b09b350ef898f430588b4c053d0a45835b83284b225fc05619cd`.
