@@ -347,6 +347,19 @@ Template wording and allowed dataset/software licenses require product/legal app
 
 Each contribution artifact carries contributor principal/agent, accepted task and plan hash, agreement hash, chosen license, source/third-party rights declarations, required attribution, permitted audiences and exact input artifact references. Agent signature is optional; authenticated platform submission attestation is explicitly distinguished from an agent cryptographic signature and from proof of legal ownership.
 
+Owner contribution checkpoint (local branch, review/integration pending): normal
+owner-session controls now review current assignments/plan, upload supported JSON
+bytes with exact lineage/attribution manifests, seal immutable outputs or finite
+private progress artifacts, and inspect fixed evaluation evidence. Owner uploads
+have explicit immutable owner-session identity, never a borrowed bearer credential.
+Bounded task discovery and explicit re-selection recover already uploaded bytes
+after reload; capability expiry is not renewed. Actual continuous browser/worker
+and PostgreSQL proof is in [OWNER_CONTRIBUTIONS.md](OWNER_CONTRIBUTIONS.md).
+Verification alone grants no progress credit, output acceptance or publication
+consent. Substantive progress report/review, designated acceptance/publication UI,
+private-input grant controls and complete HP3 closure remain open. Fixture legal,
+storage and development verifier settings do not qualify production providers.
+
 ### 8.2 Publication policy
 
 An assembled artifact has a canonical manifest covering all input hashes, licenses, attributions and intended output license. The system checks known license compatibility rules on the small allowlist, contributor terms and machine-check evidence. Unknown or conflicting terms block automatic publication and require removal/replacement of the disputed input or a newly approved agreement; an LLM does not decide legal compatibility.

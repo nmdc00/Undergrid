@@ -22,6 +22,7 @@ const artifactLimitations = "Fixed structural checks only: no factual truth, cov
 
 type storedArtifact struct {
 	id, swarm, plan, task, principal, agent, generation, state, purpose, media string
+	authentication                                                             string
 	sha, manifestHash, planHash, agreement, license                            string
 	size, epoch, version                                                       int64
 	manifest                                                                   []byte
@@ -34,11 +35,11 @@ func loadArtifact(ctx context.Context, tx pgx.Tx, id string, lock bool) (storedA
 	var a storedArtifact
 	q := `SELECT id,swarm_id,plan_id,task_id,principal_id,agent_id,generation,state,purpose,media_type,size_bytes,claim_epoch,version,
 	 COALESCE(sha256,''),COALESCE(manifest_hash,''),COALESCE(plan_hash,''),COALESCE(agreement_hash,''),COALESCE(license_id,''),manifest_bytes,required_rights,
-	 audience_principal_ids::text[],COALESCE(progress_reviewer_principal_id::text,'') FROM artifacts WHERE id=$1`
+	 audience_principal_ids::text[],COALESCE(progress_reviewer_principal_id::text,''),upload_authentication FROM artifacts WHERE id=$1`
 	if lock {
 		q += " FOR UPDATE"
 	}
-	err := tx.QueryRow(ctx, q, id).Scan(&a.id, &a.swarm, &a.plan, &a.task, &a.principal, &a.agent, &a.generation, &a.state, &a.purpose, &a.media, &a.size, &a.epoch, &a.version, &a.sha, &a.manifestHash, &a.planHash, &a.agreement, &a.license, &a.manifest, &a.rights, &a.audience, &a.reviewer)
+	err := tx.QueryRow(ctx, q, id).Scan(&a.id, &a.swarm, &a.plan, &a.task, &a.principal, &a.agent, &a.generation, &a.state, &a.purpose, &a.media, &a.size, &a.epoch, &a.version, &a.sha, &a.manifestHash, &a.planHash, &a.agreement, &a.license, &a.manifest, &a.rights, &a.audience, &a.reviewer, &a.authentication)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return a, fail(404, "not_found")
 	}
@@ -145,7 +146,17 @@ func (s *Service) artifactCommand(r *http.Request, tx pgx.Tx, a actor) (int, any
 			return 0, nil, err
 		}
 		r.Body = io.NopCloser(bytes.NewReader(canonical(in)))
-		return idempotent(r, tx, a, func() (int, any, error) { return s.createArtifactUpload(r, tx, a) })
+		command := r
+		if a.ownerAuthenticated {
+			command = r.Clone(r.Context())
+			command.URL.Path = "/v1/owner/agents/" + a.AgentID + "/tasks/" + in.Task + "/artifact-uploads"
+		}
+		return idempotent(command, tx, a, func() (int, any, error) {
+			if expected := r.Header.Get("If-Match"); a.ownerAuthenticated && expected != "" && expected != etag(t.version) {
+				return 0, nil, fail(409, "version_conflict")
+			}
+			return s.createArtifactUpload(command, tx, a)
+		})
 	}
 	parts := strings.Split(r.URL.Path, "/")
 	if len(parts) < 4 || len(parts) > 5 || !validID(parts[3]) {
@@ -221,6 +232,22 @@ func (s *Service) artifactCommand(r *http.Request, tx pgx.Tx, a actor) (int, any
 		return 0, nil, err
 	}
 	if r.Method == "PUT" && parts[4] == "upload" {
+		if art.authentication == "owner_session" {
+			token := r.URL.Query().Get("token")
+			value, err := hex.DecodeString(token)
+			if err != nil || len(value) != 32 {
+				return 0, nil, fail(401, "invalid_upload_capability")
+			}
+			hash := sha256.Sum256([]byte(token))
+			var current bool
+			if err = tx.QueryRow(r.Context(), "SELECT upload_digest=$2 AND upload_expires_at>clock_timestamp() FROM artifacts WHERE id=$1", art.id, hash[:]).Scan(&current); err != nil {
+				return 0, nil, err
+			}
+			if !current {
+				return 0, nil, fail(401, "invalid_upload_capability")
+			}
+		}
+
 		if art.state != "quarantine" {
 			return 0, nil, fail(409, "generation_is_sealed")
 		}
@@ -231,6 +258,10 @@ func (s *Service) artifactCommand(r *http.Request, tx pgx.Tx, a actor) (int, any
 	}
 	if r.Method != "POST" {
 		return 0, nil, fail(404, "not_found")
+	}
+	if a.ownerAuthenticated {
+		r = r.Clone(r.Context())
+		r.URL.Path = "/v1/owner/agents/" + a.AgentID + "/artifacts/" + art.id + "/" + parts[4]
 	}
 	return idempotent(r, tx, a, func() (int, any, error) {
 		switch parts[4] {
@@ -249,6 +280,10 @@ func (s *Service) artifactCommand(r *http.Request, tx pgx.Tx, a actor) (int, any
 	})
 }
 func (s *Service) currentArtifactAuthority(ctx context.Context, tx pgx.Tx, a actor, p storedPlan, t storedTask, art storedArtifact, submit bool) error {
+	if submit && art.id != "" && (a.ownerAuthenticated && art.authentication != "owner_session" || !a.ownerAuthenticated && art.authentication == "owner_session") {
+		return fail(403, "artifact_upload_authentication_required")
+	}
+
 	template, ok := s.templates[p.sealed.Plan.Rights.TemplateID]
 	if !ok || template.SHA256 != p.sealed.TemplateHash {
 		return fail(409, "plan_terms_expired_or_changed")
@@ -350,10 +385,20 @@ func (s *Service) createArtifactUpload(r *http.Request, tx pgx.Tx, a actor) (int
 	if in.Reviewer != "" {
 		reviewer = in.Reviewer
 	}
-	if _, err = tx.Exec(r.Context(), `INSERT INTO artifacts(id,swarm_id,plan_id,task_id,principal_id,agent_id,claim_epoch,generation,purpose,audience_principal_ids,progress_reviewer_principal_id,size_bytes,media_type,upload_digest,upload_credential_id,upload_expires_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::uuid[],$11,$12,$13,$14,$15,$16)`, id, in.Swarm, in.Plan, in.Task, a.PrincipalID, a.AgentID, in.Epoch, generation, in.Purpose, audience, reviewer, in.Size, in.Media, hash[:], a.CredentialID, expires); err != nil {
+	var credential any = a.CredentialID
+	authentication := "credential"
+	if a.ownerAuthenticated {
+		credential = nil
+		authentication = "owner_session"
+	}
+	if _, err = tx.Exec(r.Context(), `INSERT INTO artifacts(id,swarm_id,plan_id,task_id,principal_id,agent_id,claim_epoch,generation,purpose,audience_principal_ids,progress_reviewer_principal_id,size_bytes,media_type,upload_digest,upload_credential_id,upload_expires_at,upload_authentication) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::uuid[],$11,$12,$13,$14,$15,$16,$17)`, id, in.Swarm, in.Plan, in.Task, a.PrincipalID, a.AgentID, in.Epoch, generation, in.Purpose, audience, reviewer, in.Size, in.Media, hash[:], credential, expires, authentication); err != nil {
 		return 0, nil, err
 	}
 	result := map[string]any{"id": id, "state": "quarantine", "purpose": in.Purpose, "generation": generation, "upload_url": s.artifacts.config.Origin + "/v1/artifacts/" + id + "/upload?token=" + token, "expires_at": expires, "size_bytes": in.Size, "media_type": in.Media}
+	if a.ownerAuthenticated {
+		result["upload_authentication"] = "owner_session"
+		result["upload_url"] = s.artifacts.config.Origin + "/v1/owner/agents/" + a.AgentID + "/artifacts/" + id + "/upload?token=" + token
+	}
 	if in.Purpose == "progress" {
 		result["audience_principal_ids"] = audience
 		result["reviewer_principal_id"] = in.Reviewer

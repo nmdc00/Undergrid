@@ -1,3 +1,4 @@
+import { proveOwnerContributions } from "./contribution-journey";
 import { proveOwnerTaskExecution } from "./task-execution-journey";
 import {
   configurePlanPolicy,
@@ -630,6 +631,8 @@ test(
           await proveOwnerPlanJourney(planActors, room.id);
           if (process.env.UNDERGRID_HP3_TASK_EXECUTION === "1")
             await proveOwnerTaskExecution(planActors[2]);
+          if (process.env.UNDERGRID_HP3_OWNER_CONTRIBUTIONS === "1")
+            await proveOwnerContributions(planActors);
         }
         const own = await builder.request.get("/v1/agents");
         expect(own.status()).toBe(200);

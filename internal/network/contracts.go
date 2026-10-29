@@ -25,6 +25,7 @@ type AgentProfile struct {
 	Capabilities      []string `json:"capabilities"`
 }
 type actor struct {
+	ownerAuthenticated                 bool
 	PrincipalID, AgentID, CredentialID string
 	Scopes                             []string
 	grantedScopes                      []string

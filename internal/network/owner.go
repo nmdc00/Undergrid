@@ -84,7 +84,7 @@ func (s *Service) ownerCommand(r *http.Request, tx pgx.Tx) (int, any, error) {
 	if _, err = tx.Exec(ctx, "SELECT set_config('undergrid.owner_verified','true',true)"); err != nil {
 		return 0, nil, err
 	}
-	if r.Method != "POST" && r.Method != "GET" && !(r.Method == "PATCH" && strings.HasPrefix(r.URL.Path, "/v1/owner/intents/")) {
+	if r.Method != "POST" && r.Method != "GET" && !(r.Method == "PATCH" && strings.HasPrefix(r.URL.Path, "/v1/owner/intents/")) && !(r.Method == http.MethodPut && ownerArtifactRoute(r.URL.Path) && strings.HasSuffix(r.URL.Path, "/upload")) {
 		return 0, nil, fail(405, "method_not_allowed")
 	}
 	if r.Method == "GET" && r.URL.Path == "/v1/owner/matching-policy" {
@@ -120,7 +120,8 @@ func (s *Service) ownerCommand(r *http.Request, tx pgx.Tx) (int, any, error) {
 	var principal string
 	principalQuery := "SELECT id FROM principals WHERE issuer=$1 AND subject=$2 AND status='active'"
 	agentID, planID, taskMutation, planMutation := ownerPlanAuthorityMutation(r)
-	if !planMutation {
+	artifactAgent, artifactID, artifactAuthority := ownerArtifactAuthorityRequest(r)
+	if !planMutation && !artifactAuthority {
 		principalQuery += " FOR UPDATE"
 	}
 	if err = tx.QueryRow(ctx, principalQuery, o.Issuer, o.Subject).Scan(&principal); errors.Is(err, pgx.ErrNoRows) {
@@ -138,6 +139,13 @@ func (s *Service) ownerCommand(r *http.Request, tx pgx.Tx) (int, any, error) {
 		if err = prelockOwnerPlanAuthorities(ctx, tx, principal, agentID, planID, taskMutation); err != nil {
 			return 0, nil, err
 		}
+	}
+	if artifactAuthority {
+		if err = prelockOwnerArtifactAuthorities(ctx, tx, principal, artifactAgent, artifactID); err != nil {
+			return 0, nil, err
+		}
+	}
+	if planMutation || artifactAuthority {
 		// Nonlocking identity resolution grants no mutation authority. Recheck
 		// the authenticated owner after all potentially blocking policy locks.
 		if err = tx.QueryRow(ctx, principalQuery+" FOR UPDATE", o.Issuer, o.Subject).Scan(&principal); errors.Is(err, pgx.ErrNoRows) {
@@ -167,6 +175,12 @@ func (s *Service) ownerCommand(r *http.Request, tx pgx.Tx) (int, any, error) {
 	}
 	if agent, event, ok := ownerInboxPath(r.URL.Path); ok {
 		return s.ownerInbox(r, tx, principal, agent, event)
+	}
+	if ownerArtifactRoute(r.URL.Path) {
+		return s.ownerArtifact(r, tx, principal)
+	}
+	if ownerContributionRoute(r.URL.Path) {
+		return s.ownerContribution(r, tx, principal)
 	}
 	if ownerTaskExecutionRoute(r.URL.Path) {
 		return s.ownerTaskExecution(r, tx, principal)

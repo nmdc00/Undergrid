@@ -1,3 +1,4 @@
+import { OwnerContributions } from "./OwnerContributions";
 import { OwnerTaskExecution } from "./OwnerTaskExecution";
 import { useEffect, useRef, useState } from "react";
 import { ApiError, object, request, text, type ObjectValue } from "./api";
@@ -200,6 +201,17 @@ export function OwnerAssignmentResponse({
                 onUnauthorized={onUnauthorized}
               />
             )}
+          {planAccepted && (
+            <OwnerContributions
+              key={`contribution:${csrf}:${agent}:${plan}:${hash}:${t.id}`}
+              agent={agent}
+              plan={plan}
+              hash={hash}
+              taskID={t.id}
+              csrf={csrf}
+              onUnauthorized={onUnauthorized}
+            />
+          )}
           {saved[t.id] ? (
             <p role="status">
               {saved[t.id] === "accept"

@@ -43,6 +43,25 @@ const baseline={id:'a8391ea6-5003-401e-85e1-47c116fe3da0',version:1,etag:'"1"',s
 if (!publicIntent(baseline)) throw Error('Independent public fixture invalid');
 if (publicIntent({...baseline,budget:{amount_minor:100,currency:'EUR',kind:'stated_budget'}})) throw Error('Public budget leak permitted');
 if (publicIntent({...baseline,version:'1'})) throw Error('String version permitted');
+if (process.argv.includes('--owner-contributions')) {
+ const created=cases.find(c=>c.status===201&&c.path.endsWith('/artifact-uploads'));
+ const sealed=cases.filter(c=>c.status===200&&c.path.endsWith('/finalize'));
+ const page=cases.find(c=>c.status===200&&c.path.includes('/tasks/')&&c.path.endsWith('/artifacts'));
+ if(!created||sealed.length!==2||!page)throw Error('Missing actual owner create/finalize/recovery/discovery evidence');
+ const input=validateSchema({$ref:'#/components/schemas/OwnerArtifactUploadInput'});
+ for(const mutate of [x=>x.principal_id=baseline.id,x=>x.task_id=baseline.id,x=>x.claim_epoch='1',x=>x.size_bytes=10485761,x=>x.approve_publication=true]){
+  const invalid=structuredClone(created.request);mutate(invalid);if(input(invalid))throw Error('Owner contribution input permits invalid context or authority');
+ }
+ const upload=validateSchema({$ref:'#/components/schemas/OwnerArtifactUpload'});
+ for(const mutate of [x=>x.upload_authentication='credential',x=>x.token='secret',x=>x.purpose='accepted_output',x=>x.size_bytes=0]){
+  const invalid=structuredClone(created.response);mutate(invalid);if(upload(invalid))throw Error('Owner quarantine permits wrong identity or fabricated authority');
+ }
+ const list=validateSchema({$ref:'#/components/schemas/OwnerTaskArtifacts'});
+ if(list({...page.response,items:Array(101).fill(page.response.items[0])}))throw Error('Owner discovery bound bypass');
+ const leaked=structuredClone(page.response);leaked.items[0].upload_url='https://secret.invalid';
+ if(list(leaked))throw Error('Metadata discovery permits capability disclosure');
+ console.log(`Validated ${cases.length} actual owner contribution cases with authority/identity/privacy negatives`);process.exit(0);
+}
 if (process.argv.includes('--owner-task-execution')) {
  const actual=cases.filter(c=>c.status===200 && c.path.startsWith('/v1/owner/agents/') && c.path.endsWith('/progress'));
  if(actual.length<2)throw Error('Missing actual execution and retained recovery cases');

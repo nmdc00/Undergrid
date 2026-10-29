@@ -2198,6 +2198,146 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/owner/agents/{agent_id}/tasks/{id}/artifact-uploads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create an owner-session contribution quarantine
+         * @description Owned active assignee and current plan, task, dependency, epoch and rights authority are checked before exact recovery. New allocations require task If-Match. A quarantine is neither delivery nor verification, acceptance, publication or spending consent. Immutable short-lived capability requires this owner session for byte transfer.
+         */
+        post: operations["owner_artifact_upload_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/agents/{agent_id}/tasks/{id}/artifacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Discover contribution metadata for the selected owned assignee task
+         * @description Current owned active assignee and room authority plus artifact RLS. At most100 entries ordered by UUID, not chronology. New uploads may require refresh from first page. No capability token or renewed expiry.
+         */
+        get: operations["owner_task_artifacts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/agents/{agent_id}/artifacts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Owner contribution metadata
+         * @description Verified owner selects an owned active actor. Shared artifact domain and RLS retain current authority, exact epoch/plan, purpose/audience and immutable bytes/manifest contracts. Mutations require CSRF. Acceptance/publication/spending authority is separate.
+         */
+        get: operations["owner_artifact_read"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/agents/{agent_id}/artifacts/{id}/evaluations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Owner contribution evaluations
+         * @description Verified owner selects an owned active actor. Shared artifact domain and RLS retain current authority, exact epoch/plan, purpose/audience and immutable bytes/manifest contracts. Mutations require CSRF. Acceptance/publication/spending authority is separate.
+         */
+        get: operations["owner_artifact_evaluations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/agents/{agent_id}/artifacts/{id}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Owner contribution content
+         * @description Verified owner selects an owned active actor. Shared artifact domain and RLS retain current authority, exact epoch/plan, purpose/audience and immutable bytes/manifest contracts. Mutations require CSRF. Acceptance/publication/spending authority is separate.
+         */
+        get: operations["owner_artifact_content"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/agents/{agent_id}/artifacts/{id}/finalize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Owner contribution finalize
+         * @description Verified owner selects an owned active actor. Shared artifact domain and RLS retain current authority, exact epoch/plan, purpose/audience and immutable bytes/manifest contracts. Mutations require CSRF. Acceptance/publication/spending authority is separate.
+         */
+        post: operations["owner_artifact_finalize"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/owner/agents/{agent_id}/artifacts/{id}/upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Owner contribution upload
+         * @description Verified owner selects an owned active actor. Shared artifact domain and RLS retain current authority, exact epoch/plan, purpose/audience and immutable bytes/manifest contracts. Mutations require CSRF. Acceptance/publication/spending authority is separate. Requires exact unexpired immutable capability; no bearer credential is borrowed. Expired capability cannot overwrite bytes. Authorized finalization of already uploaded bytes remains separate.
+         */
+        put: operations["owner_artifact_upload"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3858,6 +3998,43 @@ export interface components {
             next_after: string;
             /** @constant */
             candidate_limit: 50;
+        };
+        OwnerArtifactUploadInput: {
+            claim_epoch: number;
+            /** @enum {string} */
+            purpose?: "output" | "progress";
+            audience_principal_ids?: string[];
+            /** Format: uuid */
+            reviewer_principal_id?: string;
+            /** @enum {string} */
+            media_type: "application/json";
+            size_bytes: number;
+        };
+        OwnerArtifactUpload: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            state: "quarantine";
+            /** @enum {string} */
+            purpose: "output" | "progress";
+            /** Format: uuid */
+            generation: string;
+            /** Format: uri */
+            upload_url: string;
+            /** Format: date-time */
+            expires_at: string;
+            size_bytes: number;
+            /** @enum {string} */
+            media_type: "application/json";
+            audience_principal_ids?: string[];
+            /** Format: uuid */
+            reviewer_principal_id?: string;
+            /** @constant */
+            upload_authentication: "owner_session";
+        } & unknown;
+        OwnerTaskArtifacts: {
+            items: components["schemas"]["PrivateArtifact"][];
+            next_after_id: string;
         };
     };
     responses: never;
@@ -8477,6 +8654,292 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Task"];
                 };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    owner_artifact_upload_create: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+                "If-Match": string;
+            };
+            path: {
+                id: string;
+                agent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OwnerArtifactUploadInput"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            201: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OwnerArtifactUpload"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    owner_task_artifacts: {
+        parameters: {
+            query?: {
+                after_id?: string;
+            };
+            header?: never;
+            path: {
+                agent_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OwnerTaskArtifacts"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    owner_artifact_read: {
+        parameters: {
+            query?: {
+                /** @description Required together with task_id for private scoped input reads by a nonmember. */
+                purpose?: "assembly" | "evaluation";
+                /** @description Current grant target task for private scoped input reads. */
+                task_id?: string;
+            };
+            header?: never;
+            path: {
+                agent_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Artifact"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    owner_artifact_evaluations: {
+        parameters: {
+            query?: {
+                /** @description Required together with task_id for private scoped input reads by a nonmember. */
+                purpose?: "assembly" | "evaluation";
+                /** @description Current grant target task for private scoped input reads. */
+                task_id?: string;
+            };
+            header?: never;
+            path: {
+                agent_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Evaluations"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    owner_artifact_content: {
+        parameters: {
+            query?: {
+                /** @description Required together with task_id for private scoped input reads by a nonmember. */
+                purpose?: "assembly" | "evaluation";
+                /** @description Current grant target task for private scoped input reads. */
+                task_id?: string;
+            };
+            header?: never;
+            path: {
+                agent_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never> | unknown[] | string | number | boolean | null;
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    owner_artifact_finalize: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                agent_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArtifactFinalize"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Artifact"];
+                };
+            };
+            /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
+            default: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    owner_artifact_upload: {
+        parameters: {
+            query: {
+                token: string;
+            };
+            header?: never;
+            path: {
+                agent_id: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/octet-stream": string;
+            };
+        };
+        responses: {
+            /** @description Bytes stored successfully; no response body. */
+            204: {
+                headers: {
+                    /** @description Server-generated request ID. Errors repeat this exact ID in the body. */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Safe error; status depends on authentication, visibility, validation, quotas and runtime availability. */
             default: {
