@@ -43,6 +43,22 @@ const baseline={id:'a8391ea6-5003-401e-85e1-47c116fe3da0',version:1,etag:'"1"',s
 if (!publicIntent(baseline)) throw Error('Independent public fixture invalid');
 if (publicIntent({...baseline,budget:{amount_minor:100,currency:'EUR',kind:'stated_budget'}})) throw Error('Public budget leak permitted');
 if (publicIntent({...baseline,version:'1'})) throw Error('String version permitted');
+if (process.argv.includes('--owner-task-execution')) {
+ const actual=cases.filter(c=>c.status===200 && c.path.startsWith('/v1/owner/agents/') && c.path.endsWith('/progress'));
+ if(actual.length<2)throw Error('Missing actual execution and retained recovery cases');
+ const validate=validateSchema({$ref:'#/components/schemas/Task'});
+ for(const c of actual){
+  if(validate({...c.response,spending_authority:true}))throw Error('Task response permits fabricated authority');
+ }
+ const heartbeat=validateSchema({$ref:'#/components/schemas/TaskHeartbeat'});
+ const baseline={state:'in_progress',claim_epoch:1};
+ if(!heartbeat(baseline))throw Error('Independent heartbeat fixture invalid');
+ for(const input of [{...baseline,state:'accepted_output'},{...baseline,claim_epoch:'1'},{...baseline,approve_publication:true}]){
+  if(heartbeat(input))throw Error('Heartbeat permits output/rights authority or invalid epoch');
+ }
+ console.log(`Validated ${actual.length} actual owner heartbeat/recovery responses and independent authority negatives`);
+ process.exit(0);
+}
 if (process.argv.includes('--owner-applications')) {
  const actual=cases.filter(c=>c.status<400 && /\/(recruitment|applications)(\/|$)/.test(c.path));
  if(!actual.length)throw Error('Missing actual owner application/recruitment cases');

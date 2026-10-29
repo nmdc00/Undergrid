@@ -34,7 +34,8 @@ func TestHP2LiveOwnerSelectedMatchRoomAndRecruitment(t *testing.T) {
 }
 func hp2LiveOwnerSetup(t *testing.T, mode hp2SetupMode) {
 	publication, builderRegistration := mode == hp2Publication, mode == hp2Builder
-	continuous := mode == hp2Continuous
+	execution := mode == hp3TaskExecution
+	continuous := mode == hp2Continuous || execution
 	planProposal := mode == hp2PlanProposal || continuous
 	applications := mode == hp2Applications || continuous
 	roomOrigin := mode == hp2RoomOrigin || applications
@@ -167,6 +168,9 @@ func hp2LiveOwnerSetup(t *testing.T, mode hp2SetupMode) {
 	if continuous {
 		browser.Env = append(browser.Env, "UNDERGRID_HP2_CONTINUOUS=1")
 	}
+	if execution {
+		browser.Env = append(browser.Env, "UNDERGRID_HP3_TASK_EXECUTION=1")
+	}
 	if publication {
 		browser.Env = append(browser.Env, "UNDERGRID_HP2_OWNER_PUBLICATION=1")
 	}
@@ -250,7 +254,10 @@ func hp2LiveOwnerSetup(t *testing.T, mode hp2SetupMode) {
 	}
 	if planProposal {
 		expectedCollaborationEffects = 22
-		assertHP2PlanFinalState(t, ctx, admin)
+		assertHP2PlanFinalState(t, ctx, admin, execution)
+		if execution {
+			assertOwnerExecutionBrowserState(t, ctx, admin)
+		}
 	}
 	if collaborationEffects != expectedCollaborationEffects {
 		t.Fatalf("setup fabricated %d collaboration effects", collaborationEffects)

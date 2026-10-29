@@ -1,3 +1,4 @@
+import { OwnerTaskExecution } from "./OwnerTaskExecution";
 import { useEffect, useRef, useState } from "react";
 import { ApiError, object, request, text, type ObjectValue } from "./api";
 type Task = {
@@ -55,6 +56,7 @@ export function OwnerAssignmentResponse({
   termsURL,
   csrf,
   onUnauthorized,
+  planAccepted = false,
 }: {
   agent: string;
   plan: string;
@@ -62,6 +64,7 @@ export function OwnerAssignmentResponse({
   termsURL: string;
   csrf: string;
   onUnauthorized: () => void;
+  planAccepted?: boolean;
 }) {
   const [tasks, setTasks] = useState<Task[] | null>(null),
     [ack, setAck] = useState<Record<string, boolean>>({}),
@@ -180,6 +183,23 @@ export function OwnerAssignmentResponse({
             State: {t.state}. Respond by {t.response_deadline}.
           </p>
           <pre>{JSON.stringify(t.specification, null, 2)}</pre>
+          {planAccepted &&
+            [
+              "accepted",
+              "in_progress",
+              "changes_requested",
+              "at_risk",
+            ].includes(t.state) && (
+              <OwnerTaskExecution
+                key={`${csrf}:${agent}:${plan}:${hash}:${t.id}`}
+                agent={agent}
+                plan={plan}
+                hash={hash}
+                taskID={t.id}
+                csrf={csrf}
+                onUnauthorized={onUnauthorized}
+              />
+            )}
           {saved[t.id] ? (
             <p role="status">
               {saved[t.id] === "accept"

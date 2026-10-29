@@ -298,6 +298,8 @@ Public roles expose no private ceilings, hidden member lists or unpublished requ
 
 ### 7.2 Plan and task transitions
 
+Owner task execution checkpoint: owner current-task review and unverified activity controls are implemented and locally proven on `feat/v0.1-owner-task-execution`. The same domain transaction serves agent and owner commands, including current rights policy before retained receipt recovery. Heartbeats preserve progress/cure clocks and do not accept output or grant consent. Actual browser/worker and restricted race proof are recorded in [owner task execution evidence](OWNER_TASK_EXECUTION.md); release integration/checks remain pending. Verified progress evidence, contribution upload, output acceptance, publication and reuse remain distinct HP3 outcomes.
+
 Plan states: `proposed → accepted|rejected|expired|withdrawn`; accepted revisions become `superseded` only when a replacement is accepted. Every plan hashes objective, task specifications/dependencies, contributor, acceptance and additional publication principal sets, rights template/version and deadlines. Additional publication approvers can increase, never remove, required rights-holder consent. Stale writes fail `409`; no silent merging. One currently accepted plan per swarm, enforced under swarm lock.
 
 Task states: `open → offered → accepted → in_progress → submitted → accepted_output`; `changes_requested` returns to in_progress under a new contribution attempt. `offered → expired → open`; accepted/in_progress can enter `at_risk`, `withdrawn` or `abandoned`. Work claim epoch increments on replacement. State `accepted` means assignment accepted, `accepted_output` means deliverable accepted; their wire names are deliberately distinct.

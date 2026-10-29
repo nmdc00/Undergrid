@@ -257,6 +257,21 @@ func (s *Service) planCommand(r *http.Request, tx pgx.Tx, a actor) (int, any, er
 	if err = roomAuthority(r.Context(), tx, a, p.swarm, false); err != nil {
 		return 0, nil, err
 	}
+	if parts[2] == "tasks" && parts[4] == "progress" {
+		// A retained execution receipt cannot bypass withdrawn rights policy or
+		// current assignment attribution. Both owner and agent channels enter here
+		// under canonical plan authority locks before recovery or new effects.
+		task, err := loadTask(r.Context(), tx, id, false)
+		if err != nil {
+			return 0, nil, err
+		}
+		if task.agent != a.AgentID {
+			return 0, nil, fail(403, "assignee_required")
+		}
+		if _, _, err := s.requireRights(r.Context(), tx, a, p.sealed.Plan.Rights); err != nil {
+			return 0, nil, err
+		}
+	}
 	return idempotent(r, tx, a, func() (int, any, error) {
 		if parts[2] == "plans" {
 			return s.approvePlan(r, tx, a, planID)
