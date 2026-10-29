@@ -134,6 +134,6 @@ closure.
 - `/tmp/undergrid-owner-contributions-bytes-integrated-oct29.jsonl`
 - `/tmp/undergrid-owner-contributions-policy-recovery-oct29.jsonl`
 
-The retained vet log is empty and no vet process remains, but the prior exit
-status was not retained across context recovery; it is not counted as a proven
-static gate. Rerun the gate before integration.
+The prior empty vet log lacked a retained exit status after context recovery.
+A fresh `go vet ./...` on `dd8d4c5` exits0; log:
+`/tmp/undergrid-owner-contributions-dd8d4c5-vet-oct29.log`.
