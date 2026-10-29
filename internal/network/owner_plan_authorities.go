@@ -58,7 +58,7 @@ func ownerPlanAuthorityMutation(r *http.Request) (agent, resource string, task, 
 		return agent, plan, false, true
 	}
 	parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
-	if r.Method == http.MethodPost && len(parts) == 7 && parts[0] == "v1" && parts[1] == "owner" && parts[2] == "agents" && parts[4] == "tasks" && (parts[6] == "assignment-response" || parts[6] == "progress") && validID(parts[3]) && validID(parts[5]) {
+	if r.Method == http.MethodPost && len(parts) == 7 && parts[0] == "v1" && parts[1] == "owner" && parts[2] == "agents" && parts[4] == "tasks" && (parts[6] == "assignment-response" || parts[6] == "progress" || parts[6] == "artifact-uploads") && validID(parts[3]) && validID(parts[5]) {
 		return parts[3], parts[5], true, true
 	}
 	return "", "", false, false

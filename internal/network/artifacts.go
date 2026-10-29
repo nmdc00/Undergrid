@@ -145,7 +145,17 @@ func (s *Service) artifactCommand(r *http.Request, tx pgx.Tx, a actor) (int, any
 			return 0, nil, err
 		}
 		r.Body = io.NopCloser(bytes.NewReader(canonical(in)))
-		return idempotent(r, tx, a, func() (int, any, error) { return s.createArtifactUpload(r, tx, a) })
+		command := r
+		if a.ownerAuthenticated {
+			command = r.Clone(r.Context())
+			command.URL.Path = "/v1/owner/agents/" + a.AgentID + "/tasks/" + in.Task + "/artifact-uploads"
+		}
+		return idempotent(command, tx, a, func() (int, any, error) {
+			if expected := r.Header.Get("If-Match"); expected != "" && expected != etag(t.version) {
+				return 0, nil, fail(409, "version_conflict")
+			}
+			return s.createArtifactUpload(command, tx, a)
+		})
 	}
 	parts := strings.Split(r.URL.Path, "/")
 	if len(parts) < 4 || len(parts) > 5 || !validID(parts[3]) {
@@ -350,10 +360,20 @@ func (s *Service) createArtifactUpload(r *http.Request, tx pgx.Tx, a actor) (int
 	if in.Reviewer != "" {
 		reviewer = in.Reviewer
 	}
-	if _, err = tx.Exec(r.Context(), `INSERT INTO artifacts(id,swarm_id,plan_id,task_id,principal_id,agent_id,claim_epoch,generation,purpose,audience_principal_ids,progress_reviewer_principal_id,size_bytes,media_type,upload_digest,upload_credential_id,upload_expires_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::uuid[],$11,$12,$13,$14,$15,$16)`, id, in.Swarm, in.Plan, in.Task, a.PrincipalID, a.AgentID, in.Epoch, generation, in.Purpose, audience, reviewer, in.Size, in.Media, hash[:], a.CredentialID, expires); err != nil {
+	var credential any = a.CredentialID
+	authentication := "credential"
+	if a.ownerAuthenticated {
+		credential = nil
+		authentication = "owner_session"
+	}
+	if _, err = tx.Exec(r.Context(), `INSERT INTO artifacts(id,swarm_id,plan_id,task_id,principal_id,agent_id,claim_epoch,generation,purpose,audience_principal_ids,progress_reviewer_principal_id,size_bytes,media_type,upload_digest,upload_credential_id,upload_expires_at,upload_authentication) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::uuid[],$11,$12,$13,$14,$15,$16,$17)`, id, in.Swarm, in.Plan, in.Task, a.PrincipalID, a.AgentID, in.Epoch, generation, in.Purpose, audience, reviewer, in.Size, in.Media, hash[:], credential, expires, authentication); err != nil {
 		return 0, nil, err
 	}
 	result := map[string]any{"id": id, "state": "quarantine", "purpose": in.Purpose, "generation": generation, "upload_url": s.artifacts.config.Origin + "/v1/artifacts/" + id + "/upload?token=" + token, "expires_at": expires, "size_bytes": in.Size, "media_type": in.Media}
+	if a.ownerAuthenticated {
+		result["upload_authentication"] = "owner_session"
+		result["upload_url"] = s.artifacts.config.Origin + "/v1/owner/agents/" + a.AgentID + "/artifacts/" + id + "/upload?token=" + token
+	}
 	if in.Purpose == "progress" {
 		result["audience_principal_ids"] = audience
 		result["reviewer_principal_id"] = in.Reviewer

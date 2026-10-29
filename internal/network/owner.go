@@ -168,6 +168,9 @@ func (s *Service) ownerCommand(r *http.Request, tx pgx.Tx) (int, any, error) {
 	if agent, event, ok := ownerInboxPath(r.URL.Path); ok {
 		return s.ownerInbox(r, tx, principal, agent, event)
 	}
+	if ownerContributionRoute(r.URL.Path) {
+		return s.ownerContribution(r, tx, principal)
+	}
 	if ownerTaskExecutionRoute(r.URL.Path) {
 		return s.ownerTaskExecution(r, tx, principal)
 	}
