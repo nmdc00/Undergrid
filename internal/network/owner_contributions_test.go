@@ -428,3 +428,47 @@ func TestOwnerContributionPolicyWithdrawalBlocksBytesAndReceiptRecovery(t *testi
 		})
 	}
 }
+
+func TestOwnerContributionReloadDiscoversOwnedTaskGenerations(t *testing.T) {
+	x := newArtifactScenario(t)
+	owner := x.actors[2]
+	_, who := owner.call("GET", "/v1/me", "", nil)
+	base := "/v1/owner/agents/" + who["agent_id"].(string) + "/tasks/" + x.task["id"].(string)
+	ids := map[string]bool{}
+	for i := 0; i < 2; i++ {
+		code, upload := ownerCallMatch(owner, "POST", base+"/artifact-uploads", NewID(), x.task["etag"].(string), map[string]any{"claim_epoch": x.task["claim_epoch"], "media_type": "application/json", "size_bytes": 12})
+		if code != 201 {
+			t.Fatal(code, upload)
+		}
+		ids[upload["id"].(string)] = true
+	}
+	code, out := ownerCallMatch(owner, "GET", base+"/artifacts", "", "", nil)
+	if code != 200 {
+		t.Fatal("returning owner cannot discover contribution generations", code, out)
+	}
+	items, ok := out["items"].([]any)
+	if !ok || len(items) != 2 || out["next_after_id"] != "" {
+		t.Fatal("incomplete reload listing", out)
+	}
+	previous := ""
+	for _, raw := range items {
+		item := raw.(map[string]any)
+		id := item["id"].(string)
+		if !ids[id] || id <= previous || item["task_id"] != x.task["id"] || item["state"] != "quarantine" {
+			t.Fatal("incorrect task generation", item)
+		}
+		if _, exists := item["upload_url"]; exists {
+			t.Fatal("listing leaked capability")
+		}
+		previous = id
+	}
+	if code, next := ownerCallMatch(owner, "GET", base+"/artifacts?after_id="+previous, "", "", nil); code != 200 || len(next["items"].([]any)) != 0 {
+		t.Fatal("cursor repeated generations", code, next)
+	}
+	if code, _ := ownerCallMatch(owner, "GET", base+"/artifacts?after_id=invalid", "", "", nil); code != 400 {
+		t.Fatal("invalid cursor accepted", code)
+	}
+	if code, _ := ownerCallMatch(x.actors[3], "GET", base+"/artifacts", "", "", nil); code != 404 {
+		t.Fatal("foreign owner enumerated task", code)
+	}
+}
